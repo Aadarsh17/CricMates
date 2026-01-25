@@ -221,6 +221,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             extra: null, 
             outcome: `Retired`,
             strikerId: inning.strikerId,
+            nonStrikerId: inning.nonStrikerId,
             bowlerId: inning.bowlerId,
             timestamp: Date.now() 
         };
@@ -296,6 +297,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const deliveryRecord: DeliveryRecord = { 
           ...outcome, 
           strikerId: inning.strikerId,
+          nonStrikerId: inning.nonStrikerId,
           bowlerId: inning.bowlerId,
           timestamp: Date.now() 
         };
