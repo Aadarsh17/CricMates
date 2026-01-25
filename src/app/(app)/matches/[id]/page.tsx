@@ -182,7 +182,7 @@ export default function MatchPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle>{getTeamById(secondInning.battingTeamId)?.name} Innings</CardTitle>
-                        </Header>
+                        </CardHeader>
                         <CardContent className="text-center">
                             <div className="text-5xl font-bold">{secondInning.score}/{secondInning.wickets}</div>
                             <div className="text-md text-muted-foreground">Overs: {secondInning.overs.toFixed(1)}</div>
