@@ -163,7 +163,7 @@ export default function MatchPage() {
                     <CardTitle className="text-xl font-bold tracking-tight font-headline flex justify-between items-center">
                         <span>{team1.name} vs {team2.name}</span>
                         {match.status === 'completed' ? (
-                           <div className="flex items-center gap-2">
+                           <div className="flex items-center gap-2 print:hidden">
                                <Button variant="outline" size="icon" onClick={handleShare}>
                                    <Share2 className="h-4 w-4" />
                                    <span className="sr-only">Share</span>
