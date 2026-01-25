@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { teams as initialTeams, players as initialPlayers } from '@/lib/data';
 import type { Team, Player, Match, Inning, DeliveryRecord } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
@@ -34,7 +34,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [teams, setTeams] = useState<Team[]>(initialTeams);
   const [players, setPlayers] = useState<Player[]>(initialPlayers);
   const [matches, setMatches] = useState<Match[]>([]);
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const savedTeams = localStorage.getItem('cricmates_teams');
+    const savedPlayers = localStorage.getItem('cricmates_players');
+    const savedMatches = localStorage.getItem('cricmates_matches');
+
+    if (savedTeams) {
+      setTeams(JSON.parse(savedTeams));
+    }
+    if (savedPlayers) {
+      setPlayers(JSON.parse(savedPlayers));
+    }
+    if (savedMatches) {
+      setMatches(JSON.parse(savedMatches));
+    }
+    setIsDataLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (isDataLoaded) {
+      localStorage.setItem('cricmates_teams', JSON.stringify(teams));
+    }
+  }, [teams, isDataLoaded]);
+
+  useEffect(() => {
+    if (isDataLoaded) {
+      localStorage.setItem('cricmates_players', JSON.stringify(players));
+    }
+  }, [players, isDataLoaded]);
+
+  useEffect(() => {
+    if (isDataLoaded) {
+      localStorage.setItem('cricmates_matches', JSON.stringify(matches));
+    }
+  }, [matches, isDataLoaded]);
 
   const handleInningEnd = (match: Match, teamsData: Team[]): Match => {
     const updatedMatch = JSON.parse(JSON.stringify(match));
