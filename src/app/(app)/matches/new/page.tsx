@@ -11,6 +11,8 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowRight } from 'lucide-react';
@@ -22,8 +24,11 @@ export default function NewMatchPage() {
   const [step, setStep] = useState(1);
   const [team1, setTeam1] = useState<Team | null>(null);
   const [team2, setTeam2] = useState<Team | null>(null);
+  const [overs, setOvers] = useState<number>(20);
+  const [tossWinner, setTossWinner] = useState<string | null>(null);
+  const [tossDecision, setTossDecision] = useState<'bat' | 'bowl' | null>(null);
 
-  const handleStartMatch = () => {
+  const goToTeamSelection = () => {
     setStep(2);
   };
   
@@ -36,7 +41,7 @@ export default function NewMatchPage() {
     }
   };
   
-  const handleNext = () => {
+  const goToMatchConfig = () => {
     if (!team1 || !team2) {
       toast({
         variant: "destructive",
@@ -53,12 +58,24 @@ export default function NewMatchPage() {
         });
         return;
     }
-    
-    toast({
-        title: "Teams Selected",
-        description: `${team1.name} vs ${team2.name}. Next step coming soon!`,
-    });
+    setStep(3);
   };
+
+  const handleStartMatch = () => {
+     if (!tossWinner || !tossDecision || overs <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Configuration Incomplete",
+        description: "Please configure all match settings.",
+      });
+      return;
+    }
+
+    toast({
+        title: "Match Starting!",
+        description: `A ${overs} over match between ${team1?.name} and ${team2?.name}. ${teams.find(t => t.id === tossWinner)?.name} won the toss and chose to ${tossDecision}. Inning simulation coming soon!`,
+    });
+  }
 
   if (step === 1) {
     return (
@@ -68,7 +85,7 @@ export default function NewMatchPage() {
           <p className="text-sm text-muted-foreground">
             Ready to start a new cricket match?
           </p>
-          <Button onClick={handleStartMatch}>
+          <Button onClick={goToTeamSelection}>
             Start New Match
           </Button>
         </div>
@@ -122,7 +139,7 @@ export default function NewMatchPage() {
                         </div>
                     </div>
                     <div className="flex justify-end">
-                        <Button onClick={handleNext}>
+                        <Button onClick={goToMatchConfig}>
                             Next <ArrowRight className="ml-2 h-4 w-4" />
                         </Button>
                     </div>
@@ -130,6 +147,72 @@ export default function NewMatchPage() {
             </Card>
         </div>
     )
+  }
+
+  if (step === 3) {
+    return (
+      <div className="flex justify-center items-start pt-10">
+        <Card className="w-full max-w-2xl">
+          <CardHeader>
+            <CardTitle>Match Setup</CardTitle>
+            <CardDescription>Configure the match settings before you start.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="overs">Number of Overs</Label>
+              <Input 
+                id="overs" 
+                type="number" 
+                placeholder="e.g., 20" 
+                value={overs}
+                onChange={(e) => setOvers(Number(e.target.value))}
+              />
+            </div>
+            {team1 && team2 && (
+              <div className="space-y-2">
+                <Label>Who won the toss?</Label>
+                <RadioGroup 
+                  onValueChange={(value) => setTossWinner(value)}
+                  value={tossWinner || undefined}
+                  className="flex gap-4 pt-2"
+                >
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value={team1.id} id={team1.id} />
+                    <Label htmlFor={team1.id} className="font-normal">{team1.name}</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value={team2.id} id={team2.id} />
+                    <Label htmlFor={team2.id} className="font-normal">{team2.name}</Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Toss Decision</Label>
+              <RadioGroup 
+                onValueChange={(value: 'bat' | 'bowl') => setTossDecision(value)}
+                value={tossDecision || undefined}
+                className="flex gap-4 pt-2"
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="bat" id="bat" />
+                  <Label htmlFor="bat" className="font-normal">Bat</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="bowl" id="bowl" />
+                  <Label htmlFor="bowl" className="font-normal">Bowl</Label>
+                </div>
+              </RadioGroup>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleStartMatch}>
+                Start Match
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return null;
