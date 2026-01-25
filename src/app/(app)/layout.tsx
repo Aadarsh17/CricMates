@@ -1,3 +1,4 @@
+
 'use client';
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -46,7 +47,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="flex h-full max-h-screen flex-col gap-2">
               <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
                 <Link
-                  href="/teams"
+                  href="/home"
                   className="flex items-center gap-2 font-semibold"
                 >
                   <Shield className="h-6 w-6 text-primary" />
@@ -56,11 +57,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex-1">
                 <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
                   <Link
-                    href="/teams"
+                    href="/home"
                     className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
                   >
                     <Home className="h-4 w-4" />
                     Home
+                  </Link>
+                  <Link
+                    href="/teams"
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+                  >
+                    <Users className="h-4 w-4" />
+                    Teams
                   </Link>
                   <Link
                     href="/matches/new"
@@ -111,18 +119,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <SheetContent side="left" className="flex flex-col">
                     <nav className="grid gap-2 text-lg font-medium">
                       <Link
-                        href="/teams"
+                        href="/home"
                         className="flex items-center gap-2 text-lg font-semibold mb-4"
                       >
                         <Shield className="h-6 w-6 text-primary" />
                         <span className="font-headline">CricMates</span>
                       </Link>
                       <Link
-                        href="/teams"
+                        href="/home"
                         className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                       >
                         <Home className="h-5 w-5" />
                         Home
+                      </Link>
+                      <Link
+                        href="/teams"
+                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <Users className="h-5 w-5" />
+                        Teams
                       </Link>
                       <Link
                         href="/matches/new"
@@ -155,7 +170,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </nav>
                   </SheetContent>
                 </Sheet>
-                {pathname !== '/teams' && pathname !== '/' && (
+                {pathname !== '/home' && (
                   <Button variant="outline" size="icon" onClick={() => router.back()}>
                     <ArrowLeft className="h-4 w-4" />
                     <span className="sr-only">Back</span>
