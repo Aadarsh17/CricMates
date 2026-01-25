@@ -12,6 +12,7 @@ type PlayerData = {
 }
 
 interface AppContextType {
+  isDataLoaded: boolean;
   teams: Team[];
   players: Player[];
   matches: Match[];
@@ -417,6 +418,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const value = {
+      isDataLoaded,
       teams,
       players,
       matches,
