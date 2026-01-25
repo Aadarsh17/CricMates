@@ -24,12 +24,24 @@ export type Player = {
   isRetired: boolean;
 };
 
+export type DeliveryRecord = {
+  runs: number;
+  isWicket: boolean;
+  extra: 'wide' | 'noball' | null;
+  outcome: string; // e.g. '1', 'W', '4', 'Wd'
+  timestamp: number;
+};
+
 export type Inning = {
   battingTeamId: string;
   bowlingTeamId: string;
   score: number;
   wickets: number;
   overs: number;
+  strikerId: string | null;
+  nonStrikerId: string | null;
+  bowlerId: string | null;
+  deliveryHistory: DeliveryRecord[];
 };
 
 export type Match = {

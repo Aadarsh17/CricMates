@@ -4,13 +4,68 @@ import { useParams, notFound } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trophy } from 'lucide-react';
+import { Trophy, ArrowLeftRight, Undo } from 'lucide-react';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Player } from '@/lib/types';
+import { Badge } from '@/components/ui/badge';
+
+const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled = false }: { label: string, players: Player[], selectedPlayerId: string | null, onSelect: (playerId: string) => void, disabled?: boolean }) => (
+    <div className="space-y-2 flex-1">
+        <Label>{label}</Label>
+        <Select onValueChange={onSelect} value={selectedPlayerId || ''} disabled={disabled}>
+            <SelectTrigger>
+                <SelectValue placeholder={`Select ${label}`} />
+            </SelectTrigger>
+            <SelectContent>
+                {players.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+            </SelectContent>
+        </Select>
+    </div>
+)
+
+const CurrentOver = ({ deliveries, overs }: { deliveries: any[], overs: number }) => {
+    const overNumber = Math.floor(overs);
+    const ballsInOver = Math.round((overs - overNumber) * 10);
+    
+    let legalBallCount = 0;
+    let startIndex = -1;
+
+    for (let i = deliveries.length - 1; i >= 0; i--) {
+        if (!deliveries[i].extra) {
+            legalBallCount++;
+        }
+        if (legalBallCount === ballsInOver) {
+            startIndex = i;
+            break;
+        }
+    }
+    if (ballsInOver === 0) startIndex = deliveries.length;
+    if (startIndex === -1 && deliveries.length > 0) startIndex = 0;
+    
+    const overDeliveries = startIndex !== -1 ? deliveries.slice(startIndex) : [];
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Current Over</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-wrap gap-2">
+                {overDeliveries.length > 0 ? overDeliveries.map((d, i) => (
+                    <Badge key={i} variant={d.isWicket ? 'destructive' : 'secondary'} className="text-lg px-3 py-1">
+                        {d.outcome}
+                    </Badge>
+                )) : <p className="text-sm text-muted-foreground">No deliveries bowled in this over yet.</p>}
+            </CardContent>
+        </Card>
+    );
+};
+
 
 export default function MatchPage() {
     const params = useParams();
     const matchId = params.id as string;
-    const { getMatchById, getTeamById, recordDelivery } = useAppContext();
+    const { getMatchById, getTeamById, getPlayersByTeamId, recordDelivery, setPlayerInMatch, swapStrikers, undoDelivery } = useAppContext();
 
     const match = getMatchById(matchId);
 
@@ -21,15 +76,19 @@ export default function MatchPage() {
     const team1 = getTeamById(match.team1Id);
     const team2 = getTeamById(match.team2Id);
     
+    const currentInning = match.innings[match.currentInning-1];
     const firstInning = match.innings[0];
     const secondInning = match.innings.length > 1 ? match.innings[1] : null;
     
-    if (!team1 || !team2) {
+    if (!team1 || !team2 || !currentInning) {
         notFound();
     }
 
-    const handleDelivery = (outcome: { runs?: number, wicket?: boolean, extra?: 'wide' | 'noball' | null }) => {
-        recordDelivery(match.id, outcome);
+    const battingTeamPlayers = getPlayersByTeamId(currentInning.battingTeamId);
+    const bowlingTeamPlayers = getPlayersByTeamId(currentInning.bowlingTeamId);
+    
+    const handleDelivery = (runs: number, isWicket: boolean, extra: 'wide' | 'noball' | null, outcome: string) => {
+        recordDelivery(match.id, { runs, isWicket, extra, outcome });
     };
 
     const UmpireControls = () => (
@@ -43,23 +102,25 @@ export default function MatchPage() {
                     <Label>Runs Scored</Label>
                     <div className="flex flex-wrap gap-2">
                         {[0, 1, 2, 3, 4, 6].map(runs => (
-                            <Button key={runs} variant="outline" onClick={() => handleDelivery({ runs, wicket: false, extra: null })}>
+                            <Button key={runs} variant="outline" onClick={() => handleDelivery(runs, false, null, runs.toString())}>
                                 {runs}
                             </Button>
                         ))}
                     </div>
                 </div>
                 <div className="space-y-2">
-                    <Label>Events</Label>
+                    <Label>Events & Extras</Label>
                     <div className="flex flex-wrap gap-2">
-                        <Button variant="destructive" onClick={() => handleDelivery({ runs: 0, wicket: true, extra: null })}>Wicket</Button>
+                        <Button variant="destructive" onClick={() => handleDelivery(0, true, null, 'W')}>Wicket</Button>
+                        <Button variant="secondary" onClick={() => handleDelivery(0, false, 'wide', 'Wd')}>Wide</Button>
+                        <Button variant="secondary" onClick={() => handleDelivery(0, false, 'noball', 'Nb')}>No Ball</Button>
                     </div>
                 </div>
-                <div className="space-y-2">
-                    <Label>Extras (adds 1 run, ball is re-bowled)</Label>
+                 <div className="space-y-2">
+                    <Label>Actions</Label>
                     <div className="flex flex-wrap gap-2">
-                        <Button variant="secondary" onClick={() => handleDelivery({ runs: 0, wicket: false, extra: 'wide' })}>Wide</Button>
-                        <Button variant="secondary" onClick={() => handleDelivery({ runs: 0, wicket: false, extra: 'noball' })}>No Ball</Button>
+                        <Button variant="outline" onClick={() => swapStrikers(match.id)}><ArrowLeftRight className="mr-2 h-4 w-4" /> Swap Strikers</Button>
+                        <Button variant="outline" onClick={() => undoDelivery(match.id)}><Undo className="mr-2 h-4 w-4" /> Undo</Button>
                     </div>
                 </div>
             </CardContent>
@@ -78,6 +139,15 @@ export default function MatchPage() {
                         {`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}
                     </CardDescription>
                 </CardHeader>
+                 {match.status === 'live' && (
+                    <CardContent className="space-y-4">
+                        <div className="flex flex-col md:flex-row gap-4">
+                            <PlayerSelector label="Striker" players={battingTeamPlayers} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match.id, 'striker', id)} disabled={currentInning.wickets >= 10} />
+                            <PlayerSelector label="Non-Striker" players={battingTeamPlayers} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match.id, 'nonStriker', id)} disabled={currentInning.wickets >= 10} />
+                            <PlayerSelector label="Bowler" players={bowlingTeamPlayers} selectedPlayerId={currentInning.bowlerId} onSelect={(id) => setPlayerInMatch(match.id, 'bowler', id)} />
+                        </div>
+                    </CardContent>
+                 )}
             </Card>
 
             {match.status === 'completed' && match.result && (
@@ -126,6 +196,7 @@ export default function MatchPage() {
                 )}
             </div>
 
+            {match.status === 'live' && <CurrentOver deliveries={currentInning.deliveryHistory} overs={currentInning.overs} />}
             {match.status === 'live' && <UmpireControls />}
         </div>
     );
