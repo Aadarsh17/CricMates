@@ -4,11 +4,13 @@ import { useParams, notFound } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trophy, ArrowLeftRight, Undo } from 'lucide-react';
+import { Trophy, ArrowLeftRight, Undo, UserOff } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Player } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
+import { SelectBowlerDialog } from '@/components/match/select-bowler-dialog';
+import { useEffect, useState } from 'react';
 
 const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled = false }: { label: string, players: Player[], selectedPlayerId: string | null, onSelect: (playerId: string) => void, disabled?: boolean }) => (
     <div className="space-y-2 flex-1">
@@ -71,9 +73,25 @@ const CurrentOver = ({ deliveries, overs }: { deliveries: any[], overs: number }
 export default function MatchPage() {
     const params = useParams();
     const matchId = params.id as string;
-    const { getMatchById, getTeamById, getPlayersByTeamId, recordDelivery, setPlayerInMatch, swapStrikers, undoDelivery } = useAppContext();
+    const { getMatchById, getTeamById, getPlayersByTeamId, recordDelivery, setPlayerInMatch, swapStrikers, undoDelivery, retireStriker } = useAppContext();
+    const [isBowlerDialogOpen, setIsBowlerDialogOpen] = useState(false);
 
     const match = getMatchById(matchId);
+
+    useEffect(() => {
+        if (!match || match.status !== 'live') return;
+        const inning = match.innings[match.currentInning - 1];
+        
+        const justFinishedAnOver = inning.overs > 0 && inning.overs % 1 === 0 && inning.deliveryHistory.length > 0;
+        if (justFinishedAnOver && !inning.bowlerId) {
+            if (!isBowlerDialogOpen) {
+                const lastDelivery = inning.deliveryHistory[inning.deliveryHistory.length - 1];
+                if (lastDelivery && !lastDelivery.extra) {
+                    setIsBowlerDialogOpen(true);
+                }
+            }
+        }
+      }, [match, isBowlerDialogOpen]);
 
     if (!match) {
         notFound();
@@ -96,6 +114,12 @@ export default function MatchPage() {
     const handleDelivery = (runs: number, isWicket: boolean, extra: 'wide' | 'noball' | null, outcome: string) => {
         recordDelivery(match.id, { runs, isWicket, extra, outcome });
     };
+    
+    const unbattedPlayers = battingTeamPlayers.filter(p => 
+        !match.innings.some(inning => 
+            inning.deliveryHistory.some(d => d.isWicket && inning.strikerId === p.id)
+        )
+    );
 
     const UmpireControls = () => (
         <Card>
@@ -127,6 +151,7 @@ export default function MatchPage() {
                     <div className="flex flex-wrap gap-2">
                         <Button variant="outline" onClick={() => swapStrikers(match.id)}><ArrowLeftRight className="mr-2 h-4 w-4" /> Swap Strikers</Button>
                         <Button variant="outline" onClick={() => undoDelivery(match.id)}><Undo className="mr-2 h-4 w-4" /> Undo</Button>
+                        <Button variant="outline" onClick={() => retireStriker(match.id)}><UserOff className="mr-2 h-4 w-4" /> Retire</Button>
                     </div>
                 </div>
             </CardContent>
@@ -135,6 +160,14 @@ export default function MatchPage() {
     
     return (
         <div className="space-y-6">
+            <SelectBowlerDialog 
+                open={isBowlerDialogOpen}
+                bowlers={bowlingTeamPlayers}
+                onBowlerSelect={(bowlerId) => {
+                    setPlayerInMatch(match.id, 'bowler', bowlerId);
+                    setIsBowlerDialogOpen(false);
+                }}
+            />
             <Card>
                 <CardHeader>
                     <CardTitle className="text-2xl font-bold tracking-tight font-headline flex justify-between items-center">
@@ -148,9 +181,9 @@ export default function MatchPage() {
                  {match.status === 'live' && (
                     <CardContent className="space-y-4">
                         <div className="flex flex-col md:flex-row gap-4">
-                            <PlayerSelector label="Striker" players={battingTeamPlayers} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match.id, 'striker', id)} disabled={currentInning.wickets >= 10} />
-                            <PlayerSelector label="Non-Striker" players={battingTeamPlayers} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match.id, 'nonStriker', id)} disabled={currentInning.wickets >= 10} />
-                            <PlayerSelector label="Bowler" players={bowlingTeamPlayers} selectedPlayerId={currentInning.bowlerId} onSelect={(id) => setPlayerInMatch(match.id, 'bowler', id)} />
+                            <PlayerSelector label="Striker" players={unbattedPlayers} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match.id, 'striker', id)} disabled={!!currentInning.strikerId || currentInning.wickets >= 10} />
+                            <PlayerSelector label="Non-Striker" players={unbattedPlayers} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match.id, 'nonStriker', id)} disabled={!!currentInning.nonStrikerId || currentInning.wickets >= 10} />
+                            <PlayerSelector label="Bowler" players={bowlingTeamPlayers} selectedPlayerId={currentInning.bowlerId} onSelect={(id) => setPlayerInMatch(match.id, 'bowler', id)} disabled={!!currentInning.bowlerId} />
                         </div>
                     </CardContent>
                  )}
