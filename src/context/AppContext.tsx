@@ -207,8 +207,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addMatch = async (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => {
     const { team1Id, team2Id, overs, tossWinnerId, tossDecision } = matchConfig;
     
-    const battingTeamId = tossDecision === 'bat' ? tossWinnerId : (tossWinnerId === team1Id ? team2Id : team1Id);
-    const bowlingTeamId = tossWinnerId === battingTeamId ? (battingTeamId === team1Id ? team2Id : team1Id) : tossWinnerId;
+    const otherTeamId = tossWinnerId === team1Id ? team2Id : team1Id;
+    const battingTeamId = tossDecision === 'bat' ? tossWinnerId : otherTeamId;
+    const bowlingTeamId = tossDecision === 'bowl' ? tossWinnerId : otherTeamId;
 
     const newMatch: Omit<Match, 'id'> = {
       team1Id,
