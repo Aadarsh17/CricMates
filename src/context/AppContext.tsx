@@ -46,10 +46,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
-    // Set data as loaded without retrieving from localStorage.
-    // This effectively resets the data on each page load.
-    setIsDataLoaded(true);
-  }, []);
+    try {
+      const storedTeams = localStorage.getItem('cricmates_teams');
+      const storedPlayers = localStorage.getItem('cricmates_players');
+      const storedMatches = localStorage.getItem('cricmates_matches');
+
+      if (storedTeams) {
+        setTeams(JSON.parse(storedTeams));
+      }
+      if (storedPlayers) {
+        setPlayers(JSON.parse(storedPlayers));
+      }
+      if (storedMatches) {
+        setMatches(JSON.parse(storedMatches));
+      }
+    } catch (error) {
+      console.error("Failed to parse data from localStorage", error);
+      toast({
+        variant: "destructive",
+        title: "Could not load data",
+        description: "There was an error reading your saved data. It has been reset.",
+      });
+      localStorage.removeItem('cricmates_teams');
+      localStorage.removeItem('cricmates_players');
+      localStorage.removeItem('cricmates_matches');
+    } finally {
+      setIsDataLoaded(true);
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    if (isDataLoaded) {
+      try {
+        localStorage.setItem('cricmates_teams', JSON.stringify(teams));
+        localStorage.setItem('cricmates_players', JSON.stringify(players));
+        localStorage.setItem('cricmates_matches', JSON.stringify(matches));
+      } catch (error) {
+        console.error("Failed to save data to localStorage", error);
+        toast({
+            variant: "destructive",
+            title: "Could not save data",
+            description: "There was an error saving your data.",
+        });
+      }
+    }
+  }, [teams, players, matches, isDataLoaded, toast]);
+
 
   const handleInningEnd = (match: Match, teamsData: Team[]): Match => {
     const updatedMatch = JSON.parse(JSON.stringify(match));
