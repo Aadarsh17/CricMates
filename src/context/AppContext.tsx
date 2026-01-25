@@ -78,8 +78,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
 
+    const battingTeamPlayers = players.filter(p => p.teamId === inning.battingTeamId);
+    const numberOfPlayers = battingTeamPlayers.length;
+    // A standard team has 11 players. All out is when 10 wickets have fallen.
+    // If a team has fewer players, the inning ends when (number of players - 1) wickets fall.
+    // We default to 10 if there aren't enough players defined to avoid innings ending prematurely.
+    const allOutWickets = numberOfPlayers >= 2 ? numberOfPlayers - 1 : 10;
+
     let inningIsOver = false;
-    if (inning.wickets >= 10 || inning.overs >= updatedMatch.overs) {
+    if (inning.wickets >= allOutWickets || inning.overs >= updatedMatch.overs) {
         inningIsOver = true;
     }
 
@@ -111,7 +118,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const secondInningTeam = teamsData.find(t => t.id === secondInning.battingTeamId);
 
             if (secondInning.score > firstInning.score) {
-                updatedMatch.result = `${secondInningTeam?.name} won by ${10 - secondInning.wickets} wickets.`;
+                const secondInningBattingTeamPlayers = players.filter(p => p.teamId === secondInning.battingTeamId);
+                const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length;
+                const allOutWicketsForSecondTeam = numberOfPlayersInSecondTeam >= 2 ? numberOfPlayersInSecondTeam - 1 : 10;
+                const wicketsRemaining = allOutWicketsForSecondTeam - secondInning.wickets;
+                updatedMatch.result = `${secondInningTeam?.name} won by ${wicketsRemaining} wickets.`;
             } else if (firstInning.score > secondInning.score) {
                 updatedMatch.result = `${firstInningTeam?.name} won by ${firstInning.score - secondInning.score} runs.`;
             } else {
