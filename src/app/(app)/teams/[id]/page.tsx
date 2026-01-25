@@ -8,10 +8,11 @@ import PlayerCard from '@/components/players/player-card';
 import { AddPlayerDialog } from '@/components/players/add-player-dialog';
 
 export default function TeamDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params;
   const [teams, setTeams] = useState<Team[]>(initialTeams);
   const [players, setPlayers] = useState<Player[]>(initialPlayers);
 
-  const team = teams.find((t) => t.id === params.id);
+  const team = teams.find((t) => t.id === id);
 
   if (!team) {
     notFound();
@@ -31,6 +32,14 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
     setPlayers(prevPlayers => [...prevPlayers, newPlayer]);
   };
 
+  const handleEditPlayer = (playerId: string, playerData: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper'; }) => {
+    setPlayers(prevPlayers => prevPlayers.map(p => p.id === playerId ? { ...p, ...playerData } : p));
+  };
+
+  const handleDeletePlayer = (playerId: string) => {
+    setPlayers(prevPlayers => prevPlayers.filter(p => p.id !== playerId));
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -46,7 +55,12 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
       {teamPlayers.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {teamPlayers.map((player) => (
-            <PlayerCard key={player.id} player={player} />
+            <PlayerCard 
+              key={player.id} 
+              player={player} 
+              onEdit={(playerData) => handleEditPlayer(player.id, playerData)}
+              onDelete={() => handleDeletePlayer(player.id)}
+            />
           ))}
         </div>
       ) : (

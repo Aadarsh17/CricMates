@@ -1,20 +1,43 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { Player } from "@/lib/types";
-import { BarChart, Shield, Star, Trophy, Zap } from "lucide-react";
+import { BarChart, Shield, Star, Trophy, Zap, MoreVertical } from "lucide-react";
+import { Button } from "../ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import { EditPlayerDialog } from "./edit-player-dialog";
+import { DeletePlayerDialog } from "./delete-player-dialog";
 
 interface PlayerCardProps {
   player: Player;
+  onEdit: (data: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper'; }) => void;
+  onDelete: () => void;
 }
 
-export default function PlayerCard({ player }: PlayerCardProps) {
+export default function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-4">
+      <CardHeader className="flex flex-row items-start justify-between pb-4">
         <CardTitle className="text-lg font-headline">{player.name}</CardTitle>
-        <Badge variant={player.isRetired ? "outline" : "default"} className={player.isRetired ? "border-destructive text-destructive" : ""}>
-          {player.isRetired ? "Retired" : player.role}
-        </Badge>
+        <div className="flex items-center gap-1">
+          <Badge variant={player.isRetired ? "outline" : "default"} className={player.isRetired ? "border-destructive text-destructive" : ""}>
+            {player.isRetired ? "Retired" : player.role}
+          </Badge>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <EditPlayerDialog player={player} onPlayerEdit={onEdit} />
+              <DeletePlayerDialog onDelete={onDelete} />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3 text-sm text-muted-foreground">
         <div className="flex items-center gap-3">
