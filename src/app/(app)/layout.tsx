@@ -20,8 +20,10 @@ import {
   Trophy,
   PlusCircle,
   Users,
+  ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { AppProvider } from "@/context/AppContext";
 import { FirebaseClientProvider } from "@/firebase";
@@ -33,6 +35,8 @@ const HeaderPlaceholder = () => (
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const userAvatar = PlaceHolderImages.find((img) => img.id === "user-avatar");
+  const router = useRouter();
+  const pathname = usePathname();
 
   return (
     <FirebaseClientProvider>
@@ -56,7 +60,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
                   >
                     <Home className="h-4 w-4" />
-                    Teams
+                    Home
                   </Link>
                   <Link
                     href="/matches/new"
@@ -118,7 +122,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                       >
                         <Home className="h-5 w-5" />
-                        Teams
+                        Home
                       </Link>
                       <Link
                         href="/matches/new"
@@ -151,6 +155,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </nav>
                   </SheetContent>
                 </Sheet>
+                {pathname !== '/teams' && pathname !== '/' && (
+                  <Button variant="outline" size="icon" onClick={() => router.back()}>
+                    <ArrowLeft className="h-4 w-4" />
+                    <span className="sr-only">Back</span>
+                  </Button>
+                )}
                 <div className="w-full flex-1">
                   {/* Can add a search bar here later */}
                 </div>
