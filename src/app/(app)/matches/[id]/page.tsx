@@ -4,7 +4,7 @@ import { useParams, notFound } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trophy, ArrowLeftRight, Undo, UserOff } from 'lucide-react';
+import { Trophy, ArrowLeftRight, Undo, UserX } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Player } from '@/lib/types';
@@ -151,7 +151,7 @@ export default function MatchPage() {
                     <div className="flex flex-wrap gap-2">
                         <Button variant="outline" onClick={() => swapStrikers(match.id)}><ArrowLeftRight className="mr-2 h-4 w-4" /> Swap Strikers</Button>
                         <Button variant="outline" onClick={() => undoDelivery(match.id)}><Undo className="mr-2 h-4 w-4" /> Undo</Button>
-                        <Button variant="outline" onClick={() => retireStriker(match.id)}><UserOff className="mr-2 h-4 w-4" /> Retire</Button>
+                        <Button variant="outline" onClick={() => retireStriker(match.id)}><UserX className="mr-2 h-4 w-4" /> Retire</Button>
                     </div>
                 </div>
             </CardContent>
