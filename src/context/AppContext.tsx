@@ -33,6 +33,7 @@ interface AppContextType {
   swapStrikers: (matchId: string) => void;
   undoDelivery: (matchId: string) => void;
   retireStriker: (matchId: string) => void;
+  forceEndInning: (matchId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -79,11 +80,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
 
     const battingTeamPlayers = players.filter(p => p.teamId === inning.battingTeamId);
-    const numberOfPlayers = battingTeamPlayers.length;
-    // A standard team has 11 players. All out is when 10 wickets have fallen.
-    // If a team has fewer players, the inning ends when (number of players - 1) wickets fall.
-    // We default to 10 if there aren't enough players defined to avoid innings ending prematurely.
-    const allOutWickets = numberOfPlayers >= 2 ? numberOfPlayers - 1 : 10;
+    const numberOfPlayers = battingTeamPlayers.length > 0 ? battingTeamPlayers.length : 11;
+    const allOutWickets = numberOfPlayers - 1;
 
     let inningIsOver = false;
     if (inning.wickets >= allOutWickets || inning.overs >= updatedMatch.overs) {
@@ -119,8 +117,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
             if (secondInning.score > firstInning.score) {
                 const secondInningBattingTeamPlayers = players.filter(p => p.teamId === secondInning.battingTeamId);
-                const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length;
-                const allOutWicketsForSecondTeam = numberOfPlayersInSecondTeam >= 2 ? numberOfPlayersInSecondTeam - 1 : 10;
+                const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length > 0 ? secondInningBattingTeamPlayers.length : 11;
+                const allOutWicketsForSecondTeam = numberOfPlayersInSecondTeam - 1;
                 const wicketsRemaining = allOutWicketsForSecondTeam - secondInning.wickets;
                 updatedMatch.result = `${secondInningTeam?.name} won by ${wicketsRemaining} wickets.`;
             } else if (firstInning.score > secondInning.score) {
@@ -428,6 +426,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }));
   };
 
+  const forceEndInning = (matchId: string) => {
+    setMatches(prevMatches => prevMatches.map(m => {
+        if (m.id !== matchId || m.status !== 'live') return m;
+
+        let updatedMatch = JSON.parse(JSON.stringify(m));
+
+        if (updatedMatch.currentInning === 1) {
+            const currentInning = updatedMatch.innings[0];
+            const nextBattingTeamId = updatedMatch.team1Id === currentInning.battingTeamId ? updatedMatch.team2Id : updatedMatch.team1Id;
+            const nextBowlingTeamId = currentInning.battingTeamId;
+            updatedMatch.innings.push({
+                battingTeamId: nextBattingTeamId,
+                bowlingTeamId: nextBowlingTeamId,
+                score: 0,
+                wickets: 0,
+                overs: 0,
+                strikerId: null,
+                nonStrikerId: null,
+                bowlerId: null,
+                deliveryHistory: [],
+            });
+            updatedMatch.currentInning = 2;
+            toast({ title: "Inning Ended Manually", description: "The first inning has been concluded. Starting second inning." });
+        } else { 
+            updatedMatch.status = 'completed';
+            const firstInning = updatedMatch.innings[0];
+            const secondInning = updatedMatch.innings[1];
+            const firstInningTeam = teams.find(t => t.id === firstInning.battingTeamId);
+            const secondInningTeam = teams.find(t => t.id === secondInning.battingTeamId);
+
+            if (secondInning.score > firstInning.score) {
+                const secondInningBattingTeamPlayers = players.filter(p => p.teamId === secondInning.battingTeamId);
+                const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length > 0 ? secondInningBattingTeamPlayers.length : 11;
+                const allOutWicketsForSecondTeam = numberOfPlayersInSecondTeam - 1;
+                const wicketsRemaining = allOutWicketsForSecondTeam - secondInning.wickets;
+                updatedMatch.result = `${secondInningTeam?.name} won by ${wicketsRemaining} wickets.`;
+            } else if (firstInning.score > secondInning.score) {
+                updatedMatch.result = `${firstInningTeam?.name} won by ${firstInning.score - secondInning.score} runs.`;
+            } else {
+                updatedMatch.result = "Match is a Tie.";
+            }
+             toast({ title: "Match Ended", description: `Match has been manually concluded. ${updatedMatch.result}` });
+        }
+        return updatedMatch;
+    }));
+  };
+
   const value = {
       isDataLoaded,
       teams,
@@ -450,6 +495,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       swapStrikers,
       undoDelivery,
       retireStriker,
+      forceEndInning,
   };
 
   return (

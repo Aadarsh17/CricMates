@@ -9,6 +9,7 @@ import { UserX } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
 import type { Match } from "@/lib/types";
 import { Badge } from '../ui/badge';
+import { Separator } from '../ui/separator';
 
 type ExtraOptions = {
     wicket: boolean;
@@ -19,7 +20,7 @@ type ExtraOptions = {
 };
 
 export function UmpireControls({ match }: { match: Match }) {
-    const { recordDelivery, swapStrikers, undoDelivery, retireStriker } = useAppContext();
+    const { recordDelivery, swapStrikers, undoDelivery, retireStriker, forceEndInning } = useAppContext();
     const [extras, setExtras] = useState<ExtraOptions>({
         wicket: false, wide: false, noball: false, byes: false, legbyes: false
     });
@@ -82,7 +83,7 @@ export function UmpireControls({ match }: { match: Match }) {
             const ballsInOver = Math.round((overs - overNumber) * 10);
             if (ballsInOver > 0) {
                 legalBallsInCurrentOver = ballsInOver;
-            } else if (overs > 0 && overs % 1 === 0) {
+            } else if (overs > 0 && overs % 1 === 0 && deliveries.at(-1)?.extra !== 'wide' && deliveries.at(-1)?.extra !== 'noball') {
                 legalBallsInCurrentOver = 6;
             }
 
@@ -112,6 +113,8 @@ export function UmpireControls({ match }: { match: Match }) {
             </div>
         );
     };
+    
+    const endInningButtonText = match.currentInning === 1 ? 'End 1st Inning' : 'End Match';
 
     return (
         <Card>
@@ -146,8 +149,9 @@ export function UmpireControls({ match }: { match: Match }) {
                     <Button className="h-14 text-sm" variant="outline" onClick={() => swapStrikers(match.id)}>Swap</Button>
                     <Button className="h-14 text-sm" variant="outline" onClick={() => undoDelivery(match.id)}>Undo</Button>
                 </div>
-                 <div className="grid grid-cols-1">
+                 <div className="grid grid-cols-1 gap-2 border-t pt-4 mt-2">
                     <Button variant="destructive" onClick={() => retireStriker(match.id)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
+                    <Button variant="destructive" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match.id)}>{endInningButtonText}</Button>
                 </div>
             </CardContent>
         </Card>
