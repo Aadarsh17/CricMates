@@ -25,6 +25,11 @@ import Link from "next/link";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { AppProvider } from "@/context/AppContext";
 import { FirebaseClientProvider } from "@/firebase";
+import { ClientOnly } from "@/components/ClientOnly";
+
+const HeaderPlaceholder = () => (
+  <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 print:hidden" />
+);
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const userAvatar = PlaceHolderImages.find((img) => img.id === "user-avatar");
@@ -86,101 +91,103 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex flex-col">
-            <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 print:hidden">
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="shrink-0 md:hidden"
-                  >
-                    <Menu className="h-5 w-5" />
-                    <span className="sr-only">Toggle navigation menu</span>
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="flex flex-col">
-                  <nav className="grid gap-2 text-lg font-medium">
-                    <Link
-                      href="/teams"
-                      className="flex items-center gap-2 text-lg font-semibold mb-4"
+             <ClientOnly fallback={<HeaderPlaceholder />}>
+              <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 print:hidden">
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="shrink-0 md:hidden"
                     >
-                      <Shield className="h-6 w-6 text-primary" />
-                      <span className="font-headline">CricMates</span>
-                    </Link>
-                    <Link
-                      href="/teams"
-                      className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                      <Menu className="h-5 w-5" />
+                      <span className="sr-only">Toggle navigation menu</span>
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="flex flex-col">
+                    <nav className="grid gap-2 text-lg font-medium">
+                      <Link
+                        href="/teams"
+                        className="flex items-center gap-2 text-lg font-semibold mb-4"
+                      >
+                        <Shield className="h-6 w-6 text-primary" />
+                        <span className="font-headline">CricMates</span>
+                      </Link>
+                      <Link
+                        href="/teams"
+                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <Home className="h-5 w-5" />
+                        Teams
+                      </Link>
+                      <Link
+                        href="/matches/new"
+                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <PlusCircle className="h-5 w-5" />
+                        New Match
+                      </Link>
+                      <Link
+                        href="/matches"
+                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <BarChart className="h-5 w-5" />
+                        Match History
+                      </Link>
+                      <Link
+                        href="/points-table"
+                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <Trophy className="h-5 w-5" />
+                        Points Table
+                      </Link>
+                      <Link
+                        href="/player-stats"
+                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <Users className="h-5 w-5" />
+                        Player Stats
+                      </Link>
+                    </nav>
+                  </SheetContent>
+                </Sheet>
+                <div className="w-full flex-1">
+                  {/* Can add a search bar here later */}
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="secondary"
+                      size="icon"
+                      className="rounded-full"
                     >
-                      <Home className="h-5 w-5" />
-                      Teams
-                    </Link>
-                    <Link
-                      href="/matches/new"
-                      className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                    >
-                      <PlusCircle className="h-5 w-5" />
-                      New Match
-                    </Link>
-                    <Link
-                      href="/matches"
-                      className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                    >
-                      <BarChart className="h-5 w-5" />
-                      Match History
-                    </Link>
-                    <Link
-                      href="/points-table"
-                      className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                    >
-                      <Trophy className="h-5 w-5" />
-                      Points Table
-                    </Link>
-                    <Link
-                      href="/player-stats"
-                      className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                    >
-                      <Users className="h-5 w-5" />
-                      Player Stats
-                    </Link>
-                  </nav>
-                </SheetContent>
-              </Sheet>
-              <div className="w-full flex-1">
-                {/* Can add a search bar here later */}
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="secondary"
-                    size="icon"
-                    className="rounded-full"
-                  >
-                    <Avatar>
-                      {userAvatar && (
-                        <AvatarImage
-                          src={userAvatar.imageUrl}
-                          alt="User"
-                          data-ai-hint={userAvatar.imageHint}
-                        />
-                      )}
-                      <AvatarFallback>U</AvatarFallback>
-                    </Avatar>
-                    <span className="sr-only">Toggle user menu</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>Settings</DropdownMenuItem>
-                  <DropdownMenuItem>Support</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Logout</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </header>
+                      <Avatar>
+                        {userAvatar && (
+                          <AvatarImage
+                            src={userAvatar.imageUrl}
+                            alt="User"
+                            data-ai-hint={userAvatar.imageHint}
+                          />
+                        )}
+                        <AvatarFallback>U</AvatarFallback>
+                      </Avatar>
+                      <span className="sr-only">Toggle user menu</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>Settings</DropdownMenuItem>
+                    <DropdownMenuItem>Support</DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Logout</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </header>
+            </ClientOnly>
             <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background print:bg-transparent print:p-0 print:gap-0">
               {children}
             </main>
