@@ -32,7 +32,7 @@ export type DeliveryRecord = {
   bowlerId: string;
   runs: number;
   isWicket: boolean;
-  extra: 'wide' | 'noball' | null;
+  extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null;
   outcome: string; // e.g. '1', 'W', '4', 'Wd'
   timestamp: number;
 };

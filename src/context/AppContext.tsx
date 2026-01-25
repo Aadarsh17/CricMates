@@ -27,7 +27,7 @@ interface AppContextType {
   getPlayersByTeamId: (teamId: string) => Player[];
   addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => string;
   getMatchById: (matchId: string) => Match | undefined;
-  recordDelivery: (matchId: string, outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | null, outcome: string }) => void;
+  recordDelivery: (matchId: string, outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null, outcome: string }) => void;
   setPlayerInMatch: (matchId: string, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => void;
   swapStrikers: (matchId: string) => void;
   undoDelivery: (matchId: string) => void;
@@ -277,8 +277,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         let updatedMatch = JSON.parse(JSON.stringify(m));
         const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
         
-        if (!inning.strikerId || !inning.bowlerId) {
-            toast({ variant: "destructive", title: "Striker or Bowler not selected!"});
+        if (!inning.strikerId) {
+            toast({ variant: "destructive", title: "Striker not selected!"});
             return m;
         }
         
@@ -289,7 +289,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             outcome: `Retired`,
             strikerId: inning.strikerId,
             nonStrikerId: inning.nonStrikerId,
-            bowlerId: inning.bowlerId,
+            bowlerId: inning.bowlerId || '',
             timestamp: Date.now() 
         };
         inning.deliveryHistory.push(deliveryRecord);
@@ -321,13 +321,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
           let newScore = 0;
           let newWickets = 0;
           let newOvers = 0;
+          
+          const lastDelivery = inning.deliveryHistory[inning.deliveryHistory.length-1];
+          inning.strikerId = lastDelivery.strikerId;
+          inning.nonStrikerId = lastDelivery.nonStrikerId;
+          inning.bowlerId = lastDelivery.bowlerId;
+
 
           newHistory.forEach((delivery: DeliveryRecord) => {
-              newScore += delivery.runs;
-              if (delivery.extra) newScore +=1;
+             newScore += delivery.runs;
+              if (delivery.extra === 'wide' || delivery.extra === 'noball') {
+                newScore += 1;
+              }
               if (delivery.isWicket) newWickets += 1;
 
-              if (!delivery.extra) {
+              const isLegalDelivery = delivery.extra !== 'wide' && delivery.extra !== 'noball';
+              if (isLegalDelivery) {
                   const currentOverInt = Math.floor(newOvers);
                   const currentBalls = Math.round((newOvers % 1) * 10);
                   if (currentBalls === 5) {
@@ -343,13 +352,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           inning.overs = newOvers;
           inning.deliveryHistory = newHistory;
           
-          // Note: striker rotation on undo is not handled to keep this simple.
-
           return prevMatches.map(m => m.id === matchId ? updatedMatch : m);
       })
   }
 
-  const recordDelivery = (matchId: string, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | null; outcome: string }) => {
+  const recordDelivery = (matchId: string, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string }) => {
     setMatches(prevMatches => prevMatches.map(m => {
         if (m.id !== matchId || m.status !== 'live') return m;
 
@@ -370,20 +377,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
         inning.deliveryHistory.push(deliveryRecord);
 
-        if (outcome.runs) {
-            inning.score += outcome.runs;
-        }
-        if (outcome.extra) {
+        inning.score += outcome.runs;
+        if(outcome.extra === 'wide' || outcome.extra === 'noball'){
             inning.score += 1;
         }
+        
+        const isLegalDelivery = outcome.extra !== 'wide' && outcome.extra !== 'noball';
 
-        if (!outcome.extra) {
+        if (isLegalDelivery) {
             const currentOverInt = Math.floor(inning.overs);
             const currentBalls = Math.round((inning.overs % 1) * 10);
             
             if (currentBalls === 5) {
                 inning.overs = currentOverInt + 1;
-                // End of over, swap strikers and clear bowler
                 const temp = inning.strikerId;
                 inning.strikerId = inning.nonStrikerId;
                 inning.nonStrikerId = temp;
@@ -398,8 +404,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             inning.strikerId = null; // New batsman needed
         }
 
-        // Swap strikers on odd runs
-        if (!outcome.extra && (outcome.runs === 1 || outcome.runs === 3 || outcome.runs === 5)) {
+        const runsConsideredForStrikerSwap = (outcome.extra === 'byes' || outcome.extra === 'legbyes') ? 0 : outcome.runs;
+        if (isLegalDelivery && (runsConsideredForStrikerSwap % 2 !== 0)) {
             const temp = inning.strikerId;
             inning.strikerId = inning.nonStrikerId;
             inning.nonStrikerId = temp;

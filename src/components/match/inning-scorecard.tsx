@@ -24,6 +24,7 @@ type BattingStats = {
 
 type BowlingStats = {
   overs: string;
+  maidens: number;
   runs: number;
   wickets: number;
   economy: number;
@@ -67,12 +68,16 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
     inning.deliveryHistory.forEach(d => {
         const strikerStat = battingStats.get(d.strikerId);
         if (strikerStat) {
-            strikerStat.runs += d.runs;
-            if (!d.extra || d.extra === 'noball') {
+            if (d.extra !== 'byes' && d.extra !== 'legbyes') {
+                strikerStat.runs += d.runs;
+            }
+
+            if (d.extra !== 'wide') {
                 strikerStat.balls += 1;
             }
-            if (d.runs === 4) strikerStat.fours += 1;
-            if (d.runs === 6) strikerStat.sixes += 1;
+
+            if (d.runs === 4 && (d.extra !== 'byes' && d.extra !== 'legbyes')) strikerStat.fours += 1;
+            if (d.runs === 6 && (d.extra !== 'byes' && d.extra !== 'legbyes')) strikerStat.sixes += 1;
 
             if (d.isWicket) {
                 const currentWickets = wicketsTakenByBowler.get(d.bowlerId) || 0;
@@ -102,7 +107,7 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
     });
 
     const bowlingStats = new Map<string, BowlingStats>();
-    const bowlersUsed = [...new Set(inning.deliveryHistory.map(d => d.bowlerId))];
+    const bowlersUsed = [...new Set(inning.deliveryHistory.map(d => d.bowlerId).filter(Boolean))];
 
     bowlersUsed.forEach(bowlerId => {
         const bowlerDeliveries = inning.deliveryHistory.filter(d => d.bowlerId === bowlerId);
@@ -110,8 +115,8 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
         let legalBalls = 0;
         bowlerDeliveries.forEach(d => {
             runsConceded += d.runs;
-            if(d.extra) runsConceded += 1;
-            if(!d.extra) legalBalls +=1;
+            if(d.extra === 'wide' || d.extra === 'noball') runsConceded += 1;
+            if(d.extra !== 'wide' && d.extra !== 'noball') legalBalls +=1;
         });
 
         const wickets = wicketsTakenByBowler.get(bowlerId) || 0;
@@ -120,26 +125,32 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
             runs: runsConceded,
             overs: formatOvers(legalBalls),
             wickets: wickets,
-            economy: calculateEconomy(runsConceded, legalBalls)
+            economy: calculateEconomy(runsConceded, legalBalls),
+            maidens: 0, // Maiden calculation is complex, omitting for now
         })
     });
     
-    const extras = inning.deliveryHistory.filter(d => d.extra).length;
+    const extrasTotal = inning.deliveryHistory.reduce((acc, d) => {
+        if (d.extra === 'byes' || d.extra === 'legbyes') return acc + d.runs;
+        if (d.extra === 'wide' || d.extra === 'noball') return acc + 1;
+        return acc;
+    }, 0);
+
 
     // Sort batting order: batted, then yet to bat
     const sortedBattingPlayers = [...battingTeamPlayers].sort((a, b) => {
-        const aStat = battingStats.get(a.id)!;
-        const bStat = battingStats.get(b.id)!;
-        if (aStat.dismissal === 'Yet to bat' && bStat.dismissal !== 'Yet to bat') return 1;
-        if (aStat.dismissal !== 'Yet to bat' && bStat.dismissal === 'Yet to bat') return -1;
-        return 0; // keep original order for players who batted
+        const aBatted = battedPlayerIds.has(a.id);
+        const bBatted = battedPlayerIds.has(b.id);
+        if (aBatted && !bBatted) return -1;
+        if (!aBatted && bBatted) return 1;
+        return 0; // keep original order for players who batted/not batted
     });
 
 
     return (
         <Card>
             <CardHeader>
-                <CardTitle>{battingTeam.name}</CardTitle>
+                <CardTitle>{battingTeam.name} Innings</CardTitle>
             </CardHeader>
             <CardContent>
                 <h3 className="font-semibold mb-2 text-sm text-muted-foreground">BATTING</h3>
@@ -167,14 +178,14 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
                                 <TableCell className="text-right">{stats.balls}</TableCell>
                                 <TableCell className="text-right">{stats.fours}</TableCell>
                                 <TableCell className="text-right">{stats.sixes}</TableCell>
-                                <TableCell className="text-right">{stats.strikeRate.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">{stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00'}</TableCell>
                             </TableRow>
                         )})}
                     </TableBody>
                 </Table>
 
                 <div className="flex justify-between items-center mt-4 px-4 py-2 bg-muted/50 rounded-md">
-                   <p className="text-sm">Extras: {extras}</p>
+                   <p className="text-sm">Extras: {extrasTotal}</p>
                    <p className="font-bold">Total: {inning.score}/{inning.wickets} <span className="font-normal text-sm text-muted-foreground">({inning.overs.toFixed(1)} Overs)</span></p>
                 </div>
 
@@ -186,6 +197,7 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
                         <TableRow>
                             <TableHead className="w-[200px]">Bowler</TableHead>
                             <TableHead className="text-right">O</TableHead>
+                            <TableHead className="text-right">M</TableHead>
                             <TableHead className="text-right">R</TableHead>
                             <TableHead className="text-right">W</TableHead>
                             <TableHead className="text-right">ER</TableHead>
@@ -200,9 +212,10 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
                                  <TableRow key={bowler.id}>
                                     <TableCell className="font-medium">{bowler.name}</TableCell>
                                     <TableCell className="text-right">{stats.overs}</TableCell>
+                                    <TableCell className="text-right">{stats.maidens}</TableCell>
                                     <TableCell className="text-right">{stats.runs}</TableCell>
                                     <TableCell className="text-right">{stats.wickets}</TableCell>
-                                    <TableCell className="text-right">{stats.economy.toFixed(2)}</TableCell>
+                                    <TableCell className="text-right">{stats.economy > 0 ? stats.economy.toFixed(2): '0.00'}</TableCell>
                                 </TableRow>
                             )
                         })}
