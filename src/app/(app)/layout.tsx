@@ -54,14 +54,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
                 >
                   <PlusCircle className="h-4 w-4" />
-                  Matches
+                  New Match
                 </Link>
                 <Link
                   href="/matches"
                   className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
                 >
                   <BarChart className="h-4 w-4" />
-                  Matches History
+                  Match History
                 </Link>
                 <Link
                   href="/points-table"
@@ -115,14 +115,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                   >
                     <PlusCircle className="h-5 w-5" />
-                    Matches
+                    New Match
                   </Link>
                   <Link
                     href="/matches"
                     className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                   >
                     <BarChart className="h-5 w-5" />
-                    Matches History
+                    Match History
                   </Link>
                   <Link
                     href="/points-table"

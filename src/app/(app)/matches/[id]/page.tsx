@@ -40,6 +40,7 @@ const CurrentOver = ({ deliveries, overs }: { deliveries: any[], overs: number }
         if (ballsInOver > 0) {
             legalBallsInCurrentOver = ballsInOver;
         } else if (overs > 0 && overs % 1 === 0) {
+            // This case handles a just completed over (e.g., overs is 1.0, 2.0 etc)
             legalBallsInCurrentOver = 6;
         }
 
@@ -95,13 +96,11 @@ export default function MatchPage() {
         if (!match || match.status !== 'live') return;
         const inning = match.innings[match.currentInning - 1];
         
-        const justFinishedAnOver = inning.overs > 0 && inning.overs % 1 === 0 && inning.deliveryHistory.length > 0;
-        if (justFinishedAnOver && !inning.bowlerId) {
+        const isOverComplete = inning.overs > 0 && inning.overs % 1 === 0 && inning.deliveryHistory.length > 0;
+        
+        if (isOverComplete && !inning.bowlerId) {
             if (!isBowlerDialogOpen) {
-                const lastDelivery = inning.deliveryHistory[inning.deliveryHistory.length - 1];
-                if (lastDelivery && !lastDelivery.extra) {
-                    setIsBowlerDialogOpen(true);
-                }
+                setIsBowlerDialogOpen(true);
             }
         }
       }, [match, isBowlerDialogOpen]);
