@@ -1,11 +1,28 @@
-import { Button } from "@/components/ui/button";
+'use client';
+
+import { useState } from 'react';
 import TeamCard from "@/components/teams/team-card";
-import { teams } from "@/lib/data";
-import { PlusCircle } from "lucide-react";
+import { teams as initialTeams } from "@/lib/data";
 import type { Team } from "@/lib/types";
+import { AddTeamDialog } from '@/components/teams/add-team-dialog';
 
 export default function TeamsPage() {
-  const allTeams: Team[] = teams;
+  const [teams, setTeams] = useState<Team[]>(initialTeams);
+
+  const handleAddTeam = (name: string) => {
+    const newTeam: Team = {
+      id: `t${Date.now()}`,
+      name,
+      logoUrl: `https://picsum.photos/seed/${Math.random().toString(36).substring(7)}/128/128`,
+      imageHint: 'logo abstract',
+      players: [],
+      matchesPlayed: 0,
+      matchesWon: 0,
+      matchesLost: 0,
+      matchesDrawn: 0,
+    };
+    setTeams((prevTeams) => [...prevTeams, newTeam]);
+  };
 
   return (
     <div className="space-y-6">
@@ -18,12 +35,10 @@ export default function TeamsPage() {
             Manage your cricket teams and players.
           </p>
         </div>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" /> Add Team
-        </Button>
+        <AddTeamDialog onTeamAdd={handleAddTeam} />
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {allTeams.map((team) => (
+        {teams.map((team) => (
           <TeamCard key={team.id} team={team} />
         ))}
       </div>
