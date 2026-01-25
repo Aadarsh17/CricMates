@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "Team": {
+      "title": "Team",
+      "description": "A cricket team.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "logoUrl": {
+          "type": "string"
+        },
+        "imageHint": {
+          "type": "string"
+        },
+        "matchesPlayed": {
+          "type": "number"
+        },
+        "matchesWon": {
+          "type": "number"
+        },
+        "matchesLost": {
+          "type": "number"
+        },
+        "matchesDrawn": {
+          "type": "number"
+        }
+      },
+      "required": ["name", "logoUrl", "imageHint"]
+    },
+    "Player": {
+      "title": "Player",
+      "description": "A cricket player.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "teamId": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["Batsman", "Bowler", "All-rounder"]
+        },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "matches": { "type": "number" },
+            "runs": { "type": "number" },
+            "wickets": { "type": "number" },
+            "highestScore": { "type": "number" },
+            "bestBowling": { "type": "string" }
+          }
+        },
+        "isRetired": { "type": "boolean" },
+        "isCaptain": { "type": "boolean" },
+        "isWicketKeeper": { "type": "boolean" }
+      },
+      "required": ["name", "teamId", "role"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "A cricket match.",
+      "type": "object",
+      "properties": {
+        "team1Id": { "type": "string" },
+        "team2Id": { "type": "string" },
+        "overs": { "type": "number" },
+        "status": { "type": "string", "enum": ["live", "completed"] },
+        "tossWinnerId": { "type": "string" },
+        "tossDecision": { "type": "string", "enum": ["bat", "bowl"] },
+        "innings": {
+            "type": "array",
+            "items": { "type": "object" }
+        },
+        "currentInning": { "type": "number" },
+        "result": { "type": "string" },
+        "summary": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["team1Id", "team2Id", "overs", "status", "date"]
+    }
+  },
+  "auth": {
+    "providers": ["anonymous"]
+  },
+  "firestore": {
+    "/teams/{teamId}": {
+      "schema": { "$ref": "#/backend/entities/Team" },
+      "description": "Stores team information."
+    },
+    "/players/{playerId}": {
+      "schema": { "$ref": "#/backend/entities/Player" },
+      "description": "Stores player information, with a teamId field to link to a team."
+    },
+    "/matches/{matchId}": {
+      "schema": { "$ref": "#/backend/entities/Match" },
+      "description": "Stores match data."
+    }
+  }
+}

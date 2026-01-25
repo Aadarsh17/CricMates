@@ -15,15 +15,15 @@ type PlayerData = {
 
 export default function TeamDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
-  const { getTeamById, getPlayersByTeamId, addPlayer, editPlayer, deletePlayer, isDataLoaded } = useAppContext();
+  const { getTeamById, getPlayersByTeamId, addPlayer, editPlayer, deletePlayer, loading } = useAppContext();
 
-  if (!isDataLoaded) {
+  if (loading.teams || loading.players) {
     return (
       <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm">
         <div className="flex flex-col items-center gap-1 text-center">
           <h3 className="text-2xl font-bold tracking-tight">Loading...</h3>
           <p className="text-sm text-muted-foreground">
-            Loading team data from your browser.
+            Loading team data.
           </p>
         </div>
       </div>

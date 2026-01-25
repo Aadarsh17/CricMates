@@ -1,8 +1,10 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, ReactNode, useMemo } from 'react';
 import type { Team, Player, Match, Inning, DeliveryRecord } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import { useCollection, useFirebase } from '@/firebase';
+import { collection, doc, addDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 
 type PlayerData = {
   name: string;
@@ -12,88 +14,51 @@ type PlayerData = {
 }
 
 interface AppContextType {
-  isDataLoaded: boolean;
+  loading: {
+    teams: boolean;
+    players: boolean;
+    matches: boolean;
+  };
   teams: Team[];
   players: Player[];
   matches: Match[];
-  addTeam: (name: string) => void;
-  editTeam: (teamId: string, name: string) => void;
-  deleteTeam: (teamId: string) => void;
-  addPlayer: (teamId: string, playerData: PlayerData) => void;
-  editPlayer: (playerId: string, playerData: PlayerData) => void;
-  deletePlayer: (playerId: string) => void;
+  addTeam: (name: string) => Promise<void>;
+  editTeam: (teamId: string, name: string) => Promise<void>;
+  deleteTeam: (teamId: string) => Promise<void>;
+  addPlayer: (teamId: string, playerData: PlayerData) => Promise<void>;
+  editPlayer: (playerId: string, playerData: PlayerData) => Promise<void>;
+  deletePlayer: (playerId: string) => Promise<void>;
   getPlayerCountForTeam: (teamId: string) => number;
   getTeamById: (teamId: string) => Team | undefined;
   getPlayerById: (playerId: string) => Player | undefined;
   getPlayersByTeamId: (teamId: string) => Player[];
-  addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => string;
+  addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => Promise<string | undefined>;
   getMatchById: (matchId: string) => Match | undefined;
-  recordDelivery: (matchId: string, outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null, outcome: string }) => void;
-  setPlayerInMatch: (matchId: string, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => void;
-  swapStrikers: (matchId: string) => void;
-  undoDelivery: (matchId: string) => void;
-  retireStriker: (matchId: string) => void;
-  forceEndInning: (matchId: string) => void;
+  recordDelivery: (matchId: string, outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null, outcome: string }) => Promise<void>;
+  setPlayerInMatch: (matchId: string, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => Promise<void>;
+  swapStrikers: (matchId: string) => Promise<void>;
+  undoDelivery: (matchId: string) => Promise<void>;
+  retireStriker: (matchId: string) => Promise<void>;
+  forceEndInning: (matchId: string) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [players, setPlayers] = useState<Player[]>([]);
-  const [matches, setMatches] = useState<Match[]>([]);
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
   const { toast } = useToast();
+  const { db } = useFirebase();
 
-  useEffect(() => {
-    try {
-      const storedTeams = localStorage.getItem('cricmates_teams');
-      const storedPlayers = localStorage.getItem('cricmates_players');
-      const storedMatches = localStorage.getItem('cricmates_matches');
+  const { data: teams, loading: teamsLoading } = useCollection<Team>('teams');
+  const { data: players, loading: playersLoading } = useCollection<Player>('players');
+  const { data: matches, loading: matchesLoading } = useCollection<Match>('matches');
+  
+  const loading = {
+      teams: teamsLoading,
+      players: playersLoading,
+      matches: matchesLoading
+  };
 
-      if (storedTeams) {
-        setTeams(JSON.parse(storedTeams));
-      }
-      if (storedPlayers) {
-        setPlayers(JSON.parse(storedPlayers));
-      }
-      if (storedMatches) {
-        setMatches(JSON.parse(storedMatches));
-      }
-    } catch (error) {
-      console.error("Failed to parse data from localStorage", error);
-      toast({
-        variant: "destructive",
-        title: "Could not load data",
-        description: "There was an error reading your saved data. It has been reset.",
-      });
-      localStorage.removeItem('cricmates_teams');
-      localStorage.removeItem('cricmates_players');
-      localStorage.removeItem('cricmates_matches');
-    } finally {
-      setIsDataLoaded(true);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    if (isDataLoaded) {
-      try {
-        localStorage.setItem('cricmates_teams', JSON.stringify(teams));
-        localStorage.setItem('cricmates_players', JSON.stringify(players));
-        localStorage.setItem('cricmates_matches', JSON.stringify(matches));
-      } catch (error) {
-        console.error("Failed to save data to localStorage", error);
-        toast({
-            variant: "destructive",
-            title: "Could not save data",
-            description: "There was an error saving your data.",
-        });
-      }
-    }
-  }, [teams, players, matches, isDataLoaded, toast]);
-
-
-  const handleInningEnd = (match: Match, teamsData: Team[]): Match => {
+  const handleInningEnd = async (match: Match): Promise<Match> => {
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
 
@@ -130,14 +95,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
             updatedMatch.status = 'completed';
             const firstInning = updatedMatch.innings[0];
             const secondInning = updatedMatch.innings[1];
-            const firstInningTeam = teamsData.find(t => t.id === firstInning.battingTeamId);
-            const secondInningTeam = teamsData.find(t => t.id === secondInning.battingTeamId);
+            const firstInningTeam = teams.find(t => t.id === firstInning.battingTeamId);
+            const secondInningTeam = teams.find(t => t.id === secondInning.battingTeamId);
 
             if (secondInning.score > firstInning.score) {
                 const secondInningBattingTeamPlayers = players.filter(p => p.teamId === secondInning.battingTeamId);
                 const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length > 0 ? secondInningBattingTeamPlayers.length : 11;
-                const allOutWicketsForSecondTeam = numberOfPlayersInSecondTeam - 1;
-                const wicketsRemaining = allOutWicketsForSecondTeam - secondInning.wickets;
+                const wicketsRemaining = numberOfPlayersInSecondTeam - 1 - secondInning.wickets;
                 updatedMatch.result = `${secondInningTeam?.name} won by ${wicketsRemaining} wickets.`;
             } else if (firstInning.score > secondInning.score) {
                 updatedMatch.result = `${firstInningTeam?.name} won by ${firstInning.score - secondInning.score} runs.`;
@@ -150,9 +114,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
 
-  const addTeam = (name: string) => {
-    const newTeam: Team = {
-      id: `t${Date.now()}`,
+  const addTeam = async (name: string) => {
+    const newTeam: Omit<Team, 'id'> = {
       name,
       logoUrl: `https://picsum.photos/seed/${Math.random().toString(36).substring(7)}/128/128`,
       imageHint: 'logo abstract',
@@ -161,21 +124,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       matchesLost: 0,
       matchesDrawn: 0,
     };
-    setTeams((prevTeams) => [...prevTeams, newTeam]);
+    await addDoc(collection(db, 'teams'), newTeam);
   };
 
-  const editTeam = (teamId: string, name: string) => {
-    setTeams(prevTeams => prevTeams.map(t => t.id === teamId ? { ...t, name } : t));
+  const editTeam = async (teamId: string, name: string) => {
+    await updateDoc(doc(db, 'teams', teamId), { name });
   };
 
-  const deleteTeam = (teamId: string) => {
-    setTeams(prevTeams => prevTeams.filter(t => t.id !== teamId));
-    setPlayers(prevPlayers => prevPlayers.filter(p => p.teamId !== teamId));
+  const deleteTeam = async (teamId: string) => {
+    const batch = writeBatch(db);
+    // Delete the team
+    batch.delete(doc(db, 'teams', teamId));
+    // Delete all players in that team
+    const teamPlayers = players.filter(p => p.teamId === teamId);
+    teamPlayers.forEach(p => {
+        batch.delete(doc(db, 'players', p.id));
+    });
+    await batch.commit();
   };
   
-  const addPlayer = (teamId: string, playerData: PlayerData) => {
-    const newPlayer: Player = {
-      id: `p${Date.now()}`,
+  const addPlayer = async (teamId: string, playerData: PlayerData) => {
+    const batch = writeBatch(db);
+    const newPlayerRef = doc(collection(db, 'players'));
+
+    const newPlayer: Omit<Player, 'id'> = {
       teamId: teamId,
       name: playerData.name,
       role: playerData.role,
@@ -185,42 +157,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isRetired: false,
     };
     
-    setPlayers(prevPlayers => {
-      let updatedPlayers = [...prevPlayers];
-      if (newPlayer.isCaptain) {
-        updatedPlayers = updatedPlayers.map(p => 
-          p.teamId === teamId ? { ...p, isCaptain: false } : p
-        );
-      }
-      return [...updatedPlayers, newPlayer];
-    });
+    if (newPlayer.isCaptain) {
+        const currentCaptain = players.find(p => p.teamId === teamId && p.isCaptain);
+        if (currentCaptain) {
+            batch.update(doc(db, 'players', currentCaptain.id), { isCaptain: false });
+        }
+    }
+
+    batch.set(newPlayerRef, newPlayer);
+    await batch.commit();
   };
 
-  const editPlayer = (playerId: string, playerData: PlayerData) => {
-     setPlayers(prevPlayers => {
-      const playerToEdit = prevPlayers.find(p => p.id === playerId);
-      if (!playerToEdit) return prevPlayers;
+  const editPlayer = async (playerId: string, playerData: PlayerData) => {
+    const playerToEdit = players.find(p => p.id === playerId);
+    if (!playerToEdit) return;
 
-      let updatedPlayers = [...prevPlayers];
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'players', playerId), { ...playerData });
 
-      if (playerData.isCaptain) {
-          updatedPlayers = updatedPlayers.map(p => 
-              p.teamId === playerToEdit.teamId && p.id !== playerId 
-                  ? { ...p, isCaptain: false } 
-                  : p
-          );
-      }
-      
-      return updatedPlayers.map(p => 
-          p.id === playerId 
-              ? { ...p, ...playerData } 
-              : p
-      );
-    });
+    if (playerData.isCaptain) {
+        const currentCaptain = players.find(p => p.teamId === playerToEdit.teamId && p.isCaptain && p.id !== playerId);
+        if (currentCaptain) {
+            batch.update(doc(db, 'players', currentCaptain.id), { isCaptain: false });
+        }
+    }
+    await batch.commit();
   };
 
-  const deletePlayer = (playerId: string) => {
-    setPlayers(prevPlayers => prevPlayers.filter(p => p.id !== playerId));
+  const deletePlayer = async (playerId: string) => {
+    await deleteDoc(doc(db, 'players', playerId));
   };
 
   const getPlayerCountForTeam = (teamId: string) => {
@@ -239,14 +204,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return players.filter(p => p.teamId === teamId);
   }
 
-  const addMatch = (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => {
+  const addMatch = async (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => {
     const { team1Id, team2Id, overs, tossWinnerId, tossDecision } = matchConfig;
     
     const battingTeamId = tossDecision === 'bat' ? tossWinnerId : (tossWinnerId === team1Id ? team2Id : team1Id);
     const bowlingTeamId = tossWinnerId === battingTeamId ? (battingTeamId === team1Id ? team2Id : team1Id) : tossWinnerId;
 
-    const newMatch: Match = {
-      id: `m${Date.now()}`,
+    const newMatch: Omit<Match, 'id'> = {
       team1Id,
       team2Id,
       overs,
@@ -267,232 +231,222 @@ export function AppProvider({ children }: { children: ReactNode }) {
       currentInning: 1,
       date: new Date().toISOString(),
     };
-    setMatches(prevMatches => [...prevMatches, newMatch]);
-    return newMatch.id;
+    const docRef = await addDoc(collection(db, 'matches'), newMatch);
+    return docRef.id;
   };
 
   const getMatchById = (matchId: string) => {
     return matches.find(m => m.id === matchId);
   }
 
-  const swapStrikers = (matchId: string) => {
-      setMatches(prevMatches => prevMatches.map(m => {
-          if (m.id !== matchId) return m;
-          const updatedMatch = JSON.parse(JSON.stringify(m));
-          const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
-          const temp = inning.strikerId;
-          inning.strikerId = inning.nonStrikerId;
-          inning.nonStrikerId = temp;
-          return updatedMatch;
-      }));
+  const swapStrikers = async (matchId: string) => {
+      const match = getMatchById(matchId);
+      if (!match) return;
+      const updatedMatch = JSON.parse(JSON.stringify(match));
+      const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
+      const temp = inning.strikerId;
+      inning.strikerId = inning.nonStrikerId;
+      inning.nonStrikerId = temp;
+      await updateDoc(doc(db, 'matches', matchId), updatedMatch);
   }
 
-  const setPlayerInMatch = (matchId: string, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => {
-     setMatches(prevMatches => prevMatches.map(m => {
-          if (m.id !== matchId) return m;
-          const updatedMatch = JSON.parse(JSON.stringify(m));
-          const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
-          if (role === 'striker') inning.strikerId = playerId;
-          if (role === 'nonStriker') inning.nonStrikerId = playerId;
-          if (role === 'bowler') inning.bowlerId = playerId;
-          return updatedMatch;
-      }));
+  const setPlayerInMatch = async (matchId: string, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => {
+      const match = getMatchById(matchId);
+      if (!match) return;
+      const updatedMatch = JSON.parse(JSON.stringify(match));
+      const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
+      if (role === 'striker') inning.strikerId = playerId;
+      if (role === 'nonStriker') inning.nonStrikerId = playerId;
+      if (role === 'bowler') inning.bowlerId = playerId;
+      await updateDoc(doc(db, 'matches', matchId), updatedMatch);
   }
   
-  const retireStriker = (matchId: string) => {
-    setMatches(prevMatches => prevMatches.map(m => {
-        if (m.id !== matchId || m.status !== 'live') return m;
-        let updatedMatch = JSON.parse(JSON.stringify(m));
-        const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
-        
-        if (!inning.strikerId) {
-            toast({ variant: "destructive", title: "Striker not selected!"});
-            return m;
-        }
-        
-        const deliveryRecord: DeliveryRecord = { 
-            runs: 0, 
-            isWicket: true, 
-            extra: null, 
-            outcome: `Retired`,
-            strikerId: inning.strikerId,
-            nonStrikerId: inning.nonStrikerId,
-            bowlerId: inning.bowlerId || '',
-            timestamp: Date.now() 
-        };
-        inning.deliveryHistory.push(deliveryRecord);
-        inning.wickets += 1;
-        inning.strikerId = null;
-        
-        updatedMatch = handleInningEnd(updatedMatch, teams);
-        return updatedMatch;
-    }));
+  const retireStriker = async (matchId: string) => {
+    const match = getMatchById(matchId);
+    if (!match || match.status !== 'live') return;
+    
+    let updatedMatch = JSON.parse(JSON.stringify(match));
+    const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
+    
+    if (!inning.strikerId) {
+        toast({ variant: "destructive", title: "Striker not selected!"});
+        return;
+    }
+    
+    const deliveryRecord: DeliveryRecord = { 
+        runs: 0, 
+        isWicket: true, 
+        extra: null, 
+        outcome: `Retired`,
+        strikerId: inning.strikerId,
+        nonStrikerId: inning.nonStrikerId,
+        bowlerId: inning.bowlerId || '',
+        timestamp: Date.now() 
+    };
+    inning.deliveryHistory.push(deliveryRecord);
+    inning.wickets += 1;
+    inning.strikerId = null;
+    
+    updatedMatch = await handleInningEnd(updatedMatch);
+    await updateDoc(doc(db, 'matches', matchId), updatedMatch);
   };
 
-  const undoDelivery = (matchId: string) => {
-      setMatches(prevMatches => {
-          const matchToUpdate = prevMatches.find(m => m.id === matchId);
-          if (!matchToUpdate) return prevMatches;
+  const undoDelivery = async (matchId: string) => {
+      const matchToUpdate = getMatchById(matchId);
+      if (!matchToUpdate) return;
 
-          const updatedMatch = JSON.parse(JSON.stringify(matchToUpdate));
-          const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
-          
-          if (inning.deliveryHistory.length === 0) {
-              toast({ variant: 'destructive', title: 'No deliveries to undo.'});
-              return prevMatches;
+      const updatedMatch = JSON.parse(JSON.stringify(matchToUpdate));
+      const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
+      
+      if (inning.deliveryHistory.length === 0) {
+          toast({ variant: 'destructive', title: 'No deliveries to undo.'});
+          return;
+      }
+
+      const lastDelivery = inning.deliveryHistory.pop();
+
+      // This is a simplified recreation from history.
+      // A more robust solution would be better but this is good for now.
+      let newScore = 0;
+      let newWickets = 0;
+      let newOvers = 0;
+      
+      inning.strikerId = lastDelivery.strikerId;
+      inning.nonStrikerId = lastDelivery.nonStrikerId;
+      inning.bowlerId = lastDelivery.bowlerId;
+
+      inning.deliveryHistory.forEach((delivery: DeliveryRecord) => {
+         newScore += delivery.runs;
+          if (delivery.extra === 'wide' || delivery.extra === 'noball') {
+            newScore += 1;
           }
+          if (delivery.isWicket) newWickets += 1;
 
-          // This is a simplified recreation from history.
-          // A more robust solution would store snapshots, but this is good for now.
-          const newHistory = inning.deliveryHistory.slice(0, -1);
-
-          let newScore = 0;
-          let newWickets = 0;
-          let newOvers = 0;
-          
-          const lastDelivery = inning.deliveryHistory[inning.deliveryHistory.length-1];
-          inning.strikerId = lastDelivery.strikerId;
-          inning.nonStrikerId = lastDelivery.nonStrikerId;
-          inning.bowlerId = lastDelivery.bowlerId;
-
-
-          newHistory.forEach((delivery: DeliveryRecord) => {
-             newScore += delivery.runs;
-              if (delivery.extra === 'wide' || delivery.extra === 'noball') {
-                newScore += 1;
+          const isLegalDelivery = delivery.extra !== 'wide' && delivery.extra !== 'noball';
+          if (isLegalDelivery) {
+              const currentOverInt = Math.floor(newOvers);
+              const currentBalls = Math.round((newOvers % 1) * 10);
+              if (currentBalls === 5) {
+                  newOvers = currentOverInt + 1;
+              } else {
+                  newOvers = parseFloat((currentOverInt + (currentBalls + 1) / 10).toFixed(1));
               }
-              if (delivery.isWicket) newWickets += 1;
+          }
+      });
 
-              const isLegalDelivery = delivery.extra !== 'wide' && delivery.extra !== 'noball';
-              if (isLegalDelivery) {
-                  const currentOverInt = Math.floor(newOvers);
-                  const currentBalls = Math.round((newOvers % 1) * 10);
-                  if (currentBalls === 5) {
-                      newOvers = currentOverInt + 1;
-                  } else {
-                      newOvers = parseFloat((currentOverInt + (currentBalls + 1) / 10).toFixed(1));
-                  }
-              }
-          });
+      inning.score = newScore;
+      inning.wickets = newWickets;
+      inning.overs = newOvers;
 
-          inning.score = newScore;
-          inning.wickets = newWickets;
-          inning.overs = newOvers;
-          inning.deliveryHistory = newHistory;
-          
-          return prevMatches.map(m => m.id === matchId ? updatedMatch : m);
-      })
+      await updateDoc(doc(db, 'matches', matchId), updatedMatch);
   }
 
-  const recordDelivery = (matchId: string, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string }) => {
-    setMatches(prevMatches => prevMatches.map(m => {
-        if (m.id !== matchId || m.status !== 'live') return m;
+  const recordDelivery = async (matchId: string, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string }) => {
+    const match = getMatchById(matchId);
+    if (!match || match.status !== 'live') return;
 
-        let updatedMatch = JSON.parse(JSON.stringify(m)); 
-        const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
+    let updatedMatch = JSON.parse(JSON.stringify(match)); 
+    const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
+    
+    if (!inning.strikerId || !inning.nonStrikerId || !inning.bowlerId) {
+        toast({ variant: "destructive", title: "Players not set!", description: "Please select a striker, non-striker, and bowler."});
+        return;
+    }
+
+    const deliveryRecord: DeliveryRecord = { 
+      ...outcome, 
+      strikerId: inning.strikerId,
+      nonStrikerId: inning.nonStrikerId,
+      bowlerId: inning.bowlerId,
+      timestamp: Date.now() 
+    };
+    inning.deliveryHistory.push(deliveryRecord);
+
+    inning.score += outcome.runs;
+    if(outcome.extra === 'wide' || outcome.extra === 'noball'){
+        inning.score += 1;
+    }
+    
+    const isLegalDelivery = outcome.extra !== 'wide' && outcome.extra !== 'noball';
+
+    if (isLegalDelivery) {
+        const currentOverInt = Math.floor(inning.overs);
+        const currentBalls = Math.round((inning.overs % 1) * 10);
         
-        if (!inning.strikerId || !inning.nonStrikerId || !inning.bowlerId) {
-            toast({ variant: "destructive", title: "Players not set!", description: "Please select a striker, non-striker, and bowler."});
-            return m;
-        }
-
-        const deliveryRecord: DeliveryRecord = { 
-          ...outcome, 
-          strikerId: inning.strikerId,
-          nonStrikerId: inning.nonStrikerId,
-          bowlerId: inning.bowlerId,
-          timestamp: Date.now() 
-        };
-        inning.deliveryHistory.push(deliveryRecord);
-
-        inning.score += outcome.runs;
-        if(outcome.extra === 'wide' || outcome.extra === 'noball'){
-            inning.score += 1;
-        }
-        
-        const isLegalDelivery = outcome.extra !== 'wide' && outcome.extra !== 'noball';
-
-        if (isLegalDelivery) {
-            const currentOverInt = Math.floor(inning.overs);
-            const currentBalls = Math.round((inning.overs % 1) * 10);
-            
-            if (currentBalls === 5) {
-                inning.overs = currentOverInt + 1;
-                const temp = inning.strikerId;
-                inning.strikerId = inning.nonStrikerId;
-                inning.nonStrikerId = temp;
-                inning.bowlerId = null;
-            } else {
-                inning.overs = parseFloat((currentOverInt + (currentBalls + 1) / 10).toFixed(1));
-            }
-        }
-        
-        if (outcome.isWicket) {
-            inning.wickets += 1;
-            inning.strikerId = null; // New batsman needed
-        }
-
-        const runsConsideredForStrikerSwap = (outcome.extra === 'byes' || outcome.extra === 'legbyes') ? 0 : outcome.runs;
-        if (isLegalDelivery && (runsConsideredForStrikerSwap % 2 !== 0)) {
+        if (currentBalls === 5) {
+            inning.overs = currentOverInt + 1;
             const temp = inning.strikerId;
             inning.strikerId = inning.nonStrikerId;
             inning.nonStrikerId = temp;
+            inning.bowlerId = null;
+        } else {
+            inning.overs = parseFloat((currentOverInt + (currentBalls + 1) / 10).toFixed(1));
         }
+    }
+    
+    if (outcome.isWicket) {
+        inning.wickets += 1;
+        inning.strikerId = null; // New batsman needed
+    }
 
-        updatedMatch = handleInningEnd(updatedMatch, teams);
-        return updatedMatch;
-      }));
+    const runsConsideredForStrikerSwap = (outcome.extra === 'byes' || outcome.extra === 'legbyes') ? 0 : outcome.runs;
+    if (isLegalDelivery && (runsConsideredForStrikerSwap % 2 !== 0)) {
+        const temp = inning.strikerId;
+        inning.strikerId = inning.nonStrikerId;
+        inning.nonStrikerId = temp;
+    }
+
+    updatedMatch = await handleInningEnd(updatedMatch);
+    await updateDoc(doc(db, 'matches', matchId), updatedMatch);
   };
 
-  const forceEndInning = (matchId: string) => {
-    setMatches(prevMatches => prevMatches.map(m => {
-        if (m.id !== matchId || m.status !== 'live') return m;
+  const forceEndInning = async (matchId: string) => {
+    const match = getMatchById(matchId);
+    if (!match || match.status !== 'live') return;
 
-        let updatedMatch = JSON.parse(JSON.stringify(m));
+    let updatedMatch = JSON.parse(JSON.stringify(match));
 
-        if (updatedMatch.currentInning === 1) {
-            const currentInning = updatedMatch.innings[0];
-            const nextBattingTeamId = updatedMatch.team1Id === currentInning.battingTeamId ? updatedMatch.team2Id : updatedMatch.team1Id;
-            const nextBowlingTeamId = currentInning.battingTeamId;
-            updatedMatch.innings.push({
-                battingTeamId: nextBattingTeamId,
-                bowlingTeamId: nextBowlingTeamId,
-                score: 0,
-                wickets: 0,
-                overs: 0,
-                strikerId: null,
-                nonStrikerId: null,
-                bowlerId: null,
-                deliveryHistory: [],
-            });
-            updatedMatch.currentInning = 2;
-            toast({ title: "Inning Ended Manually", description: "The first inning has been concluded. Starting second inning." });
-        } else { 
-            updatedMatch.status = 'completed';
-            const firstInning = updatedMatch.innings[0];
-            const secondInning = updatedMatch.innings[1];
-            const firstInningTeam = teams.find(t => t.id === firstInning.battingTeamId);
-            const secondInningTeam = teams.find(t => t.id === secondInning.battingTeamId);
+    if (updatedMatch.currentInning === 1) {
+        const currentInning = updatedMatch.innings[0];
+        const nextBattingTeamId = updatedMatch.team1Id === currentInning.battingTeamId ? updatedMatch.team2Id : updatedMatch.team1Id;
+        const nextBowlingTeamId = currentInning.battingTeamId;
+        updatedMatch.innings.push({
+            battingTeamId: nextBattingTeamId,
+            bowlingTeamId: nextBowlingTeamId,
+            score: 0,
+            wickets: 0,
+            overs: 0,
+            strikerId: null,
+            nonStrikerId: null,
+            bowlerId: null,
+            deliveryHistory: [],
+        });
+        updatedMatch.currentInning = 2;
+        toast({ title: "Inning Ended Manually", description: "The first inning has been concluded. Starting second inning." });
+    } else { 
+        updatedMatch.status = 'completed';
+        const firstInning = updatedMatch.innings[0];
+        const secondInning = updatedMatch.innings[1];
+        const firstInningTeam = teams.find(t => t.id === firstInning.battingTeamId);
+        const secondInningTeam = teams.find(t => t.id === secondInning.battingTeamId);
 
-            if (secondInning.score > firstInning.score) {
-                const secondInningBattingTeamPlayers = players.filter(p => p.teamId === secondInning.battingTeamId);
-                const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length > 0 ? secondInningBattingTeamPlayers.length : 11;
-                const allOutWicketsForSecondTeam = numberOfPlayersInSecondTeam - 1;
-                const wicketsRemaining = allOutWicketsForSecondTeam - secondInning.wickets;
-                updatedMatch.result = `${secondInningTeam?.name} won by ${wicketsRemaining} wickets.`;
-            } else if (firstInning.score > secondInning.score) {
-                updatedMatch.result = `${firstInningTeam?.name} won by ${firstInning.score - secondInning.score} runs.`;
-            } else {
-                updatedMatch.result = "Match is a Tie.";
-            }
-             toast({ title: "Match Ended", description: `Match has been manually concluded. ${updatedMatch.result}` });
+        if (secondInning.score > firstInning.score) {
+            const secondInningBattingTeamPlayers = players.filter(p => p.teamId === secondInning.battingTeamId);
+            const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length > 0 ? secondInningBattingTeamPlayers.length : 11;
+            const wicketsRemaining = numberOfPlayersInSecondTeam - 1 - secondInning.wickets;
+            updatedMatch.result = `${secondInningTeam?.name} won by ${wicketsRemaining} wickets.`;
+        } else if (firstInning.score > secondInning.score) {
+            updatedMatch.result = `${firstInningTeam?.name} won by ${firstInning.score - secondInning.score} runs.`;
+        } else {
+            updatedMatch.result = "Match is a Tie.";
         }
-        return updatedMatch;
-    }));
+         toast({ title: "Match Ended", description: `Match has been manually concluded. ${updatedMatch.result}` });
+    }
+    await updateDoc(doc(db, 'matches', matchId), updatedMatch);
   };
 
-  const value = {
-      isDataLoaded,
+  const value: AppContextType = useMemo(() => ({
+      loading,
       teams,
       players,
       matches,
@@ -514,7 +468,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       undoDelivery,
       retireStriker,
       forceEndInning,
-  };
+  }), [loading, teams, players, matches, db, toast]);
 
   return (
     <AppContext.Provider value={value}>

@@ -34,7 +34,7 @@ const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled =
 export default function MatchPage() {
     const params = useParams();
     const matchId = params.id as string;
-    const { getMatchById, getTeamById, getPlayersByTeamId, setPlayerInMatch, getPlayerById, isDataLoaded } = useAppContext();
+    const { getMatchById, getTeamById, getPlayersByTeamId, setPlayerInMatch, getPlayerById, loading } = useAppContext();
     const { toast } = useToast();
     const [isBowlerDialogOpen, setIsBowlerDialogOpen] = useState(false);
     const [isInningStartDialogOpen, setIsInningStartDialogOpen] = useState(false);
@@ -43,7 +43,7 @@ export default function MatchPage() {
     const match = getMatchById(matchId);
 
     useEffect(() => {
-        if (!isDataLoaded || !match || match.status !== 'live') return;
+        if (loading.matches || !match || match.status !== 'live') return;
         const inning = match.innings[match.currentInning - 1];
         
         const isOverComplete = inning.overs > 0 && inning.overs % 1 === 0 && inning.deliveryHistory.length > 0;
@@ -53,10 +53,10 @@ export default function MatchPage() {
                 setIsBowlerDialogOpen(true);
             }
         }
-    }, [match, isBowlerDialogOpen, isDataLoaded]);
+    }, [match, isBowlerDialogOpen, loading.matches]);
 
      useEffect(() => {
-        if (!isDataLoaded) return;
+        if (loading.matches) return;
         if (match && match.status === 'live') {
             const inning = match.innings[match.currentInning - 1];
             if (inning.deliveryHistory.length === 0 && match.currentInning === 1 && inning.overs === 0) {
@@ -66,16 +66,16 @@ export default function MatchPage() {
                 setIsInningStartDialogOpen(true);
             }
         }
-    }, [match, isDataLoaded]);
+    }, [match, loading.matches]);
 
 
-    if (!isDataLoaded) {
+    if (loading.matches || loading.teams || loading.players) {
         return (
             <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm">
                 <div className="flex flex-col items-center gap-1 text-center">
                 <h3 className="text-2xl font-bold tracking-tight">Loading...</h3>
                 <p className="text-sm text-muted-foreground">
-                    Loading match data from your browser.
+                    Loading match data.
                 </p>
                 </div>
             </div>
@@ -105,12 +105,12 @@ export default function MatchPage() {
     const nonStriker = getPlayerById(currentInning.nonStrikerId || '');
     const bowler = getPlayerById(currentInning.bowlerId || '');
 
-    const unbattedPlayers = battingTeamPlayers.filter(p => {
-        const isOut = match.innings.some(inning => 
-            inning.deliveryHistory.some(d => d.isWicket && d.strikerId === p.id)
-        );
-        return !isOut;
-    });
+    const battedPlayerIds = new Set(match.innings.flatMap(inning => inning.deliveryHistory.map(d => d.strikerId)));
+    const outPlayerIds = new Set(match.innings.flatMap(inning => inning.deliveryHistory.filter(d => d.isWicket).map(d => d.strikerId)));
+    
+    const unbattedPlayers = battingTeamPlayers.filter(p => !battedPlayerIds.has(p.id) || (battedPlayerIds.has(p.id) && !outPlayerIds.has(p.id)));
+    
+    const noPlayersLeftToBat = unbattedPlayers.filter(p => p.id !== currentInning.strikerId && p.id !== currentInning.nonStrikerId).length === 0;
 
     const handleShare = async () => {
         if (!team1 || !team2 || !match.result) return;
@@ -186,8 +186,8 @@ export default function MatchPage() {
                  {match.status === 'live' && (
                     <CardContent className="space-y-4">
                         <div className="flex flex-col md:flex-row gap-4">
-                            <PlayerSelector label="Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.nonStrikerId)} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match.id, 'striker', id)} disabled={(!unbattedPlayers.some(p => p.id === currentInning.strikerId) && !!currentInning.strikerId) || currentInning.wickets >= allOutWickets || unbattedPlayers.length === 0} />
-                            <PlayerSelector label="Non-Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.strikerId)} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match.id, 'nonStriker', id)} disabled={(!unbattedPlayers.some(p => p.id === currentInning.nonStrikerId) && !!currentInning.nonStrikerId) || currentInning.wickets >= allOutWickets} />
+                            <PlayerSelector label="Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.nonStrikerId)} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match.id, 'striker', id)} disabled={!!currentInning.strikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
+                            <PlayerSelector label="Non-Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.strikerId)} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match.id, 'nonStriker', id)} disabled={!!currentInning.nonStrikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
                              { !isBowlerDialogOpen && <PlayerSelector label="Bowler" players={bowlingTeamPlayers} selectedPlayerId={currentInning.bowlerId} onSelect={(id) => setPlayerInMatch(match.id, 'bowler', id)} disabled={!!currentInning.bowlerId} /> }
                         </div>
                     </CardContent>

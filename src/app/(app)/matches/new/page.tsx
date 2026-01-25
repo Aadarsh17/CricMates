@@ -20,7 +20,7 @@ import { ArrowRight } from 'lucide-react';
 import type { Team } from '@/lib/types';
 
 export default function NewMatchPage() {
-  const { teams, addMatch } = useAppContext();
+  const { teams, addMatch, loading } = useAppContext();
   const { toast } = useToast();
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -29,6 +29,7 @@ export default function NewMatchPage() {
   const [overs, setOvers] = useState<number>(20);
   const [tossWinner, setTossWinner] = useState<string | null>(null);
   const [tossDecision, setTossDecision] = useState<'bat' | 'bowl' | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const goToTeamSelection = () => {
     setStep(2);
@@ -63,7 +64,7 @@ export default function NewMatchPage() {
     setStep(3);
   };
 
-  const handleStartMatch = () => {
+  const handleStartMatch = async () => {
      if (!tossWinner || !tossDecision || overs <= 0 || !team1 || !team2) {
       toast({
         variant: "destructive",
@@ -73,15 +74,43 @@ export default function NewMatchPage() {
       return;
     }
 
-    const newMatchId = addMatch({
-        team1Id: team1.id,
-        team2Id: team2.id,
-        overs: overs,
-        tossWinnerId: tossWinner,
-        tossDecision: tossDecision,
-    });
+    setIsSubmitting(true);
+    try {
+      const newMatchId = await addMatch({
+          team1Id: team1.id,
+          team2Id: team2.id,
+          overs: overs,
+          tossWinnerId: tossWinner,
+          tossDecision: tossDecision,
+      });
 
-    router.push(`/matches/${newMatchId}`);
+      if (newMatchId) {
+        router.push(`/matches/${newMatchId}`);
+      } else {
+        throw new Error("Failed to create match.");
+      }
+    } catch (error) {
+      console.error("Error starting match:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Could not start the match. Please try again.",
+      });
+      setIsSubmitting(false);
+    }
+  }
+
+  if (loading.teams) {
+    return (
+      <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm">
+        <div className="flex flex-col items-center gap-1 text-center">
+          <h3 className="text-2xl font-bold tracking-tight">Loading...</h3>
+          <p className="text-sm text-muted-foreground">
+            Loading team data.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   if (step === 1) {
@@ -173,6 +202,7 @@ export default function NewMatchPage() {
                 placeholder="e.g., 20" 
                 value={overs}
                 onChange={(e) => setOvers(Number(e.target.value))}
+                disabled={isSubmitting}
               />
             </div>
             {team1 && team2 && (
@@ -182,6 +212,7 @@ export default function NewMatchPage() {
                   onValueChange={(value) => setTossWinner(value)}
                   value={tossWinner || undefined}
                   className="flex gap-4 pt-2"
+                  disabled={isSubmitting}
                 >
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value={team1.id} id={team1.id} />
@@ -200,6 +231,7 @@ export default function NewMatchPage() {
                 onValueChange={(value: 'bat' | 'bowl') => setTossDecision(value)}
                 value={tossDecision || undefined}
                 className="flex gap-4 pt-2"
+                disabled={isSubmitting}
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="bat" id="bat" />
@@ -212,8 +244,8 @@ export default function NewMatchPage() {
               </RadioGroup>
             </div>
             <div className="flex justify-end">
-              <Button onClick={handleStartMatch}>
-                Start Match
+              <Button onClick={handleStartMatch} disabled={isSubmitting}>
+                {isSubmitting ? 'Starting Match...' : 'Start Match'}
               </Button>
             </div>
           </CardContent>

@@ -146,8 +146,8 @@ export function UmpireControls({ match }: { match: Match }) {
                             {runs}
                         </Button>
                     ))}
-                    <Button className="h-14 text-sm" variant="outline" onClick={() => swapStrikers(match.id)}>Swap</Button>
-                    <Button className="h-14 text-sm" variant="outline" onClick={() => undoDelivery(match.id)}>Undo</Button>
+                    <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => swapStrikers(match.id)}>Swap</Button>
+                    <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => undoDelivery(match.id)}>Undo</Button>
                 </div>
                  <div className="grid grid-cols-1 gap-2 border-t pt-4 mt-2">
                     <Button variant="destructive" onClick={() => retireStriker(match.id)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
