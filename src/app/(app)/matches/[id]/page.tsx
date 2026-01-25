@@ -11,6 +11,8 @@ import type { Player } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 import { SelectBowlerDialog } from '@/components/match/select-bowler-dialog';
 import { useEffect, useState } from 'react';
+import { InningStartDialog } from '@/components/match/inning-start-dialog';
+import { PlayerMatchStats } from '@/components/match/player-match-stats';
 
 const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled = false }: { label: string, players: Player[], selectedPlayerId: string | null, onSelect: (playerId: string) => void, disabled?: boolean }) => (
     <div className="space-y-2 flex-1">
@@ -73,10 +75,20 @@ const CurrentOver = ({ deliveries, overs }: { deliveries: any[], overs: number }
 export default function MatchPage() {
     const params = useParams();
     const matchId = params.id as string;
-    const { getMatchById, getTeamById, getPlayersByTeamId, recordDelivery, setPlayerInMatch, swapStrikers, undoDelivery, retireStriker } = useAppContext();
+    const { getMatchById, getTeamById, getPlayersByTeamId, recordDelivery, setPlayerInMatch, swapStrikers, undoDelivery, retireStriker, getPlayerById } = useAppContext();
     const [isBowlerDialogOpen, setIsBowlerDialogOpen] = useState(false);
+    const [isInningStartDialogOpen, setIsInningStartDialogOpen] = useState(false);
 
     const match = getMatchById(matchId);
+    
+    useEffect(() => {
+        if (match && match.status === 'live') {
+            const inning = match.innings[match.currentInning - 1];
+            if (inning.deliveryHistory.length === 0) {
+                setIsInningStartDialogOpen(true);
+            }
+        }
+    }, [match]);
 
     useEffect(() => {
         if (!match || match.status !== 'live') return;
@@ -108,9 +120,14 @@ export default function MatchPage() {
         notFound();
     }
 
+    const battingTeam = getTeamById(currentInning.battingTeamId);
     const battingTeamPlayers = getPlayersByTeamId(currentInning.battingTeamId);
     const bowlingTeamPlayers = getPlayersByTeamId(currentInning.bowlingTeamId);
     
+    const striker = getPlayerById(currentInning.strikerId || '');
+    const nonStriker = getPlayerById(currentInning.nonStrikerId || '');
+    const bowler = getPlayerById(currentInning.bowlerId || '');
+
     const handleDelivery = (runs: number, isWicket: boolean, extra: 'wide' | 'noball' | null, outcome: string) => {
         recordDelivery(match.id, { runs, isWicket, extra, outcome });
     };
@@ -160,6 +177,12 @@ export default function MatchPage() {
     
     return (
         <div className="space-y-6">
+            <InningStartDialog
+                open={isInningStartDialogOpen}
+                onClose={() => setIsInningStartDialogOpen(false)}
+                inningNumber={match.currentInning}
+                battingTeamName={battingTeam?.name}
+            />
             <SelectBowlerDialog 
                 open={isBowlerDialogOpen}
                 bowlers={bowlingTeamPlayers}
@@ -234,9 +257,19 @@ export default function MatchPage() {
                     </Card>
                 )}
             </div>
-
-            {match.status === 'live' && <CurrentOver deliveries={currentInning.deliveryHistory} overs={currentInning.overs} />}
-            {match.status === 'live' && <UmpireControls />}
+            
+            {match.status === 'live' && (
+                <>
+                    <PlayerMatchStats
+                        striker={striker}
+                        nonStriker={nonStriker}
+                        bowler={bowler}
+                        inning={currentInning}
+                    />
+                    <CurrentOver deliveries={currentInning.deliveryHistory} overs={currentInning.overs} />
+                    <UmpireControls />
+                </>
+            )}
         </div>
     );
 }

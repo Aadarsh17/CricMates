@@ -25,6 +25,8 @@ export type Player = {
 };
 
 export type DeliveryRecord = {
+  strikerId: string;
+  bowlerId: string;
   runs: number;
   isWicket: boolean;
   extra: 'wide' | 'noball' | null;

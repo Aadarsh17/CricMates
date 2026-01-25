@@ -17,6 +17,7 @@ interface AppContextType {
   deletePlayer: (playerId: string) => void;
   getPlayerCountForTeam: (teamId: string) => number;
   getTeamById: (teamId: string) => Team | undefined;
+  getPlayerById: (playerId: string) => Player | undefined;
   getPlayersByTeamId: (teamId: string) => Player[];
   addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => string;
   getMatchById: (matchId: string) => Match | undefined;
@@ -135,6 +136,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return teams.find(t => t.id === teamId);
   }
 
+  const getPlayerById = (playerId: string) => {
+    return players.find(p => p.id === playerId);
+  }
+
   const getPlayersByTeamId = (teamId: string) => {
     return players.filter(p => p.teamId === teamId);
   }
@@ -205,15 +210,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
         let updatedMatch = JSON.parse(JSON.stringify(m));
         const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
         
-        if (!inning.strikerId) {
-            toast({ variant: "destructive", title: "No striker selected!"});
+        if (!inning.strikerId || !inning.bowlerId) {
+            toast({ variant: "destructive", title: "Striker or Bowler not selected!"});
             return m;
         }
         
+        const deliveryRecord: DeliveryRecord = { 
+            runs: 0, 
+            isWicket: true, 
+            extra: null, 
+            outcome: `Retired`,
+            strikerId: inning.strikerId,
+            bowlerId: inning.bowlerId,
+            timestamp: Date.now() 
+        };
+        inning.deliveryHistory.push(deliveryRecord);
         inning.wickets += 1;
         inning.strikerId = null;
-        const deliveryRecord: DeliveryRecord = { runs: 0, isWicket: true, extra: null, outcome: `Retired`, timestamp: Date.now() };
-        inning.deliveryHistory.push(deliveryRecord);
         
         updatedMatch = handleInningEnd(updatedMatch, teams);
         return updatedMatch;
@@ -280,7 +293,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
             return m;
         }
 
-        const deliveryRecord: DeliveryRecord = { ...outcome, timestamp: Date.now() };
+        const deliveryRecord: DeliveryRecord = { 
+          ...outcome, 
+          strikerId: inning.strikerId,
+          bowlerId: inning.bowlerId,
+          timestamp: Date.now() 
+        };
         inning.deliveryHistory.push(deliveryRecord);
 
         if (outcome.runs) {
@@ -335,6 +353,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deletePlayer,
       getPlayerCountForTeam,
       getTeamById,
+      getPlayerById,
       getPlayersByTeamId,
       addMatch,
       getMatchById,
