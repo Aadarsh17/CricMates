@@ -4,7 +4,7 @@ import { useParams, notFound } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trophy } from 'lucide-react';
+import { Trophy, Printer, Share2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Player } from '@/lib/types';
@@ -15,6 +15,7 @@ import { FullScorecard } from '@/components/match/full-scorecard';
 import { Scoreboard } from '@/components/match/scoreboard';
 import { LivePlayerStats } from '@/components/match/live-player-stats';
 import { UmpireControls } from '@/components/match/umpire-controls';
+import { useToast } from '@/hooks/use-toast';
 
 const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled = false }: { label: string, players: Player[], selectedPlayerId: string | null, onSelect: (playerId: string) => void, disabled?: boolean }) => (
     <div className="space-y-2 flex-1">
@@ -34,11 +35,14 @@ export default function MatchPage() {
     const params = useParams();
     const matchId = params.id as string;
     const { getMatchById, getTeamById, getPlayersByTeamId, setPlayerInMatch, getPlayerById, isDataLoaded } = useAppContext();
+    const { toast } = useToast();
     const [isBowlerDialogOpen, setIsBowlerDialogOpen] = useState(false);
     const [isInningStartDialogOpen, setIsInningStartDialogOpen] = useState(false);
+
     const match = getMatchById(matchId);
 
     useEffect(() => {
+        if (!isDataLoaded) return;
         if (match && match.status === 'live') {
             const inning = match.innings[match.currentInning - 1];
             if (inning.deliveryHistory.length === 0 && match.currentInning === 1 && inning.overs === 0) {
@@ -48,10 +52,10 @@ export default function MatchPage() {
                 setIsInningStartDialogOpen(true);
             }
         }
-    }, [match]);
+    }, [match, isDataLoaded]);
 
     useEffect(() => {
-        if (!match || match.status !== 'live') return;
+        if (!isDataLoaded || !match || match.status !== 'live') return;
         const inning = match.innings[match.currentInning - 1];
         
         const isOverComplete = inning.overs > 0 && inning.overs % 1 === 0 && inning.deliveryHistory.length > 0;
@@ -61,7 +65,7 @@ export default function MatchPage() {
                 setIsBowlerDialogOpen(true);
             }
         }
-      }, [match, isBowlerDialogOpen]);
+      }, [match, isBowlerDialogOpen, isDataLoaded]);
 
     if (!isDataLoaded) {
         return (
@@ -106,6 +110,33 @@ export default function MatchPage() {
         return !isOut;
     });
 
+    const handleShare = async () => {
+        if (!team1 || !team2 || !match.result) return;
+        const shareData = {
+            title: `Cricket Match: ${team1.name} vs ${team2.name}`,
+            text: `${match.result}. View the full scorecard.`,
+            url: window.location.href,
+        };
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData);
+            } else {
+                navigator.clipboard.writeText(window.location.href);
+                toast({
+                    title: "URL Copied!",
+                    description: "Scorecard URL has been copied to your clipboard.",
+                });
+            }
+        } catch (err) {
+            console.error("Error sharing:", err);
+            toast({
+                variant: "destructive",
+                title: "Uh oh! Something went wrong.",
+                description: "Could not share scorecard.",
+            });
+        }
+    };
+
     return (
         <div className="space-y-4">
             <InningStartDialog
@@ -127,7 +158,16 @@ export default function MatchPage() {
                     <CardTitle className="text-xl font-bold tracking-tight font-headline flex justify-between items-center">
                         <span>{team1.name} vs {team2.name}</span>
                         {match.status === 'completed' ? (
-                           <></>
+                           <div className="flex items-center gap-2">
+                               <Button variant="outline" size="icon" onClick={handleShare}>
+                                   <Share2 className="h-4 w-4" />
+                                   <span className="sr-only">Share</span>
+                               </Button>
+                               <Button variant="outline" size="icon" onClick={() => window.print()}>
+                                   <Printer className="h-4 w-4" />
+                                   <span className="sr-only">Print or Save as PDF</span>
+                               </Button>
+                           </div>
                         ) : (
                             <span className="text-sm font-normal text-muted-foreground">{match.overs} Over Match</span>
                         )}
