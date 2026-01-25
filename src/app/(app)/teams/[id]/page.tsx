@@ -1,6 +1,6 @@
 'use client';
 
-import { notFound } from "next/navigation";
+import { notFound, useParams } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
 import PlayerCard from '@/components/players/player-card';
 import { AddPlayerDialog } from '@/components/players/add-player-dialog';
@@ -13,8 +13,9 @@ type PlayerData = {
   isWicketKeeper?: boolean;
 }
 
-export default function TeamDetailPage({ params }: { params: { id: string } }) {
-  const { id } = params;
+export default function TeamDetailPage() {
+  const params = useParams();
+  const id = params.id as string;
   const { getTeamById, getPlayersByTeamId, addPlayer, editPlayer, deletePlayer, loading } = useAppContext();
 
   if (loading.teams || loading.players) {
