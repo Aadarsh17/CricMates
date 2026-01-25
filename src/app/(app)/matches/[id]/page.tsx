@@ -41,7 +41,7 @@ export default function MatchPage() {
 
     const match = getMatchById(matchId);
 
-    useEffect(() => {
+     useEffect(() => {
         if (!isDataLoaded) return;
         if (match && match.status === 'live') {
             const inning = match.innings[match.currentInning - 1];
@@ -66,6 +66,7 @@ export default function MatchPage() {
             }
         }
       }, [match, isBowlerDialogOpen, isDataLoaded]);
+
 
     if (!isDataLoaded) {
         return (
@@ -163,7 +164,7 @@ export default function MatchPage() {
                     <CardTitle className="text-xl font-bold tracking-tight font-headline flex justify-between items-center">
                         <span>{team1.name} vs {team2.name}</span>
                         {match.status === 'completed' ? (
-                           <div className="flex items-center gap-2 print:hidden">
+                           <div className="flex items-center gap-2 print-hidden">
                                <Button variant="outline" size="icon" onClick={handleShare}>
                                    <Share2 className="h-4 w-4" />
                                    <span className="sr-only">Share</span>
@@ -184,8 +185,8 @@ export default function MatchPage() {
                  {match.status === 'live' && (
                     <CardContent className="space-y-4">
                         <div className="flex flex-col md:flex-row gap-4">
-                            <PlayerSelector label="Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.nonStrikerId)} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match.id, 'striker', id)} disabled={!!currentInning.strikerId || currentInning.wickets >= allOutWickets} />
-                            <PlayerSelector label="Non-Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.strikerId)} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match.id, 'nonStriker', id)} disabled={!!currentInning.nonStrikerId || currentInning.wickets >= allOutWickets} />
+                            <PlayerSelector label="Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.nonStrikerId)} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match.id, 'striker', id)} disabled={!unbattedPlayers.some(p => p.id === currentInning.strikerId) && !!currentInning.strikerId || currentInning.wickets >= allOutWickets} />
+                            <PlayerSelector label="Non-Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.strikerId)} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match.id, 'nonStriker', id)} disabled={!unbattedPlayers.some(p => p.id === currentInning.nonStrikerId) && !!currentInning.nonStrikerId || currentInning.wickets >= allOutWickets} />
                              { !isBowlerDialogOpen && <PlayerSelector label="Bowler" players={bowlingTeamPlayers} selectedPlayerId={currentInning.bowlerId} onSelect={(id) => setPlayerInMatch(match.id, 'bowler', id)} disabled={!!currentInning.bowlerId} /> }
                         </div>
                     </CardContent>

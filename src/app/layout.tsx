@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Toaster } from "@/components/ui/toaster";
 import "./globals.css";
+import "./print.css";
 
 export const metadata: Metadata = {
   title: "CricMates - ScoresTracker",
