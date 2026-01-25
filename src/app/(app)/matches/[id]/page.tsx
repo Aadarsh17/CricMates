@@ -136,6 +136,11 @@ export default function MatchPage() {
             });
         }
     };
+    
+    const handlePrint = () => {
+        window.print();
+    };
+
 
     return (
         <div className="space-y-4">
@@ -163,7 +168,7 @@ export default function MatchPage() {
                                    <Share2 className="h-4 w-4" />
                                    <span className="sr-only">Share</span>
                                </Button>
-                               <Button variant="outline" size="icon" onClick={() => window.print()}>
+                               <Button variant="outline" size="icon" onClick={handlePrint}>
                                    <Printer className="h-4 w-4" />
                                    <span className="sr-only">Print or Save as PDF</span>
                                </Button>
