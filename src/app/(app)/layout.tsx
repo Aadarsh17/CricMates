@@ -17,6 +17,7 @@ import {
   BarChart,
   Trophy,
   PlusCircle,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
@@ -49,11 +50,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   Teams
                 </Link>
                 <Link
+                  href="/matches/new"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Matches
+                </Link>
+                <Link
                   href="/matches"
                   className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
                 >
                   <BarChart className="h-4 w-4" />
-                  Matches
+                  Matches History
                 </Link>
                 <Link
                   href="/points-table"
@@ -62,15 +70,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   <Trophy className="h-4 w-4" />
                   Points Table
                 </Link>
-              </nav>
-            </div>
-            <div className="mt-auto p-4">
-              <Button asChild size="sm" className="w-full">
-                <Link href="/matches/new">
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  New Match
+                 <Link
+                  href="/player-stats"
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+                >
+                  <Users className="h-4 w-4" />
+                  Player Stats
                 </Link>
-              </Button>
+              </nav>
             </div>
           </div>
         </div>
@@ -104,11 +111,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     Teams
                   </Link>
                   <Link
+                    href="/matches/new"
+                    className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                  >
+                    <PlusCircle className="h-5 w-5" />
+                    Matches
+                  </Link>
+                  <Link
                     href="/matches"
                     className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
                   >
                     <BarChart className="h-5 w-5" />
-                    Matches
+                    Matches History
                   </Link>
                   <Link
                     href="/points-table"
@@ -117,15 +131,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <Trophy className="h-5 w-5" />
                     Points Table
                   </Link>
+                  <Link
+                    href="/player-stats"
+                    className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                  >
+                    <Users className="h-5 w-5" />
+                    Player Stats
+                  </Link>
                 </nav>
-                <div className="mt-auto">
-                  <Button asChild size="sm" className="w-full">
-                    <Link href="/matches/new">
-                      <PlusCircle className="mr-2 h-4 w-4" />
-                      New Match
-                    </Link>
-                  </Button>
-                </div>
               </SheetContent>
             </Sheet>
             <div className="w-full flex-1">
