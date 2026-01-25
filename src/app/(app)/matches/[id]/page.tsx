@@ -2,9 +2,9 @@
 
 import { useParams, notFound } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trophy, Share2, Printer } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Player } from '@/lib/types';
@@ -93,6 +93,8 @@ export default function MatchPage() {
     const battingTeamPlayers = getPlayersByTeamId(currentInning.battingTeamId);
     const bowlingTeamPlayers = getPlayersByTeamId(currentInning.bowlingTeamId);
     
+    const allOutWickets = battingTeamPlayers.length > 1 ? battingTeamPlayers.length - 1 : 10;
+
     const striker = getPlayerById(currentInning.strikerId || '');
     const nonStriker = getPlayerById(currentInning.nonStrikerId || '');
     const bowler = getPlayerById(currentInning.bowlerId || '');
@@ -125,10 +127,7 @@ export default function MatchPage() {
                     <CardTitle className="text-xl font-bold tracking-tight font-headline flex justify-between items-center">
                         <span>{team1.name} vs {team2.name}</span>
                         {match.status === 'completed' ? (
-                            <div className="flex items-center gap-2">
-                                <Button variant="ghost" size="icon"><Share2 className="h-5 w-5" /></Button>
-                                <Button variant="ghost" size="icon"><Printer className="h-5 w-5" /></Button>
-                            </div>
+                           <></>
                         ) : (
                             <span className="text-sm font-normal text-muted-foreground">{match.overs} Over Match</span>
                         )}
@@ -140,12 +139,13 @@ export default function MatchPage() {
                  {match.status === 'live' && (
                     <CardContent className="space-y-4">
                         <div className="flex flex-col md:flex-row gap-4">
-                            <PlayerSelector label="Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.nonStrikerId)} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match.id, 'striker', id)} disabled={!!currentInning.strikerId || currentInning.wickets >= 10} />
-                            <PlayerSelector label="Non-Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.strikerId)} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match.id, 'nonStriker', id)} disabled={!!currentInning.nonStrikerId || currentInning.wickets >= 10} />
+                            <PlayerSelector label="Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.nonStrikerId)} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match.id, 'striker', id)} disabled={!!currentInning.strikerId || currentInning.wickets >= allOutWickets} />
+                            <PlayerSelector label="Non-Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.strikerId)} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match.id, 'nonStriker', id)} disabled={!!currentInning.nonStrikerId || currentInning.wickets >= allOutWickets} />
                              { !isBowlerDialogOpen && <PlayerSelector label="Bowler" players={bowlingTeamPlayers} selectedPlayerId={currentInning.bowlerId} onSelect={(id) => setPlayerInMatch(match.id, 'bowler', id)} disabled={!!currentInning.bowlerId} /> }
                         </div>
                     </CardContent>
                  )}
+                 {match.status === 'completed' && <CardFooter><p className="text-sm text-muted-foreground">Match completed on {new Date(match.date).toLocaleDateString()}</p></CardFooter>}
             </Card>
 
             {match.status === 'completed' && match.result && (

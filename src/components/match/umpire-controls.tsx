@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { ArrowLeftRight, Undo, UserX } from "lucide-react";
+import { UserX } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
 import type { Match } from "@/lib/types";
 import { Badge } from '../ui/badge';
@@ -143,8 +143,8 @@ export function UmpireControls({ match }: { match: Match }) {
                             {runs}
                         </Button>
                     ))}
-                    <Button className="h-14" variant="outline" onClick={() => swapStrikers(match.id)}><ArrowLeftRight /></Button>
-                    <Button className="h-14" variant="outline" onClick={() => undoDelivery(match.id)}><Undo /></Button>
+                    <Button className="h-14 text-sm" variant="outline" onClick={() => swapStrikers(match.id)}>Swap</Button>
+                    <Button className="h-14 text-sm" variant="outline" onClick={() => undoDelivery(match.id)}>Undo</Button>
                 </div>
                  <div className="grid grid-cols-1">
                     <Button variant="destructive" onClick={() => retireStriker(match.id)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
