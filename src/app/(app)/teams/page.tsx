@@ -20,17 +20,28 @@ export default function TeamsPage() {
         </div>
         <AddTeamDialog onTeamAdd={addTeam} />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {teams.map((team) => (
-          <TeamCard 
-            key={team.id} 
-            team={team} 
-            playerCount={getPlayerCountForTeam(team.id)}
-            onEdit={(name) => editTeam(team.id, name)}
-            onDelete={() => deleteTeam(team.id)}
-          />
-        ))}
-      </div>
+      {teams.length > 0 ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {teams.map((team) => (
+            <TeamCard 
+              key={team.id} 
+              team={team} 
+              playerCount={getPlayerCountForTeam(team.id)}
+              onEdit={(name) => editTeam(team.id, name)}
+              onDelete={() => deleteTeam(team.id)}
+            />
+          ))}
+        </div>
+      ) : (
+         <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm py-24">
+            <div className="flex flex-col items-center gap-1 text-center">
+              <h3 className="text-2xl font-bold tracking-tight">No Teams Found</h3>
+              <p className="text-sm text-muted-foreground">
+                Add a team to get started.
+              </p>
+            </div>
+          </div>
+      )}
     </div>
   );
 }
