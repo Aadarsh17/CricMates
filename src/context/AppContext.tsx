@@ -1,9 +1,15 @@
 'use client';
 
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { teams as initialTeams, players as initialPlayers } from '@/lib/data';
 import type { Team, Player, Match, Inning, DeliveryRecord } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+
+type PlayerData = {
+  name: string;
+  role: 'Batsman' | 'Bowler' | 'All-rounder';
+  isCaptain?: boolean;
+  isWicketKeeper?: boolean;
+}
 
 interface AppContextType {
   teams: Team[];
@@ -12,8 +18,8 @@ interface AppContextType {
   addTeam: (name: string) => void;
   editTeam: (teamId: string, name: string) => void;
   deleteTeam: (teamId: string) => void;
-  addPlayer: (teamId: string, playerData: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper'; }) => void;
-  editPlayer: (playerId: string, playerData: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper'; }) => void;
+  addPlayer: (teamId: string, playerData: PlayerData) => void;
+  editPlayer: (playerId: string, playerData: PlayerData) => void;
   deletePlayer: (playerId: string) => void;
   getPlayerCountForTeam: (teamId: string) => number;
   getTeamById: (teamId: string) => Team | undefined;
@@ -31,44 +37,39 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [teams, setTeams] = useState<Team[]>(initialTeams);
-  const [players, setPlayers] = useState<Player[]>(initialPlayers);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [players, setPlayers] = useState<Player[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedTeams = localStorage.getItem('cricmates_teams_v2');
-    const savedPlayers = localStorage.getItem('cricmates_players_v2');
-    const savedMatches = localStorage.getItem('cricmates_matches_v2');
+    const savedTeams = localStorage.getItem('cricmates_teams_v3');
+    const savedPlayers = localStorage.getItem('cricmates_players_v3');
+    const savedMatches = localStorage.getItem('cricmates_matches_v3');
 
-    if (savedTeams) {
-      setTeams(JSON.parse(savedTeams));
-    }
-    if (savedPlayers) {
-      setPlayers(JSON.parse(savedPlayers));
-    }
-    if (savedMatches) {
-      setMatches(JSON.parse(savedMatches));
-    }
+    if (savedTeams) setTeams(JSON.parse(savedTeams));
+    if (savedPlayers) setPlayers(JSON.parse(savedPlayers));
+    if (savedMatches) setMatches(JSON.parse(savedMatches));
+    
     setIsDataLoaded(true);
   }, []);
 
   useEffect(() => {
     if (isDataLoaded) {
-      localStorage.setItem('cricmates_teams_v2', JSON.stringify(teams));
+      localStorage.setItem('cricmates_teams_v3', JSON.stringify(teams));
     }
   }, [teams, isDataLoaded]);
 
   useEffect(() => {
     if (isDataLoaded) {
-      localStorage.setItem('cricmates_players_v2', JSON.stringify(players));
+      localStorage.setItem('cricmates_players_v3', JSON.stringify(players));
     }
   }, [players, isDataLoaded]);
 
   useEffect(() => {
     if (isDataLoaded) {
-      localStorage.setItem('cricmates_matches_v2', JSON.stringify(matches));
+      localStorage.setItem('cricmates_matches_v3', JSON.stringify(matches));
     }
   }, [matches, isDataLoaded]);
 
@@ -144,20 +145,50 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPlayers(prevPlayers => prevPlayers.filter(p => p.teamId !== teamId));
   };
   
-  const addPlayer = (teamId: string, playerData: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper'; }) => {
+  const addPlayer = (teamId: string, playerData: PlayerData) => {
     const newPlayer: Player = {
       id: `p${Date.now()}`,
       teamId: teamId,
       name: playerData.name,
       role: playerData.role,
+      isCaptain: playerData.isCaptain || false,
+      isWicketKeeper: playerData.isWicketKeeper || false,
       stats: { matches: 0, runs: 0, wickets: 0, highestScore: 0, bestBowling: 'N/A' },
       isRetired: false,
     };
-    setPlayers(prevPlayers => [...prevPlayers, newPlayer]);
+    
+    setPlayers(prevPlayers => {
+      let updatedPlayers = [...prevPlayers];
+      if (newPlayer.isCaptain) {
+        updatedPlayers = updatedPlayers.map(p => 
+          p.teamId === teamId ? { ...p, isCaptain: false } : p
+        );
+      }
+      return [...updatedPlayers, newPlayer];
+    });
   };
 
-  const editPlayer = (playerId: string, playerData: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper'; }) => {
-    setPlayers(prevPlayers => prevPlayers.map(p => p.id === playerId ? { ...p, name: playerData.name, role: playerData.role } : p));
+  const editPlayer = (playerId: string, playerData: PlayerData) => {
+     setPlayers(prevPlayers => {
+      const playerToEdit = prevPlayers.find(p => p.id === playerId);
+      if (!playerToEdit) return prevPlayers;
+
+      let updatedPlayers = [...prevPlayers];
+
+      if (playerData.isCaptain) {
+          updatedPlayers = updatedPlayers.map(p => 
+              p.teamId === playerToEdit.teamId && p.id !== playerId 
+                  ? { ...p, isCaptain: false } 
+                  : p
+          );
+      }
+      
+      return updatedPlayers.map(p => 
+          p.id === playerId 
+              ? { ...p, ...playerData } 
+              : p
+      );
+    });
   };
 
   const deletePlayer = (playerId: string) => {

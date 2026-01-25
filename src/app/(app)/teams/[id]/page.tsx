@@ -6,6 +6,13 @@ import PlayerCard from '@/components/players/player-card';
 import { AddPlayerDialog } from '@/components/players/add-player-dialog';
 import type { Player } from '@/lib/types';
 
+type PlayerData = {
+  name: string;
+  role: 'Batsman' | 'Bowler' | 'All-rounder';
+  isCaptain?: boolean;
+  isWicketKeeper?: boolean;
+}
+
 export default function TeamDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const { getTeamById, getPlayersByTeamId, addPlayer, editPlayer, deletePlayer } = useAppContext();
@@ -18,11 +25,11 @@ export default function TeamDetailPage({ params }: { params: { id: string } }) {
 
   const teamPlayers = getPlayersByTeamId(team.id);
 
-  const handleAddPlayer = (playerData: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper'; }) => {
+  const handleAddPlayer = (playerData: PlayerData) => {
     addPlayer(team.id, playerData);
   };
 
-  const handleEditPlayer = (playerId: string, playerData: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper'; }) => {
+  const handleEditPlayer = (playerId: string, playerData: PlayerData) => {
     editPlayer(playerId, playerData);
   };
 

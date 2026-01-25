@@ -31,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import type { Player } from '@/lib/types';
 
@@ -38,25 +39,31 @@ const formSchema = z.object({
   name: z.string().min(2, {
     message: 'Player name must be at least 2 characters long.',
   }),
-  role: z.enum(['Batsman', 'Bowler', 'All-rounder', 'Wicket-keeper']),
+  role: z.enum(['Batsman', 'Bowler', 'All-rounder']),
+  isCaptain: z.boolean().default(false),
+  isWicketKeeper: z.boolean().default(false),
 });
+
+type PlayerFormData = z.infer<typeof formSchema>;
 
 interface EditPlayerDialogProps {
   player: Player;
-  onPlayerEdit: (data: z.infer<typeof formSchema>) => void;
+  onPlayerEdit: (data: PlayerFormData) => void;
 }
 
 export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps) {
   const [open, setOpen] = useState(false);
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<PlayerFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: player.name,
       role: player.role,
+      isCaptain: player.isCaptain || false,
+      isWicketKeeper: player.isWicketKeeper || false,
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: PlayerFormData) {
     onPlayerEdit(values);
     setOpen(false);
   }
@@ -107,13 +114,48 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
                         <SelectItem value="Batsman">Batsman</SelectItem>
                         <SelectItem value="Bowler">Bowler</SelectItem>
                         <SelectItem value="All-rounder">All-rounder</SelectItem>
-                        <SelectItem value="Wicket-keeper">Wicket-keeper</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              <div className="flex items-center space-x-6">
+                <FormField
+                  control={form.control}
+                  name="isCaptain"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 shadow-sm">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Captain</FormLabel>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="isWicketKeeper"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 shadow-sm">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>Wicket-Keeper</FormLabel>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+              </div>
             </div>
             <DialogFooter>
               <Button type="submit">Save Changes</Button>

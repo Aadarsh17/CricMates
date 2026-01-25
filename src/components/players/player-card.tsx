@@ -13,7 +13,7 @@ import { DeletePlayerDialog } from "./delete-player-dialog";
 
 interface PlayerCardProps {
   player: Player;
-  onEdit: (data: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper'; }) => void;
+  onEdit: (data: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder'; isCaptain?: boolean, isWicketKeeper?: boolean }) => void;
   onDelete: () => void;
 }
 
@@ -21,10 +21,11 @@ export default function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between pb-4">
-        <CardTitle className="text-lg font-headline">{player.name}</CardTitle>
+        <CardTitle className="text-lg font-headline">{player.name} {player.isCaptain && <span className="text-sm font-medium text-muted-foreground">(Capt.)</span>}</CardTitle>
         <div className="flex items-center gap-1">
           <Badge variant={player.isRetired ? "outline" : "default"} className={player.isRetired ? "border-destructive text-destructive" : ""}>
             {player.isRetired ? "Retired" : player.role}
+            {player.isWicketKeeper && !player.isRetired && ' / WK'}
           </Badge>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

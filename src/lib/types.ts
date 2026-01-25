@@ -13,7 +13,7 @@ export type Player = {
   id: string;
   name: string;
   teamId: string;
-  role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper';
+  role: 'Batsman' | 'Bowler' | 'All-rounder';
   stats: {
     matches: number;
     runs: number;
@@ -22,6 +22,8 @@ export type Player = {
     bestBowling: string; // e.g., "3/25"
   };
   isRetired: boolean;
+  isCaptain?: boolean;
+  isWicketKeeper?: boolean;
 };
 
 export type DeliveryRecord = {
