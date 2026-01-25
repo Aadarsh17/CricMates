@@ -2,11 +2,12 @@
 
 import { createContext, useContext, useState, ReactNode } from 'react';
 import { teams as initialTeams, players as initialPlayers } from '@/lib/data';
-import type { Team, Player } from '@/lib/types';
+import type { Team, Player, Match, Inning } from '@/lib/types';
 
 interface AppContextType {
   teams: Team[];
   players: Player[];
+  matches: Match[];
   addTeam: (name: string) => void;
   editTeam: (teamId: string, name: string) => void;
   deleteTeam: (teamId: string) => void;
@@ -16,6 +17,9 @@ interface AppContextType {
   getPlayerCountForTeam: (teamId: string) => number;
   getTeamById: (teamId: string) => Team | undefined;
   getPlayersByTeamId: (teamId: string) => Player[];
+  addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => string;
+  getMatchById: (matchId: string) => Match | undefined;
+  simulateOver: (matchId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -23,6 +27,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [teams, setTeams] = useState<Team[]>(initialTeams);
   const [players, setPlayers] = useState<Player[]>(initialPlayers);
+  const [matches, setMatches] = useState<Match[]>([]);
 
   const addTeam = (name: string) => {
     const newTeam: Team = {
@@ -79,9 +84,119 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return players.filter(p => p.teamId === teamId);
   }
 
+  const addMatch = (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => {
+    const { team1Id, team2Id, overs, tossWinnerId, tossDecision } = matchConfig;
+    
+    const battingTeamId = tossDecision === 'bat' ? tossWinnerId : (tossWinnerId === team1Id ? team2Id : team1Id);
+    const bowlingTeamId = tossWinnerId === battingTeamId ? (battingTeamId === team1Id ? team2Id : team1Id) : tossWinnerId;
+
+    const newMatch: Match = {
+      id: `m${Date.now()}`,
+      team1Id,
+      team2Id,
+      overs,
+      status: 'live',
+      tossWinnerId,
+      tossDecision,
+      innings: [{
+        battingTeamId: battingTeamId,
+        bowlingTeamId: bowlingTeamId,
+        score: 0,
+        wickets: 0,
+        overs: 0,
+      }],
+      currentInning: 1,
+      date: new Date().toISOString(),
+    };
+    setMatches(prevMatches => [...prevMatches, newMatch]);
+    return newMatch.id;
+  };
+
+  const getMatchById = (matchId: string) => {
+    return matches.find(m => m.id === matchId);
+  }
+
+  const simulateOver = (matchId: string) => {
+    setMatches(prevMatches => prevMatches.map(m => {
+      if (m.id === matchId && m.status === 'live') {
+        const currentInningData = m.innings[m.currentInning - 1];
+        
+        let { score, wickets, overs } = currentInningData;
+        let inningIsOver = false;
+
+        const runsInOver = Math.floor(Math.random() * 18) + 2; // 2-19 runs
+        const wicketsInOver = Math.random() > 0.8 ? (Math.random() > 0.95 ? 2 : 1) : 0; // 0, 1 or 2 wickets
+
+        score += runsInOver;
+        
+        let newOvers = overs + 1;
+        
+        if (wickets + wicketsInOver >= 10) {
+            wickets = 10;
+            inningIsOver = true;
+        } else {
+            wickets += wicketsInOver;
+        }
+        
+        if (newOvers >= m.overs) {
+            newOvers = m.overs;
+            inningIsOver = true;
+        }
+
+        const updatedInningData = {
+            ...currentInningData,
+            score,
+            wickets,
+            overs: newOvers,
+        };
+
+        const newInnings = [...m.innings];
+        newInnings[m.currentInning - 1] = updatedInningData;
+        
+        let updatedMatch = { ...m, innings: newInnings };
+        
+        if (inningIsOver) {
+            if (m.currentInning === 1) {
+                // Start second inning
+                const nextBattingTeamId = m.team1Id === currentInningData.battingTeamId ? m.team2Id : m.team1Id;
+                const nextBowlingTeamId = currentInningData.battingTeamId;
+                updatedMatch.innings.push({
+                    battingTeamId: nextBattingTeamId,
+                    bowlingTeamId: nextBowlingTeamId,
+                    score: 0,
+                    wickets: 0,
+                    overs: 0,
+                });
+                updatedMatch.currentInning = 2;
+            } else {
+                // Match is over
+                updatedMatch.status = 'completed';
+                // Determine winner
+                const firstInning = updatedMatch.innings[0];
+                const secondInning = updatedMatch.innings[1];
+                
+                const firstInningBattingTeam = getTeamById(firstInning.battingTeamId);
+                const secondInningBattingTeam = getTeamById(secondInning.battingTeamId);
+                
+                if (secondInning.score > firstInning.score) {
+                   updatedMatch.result = `${secondInningBattingTeam?.name} won by ${10 - secondInning.wickets} wickets.`;
+                } else if (secondInning.score < firstInning.score) {
+                    updatedMatch.result = `${firstInningBattingTeam?.name} won by ${firstInning.score - secondInning.score} runs.`;
+                } else {
+                    updatedMatch.result = "Match is a Tie.";
+                }
+            }
+        }
+        return updatedMatch;
+      }
+      return m;
+    }));
+  };
+
   const value = {
       teams,
       players,
+      matches,
       addTeam,
       editTeam,
       deleteTeam,
@@ -91,6 +206,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       getPlayerCountForTeam,
       getTeamById,
       getPlayersByTeamId,
+      addMatch,
+      getMatchById,
+      simulateOver,
   };
 
   return (

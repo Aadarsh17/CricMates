@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -19,8 +20,9 @@ import { ArrowRight } from 'lucide-react';
 import type { Team } from '@/lib/types';
 
 export default function NewMatchPage() {
-  const { teams } = useAppContext();
+  const { teams, addMatch } = useAppContext();
   const { toast } = useToast();
+  const router = useRouter();
   const [step, setStep] = useState(1);
   const [team1, setTeam1] = useState<Team | null>(null);
   const [team2, setTeam2] = useState<Team | null>(null);
@@ -62,7 +64,7 @@ export default function NewMatchPage() {
   };
 
   const handleStartMatch = () => {
-     if (!tossWinner || !tossDecision || overs <= 0) {
+     if (!tossWinner || !tossDecision || overs <= 0 || !team1 || !team2) {
       toast({
         variant: "destructive",
         title: "Configuration Incomplete",
@@ -71,10 +73,15 @@ export default function NewMatchPage() {
       return;
     }
 
-    toast({
-        title: "Match Starting!",
-        description: `A ${overs} over match between ${team1?.name} and ${team2?.name}. ${teams.find(t => t.id === tossWinner)?.name} won the toss and chose to ${tossDecision}. Inning simulation coming soon!`,
+    const newMatchId = addMatch({
+        team1Id: team1.id,
+        team2Id: team2.id,
+        overs: overs,
+        tossWinnerId: tossWinner,
+        tossDecision: tossDecision,
     });
+
+    router.push(`/matches/${newMatchId}`);
   }
 
   if (step === 1) {

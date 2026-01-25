@@ -24,15 +24,25 @@ export type Player = {
   isRetired: boolean;
 };
 
+export type Inning = {
+  battingTeamId: string;
+  bowlingTeamId: string;
+  score: number;
+  wickets: number;
+  overs: number;
+};
+
 export type Match = {
   id: string;
-  team1: Team;
-  team2: Team;
-  date: string;
-  venue: string;
-  status: 'upcoming' | 'live' | 'completed';
-  tossWinner: string; // teamId
+  team1Id: string;
+  team2Id: string;
+  overs: number;
+  status: 'live' | 'completed';
+  tossWinnerId: string;
   tossDecision: 'bat' | 'bowl';
-  result: string; // e.g., "Team A won by 5 wickets"
-  summary: string;
+  innings: Inning[];
+  currentInning: number; // 1 or 2
+  result?: string;
+  summary?: string;
+  date: string;
 };
