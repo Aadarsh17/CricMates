@@ -16,12 +16,17 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import { DeleteTeamDialog } from "./delete-team-dialog";
+import { EditTeamDialog } from "./edit-team-dialog";
 
 interface TeamCardProps {
   team: Team;
+  playerCount: number;
+  onEdit: (name: string) => void;
+  onDelete: () => void;
 }
 
-export default function TeamCard({ team }: TeamCardProps) {
+export default function TeamCard({ team, playerCount, onEdit, onDelete }: TeamCardProps) {
   return (
     <Card className="flex flex-col hover:shadow-lg transition-shadow duration-300">
       <CardHeader className="flex flex-row items-start justify-between pb-2">
@@ -33,10 +38,8 @@ export default function TeamCard({ team }: TeamCardProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>Edit</DropdownMenuItem>
-            <DropdownMenuItem className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
-              Delete
-            </DropdownMenuItem>
+            <EditTeamDialog team={team} onTeamEdit={onEdit} />
+            <DeleteTeamDialog onDelete={onDelete} />
           </DropdownMenuContent>
         </DropdownMenu>
       </CardHeader>
@@ -51,7 +54,7 @@ export default function TeamCard({ team }: TeamCardProps) {
         />
         <div className="flex items-center gap-2 text-muted-foreground">
           <Users className="h-4 w-4" />
-          <span>{team.players.length} Players</span>
+          <span>{playerCount} Players</span>
         </div>
       </CardContent>
       <CardFooter>

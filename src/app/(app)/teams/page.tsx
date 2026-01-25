@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import TeamCard from "@/components/teams/team-card";
-import { teams as initialTeams } from "@/lib/data";
-import type { Team } from "@/lib/types";
+import { teams as initialTeams, players as initialPlayers } from "@/lib/data";
+import type { Team, Player } from "@/lib/types";
 import { AddTeamDialog } from '@/components/teams/add-team-dialog';
 
 export default function TeamsPage() {
   const [teams, setTeams] = useState<Team[]>(initialTeams);
+  const [players, setPlayers] = useState<Player[]>(initialPlayers);
 
   const handleAddTeam = (name: string) => {
     const newTeam: Team = {
@@ -15,7 +16,6 @@ export default function TeamsPage() {
       name,
       logoUrl: `https://picsum.photos/seed/${Math.random().toString(36).substring(7)}/128/128`,
       imageHint: 'logo abstract',
-      players: [],
       matchesPlayed: 0,
       matchesWon: 0,
       matchesLost: 0,
@@ -23,6 +23,20 @@ export default function TeamsPage() {
     };
     setTeams((prevTeams) => [...prevTeams, newTeam]);
   };
+  
+  const handleEditTeam = (teamId: string, name: string) => {
+    setTeams(prevTeams => prevTeams.map(t => t.id === teamId ? { ...t, name } : t));
+  }
+
+  const handleDeleteTeam = (teamId: string) => {
+    setTeams(prevTeams => prevTeams.filter(t => t.id !== teamId));
+    // Also delete players of that team
+    setPlayers(prevPlayers => prevPlayers.filter(p => p.teamId !== teamId));
+  }
+
+  const getPlayerCountForTeam = (teamId: string) => {
+    return players.filter(p => p.teamId === teamId).length;
+  }
 
   return (
     <div className="space-y-6">
@@ -39,7 +53,13 @@ export default function TeamsPage() {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {teams.map((team) => (
-          <TeamCard key={team.id} team={team} />
+          <TeamCard 
+            key={team.id} 
+            team={team} 
+            playerCount={getPlayerCountForTeam(team.id)}
+            onEdit={(name) => handleEditTeam(team.id, name)}
+            onDelete={() => handleDeleteTeam(team.id)}
+          />
         ))}
       </div>
     </div>

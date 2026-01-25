@@ -21,13 +21,20 @@ const players_team4: Player[] = [
     { id: 'p9', name: 'KL Rahul', teamId: 't4', role: 'Wicket-keeper', stats: { matches: 5, runs: 220, wickets: 0, highestScore: 80, bestBowling: 'N/A' }, isRetired: false },
 ];
 
+export const players: Player[] = [
+  ...players_team1,
+  ...players_team2,
+  ...players_team3,
+  ...players_team4,
+];
+
+
 export const teams: Team[] = [
   { 
     id: 't1', 
     name: 'Chennai Super Kings', 
     logoUrl: 'https://picsum.photos/seed/101/128/128', 
     imageHint: 'logo abstract',
-    players: players_team1,
     matchesPlayed: 5, matchesWon: 4, matchesLost: 1, matchesDrawn: 0 
   },
   { 
@@ -35,7 +42,6 @@ export const teams: Team[] = [
     name: 'Royal Challengers', 
     logoUrl: 'https://picsum.photos/seed/102/128/128', 
     imageHint: 'logo dynamic',
-    players: players_team2,
     matchesPlayed: 5, matchesWon: 3, matchesLost: 2, matchesDrawn: 0 
   },
   { 
@@ -43,7 +49,6 @@ export const teams: Team[] = [
     name: 'Mumbai Indians', 
     logoUrl: 'https://picsum.photos/seed/103/128/128', 
     imageHint: 'logo minimalist',
-    players: players_team3,
     matchesPlayed: 5, matchesWon: 2, matchesLost: 3, matchesDrawn: 0 
   },
   { 
@@ -51,7 +56,6 @@ export const teams: Team[] = [
     name: 'Punjab Kings', 
     logoUrl: 'https://picsum.photos/seed/104/128/128', 
     imageHint: 'logo bold',
-    players: players_team4,
     matchesPlayed: 5, matchesWon: 1, matchesLost: 4, matchesDrawn: 0
   },
 ];

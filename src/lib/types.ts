@@ -3,7 +3,6 @@ export type Team = {
   name: string;
   logoUrl: string;
   imageHint: string;
-  players: Player[];
   matchesPlayed: number;
   matchesWon: number;
   matchesLost: number;
