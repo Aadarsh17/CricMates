@@ -25,25 +25,31 @@ const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled =
 )
 
 const CurrentOver = ({ deliveries, overs }: { deliveries: any[], overs: number }) => {
-    const overNumber = Math.floor(overs);
-    const ballsInOver = Math.round((overs - overNumber) * 10);
-    
-    let legalBallCount = 0;
-    let startIndex = -1;
+    const overDeliveries = [];
+    if (deliveries.length > 0) {
+        let legalBallsInCurrentOver = 0;
+        
+        const overNumber = Math.floor(overs);
+        const ballsInOver = Math.round((overs - overNumber) * 10);
 
-    for (let i = deliveries.length - 1; i >= 0; i--) {
-        if (!deliveries[i].extra) {
-            legalBallCount++;
+        if (ballsInOver > 0) {
+            legalBallsInCurrentOver = ballsInOver;
+        } else if (overs > 0 && overs % 1 === 0) {
+            legalBallsInCurrentOver = 6;
         }
-        if (legalBallCount === ballsInOver) {
-            startIndex = i;
-            break;
+
+        let ballsFound = 0;
+        for (let i = deliveries.length - 1; i >= 0; i--) {
+            const delivery = deliveries[i];
+            overDeliveries.unshift(delivery);
+            if (!delivery.extra) {
+                ballsFound++;
+            }
+            if (ballsFound >= legalBallsInCurrentOver) {
+                break;
+            }
         }
     }
-    if (ballsInOver === 0) startIndex = deliveries.length;
-    if (startIndex === -1 && deliveries.length > 0) startIndex = 0;
-    
-    const overDeliveries = startIndex !== -1 ? deliveries.slice(startIndex) : [];
 
     return (
         <Card>
@@ -176,7 +182,7 @@ export default function MatchPage() {
                     <Card>
                         <CardHeader>
                             <CardTitle>{getTeamById(secondInning.battingTeamId)?.name} Innings</CardTitle>
-                        </CardHeader>
+                        </Header>
                         <CardContent className="text-center">
                             <div className="text-5xl font-bold">{secondInning.score}/{secondInning.wickets}</div>
                             <div className="text-md text-muted-foreground">Overs: {secondInning.overs.toFixed(1)}</div>
