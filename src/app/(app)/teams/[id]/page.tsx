@@ -1,43 +1,33 @@
 'use client';
 
 import { notFound } from "next/navigation";
-import { teams as initialTeams, players as initialPlayers } from "@/lib/data";
-import { useState } from 'react';
-import type { Team, Player } from '@/lib/types';
+import { useAppContext } from "@/context/AppContext";
 import PlayerCard from '@/components/players/player-card';
 import { AddPlayerDialog } from '@/components/players/add-player-dialog';
+import type { Player } from '@/lib/types';
 
 export default function TeamDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
-  const [teams, setTeams] = useState<Team[]>(initialTeams);
-  const [players, setPlayers] = useState<Player[]>(initialPlayers);
+  const { getTeamById, getPlayersByTeamId, addPlayer, editPlayer, deletePlayer } = useAppContext();
 
-  const team = teams.find((t) => t.id === id);
+  const team = getTeamById(id);
 
   if (!team) {
     notFound();
   }
 
-  const teamPlayers = players.filter(p => p.teamId === team.id);
+  const teamPlayers = getPlayersByTeamId(team.id);
 
   const handleAddPlayer = (playerData: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper'; }) => {
-    const newPlayer: Player = {
-      id: `p${Date.now()}`,
-      teamId: team.id,
-      name: playerData.name,
-      role: playerData.role,
-      stats: { matches: 0, runs: 0, wickets: 0, highestScore: 0, bestBowling: 'N/A' },
-      isRetired: false,
-    };
-    setPlayers(prevPlayers => [...prevPlayers, newPlayer]);
+    addPlayer(team.id, playerData);
   };
 
   const handleEditPlayer = (playerId: string, playerData: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder' | 'Wicket-keeper'; }) => {
-    setPlayers(prevPlayers => prevPlayers.map(p => p.id === playerId ? { ...p, ...playerData } : p));
+    editPlayer(playerId, playerData);
   };
 
   const handleDeletePlayer = (playerId: string) => {
-    setPlayers(prevPlayers => prevPlayers.filter(p => p.id !== playerId));
+    deletePlayer(playerId);
   };
 
   return (
