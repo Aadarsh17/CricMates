@@ -1,3 +1,34 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "team-logo-1",
+      "description": "Abstract logo for a cricket team",
+      "imageUrl": "https://images.unsplash.com/photo-1760037028517-e5cc6e3ebd3e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxsb2dvJTIwYWJzdHJhY3R8ZW58MHx8fHwxNzY5MzI2OTM2fDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "logo abstract"
+    },
+    {
+      "id": "team-logo-2",
+      "description": "Dynamic logo for a sports team",
+      "imageUrl": "https://images.unsplash.com/photo-1760037034697-eee0b07ae072?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxsb2dvJTIwZHluYW1pY3xlbnwwfHx8fDE3NjkzNDc1MDB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "logo dynamic"
+    },
+    {
+      "id": "team-logo-3",
+      "description": "Minimalist logo for a cricket club",
+      "imageUrl": "https://images.unsplash.com/photo-1645782068569-2d889782ee61?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxsb2dvJTIwbWluaW1hbGlzdHxlbnwwfHx8fDE3NjkzNDc1MDB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "logo minimalist"
+    },
+    {
+      "id": "team-logo-4",
+      "description": "Bold logo for a cricket franchise",
+      "imageUrl": "https://images.unsplash.com/photo-1674781886175-8f9d98eef927?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxsb2dvJTIwYm9sZHxlbnwwfHx8fDE3NjkzNDc1MDB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "logo bold"
+    },
+    {
+      "id": "user-avatar",
+      "description": "Default user avatar",
+      "imageUrl": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxwZXJzb24lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjkyODc2NjV8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person portrait"
+    }
+  ]
 }
