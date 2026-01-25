@@ -46,34 +46,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedTeams = localStorage.getItem('cricmates_teams_v3');
-    const savedPlayers = localStorage.getItem('cricmates_players_v3');
-    const savedMatches = localStorage.getItem('cricmates_matches_v3');
-
-    if (savedTeams) setTeams(JSON.parse(savedTeams));
-    if (savedPlayers) setPlayers(JSON.parse(savedPlayers));
-    if (savedMatches) setMatches(JSON.parse(savedMatches));
-    
+    // Set data as loaded without retrieving from localStorage.
+    // This effectively resets the data on each page load.
     setIsDataLoaded(true);
   }, []);
-
-  useEffect(() => {
-    if (isDataLoaded) {
-      localStorage.setItem('cricmates_teams_v3', JSON.stringify(teams));
-    }
-  }, [teams, isDataLoaded]);
-
-  useEffect(() => {
-    if (isDataLoaded) {
-      localStorage.setItem('cricmates_players_v3', JSON.stringify(players));
-    }
-  }, [players, isDataLoaded]);
-
-  useEffect(() => {
-    if (isDataLoaded) {
-      localStorage.setItem('cricmates_matches_v3', JSON.stringify(matches));
-    }
-  }, [matches, isDataLoaded]);
 
   const handleInningEnd = (match: Match, teamsData: Team[]): Match => {
     const updatedMatch = JSON.parse(JSON.stringify(match));
