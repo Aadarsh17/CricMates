@@ -38,9 +38,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
 
   useEffect(() => {
-    const savedTeams = localStorage.getItem('cricmates_teams');
-    const savedPlayers = localStorage.getItem('cricmates_players');
-    const savedMatches = localStorage.getItem('cricmates_matches');
+    const savedTeams = localStorage.getItem('cricmates_teams_v2');
+    const savedPlayers = localStorage.getItem('cricmates_players_v2');
+    const savedMatches = localStorage.getItem('cricmates_matches_v2');
 
     if (savedTeams) {
       setTeams(JSON.parse(savedTeams));
@@ -56,19 +56,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (isDataLoaded) {
-      localStorage.setItem('cricmates_teams', JSON.stringify(teams));
+      localStorage.setItem('cricmates_teams_v2', JSON.stringify(teams));
     }
   }, [teams, isDataLoaded]);
 
   useEffect(() => {
     if (isDataLoaded) {
-      localStorage.setItem('cricmates_players', JSON.stringify(players));
+      localStorage.setItem('cricmates_players_v2', JSON.stringify(players));
     }
   }, [players, isDataLoaded]);
 
   useEffect(() => {
     if (isDataLoaded) {
-      localStorage.setItem('cricmates_matches', JSON.stringify(matches));
+      localStorage.setItem('cricmates_matches_v2', JSON.stringify(matches));
     }
   }, [matches, isDataLoaded]);
 
