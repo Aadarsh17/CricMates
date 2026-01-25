@@ -5,11 +5,12 @@ import { useAppContext } from '@/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Trophy } from 'lucide-react';
+import { Label } from '@/components/ui/label';
 
 export default function MatchPage() {
     const params = useParams();
     const matchId = params.id as string;
-    const { getMatchById, getTeamById, simulateOver } = useAppContext();
+    const { getMatchById, getTeamById, recordDelivery } = useAppContext();
 
     const match = getMatchById(matchId);
 
@@ -27,9 +28,43 @@ export default function MatchPage() {
         notFound();
     }
 
-    const handleSimulateOver = () => {
-        simulateOver(match.id);
+    const handleDelivery = (outcome: { runs?: number, wicket?: boolean, extra?: 'wide' | 'noball' | null }) => {
+        recordDelivery(match.id, outcome);
     };
+
+    const UmpireControls = () => (
+        <Card>
+            <CardHeader>
+                <CardTitle>Umpire Controls</CardTitle>
+                <CardDescription>Record the outcome of each delivery.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="space-y-2">
+                    <Label>Runs Scored</Label>
+                    <div className="flex flex-wrap gap-2">
+                        {[0, 1, 2, 3, 4, 6].map(runs => (
+                            <Button key={runs} variant="outline" onClick={() => handleDelivery({ runs, wicket: false, extra: null })}>
+                                {runs}
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Label>Events</Label>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="destructive" onClick={() => handleDelivery({ runs: 0, wicket: true, extra: null })}>Wicket</Button>
+                    </div>
+                </div>
+                <div className="space-y-2">
+                    <Label>Extras (adds 1 run, ball is re-bowled)</Label>
+                    <div className="flex flex-wrap gap-2">
+                        <Button variant="secondary" onClick={() => handleDelivery({ runs: 0, wicket: false, extra: 'wide' })}>Wide</Button>
+                        <Button variant="secondary" onClick={() => handleDelivery({ runs: 0, wicket: false, extra: 'noball' })}>No Ball</Button>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    );
     
     return (
         <div className="space-y-6">
@@ -91,11 +126,7 @@ export default function MatchPage() {
                 )}
             </div>
 
-            {match.status === 'live' && (
-                <div className="flex justify-center">
-                    <Button onClick={handleSimulateOver}>Simulate Over</Button>
-                </div>
-            )}
+            {match.status === 'live' && <UmpireControls />}
         </div>
     );
 }

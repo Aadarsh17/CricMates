@@ -19,7 +19,7 @@ interface AppContextType {
   getPlayersByTeamId: (teamId: string) => Player[];
   addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => string;
   getMatchById: (matchId: string) => Match | undefined;
-  simulateOver: (matchId: string) => void;
+  recordDelivery: (matchId: string, outcome: { runs?: number, wicket?: boolean, extra?: 'wide' | 'noball' | null }) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -116,50 +116,55 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return matches.find(m => m.id === matchId);
   }
 
-  const simulateOver = (matchId: string) => {
+  const recordDelivery = (matchId: string, outcome: { runs?: number; wicket?: boolean; extra?: 'wide' | 'noball' | null }) => {
     setMatches(prevMatches => prevMatches.map(m => {
-      if (m.id === matchId && m.status === 'live') {
-        const currentInningData = m.innings[m.currentInning - 1];
+        if (m.id !== matchId || m.status !== 'live') return m;
+
+        // Using a deep copy to avoid state mutation issues with nested objects
+        const updatedMatch = JSON.parse(JSON.stringify(m)); 
+        const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
+
+        // Update score
+        if (typeof outcome.runs === 'number') {
+            inning.score += outcome.runs;
+        }
+        if (outcome.extra === 'wide' || outcome.extra === 'noball') {
+            inning.score += 1;
+        }
+
+        // Update overs for legal deliveries only
+        if (!outcome.extra) {
+            const currentOverInt = Math.floor(inning.overs);
+            const currentBalls = Math.round((inning.overs % 1) * 10);
+            
+            if (currentBalls === 5) {
+                inning.overs = currentOverInt + 1;
+            } else {
+                inning.overs = parseFloat((currentOverInt + (currentBalls + 1) / 10).toFixed(1));
+            }
+        }
         
-        let { score, wickets, overs } = currentInningData;
+        // Update wickets
+        if (outcome.wicket) {
+            inning.wickets += 1;
+        }
+
         let inningIsOver = false;
-
-        const runsInOver = Math.floor(Math.random() * 18) + 2; // 2-19 runs
-        const wicketsInOver = Math.random() > 0.8 ? (Math.random() > 0.95 ? 2 : 1) : 0; // 0, 1 or 2 wickets
-
-        score += runsInOver;
-        
-        let newOvers = overs + 1;
-        
-        if (wickets + wicketsInOver >= 10) {
-            wickets = 10;
-            inningIsOver = true;
-        } else {
-            wickets += wicketsInOver;
-        }
-        
-        if (newOvers >= m.overs) {
-            newOvers = m.overs;
+        // Inning ends if 10 wickets are down or overs are completed
+        if (inning.wickets >= 10 || inning.overs >= updatedMatch.overs) {
             inningIsOver = true;
         }
 
-        const updatedInningData = {
-            ...currentInningData,
-            score,
-            wickets,
-            overs: newOvers,
-        };
+        // Inning also ends if the chasing team wins
+        if (updatedMatch.currentInning === 2 && updatedMatch.innings[0].score < inning.score) {
+            inningIsOver = true;
+        }
 
-        const newInnings = [...m.innings];
-        newInnings[m.currentInning - 1] = updatedInningData;
-        
-        let updatedMatch = { ...m, innings: newInnings };
-        
         if (inningIsOver) {
-            if (m.currentInning === 1) {
-                // Start second inning
-                const nextBattingTeamId = m.team1Id === currentInningData.battingTeamId ? m.team2Id : m.team1Id;
-                const nextBowlingTeamId = currentInningData.battingTeamId;
+            if (updatedMatch.currentInning === 1) {
+                // End of first inning, start the second
+                const nextBattingTeamId = updatedMatch.team1Id === inning.battingTeamId ? updatedMatch.team2Id : updatedMatch.team1Id;
+                const nextBowlingTeamId = inning.battingTeamId;
                 updatedMatch.innings.push({
                     battingTeamId: nextBattingTeamId,
                     bowlingTeamId: nextBowlingTeamId,
@@ -169,29 +174,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 });
                 updatedMatch.currentInning = 2;
             } else {
-                // Match is over
+                // End of second inning, match is over
                 updatedMatch.status = 'completed';
-                // Determine winner
                 const firstInning = updatedMatch.innings[0];
                 const secondInning = updatedMatch.innings[1];
-                
-                const firstInningBattingTeam = getTeamById(firstInning.battingTeamId);
-                const secondInningBattingTeam = getTeamById(secondInning.battingTeamId);
-                
+                const firstInningTeam = getTeamById(firstInning.battingTeamId);
+                const secondInningTeam = getTeamById(secondInning.battingTeamId);
+
                 if (secondInning.score > firstInning.score) {
-                   updatedMatch.result = `${secondInningBattingTeam?.name} won by ${10 - secondInning.wickets} wickets.`;
-                } else if (secondInning.score < firstInning.score) {
-                    updatedMatch.result = `${firstInningBattingTeam?.name} won by ${firstInning.score - secondInning.score} runs.`;
+                    updatedMatch.result = `${secondInningTeam?.name} won by ${10 - secondInning.wickets} wickets.`;
+                } else if (firstInning.score > secondInning.score) {
+                    updatedMatch.result = `${firstInningTeam?.name} won by ${firstInning.score - secondInning.score} runs.`;
                 } else {
                     updatedMatch.result = "Match is a Tie.";
                 }
             }
         }
+
         return updatedMatch;
-      }
-      return m;
-    }));
-  };
+      }));
+};
 
   const value = {
       teams,
@@ -208,7 +210,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       getPlayersByTeamId,
       addMatch,
       getMatchById,
-      simulateOver,
+      recordDelivery,
   };
 
   return (
