@@ -84,20 +84,13 @@ export default function NewMatchPage() {
         tossWinnerId: tossWinner,
         tossDecision: tossDecision,
       });
-
-      if (newMatchId) {
-        router.push(`/matches/${newMatchId}`);
-      } else {
-        // addMatch returns undefined on failure and should have already shown a toast.
-        setIsSubmitting(false);
-      }
+      router.push(`/matches/${newMatchId}`);
     } catch (error) {
-      // This is a defensive catch, just in case `addMatch` throws an unexpected error.
       console.error("Failed to start match:", error);
       toast({
         variant: "destructive",
         title: "Error Starting Match",
-        description: "An unexpected error occurred. Please check the console."
+        description: "Could not create the match. The backend might still be initializing. Please try again in a moment."
       });
       setIsSubmitting(false);
     }
