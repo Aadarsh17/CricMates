@@ -8,11 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { Player, Team } from "@/lib/types";
 import { useAppContext } from "@/context/AppContext";
 import Image from "next/image";
 import { Card } from "../ui/card";
+import Link from "next/link";
 
 export type RankedPlayer = {
     rank: number;
@@ -61,16 +61,10 @@ export function RankingsTable({ data, type }: RankingsTableProps) {
                                 <TableRow key={rankedPlayer.player.id}>
                                     <TableCell className="font-bold text-muted-foreground text-lg">{rankedPlayer.rank}</TableCell>
                                     <TableCell>
-                                        <div className="flex items-center gap-4">
-                                            <Avatar className="h-10 w-10">
-                                                <AvatarImage src={`https://picsum.photos/seed/${rankedPlayer.player.id}/40/40`} />
-                                                <AvatarFallback>{rankedPlayer.player.name.charAt(0)}</AvatarFallback>
-                                            </Avatar>
-                                            <div>
-                                                <p className="font-semibold">{rankedPlayer.player.name}</p>
-                                                <p className="text-sm text-muted-foreground">{team?.name || 'Unattached'}</p>
-                                            </div>
-                                        </div>
+                                        <Link href={`/players/${rankedPlayer.player.id}`} className="block hover:no-underline">
+                                            <p className="font-semibold hover:underline">{rankedPlayer.player.name}</p>
+                                            <p className="text-sm text-muted-foreground">{team?.name || 'Unattached'}</p>
+                                        </Link>
                                     </TableCell>
                                     <TableCell className="text-right font-bold text-lg">{rankedPlayer.points}</TableCell>
                                 </TableRow>

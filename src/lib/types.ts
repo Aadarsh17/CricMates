@@ -24,6 +24,8 @@ export type Player = {
   isRetired: boolean;
   isCaptain?: boolean;
   isWicketKeeper?: boolean;
+  battingStyle?: string;
+  bowlingStyle?: string;
 };
 
 export type DeliveryRecord = {
