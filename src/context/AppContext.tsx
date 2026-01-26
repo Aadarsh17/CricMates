@@ -3,7 +3,7 @@
 import { createContext, useContext, ReactNode, useMemo } from 'react';
 import type { Team, Player, Match, Inning, DeliveryRecord } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { useCollection, useFirebase, errorEmitter, FirestorePermissionError } from '@/firebase';
+import { useCollection, useFirebase, errorEmitter, FirestorePermissionError, useMemoFirebase } from '@/firebase';
 import { collection, doc, addDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 
 type PlayerData = {
@@ -48,10 +48,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const { db } = useFirebase();
 
-  const { data: teams, loading: teamsLoading } = useCollection<Team>('teams');
-  const { data: players, loading: playersLoading } = useCollection<Player>('players');
-  const { data: matches, loading: matchesLoading } = useCollection<Match>('matches');
+  const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
+  const playersCollection = useMemoFirebase(() => (db ? collection(db, 'players') : null), [db]);
+  const matchesCollection = useMemoFirebase(() => (db ? collection(db, 'matches') : null), [db]);
+
+  const { data: teamsData, loading: teamsLoading } = useCollection<Team>(teamsCollection);
+  const { data: playersData, loading: playersLoading } = useCollection<Player>(playersCollection);
+  const { data: matchesData, loading: matchesLoading } = useCollection<Match>(matchesCollection);
   
+  const teams = teamsData || [];
+  const players = playersData || [];
+  const matches = matchesData || [];
+
   const loading = {
       teams: teamsLoading,
       players: playersLoading,
