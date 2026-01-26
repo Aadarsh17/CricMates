@@ -1,0 +1,22 @@
+{
+  "theme_color": "#EFAF1A",
+  "background_color": "#FFFFFF",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/home",
+  "name": "CricMates",
+  "short_name": "CricMates",
+  "description": "The ultimate app for tracking cricket scores and stats.",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icons/icon-512x512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
