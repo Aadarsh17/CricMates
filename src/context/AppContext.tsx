@@ -3,7 +3,7 @@
 import { createContext, useContext, ReactNode, useMemo, useCallback } from 'react';
 import type { Team, Player, Match, Inning, DeliveryRecord } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { useCollection, useFirebase, errorEmitter, FirestorePermissionError, useMemoFirebase } from '@/firebase';
+import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, doc, addDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 
 type PlayerData = {
@@ -126,7 +126,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
 
   const addTeam = useCallback(async (name: string) => {
-    if (!db) throw new Error("Database not available");
+    if (!db) {
+        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
+        return;
+    }
     const newTeam: Omit<Team, 'id'> = {
       name,
       logoUrl: `https://picsum.photos/seed/${Math.random().toString(36).substring(7)}/128/128`,
@@ -138,26 +141,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     try {
       await addDoc(collection(db, 'teams'), newTeam);
+      toast({ title: "Team Added", description: `${name} has been added successfully.` });
     } catch(e: any) {
         console.error("Failed to add team:", e);
-        toast({ variant: "destructive", title: "Error Adding Team", description: "Could not add the team. Please try again." });
-        throw e;
+        toast({ variant: "destructive", title: "Error Adding Team", description: "Could not add the team. Please check your connection and try again." });
     }
   }, [db, toast]);
 
   const editTeam = useCallback(async (teamId: string, name: string) => {
-    if (!db) throw new Error("Database not available");
+    if (!db) {
+        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
+        return;
+    }
     try {
       await updateDoc(doc(db, 'teams', teamId), { name });
+      toast({ title: "Team Updated", description: "Team name has been updated." });
     } catch (e: any) {
         console.error("Failed to edit team:", e);
         toast({ variant: "destructive", title: "Error Editing Team", description: "Could not update the team. Please try again." });
-        throw e;
     }
   }, [db, toast]);
 
   const deleteTeam = useCallback(async (teamId: string) => {
-    if (!db) throw new Error("Database not available");
+    if (!db) {
+        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
+        return;
+    }
     try {
       const batch = writeBatch(db);
       batch.delete(doc(db, 'teams', teamId));
@@ -166,15 +175,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
           batch.delete(doc(db, 'players', p.id));
       });
       await batch.commit();
+      toast({ title: "Team Deleted", description: "The team and its players have been deleted." });
     } catch (e: any) {
         console.error("Failed to delete team:", e);
-        toast({ variant: "destructive", title: "Error Deleting Team", description: "Could not delete the team and its players. Please try again." });
-        throw e;
+        toast({ variant: "destructive", title: "Error Deleting Team", description: "Could not delete the team. Please try again." });
     }
   }, [db, players, toast]);
   
   const addPlayer = useCallback(async (teamId: string, playerData: PlayerData) => {
-    if (!db) throw new Error("Database not available");
+    if (!db) {
+        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
+        return;
+    }
     const batch = writeBatch(db);
     const newPlayerRef = doc(collection(db, 'players'));
 
@@ -198,17 +210,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     batch.set(newPlayerRef, newPlayer);
     try {
       await batch.commit();
+      toast({ title: "Player Added", description: `${playerData.name} has been added.` });
     } catch (e: any) {
         console.error("Failed to add player:", e);
         toast({ variant: "destructive", title: "Error Adding Player", description: "Could not add the player. Please try again." });
-        throw e;
     }
   }, [db, players, toast]);
 
   const editPlayer = useCallback(async (playerId: string, playerData: PlayerData) => {
-    if (!db) throw new Error("Database not available");
+    if (!db) {
+        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
+        return;
+    }
     const playerToEdit = players.find(p => p.id === playerId);
-    if (!playerToEdit) throw new Error("Player not found");
+    if (!playerToEdit) {
+        toast({ variant: "destructive", title: "Error", description: "Player not found." });
+        return;
+    };
 
     const batch = writeBatch(db);
     batch.update(doc(db, 'players', playerId), { ...playerData });
@@ -221,21 +239,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     try {
       await batch.commit();
+      toast({ title: "Player Updated", description: "Player details have been updated." });
     } catch (e: any) {
       console.error("Failed to edit player:", e);
       toast({ variant: "destructive", title: "Error Editing Player", description: "Could not update the player. Please try again." });
-      throw e;
     }
   }, [db, players, toast]);
 
   const deletePlayer = useCallback(async (playerId: string) => {
-    if (!db) throw new Error("Database not available");
+    if (!db) {
+        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
+        return;
+    }
     try {
       await deleteDoc(doc(db, 'players', playerId));
+      toast({ title: "Player Deleted", description: "The player has been deleted." });
     } catch(e: any) {
       console.error("Failed to delete player:", e);
       toast({ variant: "destructive", title: "Error Deleting Player", description: "Could not delete the player. Please try again." });
-      throw e;
     }
   }, [db, toast]);
 
@@ -256,7 +277,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [players]);
 
   const addMatch = useCallback(async (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => {
-    if (!db) throw new Error("Database not available");
+    if (!db) {
+        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
+        return '';
+    }
     const { team1Id, team2Id, overs, tossWinnerId, tossDecision } = matchConfig;
     
     const otherTeamId = tossWinnerId === team1Id ? team2Id : team1Id;
@@ -287,11 +311,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     
     try {
       const docRef = await addDoc(collection(db, 'matches'), newMatch);
+      toast({ title: "Match Started!", description: "The match has been created successfully." });
       return docRef.id;
     } catch (e: any) {
         console.error("Failed to add match:", e);
         toast({ variant: "destructive", title: "Error Creating Match", description: "Could not create the match. Please try again." });
-        throw e;
+        return '';
     }
   }, [db, toast]);
 
@@ -300,13 +325,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [matches]);
 
   const updateMatch = useCallback(async (matchId: string, updatedMatchData: Partial<Match>) => {
-      if (!db) throw new Error("Database not available");
+      if (!db) {
+        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again." });
+        return;
+      }
       try {
           await updateDoc(doc(db, 'matches', matchId), updatedMatchData);
       } catch (e: any) {
           console.error("Failed to update match:", e);
           toast({ variant: "destructive", title: "Error Updating Match", description: "Could not save match progress. Please try again." });
-          throw e;
       }
   }, [db, toast]);
 

@@ -76,22 +76,19 @@ export default function NewMatchPage() {
 
     setIsSubmitting(true);
     
-    try {
-      const newMatchId = await addMatch({
-        team1Id: team1.id,
-        team2Id: team2.id,
-        overs: overs,
-        tossWinnerId: tossWinner,
-        tossDecision: tossDecision,
-      });
+    const newMatchId = await addMatch({
+      team1Id: team1.id,
+      team2Id: team2.id,
+      overs: overs,
+      tossWinnerId: tossWinner,
+      tossDecision: tossDecision,
+    });
+
+    if (newMatchId) {
       router.push(`/matches/${newMatchId}`);
-    } catch (error) {
-      console.error("Failed to start match:", error);
-      toast({
-        variant: "destructive",
-        title: "Error Starting Match",
-        description: "Could not create the match. The backend might still be initializing. Please try again in a moment."
-      });
+    } else {
+      // If addMatch fails, it returns an empty string and shows a toast.
+      // We just need to reset the button state here.
       setIsSubmitting(false);
     }
   };
