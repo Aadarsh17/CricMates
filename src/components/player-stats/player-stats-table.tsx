@@ -16,6 +16,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
 
 
 type AggregatedPlayerStats = {
@@ -185,12 +187,22 @@ const calculatePlayerStats = (players: Player[], teams: Team[], matches: Match[]
 
 export function PlayerStatsTable({ players, teams, matches }: { players: Player[], teams: Team[], matches: Match[] }) {
 
+  const [searchQuery, setSearchQuery] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: keyof AggregatedPlayerStats; direction: 'ascending' | 'descending' } | null>({ key: 'runsScored', direction: 'descending' });
   
   const allPlayerStats = useMemo(() => calculatePlayerStats(players, teams, matches), [players, teams, matches]);
 
+  const filteredPlayerStats = useMemo(() => {
+    if (!searchQuery) {
+      return allPlayerStats;
+    }
+    return allPlayerStats.filter(stat =>
+      stat.player.name.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [allPlayerStats, searchQuery]);
+
   const sortedPlayerStats = useMemo(() => {
-    let sortableItems = [...allPlayerStats];
+    let sortableItems = [...filteredPlayerStats];
     if (sortConfig !== null) {
       sortableItems.sort((a, b) => {
         const aValue = a[sortConfig.key] ?? -1;
@@ -206,7 +218,7 @@ export function PlayerStatsTable({ players, teams, matches }: { players: Player[
       });
     }
     return sortableItems;
-  }, [allPlayerStats, sortConfig]);
+  }, [filteredPlayerStats, sortConfig]);
 
   const requestSort = (key: keyof AggregatedPlayerStats) => {
     let direction: 'ascending' | 'descending' = 'descending';
@@ -247,56 +259,68 @@ export function PlayerStatsTable({ players, teams, matches }: { players: Player[
   }
 
   return (
-    <TooltipProvider>
-      <div className="rounded-lg border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[200px] font-semibold">Player</TableHead>
-              {statHeaders.map(header => (
-                 <TableHead key={header.key} className="text-right font-semibold cursor-pointer" onClick={() => requestSort(header.key)}>
-                   <Tooltip>
-                     <TooltipTrigger className="cursor-help underline decoration-dashed">
-                       {header.label}{getSortIndicator(header.key)}
-                     </TooltipTrigger>
-                     <TooltipContent>
-                       <p>{header.tooltip}</p>
-                     </TooltipContent>
-                   </Tooltip>
-                 </TableHead>
-              ))}
-              <TableHead className="text-right font-semibold">
-                <Tooltip>
-                    <TooltipTrigger className="cursor-help underline decoration-dashed">
-                       BBI
-                    </TooltipTrigger>
-                    <TooltipContent>
-                       <p>Best Bowling in an Inning</p>
-                    </TooltipContent>
-                 </Tooltip>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sortedPlayerStats.map((stats) => (
-              <TableRow key={stats.player.id}>
-                <TableCell>
-                    <p className="font-medium">{stats.player.name}</p>
-                    <p className="text-xs text-muted-foreground">{stats.team?.name || 'No Team'}</p>
-                </TableCell>
-                <TableCell className="text-right">{stats.matches}</TableCell>
-                <TableCell className="text-right font-bold">{stats.runsScored}</TableCell>
-                <TableCell className="text-right">{stats.highestScore}</TableCell>
-                <TableCell className="text-right">{stats.battingAverage?.toFixed(2) ?? '-'}</TableCell>
-                <TableCell className="text-right">{stats.strikeRate?.toFixed(2) ?? '-'}</TableCell>
-                <TableCell className="text-right font-bold">{stats.wicketsTaken}</TableCell>
-                <TableCell className="text-right">{stats.economyRate?.toFixed(2) ?? '-'}</TableCell>
-                <TableCell className="text-right">{stats.bestBowlingWickets > 0 ? `${stats.bestBowlingWickets}/${stats.bestBowlingRuns}` : '-'}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+    <div className="space-y-4">
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          type="search"
+          placeholder="Search for a player..."
+          className="pl-8"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
       </div>
-    </TooltipProvider>
+      <TooltipProvider>
+        <div className="rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[200px] font-semibold">Player</TableHead>
+                {statHeaders.map(header => (
+                  <TableHead key={header.key} className="text-right font-semibold cursor-pointer" onClick={() => requestSort(header.key)}>
+                    <Tooltip>
+                      <TooltipTrigger className="cursor-help underline decoration-dashed">
+                        {header.label}{getSortIndicator(header.key)}
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>{header.tooltip}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TableHead>
+                ))}
+                <TableHead className="text-right font-semibold">
+                  <Tooltip>
+                      <TooltipTrigger className="cursor-help underline decoration-dashed">
+                        BBI
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Best Bowling in an Inning</p>
+                      </TooltipContent>
+                    </Tooltip>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sortedPlayerStats.map((stats) => (
+                <TableRow key={stats.player.id}>
+                  <TableCell>
+                      <p className="font-bold">{stats.player.name}</p>
+                      <p className="text-xs font-semibold text-muted-foreground">{stats.team?.name || 'No Team'}</p>
+                  </TableCell>
+                  <TableCell className="text-right">{stats.matches}</TableCell>
+                  <TableCell className="text-right font-bold">{stats.runsScored}</TableCell>
+                  <TableCell className="text-right">{stats.highestScore}</TableCell>
+                  <TableCell className="text-right">{stats.battingAverage?.toFixed(2) ?? '-'}</TableCell>
+                  <TableCell className="text-right">{stats.strikeRate?.toFixed(2) ?? '-'}</TableCell>
+                  <TableCell className="text-right font-bold">{stats.wicketsTaken}</TableCell>
+                  <TableCell className="text-right">{stats.economyRate?.toFixed(2) ?? '-'}</TableCell>
+                  <TableCell className="text-right">{stats.bestBowlingWickets > 0 ? `${stats.bestBowlingWickets}/${stats.bestBowlingRuns}` : '-'}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </TooltipProvider>
+    </div>
   );
 }
