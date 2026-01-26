@@ -89,42 +89,48 @@ export default function HomePage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Teams</CardTitle>
-                    <Shield className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{teams.length}</div>
-                    <p className="text-xs text-muted-foreground">
-                        {teams.length === 1 ? 'team in the league' : 'teams in the league'}
-                    </p>
-                </CardContent>
-            </Card>
-             <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Players</CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{players.length}</div>
-                     <p className="text-xs text-muted-foreground">
-                        {players.length === 1 ? 'player registered' : 'players registered'}
-                    </p>
-                </CardContent>
-            </Card>
-             <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Matches Completed</CardTitle>
-                    <BarChart className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                    <div className="text-2xl font-bold">{completedMatches.length}</div>
-                     <p className="text-xs text-muted-foreground">
-                        {completedMatches.length === 1 ? 'game played' : 'games played'} so far
-                    </p>
-                </CardContent>
-            </Card>
+            <Link href="/teams" className="block hover:no-underline">
+                <Card className="hover:bg-muted/50 transition-colors h-full">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Teams</CardTitle>
+                        <Shield className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{teams.length}</div>
+                        <p className="text-xs text-muted-foreground">
+                            {teams.length === 1 ? 'team in the league' : 'teams in the league'}
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+            <Link href="/player-stats" className="block hover:no-underline">
+                 <Card className="hover:bg-muted/50 transition-colors h-full">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Players</CardTitle>
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{players.length}</div>
+                         <p className="text-xs text-muted-foreground">
+                            {players.length === 1 ? 'player registered' : 'players registered'}
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
+            <Link href="/matches" className="block hover:no-underline">
+                 <Card className="hover:bg-muted/50 transition-colors h-full">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Matches Completed</CardTitle>
+                        <BarChart className="h-4 w-4 text-muted-foreground" />
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-2xl font-bold">{completedMatches.length}</div>
+                         <p className="text-xs text-muted-foreground">
+                            {completedMatches.length === 1 ? 'game played' : 'games played'} so far
+                        </p>
+                    </CardContent>
+                </Card>
+            </Link>
         </div>
         
         {liveMatches.length > 0 && (
