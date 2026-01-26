@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, ReactNode, useMemo, useCallback } from 'react';
+import { createContext, useContext, ReactNode, useMemo, useCallback, useRef, useEffect } from 'react';
 import type { Team, Player, Match, Inning, DeliveryRecord } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
@@ -66,11 +66,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       matches: matchesLoading
   };
 
+  const teamsRef = useRef(teams);
+  useEffect(() => {
+    teamsRef.current = teams;
+  }, [teams]);
+
+  const playersRef = useRef(players);
+  useEffect(() => {
+    playersRef.current = players;
+  }, [players]);
+
+  const matchesRef = useRef(matches);
+  useEffect(() => {
+    matchesRef.current = matches;
+  }, [matches]);
+
   const handleInningEnd = useCallback((match: Match): Match => {
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
 
-    const battingTeamPlayers = players.filter(p => p.teamId === inning.battingTeamId);
+    const battingTeamPlayers = playersRef.current.filter(p => p.teamId === inning.battingTeamId);
     const numberOfPlayers = battingTeamPlayers.length > 0 ? battingTeamPlayers.length : 11;
     const allOutWickets = numberOfPlayers - 1;
 
@@ -103,14 +118,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
             updatedMatch.status = 'completed';
             const firstInning = updatedMatch.innings[0];
             const secondInning = updatedMatch.innings[1];
-            const firstInningTeam = teams.find(t => t.id === firstInning.battingTeamId);
-            const secondInningTeam = teams.find(t => t.id === secondInning.battingTeamId);
+            const firstInningTeam = teamsRef.current.find(t => t.id === firstInning.battingTeamId);
+            const secondInningTeam = teamsRef.current.find(t => t.id === secondInning.battingTeamId);
 
             if (!firstInningTeam || !secondInningTeam) {
                 updatedMatch.result = "Result could not be determined."
             }
             else if (secondInning.score > firstInning.score) {
-                const secondInningBattingTeamPlayers = players.filter(p => p.teamId === secondInning.battingTeamId);
+                const secondInningBattingTeamPlayers = playersRef.current.filter(p => p.teamId === secondInning.battingTeamId);
                 const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length > 0 ? secondInningBattingTeamPlayers.length : 11;
                 const wicketsRemaining = numberOfPlayersInSecondTeam - 1 - secondInning.wickets;
                 updatedMatch.result = `${secondInningTeam?.name} won by ${wicketsRemaining} wickets.`;
@@ -122,7 +137,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
     }
     return updatedMatch;
-  }, [players, teams]);
+  }, []);
 
 
   const addTeam = useCallback(async (name: string) => {
@@ -170,7 +185,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const batch = writeBatch(db);
       batch.delete(doc(db, 'teams', teamId));
-      const teamPlayers = players.filter(p => p.teamId === teamId);
+      const teamPlayers = playersRef.current.filter(p => p.teamId === teamId);
       teamPlayers.forEach(p => {
           batch.delete(doc(db, 'players', p.id));
       });
@@ -180,7 +195,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         console.error("Failed to delete team:", e);
         toast({ variant: "destructive", title: "Error Deleting Team", description: "Could not delete the team. Please try again." });
     }
-  }, [db, players, toast]);
+  }, [db, toast]);
   
   const addPlayer = useCallback(async (teamId: string, playerData: PlayerData) => {
     if (!db) {
@@ -201,7 +216,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     
     if (newPlayer.isCaptain) {
-        const currentCaptain = players.find(p => p.teamId === teamId && p.isCaptain);
+        const currentCaptain = playersRef.current.find(p => p.teamId === teamId && p.isCaptain);
         if (currentCaptain) {
             batch.update(doc(db, 'players', currentCaptain.id), { isCaptain: false });
         }
@@ -215,14 +230,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         console.error("Failed to add player:", e);
         toast({ variant: "destructive", title: "Error Adding Player", description: "Could not add the player. Please try again." });
     }
-  }, [db, players, toast]);
+  }, [db, toast]);
 
   const editPlayer = useCallback(async (playerId: string, playerData: PlayerData) => {
     if (!db) {
         toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
         return;
     }
-    const playerToEdit = players.find(p => p.id === playerId);
+    const playerToEdit = playersRef.current.find(p => p.id === playerId);
     if (!playerToEdit) {
         toast({ variant: "destructive", title: "Error", description: "Player not found." });
         return;
@@ -232,7 +247,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     batch.update(doc(db, 'players', playerId), { ...playerData });
 
     if (playerData.isCaptain) {
-        const currentCaptain = players.find(p => p.teamId === playerToEdit.teamId && p.isCaptain && p.id !== playerId);
+        const currentCaptain = playersRef.current.find(p => p.teamId === playerToEdit.teamId && p.isCaptain && p.id !== playerId);
         if (currentCaptain) {
             batch.update(doc(db, 'players', currentCaptain.id), { isCaptain: false });
         }
@@ -244,7 +259,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       console.error("Failed to edit player:", e);
       toast({ variant: "destructive", title: "Error Editing Player", description: "Could not update the player. Please try again." });
     }
-  }, [db, players, toast]);
+  }, [db, toast]);
 
   const deletePlayer = useCallback(async (playerId: string) => {
     if (!db) {
@@ -338,7 +353,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [db, toast]);
 
   const swapStrikers = useCallback(async (matchId: string) => {
-    const match = getMatchById(matchId);
+    const match = matchesRef.current.find(m => m.id === matchId);
     if (!match) return;
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
@@ -346,10 +361,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     inning.strikerId = inning.nonStrikerId;
     inning.nonStrikerId = temp;
     await updateMatch(matchId, updatedMatch);
-  }, [getMatchById, updateMatch]);
+  }, [updateMatch]);
 
   const setPlayerInMatch = useCallback(async (matchId: string, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => {
-    const match = getMatchById(matchId);
+    const match = matchesRef.current.find(m => m.id === matchId);
     if (!match) return;
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
@@ -357,10 +372,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (role === 'nonStriker') inning.nonStrikerId = playerId;
     if (role === 'bowler') inning.bowlerId = playerId;
     await updateMatch(matchId, updatedMatch);
-  }, [getMatchById, updateMatch]);
+  }, [updateMatch]);
   
   const retireStriker = useCallback(async (matchId: string) => {
-    const match = getMatchById(matchId);
+    const match = matchesRef.current.find(m => m.id === matchId);
     if (!match || match.status !== 'live') return;
     
     let updatedMatch = JSON.parse(JSON.stringify(match));
@@ -387,10 +402,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     
     updatedMatch = handleInningEnd(updatedMatch);
     await updateMatch(matchId, updatedMatch);
-  }, [getMatchById, handleInningEnd, updateMatch, toast]);
+  }, [handleInningEnd, updateMatch, toast]);
 
   const undoDelivery = useCallback(async (matchId: string) => {
-    const matchToUpdate = getMatchById(matchId);
+    const matchToUpdate = matchesRef.current.find(m => m.id === matchId);
     if (!matchToUpdate) return;
 
     const updatedMatch = JSON.parse(JSON.stringify(matchToUpdate));
@@ -435,10 +450,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     inning.overs = newOvers;
 
     await updateMatch(matchId, updatedMatch);
-  }, [getMatchById, updateMatch, toast]);
+  }, [updateMatch, toast]);
 
   const recordDelivery = useCallback(async (matchId: string, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string }) => {
-    const match = getMatchById(matchId);
+    const match = matchesRef.current.find(m => m.id === matchId);
     if (!match || match.status !== 'live') return;
 
     let updatedMatch = JSON.parse(JSON.stringify(match)); 
@@ -494,10 +509,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     updatedMatch = handleInningEnd(updatedMatch);
     await updateMatch(matchId, updatedMatch);
-  }, [getMatchById, handleInningEnd, updateMatch, toast]);
+  }, [handleInningEnd, updateMatch, toast]);
 
   const forceEndInning = useCallback(async (matchId: string) => {
-    const match = getMatchById(matchId);
+    const match = matchesRef.current.find(m => m.id === matchId);
     if (!match || match.status !== 'live') return;
 
     let updatedMatch = JSON.parse(JSON.stringify(match));
@@ -524,7 +539,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         toast({ title: "Match Ended", description: `Match has been manually concluded. ${updatedMatch.result}` });
     }
     await updateMatch(matchId, updatedMatch);
-  }, [getMatchById, handleInningEnd, updateMatch, toast]);
+  }, [handleInningEnd, updateMatch, toast]);
 
   const value: AppContextType = useMemo(() => ({
       loading,
