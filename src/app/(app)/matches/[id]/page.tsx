@@ -16,6 +16,9 @@ import { Scoreboard } from '@/components/match/scoreboard';
 import { LivePlayerStats } from '@/components/match/live-player-stats';
 import { UmpireControls } from '@/components/match/umpire-controls';
 import { useToast } from '@/hooks/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MatchSquads } from '@/components/match/match-squads';
+import { OverByOver } from '@/components/match/over-by-over';
 
 const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled = false }: { label: string, players: Player[], selectedPlayerId: string | null, onSelect: (playerId: string) => void, disabled?: boolean }) => (
     <div className="space-y-2 flex-1">
@@ -40,7 +43,6 @@ export default function MatchPage() {
     const [isInningStartDialogOpen, setIsInningStartDialogOpen] = useState(false);
     const [inningStartDialogShownFor, setInningStartDialogShownFor] = useState(0);
 
-    // Call all hooks at the top level
     const match = getMatchById(matchId);
 
     useEffect(() => {
@@ -48,7 +50,6 @@ export default function MatchPage() {
         
         const inning = match.innings[match.currentInning - 1];
         
-        // Show bowler selection dialog if an over is complete and no new bowler is set
         const isOverComplete = inning.overs > 0 && inning.overs % 1 === 0 && inning.deliveryHistory.length > 0;
         if (isOverComplete && !inning.bowlerId) {
             if (!isBowlerDialogOpen) {
@@ -56,7 +57,6 @@ export default function MatchPage() {
             }
         }
 
-        // Show inning start dialog
         const isFirstInningStart = match.currentInning === 1 && inning.deliveryHistory.length === 0 && inning.overs === 0;
         const isSecondInningStart = match.currentInning > 1 && inning.deliveryHistory.length === 0;
 
@@ -214,22 +214,36 @@ export default function MatchPage() {
                 </Card>
             )}
 
-            {match.status === 'live' && (
-                <>
-                    <Scoreboard match={match} />
-                    <LivePlayerStats
-                        striker={striker}
-                        nonStriker={nonStriker}
-                        bowler={bowler}
-                        inning={currentInning}
-                    />
-                    <UmpireControls match={match} />
-                </>
-            )}
-
-            {match.status === 'completed' && (
-                <FullScorecard match={match} />
-            )}
+            <Tabs defaultValue="scorecard" className="w-full">
+                <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
+                    <TabsTrigger value="squads">Squads</TabsTrigger>
+                    <TabsTrigger value="overs">Overs</TabsTrigger>
+                </TabsList>
+                <TabsContent value="scorecard" className="mt-4">
+                    {match.status === 'live' && (
+                        <div className="space-y-4">
+                            <Scoreboard match={match} />
+                            <LivePlayerStats
+                                striker={striker}
+                                nonStriker={nonStriker}
+                                bowler={bowler}
+                                inning={currentInning}
+                            />
+                            <UmpireControls match={match} />
+                        </div>
+                    )}
+                    {match.status === 'completed' && (
+                        <FullScorecard match={match} />
+                    )}
+                </TabsContent>
+                <TabsContent value="squads" className="mt-4">
+                    <MatchSquads team1Id={match.team1Id} team2Id={match.team2Id} />
+                </TabsContent>
+                <TabsContent value="overs" className="mt-4">
+                    <OverByOver match={match} />
+                </TabsContent>
+            </Tabs>
         </div>
     );
 }
