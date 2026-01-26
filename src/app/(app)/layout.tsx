@@ -20,6 +20,7 @@ import {
   Users,
   ArrowLeft,
   MoreVertical,
+  Medal,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -95,6 +96,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <Users className="h-4 w-4" />
                     Player Stats
                   </Link>
+                  <Link
+                    href="/rankings"
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+                  >
+                    <Medal className="h-4 w-4" />
+                    Rankings
+                  </Link>
                 </nav>
               </div>
             </div>
@@ -163,6 +171,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       >
                         <Users className="h-5 w-5" />
                         Player Stats
+                      </Link>
+                      <Link
+                        href="/rankings"
+                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <Medal className="h-5 w-5" />
+                        Rankings
                       </Link>
                     </nav>
                   </SheetContent>
