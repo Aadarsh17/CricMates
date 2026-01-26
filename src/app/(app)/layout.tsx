@@ -15,7 +15,6 @@ import {
   Home,
   LogOut,
   Menu,
-  Shield,
   BarChart,
   Trophy,
   PlusCircle,
@@ -23,6 +22,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { AppProvider } from "@/context/AppContext";
@@ -49,7 +49,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   href="/home"
                   className="flex items-center gap-2 font-semibold"
                 >
-                  <Shield className="h-6 w-6 text-primary" />
+                  <Image src="/logo.svg" alt="CricMates Logo" width={24} height={24} />
                   <span className="font-headline">CricMates</span>
                 </Link>
               </div>
@@ -121,7 +121,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         href="/home"
                         className="flex items-center gap-2 text-lg font-semibold mb-4"
                       >
-                        <Shield className="h-6 w-6 text-primary" />
+                        <Image src="/logo.svg" alt="CricMates Logo" width={24} height={24} />
                         <span className="font-headline">CricMates</span>
                       </Link>
                       <Link

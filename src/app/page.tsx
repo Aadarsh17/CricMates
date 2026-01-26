@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
-import { Shield, MoveRight } from "lucide-react";
+import { MoveRight } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function WelcomePage() {
   return (
@@ -9,7 +10,12 @@ export default function WelcomePage() {
       <div className="container mx-auto px-4">
         <div className="text-center space-y-6 max-w-3xl mx-auto">
           <div className="inline-block p-4 bg-primary/10 rounded-2xl shadow-sm">
-            <Shield className="w-12 h-12 text-primary" />
+            <Image
+              src="/logo.svg"
+              alt="CricMates Logo"
+              width={48}
+              height={48}
+            />
           </div>
           <h1 className="text-4xl md:text-6xl font-headline font-bold text-foreground tracking-tighter">
             Welcome to <span className="text-primary">CricMates</span>
