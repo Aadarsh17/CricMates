@@ -1,25 +1,26 @@
 'use client';
-import { initializeFirebase, FirebaseProvider } from '.';
-import { useUser } from './auth/use-user';
 
-// This new component will be wrapped by FirebaseProvider,
-// so it can safely call hooks that depend on the Firebase context.
-function AuthHandler({ children }: { children: React.ReactNode }) {
-  // Initialize the user session and anonymous sign-in
-  useUser();
-  return <>{children}</>;
+import React, { useMemo, type ReactNode } from 'react';
+import { FirebaseProvider } from '@/firebase/provider';
+import { initializeFirebase } from '@/firebase';
+
+interface FirebaseClientProviderProps {
+  children: ReactNode;
 }
 
-export function FirebaseClientProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const { app, auth, db } = initializeFirebase();
+export function FirebaseClientProvider({ children }: FirebaseClientProviderProps) {
+  const firebaseServices = useMemo(() => {
+    // Initialize Firebase on the client side, once per component mount.
+    return initializeFirebase();
+  }, []); // Empty dependency array ensures this runs only once on mount
 
   return (
-    <FirebaseProvider value={{ app, auth, db }}>
-      <AuthHandler>{children}</AuthHandler>
+    <FirebaseProvider
+      firebaseApp={firebaseServices.firebaseApp}
+      auth={firebaseServices.auth}
+      firestore={firebaseServices.firestore}
+    >
+      {children}
     </FirebaseProvider>
   );
 }

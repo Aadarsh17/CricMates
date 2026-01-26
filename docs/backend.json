@@ -1,103 +1,243 @@
 {
   "entities": {
     "Team": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Team",
-      "description": "A cricket team.",
       "type": "object",
+      "description": "Represents a cricket team.",
       "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the team."
+        },
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "Name of the team."
         },
-        "logoUrl": {
-          "type": "string"
+        "description": {
+          "type": "string",
+          "description": "A brief description of the team."
         },
-        "imageHint": {
-          "type": "string"
-        },
-        "matchesPlayed": {
-          "type": "number"
-        },
-        "matchesWon": {
-          "type": "number"
-        },
-        "matchesLost": {
-          "type": "number"
-        },
-        "matchesDrawn": {
-          "type": "number"
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp indicating when the team was created.",
+          "format": "date-time"
         }
       },
-      "required": ["name", "logoUrl", "imageHint"]
+      "required": [
+        "id",
+        "name"
+      ]
     },
     "Player": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Player",
-      "description": "A cricket player.",
       "type": "object",
+      "description": "Represents a player in a cricket team.",
       "properties": {
-        "name": {
-          "type": "string"
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the player."
         },
         "teamId": {
-          "type": "string"
+          "type": "string",
+          "description": "Reference to Team. (Relationship: Team 1:N Player)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the player."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "description": "Date of birth of the player.",
+          "format": "date"
         },
         "role": {
           "type": "string",
-          "enum": ["Batsman", "Bowler", "All-rounder"]
+          "description": "Role of the player (e.g., Batsman, Bowler, All-rounder)."
         },
-        "stats": {
-          "type": "object",
-          "properties": {
-            "matches": { "type": "number" },
-            "runs": { "type": "number" },
-            "wickets": { "type": "number" },
-            "highestScore": { "type": "number" },
-            "bestBowling": { "type": "string" }
-          }
-        },
-        "isRetired": { "type": "boolean" },
-        "isCaptain": { "type": "boolean" },
-        "isWicketKeeper": { "type": "boolean" }
+        "isRetired": {
+          "type": "boolean",
+          "description": "Indicates whether the player is retired."
+        }
       },
-      "required": ["name", "teamId", "role"]
+      "required": [
+        "id",
+        "teamId",
+        "name",
+        "role"
+      ]
     },
     "Match": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Match",
-      "description": "A cricket match.",
       "type": "object",
+      "description": "Represents a cricket match between two teams.",
       "properties": {
-        "team1Id": { "type": "string" },
-        "team2Id": { "type": "string" },
-        "overs": { "type": "number" },
-        "status": { "type": "string", "enum": ["live", "completed"] },
-        "tossWinnerId": { "type": "string" },
-        "tossDecision": { "type": "string", "enum": ["bat", "bowl"] },
-        "innings": {
-            "type": "array",
-            "items": { "type": "object" }
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the match."
         },
-        "currentInning": { "type": "number" },
-        "result": { "type": "string" },
-        "summary": { "type": "string" },
-        "date": { "type": "string" }
+        "team1Id": {
+          "type": "string",
+          "description": "Reference to Team (first team in the match)."
+        },
+        "team2Id": {
+          "type": "string",
+          "description": "Reference to Team (second team in the match)."
+        },
+        "matchDate": {
+          "type": "string",
+          "description": "Date and time the match was played.",
+          "format": "date-time"
+        },
+        "tossWinnerId": {
+          "type": "string",
+          "description": "Reference to Team (team that won the toss)."
+        },
+        "tossDecision": {
+          "type": "string",
+          "description": "Decision made by the toss winner (Bat or Bowl)."
+        },
+        "winningTeamId": {
+          "type": "string",
+          "description": "Reference to Team. (winning team, null if the match is still in progress, or tied)"
+        }
       },
-      "required": ["team1Id", "team2Id", "overs", "status", "date"]
+      "required": [
+        "id",
+        "team1Id",
+        "team2Id",
+        "matchDate",
+        "tossWinnerId",
+        "tossDecision"
+      ]
+    },
+    "Score": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Score",
+      "type": "object",
+      "description": "Represents the score of a specific match for a team.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the score record."
+        },
+        "matchId": {
+          "type": "string",
+          "description": "Reference to Match."
+        },
+        "teamId": {
+          "type": "string",
+          "description": "Reference to Team."
+        },
+        "runs": {
+          "type": "number",
+          "description": "Total runs scored by the team in the match."
+        },
+        "wickets": {
+          "type": "number",
+          "description": "Total wickets taken by the team in the match."
+        },
+        "wides": {
+          "type": "number",
+          "description": "Number of wide balls bowled by the team."
+        },
+        "noBalls": {
+          "type": "number",
+          "description": "Number of no balls bowled by the team."
+        }
+      },
+      "required": [
+        "id",
+        "matchId",
+        "teamId",
+        "runs",
+        "wickets"
+      ]
     }
   },
   "auth": {
-    "providers": ["anonymous"]
+    "providers": [
+      "password",
+      "anonymous"
+    ]
   },
   "firestore": {
-    "/teams/{teamId}": {
-      "schema": { "$ref": "#/backend/entities/Team" },
-      "description": "Stores team information."
-    },
-    "/players/{playerId}": {
-      "schema": { "$ref": "#/backend/entities/Player" },
-      "description": "Stores player information, with a teamId field to link to a team."
-    },
-    "/matches/{matchId}": {
-      "schema": { "$ref": "#/backend/entities/Match" },
-      "description": "Stores match data."
-    }
+    "structure": [
+      {
+        "path": "/teams/{teamId}",
+        "definition": {
+          "entityName": "Team",
+          "schema": {
+            "$ref": "#/backend/entities/Team"
+          },
+          "description": "Stores team information.  The 'teamId' is used to uniquely identify each team.",
+          "params": [
+            {
+              "name": "teamId",
+              "description": "The unique identifier of the team."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/teams/{teamId}/players/{playerId}",
+        "definition": {
+          "entityName": "Player",
+          "schema": {
+            "$ref": "#/backend/entities/Player"
+          },
+          "description": "Stores player information for a specific team. The 'teamId' ensures players are associated with their respective teams. Includes denormalized 'teamId' for authorization independence.",
+          "params": [
+            {
+              "name": "teamId",
+              "description": "The unique identifier of the team."
+            },
+            {
+              "name": "playerId",
+              "description": "The unique identifier of the player."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/matches/{matchId}",
+        "definition": {
+          "entityName": "Match",
+          "schema": {
+            "$ref": "#/backend/entities/Match"
+          },
+          "description": "Stores match information. The 'matchId' is used to uniquely identify each match.",
+          "params": [
+            {
+              "name": "matchId",
+              "description": "The unique identifier of the match."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/matches/{matchId}/scores/{scoreId}",
+        "definition": {
+          "entityName": "Score",
+          "schema": {
+            "$ref": "#/backend/entities/Score"
+          },
+          "description": "Stores score information for a specific match. Includes denormalized 'matchId' for authorization independence.",
+          "params": [
+            {
+              "name": "matchId",
+              "description": "The unique identifier of the match."
+            },
+            {
+              "name": "scoreId",
+              "description": "The unique identifier of the score."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed to optimize for security, scalability, and query performance, adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling.  Authorization independence is achieved by using path-based ownership for user-specific data and denormalizing access control data where necessary.  The design supports the required QAPs by ensuring that security rules do not act as filters. The structure facilitates secure list operations, ensuring users can only access the data they are authorized to see. Explicit state modeling and predictable schemas ensure data clarity and ease of debugging."
   }
 }

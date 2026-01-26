@@ -1,44 +1,50 @@
 'use client';
-import { getApps, initializeApp, type FirebaseApp } from 'firebase/app';
-import { getAuth, type Auth } from 'firebase/auth';
-import { getFirestore, type Firestore } from 'firebase/firestore';
-import firebaseConfig from './config';
-import { useMemo } from 'react';
 
-// Providers
-export { FirebaseProvider, useFirebase } from './provider';
-export { FirebaseClientProvider } from './client-provider';
+import { firebaseConfig } from '@/firebase/config';
+import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore'
 
-// Hooks
-export { useUser } from './auth/use-user';
-export { useDoc } from './firestore/use-doc';
-export { useCollection } from './firestore/use-collection';
+// IMPORTANT: DO NOT MODIFY THIS FUNCTION
+export function initializeFirebase() {
+  if (!getApps().length) {
+    // Important! initializeApp() is called without any arguments because Firebase App Hosting
+    // integrates with the initializeApp() function to provide the environment variables needed to
+    // populate the FirebaseOptions in production. It is critical that we attempt to call initializeApp()
+    // without arguments.
+    let firebaseApp;
+    try {
+      // Attempt to initialize via Firebase App Hosting environment variables
+      firebaseApp = initializeApp();
+    } catch (e) {
+      // Only warn in production because it's normal to use the firebaseConfig to initialize
+      // during development
+      if (process.env.NODE_ENV === "production") {
+        console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
+      }
+      firebaseApp = initializeApp(firebaseConfig);
+    }
 
-type FirebaseInstances = {
-  app: FirebaseApp;
-  auth: Auth;
-  db: Firestore;
-};
-
-let firebaseInstances: FirebaseInstances | null = null;
-
-export function initializeFirebase(): FirebaseInstances {
-  if (firebaseInstances) {
-    return firebaseInstances;
+    return getSdks(firebaseApp);
   }
 
-  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-  firebaseInstances = { app, auth, db };
-  return firebaseInstances;
+  // If already initialized, return the SDKs with the already initialized App
+  return getSdks(getApp());
 }
 
-export function useMemoFirebase<T>(
-  factory: () => T,
-  deps: React.DependencyList
-) {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(factory, deps);
+export function getSdks(firebaseApp: FirebaseApp) {
+  return {
+    firebaseApp,
+    auth: getAuth(firebaseApp),
+    firestore: getFirestore(firebaseApp)
+  };
 }
+
+export * from './provider';
+export * from './client-provider';
+export * from './firestore/use-collection';
+export * from './firestore/use-doc';
+export * from './non-blocking-updates';
+export * from './non-blocking-login';
+export * from './errors';
+export * from './error-emitter';

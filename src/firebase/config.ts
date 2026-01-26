@@ -1,12 +1,8 @@
-'use client';
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyAZ74FOfIe5KtMt9-n9r9ucKpVBiDM6IDg",
-  authDomain: "cricmates-tca.firebaseapp.com",
-  projectId: "cricmates-tca",
-  messagingSenderId: "653804136264",
-  appId: "1:653804136264:web:7a3def9e07dd3955ff357d",
-  measurementId: "G-Q5RXY3PWXC"
+export const firebaseConfig = {
+  "projectId": "studio-377718821-28e23",
+  "appId": "1:729093055321:web:19d6b0552f4235d8a92248",
+  "apiKey": "AIzaSyBJsVYhh_jNaoFaeVW0CFDj3JSIw5szCUc",
+  "authDomain": "studio-377718821-28e23.firebaseapp.com",
+  "measurementId": "",
+  "messagingSenderId": "729093055321"
 };
-
-export default firebaseConfig;

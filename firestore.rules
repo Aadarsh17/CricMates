@@ -1,26 +1,114 @@
+/**
+ * Core Philosophy: This ruleset establishes a public, read-only data model for a cricket application.
+ * All data regarding teams, players, matches, and scores is publicly accessible for reads. This is
+ * suitable for informational sports data that does not contain private user information.
+ *
+ * Data Structure: The data is organized into two primary top-level collections:
+ * - /teams/{teamId}: Contains team information, with a subcollection for players.
+ *   - /teams/{teamId}/players/{playerId}: Players associated with a specific team.
+ * - /matches/{matchId}: Contains match information, with a subcollection for scores.
+ *   - /matches/{matchId}/scores/{scoreId}: Scores associated with a specific match.
+ *
+ * Key Security Decisions:
+ * - Public Read Access: All collections are configured to allow read operations (`get`, `list`) by
+ *   anyone, including unauthenticated users. This provides maximum accessibility for public data.
+ * - Write Operations Disabled: All write operations (`create`, `update`, `delete`) are explicitly
+ *   denied across all collections. This is a critical security measure because the provided data
+ *   schemas (Team, Player, Match, Score) lack any form of user ownership field (e.g., 'ownerId',
+ *   'creatorId'). Without such a field, it is impossible to securely authorize who is allowed to
+ *   modify the data. These rules are disabled with a placeholder `TODO` to guide the developer on
+ *   how to enable them securely once the data model is updated.
+ *
+ * Denormalization for Authorization: The current schema uses denormalization for relational
+ * integrity (e.g., 'teamId' on a Player document). However, to enable secure writes, the data model
+ * must be extended to include denormalized authorization fields. For example, a 'creatorId' field
+ * should be added to the 'Team' and 'Match' documents to associate them with the user who created them.
+ */
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default deny all reads and writes
-    match /{document=**} {
-      allow read, write: if false;
-    }
 
-    // Public read access for all collections
+    // ------------------------------------------------------------------------
+    // Helper Functions
+    // ------------------------------------------------------------------------
+
+    /**
+     * Checks if the user is authenticated.
+     */
+    //function isSignedIn() {
+    //  return request.auth != null;
+    //}
+
+    /**
+     * @description Publicly readable data about cricket teams. All write operations are currently
+     * disabled because the 'Team' entity lacks an ownership field (e.g., 'creatorId').
+     * @path /teams/{teamId}
+     * @allow (get) Any user, signed-in or anonymous, can read a team document.
+     * @deny (create) No user can create a new team document. This is a security precaution.
+     * @principle Public Read with Write Restriction. Writes are disabled until an authorization model is defined in the schema.
+     */
     match /teams/{teamId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+      allow get: if true;
+      allow list: if true;
+
+      // CRITICAL: Cannot implement owner-only writes. The 'Team' entity is missing an 'ownerId' or 'creatorId' field.
+      allow create: if false; // TODO: Add owner validation once the schema is updated. E.g., request.resource.data.creatorId == request.auth.uid
+      allow update: if false; // TODO: Add owner validation once the schema is updated. E.g., resource.data.creatorId == request.auth.uid
+      allow delete: if false; // TODO: Add owner validation once the schema is updated. E.g., resource.data.creatorId == request.auth.uid
     }
 
-    match /players/{playerId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    /**
+     * @description Publicly readable data about players belonging to a specific team. All write
+     * operations are disabled as there's no ownership data on the 'Player' entity.
+     * @path /teams/{teamId}/players/{playerId}
+     * @allow (get) Any user, signed-in or anonymous, can read a player document.
+     * @deny (create) No user can create a new player document. This is a security precaution.
+     * @principle Public Read with Write Restriction. Enforces path consistency if writes were enabled.
+     */
+    match /teams/{teamId}/players/{playerId} {
+      allow get: if true;
+      allow list: if true;
+
+      // CRITICAL: Cannot implement owner-only writes. The 'Player' entity is missing an 'ownerId' or 'creatorId' field.
+      allow create: if false; // TODO: Add owner validation. Also requires relational integrity check: request.resource.data.teamId == teamId
+      allow update: if false; // TODO: Add owner validation and ensure teamId is immutable: request.resource.data.teamId == resource.data.teamId
+      allow delete: if false; // TODO: Add owner validation.
     }
 
+    /**
+     * @description Publicly readable data about cricket matches. All write operations are
+     * disabled because the 'Match' entity lacks an ownership field.
+     * @path /matches/{matchId}
+     * @allow (list) Any user, signed-in or anonymous, can list all match documents.
+     * @deny (update) No user can update a match document. This is a security precaution.
+     * @principle Public Read with Write Restriction. Writes are disabled until an authorization model is defined in the schema.
+     */
     match /matches/{matchId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+      allow get: if true;
+      allow list: if true;
+
+      // CRITICAL: Cannot implement owner-only writes. The 'Match' entity is missing an 'ownerId' or 'creatorId' field.
+      allow create: if false; // TODO: Add owner validation once the schema is updated. E.g., request.resource.data.creatorId == request.auth.uid
+      allow update: if false; // TODO: Add owner validation once the schema is updated. E.g., resource.data.creatorId == request.auth.uid
+      allow delete: if false; // TODO: Add owner validation once the schema is updated. E.g., resource.data.creatorId == request.auth.uid
+    }
+
+    /**
+     * @description Publicly readable score data for a specific match. All write operations are
+     * disabled as there's no ownership data on the 'Score' entity.
+     * @path /matches/{matchId}/scores/{scoreId}
+     * @allow (get) Any user, signed-in or anonymous, can read a score document.
+     * @deny (create) No user can create a new score document. This is a security precaution.
+     * @principle Public Read with Write Restriction. Enforces path consistency if writes were enabled.
+     */
+    match /matches/{matchId}/scores/{scoreId} {
+      allow get: if true;
+      allow list: if true;
+
+      // CRITICAL: Cannot implement owner-only writes. The 'Score' entity is missing an 'ownerId' or 'creatorId' field.
+      allow create: if false; // TODO: Add owner validation. Also requires relational integrity check: request.resource.data.matchId == matchId
+      allow update: if false; // TODO: Add owner validation and ensure matchId is immutable: request.resource.data.matchId == resource.data.matchId
+      allow delete: if false; // TODO: Add owner validation.
     }
   }
 }
