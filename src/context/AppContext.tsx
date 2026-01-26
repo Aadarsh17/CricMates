@@ -46,15 +46,15 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
-  const { db } = useFirebase();
+  const { firestore: db } = useFirebase();
 
   const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
   const playersCollection = useMemoFirebase(() => (db ? collection(db, 'players') : null), [db]);
   const matchesCollection = useMemoFirebase(() => (db ? collection(db, 'matches') : null), [db]);
 
-  const { data: teamsData, loading: teamsLoading } = useCollection<Team>(teamsCollection);
-  const { data: playersData, loading: playersLoading } = useCollection<Player>(playersCollection);
-  const { data: matchesData, loading: matchesLoading } = useCollection<Match>(matchesCollection);
+  const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
+  const { data: playersData, isLoading: playersLoading } = useCollection<Player>(playersCollection);
+  const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesCollection);
   
   const teams = teamsData || [];
   const players = playersData || [];
