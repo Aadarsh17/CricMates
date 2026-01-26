@@ -9,7 +9,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Team, Match, Player } from "@/lib/types";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { TeamMatchHistoryDialog } from "./team-match-history-dialog";
+import { Button } from "../ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type PointsTableEntry = {
   team: Team;
@@ -98,6 +106,7 @@ const calculatePointsTable = (teams: Team[], matches: Match[], players: Player[]
 
 export function PointsTable({ teams, matches, players }: { teams: Team[], matches: Match[], players: Player[] }) {
 
+  const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const pointsTableData = useMemo(() => calculatePointsTable(teams, matches, players), [teams, matches, players]);
 
   if (teams.length === 0) {
@@ -113,34 +122,61 @@ export function PointsTable({ teams, matches, players }: { teams: Team[], matche
       )
   }
 
+  const completedMatches = matches.filter(m => m.status === 'completed');
+
   return (
-    <div className="rounded-lg border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[250px] font-semibold">Team</TableHead>
-            <TableHead className="text-center font-semibold">MP</TableHead>
-            <TableHead className="text-center font-semibold">W</TableHead>
-            <TableHead className="text-center font-semibold">L</TableHead>
-            <TableHead className="text-center font-semibold">T/NR</TableHead>
-            <TableHead className="text-right font-semibold">NRR</TableHead>
-            <TableHead className="text-right font-semibold">Pts</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {pointsTableData.map(({ team, played, won, lost, tied, nrr, points }) => (
-            <TableRow key={team.id}>
-              <TableCell className="font-medium">{team.name}</TableCell>
-              <TableCell className="text-center">{played}</TableCell>
-              <TableCell className="text-center">{won}</TableCell>
-              <TableCell className="text-center">{lost}</TableCell>
-              <TableCell className="text-center">{tied}</TableCell>
-              <TableCell className="text-right font-mono">{nrr.toFixed(3)}</TableCell>
-              <TableCell className="text-right font-bold">{points}</TableCell>
+    <>
+      {selectedTeam && (
+        <TeamMatchHistoryDialog
+          team={selectedTeam}
+          matches={completedMatches.filter(m => m.team1Id === selectedTeam.id || m.team2Id === selectedTeam.id)}
+          open={!!selectedTeam}
+          onOpenChange={(isOpen) => !isOpen && setSelectedTeam(null)}
+        />
+      )}
+      <div className="rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[250px] font-semibold">Team</TableHead>
+              <TableHead className="text-center font-semibold">MP</TableHead>
+              <TableHead className="text-center font-semibold">W</TableHead>
+              <TableHead className="text-center font-semibold">L</TableHead>
+              <TableHead className="text-center font-semibold">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger className="cursor-help underline decoration-dashed">
+                      T/NR
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Tied / No Result</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </TableHead>
+              <TableHead className="text-right font-semibold">NRR</TableHead>
+              <TableHead className="text-right font-semibold">Pts</TableHead>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+          </TableHeader>
+          <TableBody>
+            {pointsTableData.map(({ team, played, won, lost, tied, nrr, points }) => (
+              <TableRow key={team.id}>
+                <TableCell>
+                  <Button variant="link" className="p-0 h-auto font-medium text-foreground hover:no-underline" onClick={() => setSelectedTeam(team)}>
+                    {team.name}
+                  </Button>
+                </TableCell>
+                <TableCell className="text-center">{played}</TableCell>
+                <TableCell className="text-center">{won}</TableCell>
+                <TableCell className="text-center">{lost}</TableCell>
+                <TableCell className="text-center">{tied}</TableCell>
+                <TableCell className="text-right font-mono">{nrr.toFixed(3)}</TableCell>
+                <TableCell className="text-right font-bold">{points}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
   );
 }
