@@ -65,45 +65,47 @@ export default function NewMatchPage() {
   };
 
   const handleStartMatch = async () => {
-     if (!tossWinner || !tossDecision || overs <= 0 || !team1 || !team2) {
+    if (!tossWinner || !tossDecision || overs <= 0 || !team1 || !team2) {
       toast({
-        variant: "destructive",
-        title: "Configuration Incomplete",
-        description: "Please configure all match settings.",
+        variant: 'destructive',
+        title: 'Configuration Incomplete',
+        description: 'Please configure all match settings.',
       });
       return;
     }
 
-    let success = false;
     setIsSubmitting(true);
     try {
       const newMatchId = await addMatch({
-          team1Id: team1.id,
-          team2Id: team2.id,
-          overs: overs,
-          tossWinnerId: tossWinner,
-          tossDecision: tossDecision,
+        team1Id: team1.id,
+        team2Id: team2.id,
+        overs: overs,
+        tossWinnerId: tossWinner,
+        tossDecision: tossDecision,
       });
 
       if (newMatchId) {
-        success = true;
         router.push(`/matches/${newMatchId}`);
       } else {
-        throw new Error("Failed to create match: No ID returned.");
+        // This case handles if addMatch returns undefined/null without throwing an error
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to create match. Please try again.',
+        });
+        setIsSubmitting(false);
       }
     } catch (error) {
-      console.error("Error starting match:", error);
+      console.error('Error starting match:', error);
       toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not start the match. Please try again.",
+        variant: 'destructive',
+        title: 'Error Starting Match',
+        description:
+          'Could not start the match. Please check your connection and try again.',
       });
-    } finally {
-        if (!success) {
-            setIsSubmitting(false);
-        }
+      setIsSubmitting(false);
     }
-  }
+  };
 
   if (loading.teams) {
     return (
