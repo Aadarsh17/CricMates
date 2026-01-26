@@ -74,6 +74,7 @@ export default function NewMatchPage() {
       return;
     }
 
+    let success = false;
     setIsSubmitting(true);
     try {
       const newMatchId = await addMatch({
@@ -85,9 +86,10 @@ export default function NewMatchPage() {
       });
 
       if (newMatchId) {
+        success = true;
         router.push(`/matches/${newMatchId}`);
       } else {
-        throw new Error("Failed to create match.");
+        throw new Error("Failed to create match: No ID returned.");
       }
     } catch (error) {
       console.error("Error starting match:", error);
@@ -96,7 +98,10 @@ export default function NewMatchPage() {
         title: "Error",
         description: "Could not start the match. Please try again.",
       });
-      setIsSubmitting(false);
+    } finally {
+        if (!success) {
+            setIsSubmitting(false);
+        }
     }
   }
 
