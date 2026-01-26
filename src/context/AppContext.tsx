@@ -205,35 +205,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }
 
   const addMatch = async (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => {
-    const { team1Id, team2Id, overs, tossWinnerId, tossDecision } = matchConfig;
-    
-    const otherTeamId = tossWinnerId === team1Id ? team2Id : team1Id;
-    const battingTeamId = tossDecision === 'bat' ? tossWinnerId : otherTeamId;
-    const bowlingTeamId = tossDecision === 'bowl' ? tossWinnerId : otherTeamId;
+    try {
+      const { team1Id, team2Id, overs, tossWinnerId, tossDecision } = matchConfig;
+      
+      const otherTeamId = tossWinnerId === team1Id ? team2Id : team1Id;
+      const battingTeamId = tossDecision === 'bat' ? tossWinnerId : otherTeamId;
+      const bowlingTeamId = tossDecision === 'bowl' ? tossWinnerId : otherTeamId;
 
-    const newMatch: Omit<Match, 'id'> = {
-      team1Id,
-      team2Id,
-      overs,
-      status: 'live',
-      tossWinnerId,
-      tossDecision,
-      innings: [{
-        battingTeamId: battingTeamId,
-        bowlingTeamId: bowlingTeamId,
-        score: 0,
-        wickets: 0,
-        overs: 0,
-        strikerId: null,
-        nonStrikerId: null,
-        bowlerId: null,
-        deliveryHistory: [],
-      }],
-      currentInning: 1,
-      date: new Date().toISOString(),
-    };
-    const docRef = await addDoc(collection(db, 'matches'), newMatch);
-    return docRef.id;
+      const newMatch: Omit<Match, 'id'> = {
+        team1Id,
+        team2Id,
+        overs,
+        status: 'live',
+        tossWinnerId,
+        tossDecision,
+        innings: [{
+          battingTeamId: battingTeamId,
+          bowlingTeamId: bowlingTeamId,
+          score: 0,
+          wickets: 0,
+          overs: 0,
+          strikerId: null,
+          nonStrikerId: null,
+          bowlerId: null,
+          deliveryHistory: [],
+        }],
+        currentInning: 1,
+        date: new Date().toISOString(),
+      };
+      const docRef = await addDoc(collection(db, 'matches'), newMatch);
+      return docRef.id;
+    } catch (error: any) {
+        console.error("Failed to create match:", error);
+        toast({
+            variant: "destructive",
+            title: "Database Error",
+            description: error.message || "Could not create the match. Check your connection and permissions.",
+        });
+        return undefined;
+    }
   };
 
   const getMatchById = (matchId: string) => {
