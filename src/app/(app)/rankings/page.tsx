@@ -6,36 +6,38 @@ import { RankingsTable, RankedPlayer, RankedTeam } from '@/components/rankings/r
 import type { Player, Team, Match } from '@/lib/types';
 import { useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AggregatedPlayerStats, calculatePlayerStats } from '@/lib/stats';
 
-const calculateBattingRankings = (players: Player[]): RankedPlayer[] => {
-    return players
+
+const calculateBattingRankings = (playerStats: AggregatedPlayerStats[]): RankedPlayer[] => {
+    return playerStats
         .map(p => ({
-            player: p,
-            points: p.stats.runs 
+            player: p.player,
+            points: p.runsScored 
         }))
         .sort((a, b) => b.points - a.points)
         .map((p, index) => ({ ...p, rank: index + 1 }));
 };
 
-const calculateBowlingRankings = (players: Player[]): RankedPlayer[] => {
-    return players
+const calculateBowlingRankings = (playerStats: AggregatedPlayerStats[]): RankedPlayer[] => {
+    return playerStats
         .map(p => ({
-            player: p,
-            points: p.stats.wickets
+            player: p.player,
+            points: p.wicketsTaken,
+            avg: p.bowlingAverage
         }))
         .sort((a, b) => {
             if (b.points !== a.points) return b.points - a.points;
-            // A real system would use bowling average or economy as a tie-breaker
-            return a.stats.runs - b.stats.runs;
+            return (a.avg ?? Infinity) - (b.avg ?? Infinity);
         })
-        .map((p, index) => ({ ...p, rank: index + 1 }));
+        .map((p, index) => ({ player: p.player, points: p.points, rank: index + 1 }));
 };
 
-const calculateAllRounderRankings = (players: Player[]): RankedPlayer[] => {
-    return players
+const calculateAllRounderRankings = (playerStats: AggregatedPlayerStats[]): RankedPlayer[] => {
+    return playerStats
         .map(p => ({
-            player: p,
-            points: Math.round((p.stats.runs) + (p.stats.wickets * 20))
+            player: p.player,
+            points: Math.round((p.runsScored) + (p.wicketsTaken * 20))
         }))
         .sort((a, b) => b.points - a.points)
         .map((p, index) => ({ ...p, rank: index + 1 }));
@@ -97,9 +99,10 @@ const calculateTeamRankings = (teams: Team[], matches: Match[]): RankedTeam[] =>
 export default function RankingsPage() {
     const { players, teams, matches, loading } = useAppContext();
 
-    const battingRankings = useMemo(() => calculateBattingRankings(players), [players]);
-    const bowlingRankings = useMemo(() => calculateBowlingRankings(players), [players]);
-    const allRounderRankings = useMemo(() => calculateAllRounderRankings(players), [players]);
+    const playerStats = useMemo(() => calculatePlayerStats(players, teams, matches), [players, teams, matches]);
+    const battingRankings = useMemo(() => calculateBattingRankings(playerStats), [playerStats]);
+    const bowlingRankings = useMemo(() => calculateBowlingRankings(playerStats), [playerStats]);
+    const allRounderRankings = useMemo(() => calculateAllRounderRankings(playerStats), [playerStats]);
     const teamRankings = useMemo(() => calculateTeamRankings(teams, matches), [teams, matches]);
 
     if (loading.players || loading.teams || loading.matches) {
