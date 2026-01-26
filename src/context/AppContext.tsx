@@ -11,6 +11,8 @@ type PlayerData = {
   role: 'Batsman' | 'Bowler' | 'All-rounder';
   isCaptain?: boolean;
   isWicketKeeper?: boolean;
+  battingStyle?: string;
+  bowlingStyle?: string;
 }
 
 interface AppContextType {
@@ -209,6 +211,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       teamId: teamId,
       name: playerData.name,
       role: playerData.role,
+      battingStyle: playerData.battingStyle,
+      bowlingStyle: playerData.bowlingStyle === 'None' ? undefined : playerData.bowlingStyle,
       isCaptain: playerData.isCaptain || false,
       isWicketKeeper: playerData.isWicketKeeper || false,
       stats: { matches: 0, runs: 0, wickets: 0, highestScore: 0, bestBowling: 'N/A' },
@@ -244,7 +248,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     const batch = writeBatch(db);
-    batch.update(doc(db, 'players', playerId), { ...playerData });
+    const dataToUpdate = {
+        ...playerData,
+        bowlingStyle: playerData.bowlingStyle === 'None' ? undefined : playerData.bowlingStyle,
+    };
+    batch.update(doc(db, 'players', playerId), dataToUpdate);
 
     if (playerData.isCaptain) {
         const currentCaptain = playersRef.current.find(p => p.teamId === playerToEdit.teamId && p.isCaptain && p.id !== playerId);

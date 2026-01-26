@@ -40,6 +40,8 @@ const formSchema = z.object({
     message: 'Player name must be at least 2 characters long.',
   }),
   role: z.enum(['Batsman', 'Bowler', 'All-rounder']),
+  battingStyle: z.string().optional(),
+  bowlingStyle: z.string().optional(),
   isCaptain: z.boolean().default(false),
   isWicketKeeper: z.boolean().default(false),
 });
@@ -58,6 +60,8 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
     defaultValues: {
       name: player.name,
       role: player.role,
+      battingStyle: player.battingStyle || 'Right-hand bat',
+      bowlingStyle: player.bowlingStyle || 'None',
       isCaptain: player.isCaptain || false,
       isWicketKeeper: player.isWicketKeeper || false,
     },
@@ -114,6 +118,55 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
                         <SelectItem value="Batsman">Batsman</SelectItem>
                         <SelectItem value="Bowler">Bowler</SelectItem>
                         <SelectItem value="All-rounder">All-rounder</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="battingStyle"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Batting Style</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a batting style" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Right-hand bat">Right-hand bat</SelectItem>
+                        <SelectItem value="Left-hand bat">Left-hand bat</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="bowlingStyle"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bowling Style</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a bowling style" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="None">None</SelectItem>
+                        <SelectItem value="Right-arm fast">Right-arm fast</SelectItem>
+                        <SelectItem value="Right-arm medium">Right-arm medium</SelectItem>
+                        <SelectItem value="Left-arm fast">Left-arm fast</SelectItem>
+                        <SelectItem value="Left-arm medium">Left-arm medium</SelectItem>
+                        <SelectItem value="Right-arm off-break">Right-arm off-break</SelectItem>
+                        <SelectItem value="Right-arm leg-break">Right-arm leg-break</SelectItem>
+                        <SelectItem value="Left-arm orthodox">Left-arm orthodox</SelectItem>
+                        <SelectItem value="Left-arm chinaman">Left-arm chinaman</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

@@ -13,7 +13,14 @@ import { DeletePlayerDialog } from "./delete-player-dialog";
 
 interface PlayerCardProps {
   player: Player;
-  onEdit: (data: { name: string; role: 'Batsman' | 'Bowler' | 'All-rounder'; isCaptain?: boolean, isWicketKeeper?: boolean }) => void;
+  onEdit: (data: { 
+    name: string; 
+    role: 'Batsman' | 'Bowler' | 'All-rounder'; 
+    isCaptain?: boolean, 
+    isWicketKeeper?: boolean,
+    battingStyle?: string,
+    bowlingStyle?: string
+  }) => void;
   onDelete: () => void;
 }
 

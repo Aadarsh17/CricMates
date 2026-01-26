@@ -9,6 +9,8 @@ import type { Player } from '@/lib/types';
 type PlayerData = {
   name: string;
   role: 'Batsman' | 'Bowler' | 'All-rounder';
+  battingStyle?: string;
+  bowlingStyle?: string;
   isCaptain?: boolean;
   isWicketKeeper?: boolean;
 }
