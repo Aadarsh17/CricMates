@@ -68,10 +68,10 @@ export default function HomePage() {
         <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold tracking-tight font-headline">
-                Dashboard
+                Welcome, Mates!
               </h1>
               <p className="text-muted-foreground">
-                An overview of your cricket league.
+                Your CricMates dashboard for scores, stats, and more.
               </p>
             </div>
             <div className="flex items-center gap-2">
