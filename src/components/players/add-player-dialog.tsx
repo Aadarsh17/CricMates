@@ -158,14 +158,10 @@ export function AddPlayerDialog({ onPlayerAdd }: AddPlayerDialogProps) {
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="None">None</SelectItem>
-                        <SelectItem value="Right-arm fast">Right-arm fast</SelectItem>
-                        <SelectItem value="Right-arm medium">Right-arm medium</SelectItem>
-                        <SelectItem value="Left-arm fast">Left-arm fast</SelectItem>
-                        <SelectItem value="Left-arm medium">Left-arm medium</SelectItem>
-                        <SelectItem value="Right-arm off-break">Right-arm off-break</SelectItem>
-                        <SelectItem value="Right-arm leg-break">Right-arm leg-break</SelectItem>
-                        <SelectItem value="Left-arm orthodox">Left-arm orthodox</SelectItem>
-                        <SelectItem value="Left-arm chinaman">Left-arm chinaman</SelectItem>
+                        <SelectItem value="Right-hand fast">Right-hand fast</SelectItem>
+                        <SelectItem value="Right-hand spinner (off-spin)">Right-hand spinner (off-spin)</SelectItem>
+                        <SelectItem value="Left-hand fast">Left-hand fast</SelectItem>
+                        <SelectItem value="Left-hand spinner">Left-hand spinner</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
