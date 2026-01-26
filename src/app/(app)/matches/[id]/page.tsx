@@ -38,35 +38,34 @@ export default function MatchPage() {
     const { toast } = useToast();
     const [isBowlerDialogOpen, setIsBowlerDialogOpen] = useState(false);
     const [isInningStartDialogOpen, setIsInningStartDialogOpen] = useState(false);
+    const [inningStartDialogShownFor, setInningStartDialogShownFor] = useState(0);
 
     // Call all hooks at the top level
     const match = getMatchById(matchId);
 
     useEffect(() => {
         if (loading.matches || !match || match.status !== 'live') return;
+        
         const inning = match.innings[match.currentInning - 1];
         
+        // Show bowler selection dialog if an over is complete and no new bowler is set
         const isOverComplete = inning.overs > 0 && inning.overs % 1 === 0 && inning.deliveryHistory.length > 0;
-        
         if (isOverComplete && !inning.bowlerId) {
             if (!isBowlerDialogOpen) {
                 setIsBowlerDialogOpen(true);
             }
         }
-    }, [match, isBowlerDialogOpen, loading.matches]);
 
-     useEffect(() => {
-        if (loading.matches) return;
-        if (match && match.status === 'live') {
-            const inning = match.innings[match.currentInning - 1];
-            if (inning.deliveryHistory.length === 0 && match.currentInning === 1 && inning.overs === 0) {
-                setIsInningStartDialogOpen(true);
-            }
-             if (match.currentInning > 1 && inning.deliveryHistory.length === 0) {
-                setIsInningStartDialogOpen(true);
-            }
+        // Show inning start dialog
+        const isFirstInningStart = match.currentInning === 1 && inning.deliveryHistory.length === 0 && inning.overs === 0;
+        const isSecondInningStart = match.currentInning > 1 && inning.deliveryHistory.length === 0;
+
+        if ((isFirstInningStart || isSecondInningStart) && inningStartDialogShownFor !== match.currentInning) {
+            setIsInningStartDialogOpen(true);
+            setInningStartDialogShownFor(match.currentInning);
         }
-    }, [match, loading.matches]);
+
+    }, [match, isBowlerDialogOpen, loading.matches, inningStartDialogShownFor]);
 
 
     if (loading.matches || loading.teams || loading.players) {
