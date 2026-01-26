@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, ReactNode, useMemo } from 'react';
+import { createContext, useContext, ReactNode, useMemo, useCallback } from 'react';
 import type { Team, Player, Match, Inning, DeliveryRecord } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { useCollection, useFirebase, errorEmitter, FirestorePermissionError, useMemoFirebase } from '@/firebase';
@@ -66,7 +66,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       matches: matchesLoading
   };
 
-  const handleInningEnd = (match: Match): Match => {
+  const handleInningEnd = useCallback((match: Match): Match => {
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
 
@@ -106,7 +106,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const firstInningTeam = teams.find(t => t.id === firstInning.battingTeamId);
             const secondInningTeam = teams.find(t => t.id === secondInning.battingTeamId);
 
-            if (secondInning.score > firstInning.score) {
+            if (!firstInningTeam || !secondInningTeam) {
+                updatedMatch.result = "Result could not be determined."
+            }
+            else if (secondInning.score > firstInning.score) {
                 const secondInningBattingTeamPlayers = players.filter(p => p.teamId === secondInning.battingTeamId);
                 const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length > 0 ? secondInningBattingTeamPlayers.length : 11;
                 const wicketsRemaining = numberOfPlayersInSecondTeam - 1 - secondInning.wickets;
@@ -119,10 +122,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
     }
     return updatedMatch;
-  };
+  }, [players, teams]);
 
 
-  const addTeam = (name: string) => {
+  const addTeam = useCallback(async (name: string) => {
+    if (!db) throw new Error("Database not available");
     const newTeam: Omit<Team, 'id'> = {
       name,
       logoUrl: `https://picsum.photos/seed/${Math.random().toString(36).substring(7)}/128/128`,
@@ -132,48 +136,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
       matchesLost: 0,
       matchesDrawn: 0,
     };
-    const colRef = collection(db, 'teams');
-    return addDoc(colRef, newTeam).then(() => {}).catch(error => {
-        const permissionError = new FirestorePermissionError({
-            path: 'teams',
-            operation: 'create',
-            requestResourceData: newTeam
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  };
+    try {
+      await addDoc(collection(db, 'teams'), newTeam);
+    } catch(e: any) {
+        console.error("Failed to add team:", e);
+        toast({ variant: "destructive", title: "Error Adding Team", description: "Could not add the team. Please try again." });
+        throw e;
+    }
+  }, [db, toast]);
 
-  const editTeam = (teamId: string, name: string) => {
-    return updateDoc(doc(db, 'teams', teamId), { name }).catch(error => {
-        const permissionError = new FirestorePermissionError({
-            path: `teams/${teamId}`,
-            operation: 'update',
-            requestResourceData: { name }
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  };
+  const editTeam = useCallback(async (teamId: string, name: string) => {
+    if (!db) throw new Error("Database not available");
+    try {
+      await updateDoc(doc(db, 'teams', teamId), { name });
+    } catch (e: any) {
+        console.error("Failed to edit team:", e);
+        toast({ variant: "destructive", title: "Error Editing Team", description: "Could not update the team. Please try again." });
+        throw e;
+    }
+  }, [db, toast]);
 
-  const deleteTeam = (teamId: string) => {
-    const batch = writeBatch(db);
-    batch.delete(doc(db, 'teams', teamId));
-    const teamPlayers = players.filter(p => p.teamId === teamId);
-    teamPlayers.forEach(p => {
-        batch.delete(doc(db, 'players', p.id));
-    });
-    return batch.commit().catch(error => {
-        const permissionError = new FirestorePermissionError({
-            path: `teams/${teamId}`,
-            operation: 'delete',
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  };
+  const deleteTeam = useCallback(async (teamId: string) => {
+    if (!db) throw new Error("Database not available");
+    try {
+      const batch = writeBatch(db);
+      batch.delete(doc(db, 'teams', teamId));
+      const teamPlayers = players.filter(p => p.teamId === teamId);
+      teamPlayers.forEach(p => {
+          batch.delete(doc(db, 'players', p.id));
+      });
+      await batch.commit();
+    } catch (e: any) {
+        console.error("Failed to delete team:", e);
+        toast({ variant: "destructive", title: "Error Deleting Team", description: "Could not delete the team and its players. Please try again." });
+        throw e;
+    }
+  }, [db, players, toast]);
   
-  const addPlayer = (teamId: string, playerData: PlayerData) => {
+  const addPlayer = useCallback(async (teamId: string, playerData: PlayerData) => {
+    if (!db) throw new Error("Database not available");
     const batch = writeBatch(db);
     const newPlayerRef = doc(collection(db, 'players'));
 
@@ -195,20 +196,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     batch.set(newPlayerRef, newPlayer);
-    return batch.commit().catch(error => {
-        const permissionError = new FirestorePermissionError({
-            path: `teams/${teamId}/players`,
-            operation: 'create',
-            requestResourceData: newPlayer
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  };
+    try {
+      await batch.commit();
+    } catch (e: any) {
+        console.error("Failed to add player:", e);
+        toast({ variant: "destructive", title: "Error Adding Player", description: "Could not add the player. Please try again." });
+        throw e;
+    }
+  }, [db, players, toast]);
 
-  const editPlayer = (playerId: string, playerData: PlayerData) => {
+  const editPlayer = useCallback(async (playerId: string, playerData: PlayerData) => {
+    if (!db) throw new Error("Database not available");
     const playerToEdit = players.find(p => p.id === playerId);
-    if (!playerToEdit) return Promise.reject("Player not found");
+    if (!playerToEdit) throw new Error("Player not found");
 
     const batch = writeBatch(db);
     batch.update(doc(db, 'players', playerId), { ...playerData });
@@ -219,45 +219,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
             batch.update(doc(db, 'players', currentCaptain.id), { isCaptain: false });
         }
     }
-    return batch.commit().catch(error => {
-        const permissionError = new FirestorePermissionError({
-            path: `players/${playerId}`,
-            operation: 'update',
-            requestResourceData: playerData
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  };
+    try {
+      await batch.commit();
+    } catch (e: any) {
+      console.error("Failed to edit player:", e);
+      toast({ variant: "destructive", title: "Error Editing Player", description: "Could not update the player. Please try again." });
+      throw e;
+    }
+  }, [db, players, toast]);
 
-  const deletePlayer = (playerId: string) => {
-    return deleteDoc(doc(db, 'players', playerId)).catch(error => {
-        const permissionError = new FirestorePermissionError({
-            path: `players/${playerId}`,
-            operation: 'delete'
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  };
+  const deletePlayer = useCallback(async (playerId: string) => {
+    if (!db) throw new Error("Database not available");
+    try {
+      await deleteDoc(doc(db, 'players', playerId));
+    } catch(e: any) {
+      console.error("Failed to delete player:", e);
+      toast({ variant: "destructive", title: "Error Deleting Player", description: "Could not delete the player. Please try again." });
+      throw e;
+    }
+  }, [db, toast]);
 
-  const getPlayerCountForTeam = (teamId: string) => {
+  const getPlayerCountForTeam = useCallback((teamId: string) => {
     return players.filter(p => p.teamId === teamId).length;
-  };
+  }, [players]);
   
-  const getTeamById = (teamId: string) => {
+  const getTeamById = useCallback((teamId: string) => {
     return teams.find(t => t.id === teamId);
-  }
+  }, [teams]);
 
-  const getPlayerById = (playerId: string) => {
+  const getPlayerById = useCallback((playerId: string) => {
     return players.find(p => p.id === playerId);
-  }
+  }, [players]);
 
-  const getPlayersByTeamId = (teamId: string) => {
+  const getPlayersByTeamId = useCallback((teamId: string) => {
     return players.filter(p => p.teamId === teamId);
-  }
+  }, [players]);
 
-  const addMatch = (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => {
+  const addMatch = useCallback(async (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => {
+    if (!db) throw new Error("Database not available");
     const { team1Id, team2Id, overs, tossWinnerId, tossDecision } = matchConfig;
     
     const otherTeamId = tossWinnerId === team1Id ? team2Id : team1Id;
@@ -286,61 +285,63 @@ export function AppProvider({ children }: { children: ReactNode }) {
       date: new Date().toISOString(),
     };
     
-    return addDoc(collection(db, 'matches'), newMatch).then(docRef => docRef.id).catch(error => {
-        const permissionError = new FirestorePermissionError({
-            path: 'matches',
-            operation: 'create',
-            requestResourceData: newMatch
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  };
+    try {
+      const docRef = await addDoc(collection(db, 'matches'), newMatch);
+      return docRef.id;
+    } catch (e: any) {
+        console.error("Failed to add match:", e);
+        toast({ variant: "destructive", title: "Error Creating Match", description: "Could not create the match. Please try again." });
+        throw e;
+    }
+  }, [db, toast]);
 
-  const getMatchById = (matchId: string) => {
+  const getMatchById = useCallback((matchId: string) => {
     return matches.find(m => m.id === matchId);
-  }
+  }, [matches]);
 
-  const swapStrikers = (matchId: string) => {
+  const updateMatch = useCallback(async (matchId: string, updatedMatchData: Partial<Match>) => {
+      if (!db) throw new Error("Database not available");
+      try {
+          await updateDoc(doc(db, 'matches', matchId), updatedMatchData);
+      } catch (e: any) {
+          console.error("Failed to update match:", e);
+          toast({ variant: "destructive", title: "Error Updating Match", description: "Could not save match progress. Please try again." });
+          throw e;
+      }
+  }, [db, toast]);
+
+  const swapStrikers = useCallback(async (matchId: string) => {
     const match = getMatchById(matchId);
-    if (!match) return Promise.reject("Match not found");
+    if (!match) return;
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
     const temp = inning.strikerId;
     inning.strikerId = inning.nonStrikerId;
     inning.nonStrikerId = temp;
-    return updateDoc(doc(db, 'matches', matchId), updatedMatch).catch(error => {
-        const permissionError = new FirestorePermissionError({ path: `matches/${matchId}`, operation: 'update', requestResourceData: updatedMatch });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  }
+    await updateMatch(matchId, updatedMatch);
+  }, [getMatchById, updateMatch]);
 
-  const setPlayerInMatch = (matchId: string, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => {
+  const setPlayerInMatch = useCallback(async (matchId: string, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => {
     const match = getMatchById(matchId);
-    if (!match) return Promise.reject("Match not found");
+    if (!match) return;
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
     if (role === 'striker') inning.strikerId = playerId;
     if (role === 'nonStriker') inning.nonStrikerId = playerId;
     if (role === 'bowler') inning.bowlerId = playerId;
-    return updateDoc(doc(db, 'matches', matchId), updatedMatch).catch(error => {
-        const permissionError = new FirestorePermissionError({ path: `matches/${matchId}`, operation: 'update', requestResourceData: updatedMatch });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  }
+    await updateMatch(matchId, updatedMatch);
+  }, [getMatchById, updateMatch]);
   
-  const retireStriker = (matchId: string) => {
+  const retireStriker = useCallback(async (matchId: string) => {
     const match = getMatchById(matchId);
-    if (!match || match.status !== 'live') return Promise.reject("Match not live");
+    if (!match || match.status !== 'live') return;
     
     let updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
     
     if (!inning.strikerId) {
         toast({ variant: "destructive", title: "Striker not selected!"});
-        return Promise.reject("Striker not selected");
+        return;
     }
     
     const deliveryRecord: DeliveryRecord = { 
@@ -358,23 +359,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     inning.strikerId = null;
     
     updatedMatch = handleInningEnd(updatedMatch);
-    return updateDoc(doc(db, 'matches', matchId), updatedMatch).catch(error => {
-        const permissionError = new FirestorePermissionError({ path: `matches/${matchId}`, operation: 'update', requestResourceData: updatedMatch });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  };
+    await updateMatch(matchId, updatedMatch);
+  }, [getMatchById, handleInningEnd, updateMatch, toast]);
 
-  const undoDelivery = (matchId: string) => {
+  const undoDelivery = useCallback(async (matchId: string) => {
     const matchToUpdate = getMatchById(matchId);
-    if (!matchToUpdate) return Promise.reject("Match not found");
+    if (!matchToUpdate) return;
 
     const updatedMatch = JSON.parse(JSON.stringify(matchToUpdate));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
     
     if (inning.deliveryHistory.length === 0) {
         toast({ variant: 'destructive', title: 'No deliveries to undo.'});
-        return Promise.reject("No deliveries to undo");
+        return;
     }
 
     const lastDelivery = inning.deliveryHistory.pop();
@@ -410,23 +407,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     inning.wickets = newWickets;
     inning.overs = newOvers;
 
-    return updateDoc(doc(db, 'matches', matchId), updatedMatch).catch(error => {
-        const permissionError = new FirestorePermissionError({ path: `matches/${matchId}`, operation: 'update', requestResourceData: updatedMatch });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  }
+    await updateMatch(matchId, updatedMatch);
+  }, [getMatchById, updateMatch, toast]);
 
-  const recordDelivery = (matchId: string, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string }) => {
+  const recordDelivery = useCallback(async (matchId: string, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string }) => {
     const match = getMatchById(matchId);
-    if (!match || match.status !== 'live') return Promise.reject("Match not live");
+    if (!match || match.status !== 'live') return;
 
     let updatedMatch = JSON.parse(JSON.stringify(match)); 
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
     
     if (!inning.strikerId || !inning.nonStrikerId || !inning.bowlerId) {
         toast({ variant: "destructive", title: "Players not set!", description: "Please select a striker, non-striker, and bowler."});
-        return Promise.reject("Players not set");
+        return;
     }
 
     const deliveryRecord: DeliveryRecord = { 
@@ -473,16 +466,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     updatedMatch = handleInningEnd(updatedMatch);
-    return updateDoc(doc(db, 'matches', matchId), updatedMatch).catch(error => {
-        const permissionError = new FirestorePermissionError({ path: `matches/${matchId}`, operation: 'update', requestResourceData: updatedMatch });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  };
+    await updateMatch(matchId, updatedMatch);
+  }, [getMatchById, handleInningEnd, updateMatch, toast]);
 
-  const forceEndInning = (matchId: string) => {
+  const forceEndInning = useCallback(async (matchId: string) => {
     const match = getMatchById(matchId);
-    if (!match || match.status !== 'live') return Promise.reject("Match not live");
+    if (!match || match.status !== 'live') return;
 
     let updatedMatch = JSON.parse(JSON.stringify(match));
 
@@ -504,30 +493,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updatedMatch.currentInning = 2;
         toast({ title: "Inning Ended Manually", description: "The first inning has been concluded. Starting second inning." });
     } else { 
-        updatedMatch.status = 'completed';
-        const firstInning = updatedMatch.innings[0];
-        const secondInning = updatedMatch.innings[1];
-        const firstInningTeam = teams.find(t => t.id === firstInning.battingTeamId);
-        const secondInningTeam = teams.find(t => t.id === secondInning.battingTeamId);
-
-        if (secondInning.score > firstInning.score) {
-            const secondInningBattingTeamPlayers = players.filter(p => p.teamId === secondInning.battingTeamId);
-            const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length > 0 ? secondInningBattingTeamPlayers.length : 11;
-            const wicketsRemaining = numberOfPlayersInSecondTeam - 1 - secondInning.wickets;
-            updatedMatch.result = `${secondInningTeam?.name} won by ${wicketsRemaining} wickets.`;
-        } else if (firstInning.score > secondInning.score) {
-            updatedMatch.result = `${firstInningTeam?.name} won by ${firstInning.score - secondInning.score} runs.`;
-        } else {
-            updatedMatch.result = "Match is a Tie.";
-        }
-         toast({ title: "Match Ended", description: `Match has been manually concluded. ${updatedMatch.result}` });
+        updatedMatch = handleInningEnd({...updatedMatch, status: 'completed'}); // Force completion check
+        toast({ title: "Match Ended", description: `Match has been manually concluded. ${updatedMatch.result}` });
     }
-    return updateDoc(doc(db, 'matches', matchId), updatedMatch).catch(error => {
-        const permissionError = new FirestorePermissionError({ path: `matches/${matchId}`, operation: 'update', requestResourceData: updatedMatch });
-        errorEmitter.emit('permission-error', permissionError);
-        throw error;
-    });
-  };
+    await updateMatch(matchId, updatedMatch);
+  }, [getMatchById, handleInningEnd, updateMatch, toast]);
 
   const value: AppContextType = useMemo(() => ({
       loading,
@@ -552,7 +522,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       undoDelivery,
       retireStriker,
       forceEndInning,
-  }), [loading, teams, players, matches, db, toast]);
+  }), [
+      loading,
+      teams,
+      players,
+      matches,
+      addTeam,
+      editTeam,
+      deleteTeam,
+      addPlayer,
+      editPlayer,
+      deletePlayer,
+      getPlayerCountForTeam,
+      getTeamById,
+      getPlayerById,
+      getPlayersByTeamId,
+      addMatch,
+      getMatchById,
+      recordDelivery,
+      setPlayerInMatch,
+      swapStrikers,
+      undoDelivery,
+      retireStriker,
+      forceEndInning
+  ]);
 
   return (
     <AppContext.Provider value={value}>
