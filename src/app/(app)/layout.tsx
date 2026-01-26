@@ -1,6 +1,5 @@
 'use client';
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,11 +19,11 @@ import {
   PlusCircle,
   Users,
   ArrowLeft,
+  MoreVertical,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { PlaceHolderImages } from "@/lib/placeholder-images";
 import { AppProvider } from "@/context/AppContext";
 import { FirebaseClientProvider } from "@/firebase";
 import { ClientOnly } from "@/components/ClientOnly";
@@ -34,7 +33,6 @@ const HeaderPlaceholder = () => (
 );
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const userAvatar = PlaceHolderImages.find((img) => img.id === "user-avatar");
   const router = useRouter();
   const pathname = usePathname();
 
@@ -181,20 +179,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
-                      variant="secondary"
+                      variant="ghost"
                       size="icon"
-                      className="rounded-full"
                     >
-                      <Avatar>
-                        {userAvatar && (
-                          <AvatarImage
-                            src={userAvatar.imageUrl}
-                            alt="User"
-                            data-ai-hint={userAvatar.imageHint}
-                          />
-                        )}
-                        <AvatarFallback>U</AvatarFallback>
-                      </Avatar>
+                      <MoreVertical className="h-5 w-5" />
                       <span className="sr-only">Toggle user menu</span>
                     </Button>
                   </DropdownMenuTrigger>
