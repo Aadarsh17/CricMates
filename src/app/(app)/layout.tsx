@@ -13,7 +13,7 @@ import {
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   Home,
-  LogOut,
+  LogOut as LogOutIcon,
   Menu,
   BarChart,
   Trophy,
@@ -205,7 +205,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <DropdownMenuItem>Support</DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem>
-                      <LogOut className="mr-2 h-4 w-4" />
+                      <LogOutIcon className="mr-2 h-4 w-4" />
                       <span>Logout</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
