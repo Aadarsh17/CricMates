@@ -18,12 +18,10 @@ export default function WelcomePage() {
             />
           </div>
           <h1 className="text-4xl md:text-6xl font-headline font-bold text-foreground tracking-tighter">
-            Welcome to <span className="text-primary">CricMates</span>
+            Welcome, Mates, to <span className="text-primary">CricMates</span>
           </h1>
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
-            Your all-in-one solution for tracking local cricket match scores,
-            managing teams, and analyzing player performance. Get ready to
-            elevate your game!
+            Your ultimate companion for every match. Effortless scoring, powerful stats, and seamless team management, all in one place.
           </p>
           <div className="flex justify-center pt-4">
             <Button
