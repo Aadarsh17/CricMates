@@ -182,18 +182,14 @@
         }
       },
       {
-        "path": "/teams/{teamId}/players/{playerId}",
+        "path": "/players/{playerId}",
         "definition": {
           "entityName": "Player",
           "schema": {
             "$ref": "#/backend/entities/Player"
           },
-          "description": "Stores player information for a specific team. The 'teamId' ensures players are associated with their respective teams. Includes denormalized 'teamId' for authorization independence.",
+          "description": "Stores player information. The 'playerId' is used to uniquely identify each player.",
           "params": [
-            {
-              "name": "teamId",
-              "description": "The unique identifier of the team."
-            },
             {
               "name": "playerId",
               "description": "The unique identifier of the player."
@@ -216,28 +212,8 @@
             }
           ]
         }
-      },
-      {
-        "path": "/matches/{matchId}/scores/{scoreId}",
-        "definition": {
-          "entityName": "Score",
-          "schema": {
-            "$ref": "#/backend/entities/Score"
-          },
-          "description": "Stores score information for a specific match. Includes denormalized 'matchId' for authorization independence.",
-          "params": [
-            {
-              "name": "matchId",
-              "description": "The unique identifier of the match."
-            },
-            {
-              "name": "scoreId",
-              "description": "The unique identifier of the score."
-            }
-          ]
-        }
       }
     ],
-    "reasoning": "The Firestore structure is designed to optimize for security, scalability, and query performance, adhering to the principles of Authorization Independence, Structural Segregation, and Access Modeling.  Authorization independence is achieved by using path-based ownership for user-specific data and denormalizing access control data where necessary.  The design supports the required QAPs by ensuring that security rules do not act as filters. The structure facilitates secure list operations, ensuring users can only access the data they are authorized to see. Explicit state modeling and predictable schemas ensure data clarity and ease of debugging."
+    "reasoning": "The Firestore structure is designed with a flat hierarchy for core entities (Teams, Players, Matches) to simplify queries and align with the application's data access patterns. This structure avoids complex subcollection queries for primary data, enhancing performance and scalability. Security rules will be managed at the collection level, providing clear and manageable access control."
   }
 }
