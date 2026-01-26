@@ -204,7 +204,7 @@ export default function MatchPage() {
             </Card>
 
             {match.status === 'completed' && match.result && (
-                <Card className="bg-primary/10 border-primary">
+                <Card>
                     <CardHeader className="text-center">
                         <div className="flex justify-center items-center gap-2">
                              <Trophy className="w-8 h-8 text-primary" />
