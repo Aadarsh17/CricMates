@@ -6,11 +6,22 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, Shield, Users, BarChart, PlayCircle } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
+import type { Match } from "@/lib/types";
 
 export default function HomePage() {
-  const { teams, players, matches, loading, getTeamById } = useAppContext();
+  const { teams, players, loading: contextLoading, getTeamById } = useAppContext();
+  const { firestore: db } = useFirebase();
 
-  if (loading.teams || loading.players || loading.matches) {
+  const matchesCollection = useMemoFirebase(() => (db ? collection(db, 'matches') : null), [db]);
+  const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesCollection);
+  
+  const matches = matchesData || [];
+  
+  const loading = contextLoading.teams || contextLoading.players || matchesLoading;
+
+  if (loading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">

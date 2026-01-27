@@ -19,11 +19,9 @@ interface AppContextType {
   loading: {
     teams: boolean;
     players: boolean;
-    matches: boolean;
   };
   teams: Team[];
   players: Player[];
-  matches: Match[];
   addTeam: (name: string) => Promise<void>;
   editTeam: (teamId: string, name: string) => Promise<void>;
   deleteTeam: (teamId: string) => Promise<void>;
@@ -35,13 +33,12 @@ interface AppContextType {
   getPlayerById: (playerId: string) => Player | undefined;
   getPlayersByTeamId: (teamId: string) => Player[];
   addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => Promise<string>;
-  getMatchById: (matchId: string) => Match | undefined;
-  recordDelivery: (matchId: string, outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null, outcome: string }) => Promise<void>;
-  setPlayerInMatch: (matchId: string, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => Promise<void>;
-  swapStrikers: (matchId: string) => Promise<void>;
-  undoDelivery: (matchId: string) => Promise<void>;
-  retireStriker: (matchId: string) => Promise<void>;
-  forceEndInning: (matchId: string) => Promise<void>;
+  recordDelivery: (match: Match, outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null, outcome: string }) => Promise<void>;
+  setPlayerInMatch: (match: Match, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => Promise<void>;
+  swapStrikers: (match: Match) => Promise<void>;
+  undoDelivery: (match: Match) => Promise<void>;
+  retireStriker: (match: Match) => Promise<void>;
+  forceEndInning: (match: Match) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -52,20 +49,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
   const playersCollection = useMemoFirebase(() => (db ? collection(db, 'players') : null), [db]);
-  const matchesCollection = useMemoFirebase(() => (db ? collection(db, 'matches') : null), [db]);
 
   const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
   const { data: playersData, isLoading: playersLoading } = useCollection<Player>(playersCollection);
-  const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesCollection);
   
   const teams = teamsData || [];
   const players = playersData || [];
-  const matches = matchesData || [];
 
   const loading = {
       teams: teamsLoading,
       players: playersLoading,
-      matches: matchesLoading
   };
 
   const teamsRef = useRef(teams);
@@ -77,11 +70,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     playersRef.current = players;
   }, [players]);
-
-  const matchesRef = useRef(matches);
-  useEffect(() => {
-    matchesRef.current = matches;
-  }, [matches]);
 
   const handleInningEnd = useCallback((match: Match): Match => {
     const updatedMatch = JSON.parse(JSON.stringify(match));
@@ -343,10 +331,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [db, toast]);
 
-  const getMatchById = useCallback((matchId: string) => {
-    return matches.find(m => m.id === matchId);
-  }, [matches]);
-
   const updateMatch = useCallback(async (matchId: string, updatedMatchData: Partial<Match>) => {
       if (!db) {
         toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again." });
@@ -360,30 +344,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
   }, [db, toast]);
 
-  const swapStrikers = useCallback(async (matchId: string) => {
-    const match = matchesRef.current.find(m => m.id === matchId);
+  const swapStrikers = useCallback(async (match: Match) => {
     if (!match) return;
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
     const temp = inning.strikerId;
     inning.strikerId = inning.nonStrikerId;
     inning.nonStrikerId = temp;
-    await updateMatch(matchId, updatedMatch);
+    await updateMatch(match.id, updatedMatch);
   }, [updateMatch]);
 
-  const setPlayerInMatch = useCallback(async (matchId: string, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => {
-    const match = matchesRef.current.find(m => m.id === matchId);
+  const setPlayerInMatch = useCallback(async (match: Match, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => {
     if (!match) return;
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
     if (role === 'striker') inning.strikerId = playerId;
     if (role === 'nonStriker') inning.nonStrikerId = playerId;
     if (role === 'bowler') inning.bowlerId = playerId;
-    await updateMatch(matchId, updatedMatch);
+    await updateMatch(match.id, updatedMatch);
   }, [updateMatch]);
   
-  const retireStriker = useCallback(async (matchId: string) => {
-    const match = matchesRef.current.find(m => m.id === matchId);
+  const retireStriker = useCallback(async (match: Match) => {
     if (!match || match.status !== 'live') return;
     
     let updatedMatch = JSON.parse(JSON.stringify(match));
@@ -409,14 +390,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     inning.strikerId = null;
     
     updatedMatch = handleInningEnd(updatedMatch);
-    await updateMatch(matchId, updatedMatch);
+    await updateMatch(match.id, updatedMatch);
   }, [handleInningEnd, updateMatch, toast]);
 
-  const undoDelivery = useCallback(async (matchId: string) => {
-    const matchToUpdate = matchesRef.current.find(m => m.id === matchId);
-    if (!matchToUpdate) return;
+  const undoDelivery = useCallback(async (match: Match) => {
+    if (!match) return;
 
-    const updatedMatch = JSON.parse(JSON.stringify(matchToUpdate));
+    const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
     
     if (inning.deliveryHistory.length === 0) {
@@ -457,11 +437,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     inning.wickets = newWickets;
     inning.overs = newOvers;
 
-    await updateMatch(matchId, updatedMatch);
+    await updateMatch(match.id, updatedMatch);
   }, [updateMatch, toast]);
 
-  const recordDelivery = useCallback(async (matchId: string, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string }) => {
-    const match = matchesRef.current.find(m => m.id === matchId);
+  const recordDelivery = useCallback(async (match: Match, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string }) => {
     if (!match || match.status !== 'live') return;
 
     let updatedMatch = JSON.parse(JSON.stringify(match)); 
@@ -516,11 +495,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     updatedMatch = handleInningEnd(updatedMatch);
-    await updateMatch(matchId, updatedMatch);
+    await updateMatch(match.id, updatedMatch);
   }, [handleInningEnd, updateMatch, toast]);
 
-  const forceEndInning = useCallback(async (matchId: string) => {
-    const match = matchesRef.current.find(m => m.id === matchId);
+  const forceEndInning = useCallback(async (match: Match) => {
     if (!match || match.status !== 'live') return;
 
     let updatedMatch = JSON.parse(JSON.stringify(match));
@@ -546,14 +524,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updatedMatch = handleInningEnd({...updatedMatch, status: 'completed'}); // Force completion check
         toast({ title: "Match Ended", description: `Match has been manually concluded. ${updatedMatch.result}` });
     }
-    await updateMatch(matchId, updatedMatch);
+    await updateMatch(match.id, updatedMatch);
   }, [handleInningEnd, updateMatch, toast]);
 
   const value: AppContextType = useMemo(() => ({
       loading,
       teams,
       players,
-      matches,
       addTeam,
       editTeam,
       deleteTeam,
@@ -565,7 +542,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       getPlayerById,
       getPlayersByTeamId,
       addMatch,
-      getMatchById,
       recordDelivery,
       setPlayerInMatch,
       swapStrikers,
@@ -576,7 +552,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loading,
       teams,
       players,
-      matches,
       addTeam,
       editTeam,
       deleteTeam,
@@ -588,7 +563,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       getPlayerById,
       getPlayersByTeamId,
       addMatch,
-      getMatchById,
       recordDelivery,
       setPlayerInMatch,
       swapStrikers,

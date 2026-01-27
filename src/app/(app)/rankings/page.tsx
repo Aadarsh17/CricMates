@@ -7,6 +7,8 @@ import type { Player, Team, Match } from '@/lib/types';
 import { useMemo } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AggregatedPlayerStats, calculatePlayerStats } from '@/lib/stats';
+import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
 
 
 const calculateBattingRankings = (playerStats: AggregatedPlayerStats[]): RankedPlayer[] => {
@@ -97,7 +99,12 @@ const calculateTeamRankings = (teams: Team[], matches: Match[]): RankedTeam[] =>
 
 
 export default function RankingsPage() {
-    const { players, teams, matches, loading } = useAppContext();
+    const { players, teams, loading: contextLoading } = useAppContext();
+    const { firestore: db } = useFirebase();
+
+    const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'completed')) : null, [db]);
+    const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
+    const matches = matchesData || [];
 
     const playerStats = useMemo(() => calculatePlayerStats(players, teams, matches), [players, teams, matches]);
     const battingRankings = useMemo(() => calculateBattingRankings(playerStats), [playerStats]);
@@ -105,7 +112,7 @@ export default function RankingsPage() {
     const allRounderRankings = useMemo(() => calculateAllRounderRankings(playerStats), [playerStats]);
     const teamRankings = useMemo(() => calculateTeamRankings(teams, matches), [teams, matches]);
 
-    if (loading.players || loading.teams || loading.matches) {
+    if (contextLoading.players || contextLoading.teams || matchesLoading) {
         return (
             <div className="space-y-6">
                 <div>

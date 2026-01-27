@@ -62,7 +62,7 @@ export function UmpireControls({ match }: { match: Match }) {
         if(extraType === 'legbyes') outcomeString = `${runs}lb`;
 
 
-        recordDelivery(match.id, {
+        recordDelivery(match, {
             runs: runs,
             isWicket: extras.wicket,
             extra: extraType,
@@ -146,12 +146,12 @@ export function UmpireControls({ match }: { match: Match }) {
                             {runs}
                         </Button>
                     ))}
-                    <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => swapStrikers(match.id)}>Swap</Button>
-                    <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => undoDelivery(match.id)}>Undo</Button>
+                    <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => swapStrikers(match)}>Swap</Button>
+                    <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => undoDelivery(match)}>Undo</Button>
                 </div>
                  <div className="grid grid-cols-1 gap-2 border-t pt-4 mt-2">
-                    <Button variant="destructive" onClick={() => retireStriker(match.id)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
-                    <Button variant="destructive" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match.id)}>{endInningButtonText}</Button>
+                    <Button variant="destructive" onClick={() => retireStriker(match)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
+                    <Button variant="destructive" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match)}>{endInningButtonText}</Button>
                 </div>
             </CardContent>
         </Card>

@@ -2,11 +2,20 @@
 
 import { useAppContext } from "@/context/AppContext";
 import { PointsTable } from "@/components/points-table/points-table";
+import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
+import { collection, query, where } from 'firebase/firestore';
+import type { Match } from "@/lib/types";
 
 export default function PointsTablePage() {
-  const { teams, matches, players, loading } = useAppContext();
+  const { teams, players, loading: contextLoading } = useAppContext();
+  const { firestore: db } = useFirebase();
 
-   if (loading.teams || loading.matches || loading.players) {
+  const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'completed')) : null, [db]);
+  const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
+  const matches = matchesData || [];
+
+
+   if (contextLoading.teams || matchesLoading || contextLoading.players) {
     return (
       <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm">
         <div className="flex flex-col items-center gap-1 text-center">

@@ -6,13 +6,44 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { Trophy } from 'lucide-react';
+import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import type { Match } from '@/lib/types';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function MatchesHistoryPage() {
-  const { matches, getTeamById } = useAppContext();
+  const { getTeamById, loading: contextLoading } = useAppContext();
+  const { firestore: db } = useFirebase();
+  
+  const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'completed')) : null, [db]);
+  const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
+  
+  const completedMatches = (matchesData || []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  const completedMatches = matches
-    .filter(match => match.status === 'completed')
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  if (matchesLoading || contextLoading.teams) {
+     return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <Skeleton className="h-8 w-48" />
+            <Skeleton className="h-4 w-64 mt-2" />
+          </div>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+             <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-4 w-24 mb-2" />
+                  <Skeleton className="h-6 w-full" />
+                </CardHeader>
+                <CardContent><Skeleton className="h-8 w-3/4" /></CardContent>
+                <div className="p-6 pt-0"><Skeleton className="h-10 w-full" /></div>
+              </Card>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (completedMatches.length === 0) {
     return (
