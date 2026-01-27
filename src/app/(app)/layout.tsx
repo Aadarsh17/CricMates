@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   Home,
   LogOut as LogOutIcon,
@@ -122,14 +122,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="left" className="flex flex-col">
+                    <SheetHeader>
+                      <SheetTitle>
+                        <Link
+                          href="/home"
+                          className="flex items-center gap-2 text-lg font-semibold"
+                        >
+                          <Image src="/logo.svg" alt="CricMates Logo" width={24} height={24} />
+                          <span className="font-headline">CricMates</span>
+                        </Link>
+                      </SheetTitle>
+                    </SheetHeader>
                     <nav className="grid gap-2 text-lg font-medium">
-                      <Link
-                        href="/home"
-                        className="flex items-center gap-2 text-lg font-semibold mb-4"
-                      >
-                        <Image src="/logo.svg" alt="CricMates Logo" width={24} height={24} />
-                        <span className="font-headline">CricMates</span>
-                      </Link>
                       <Link
                         href="/home"
                         className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
