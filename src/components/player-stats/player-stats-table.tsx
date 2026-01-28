@@ -77,6 +77,8 @@ export function PlayerStatsTable({ players, teams, matches }: { players: Player[
     { key: 'highestScore', label: 'HS', tooltip: 'Highest Score', numeric: true },
     { key: 'battingAverage', label: 'Avg', tooltip: 'Batting Average', numeric: true },
     { key: 'strikeRate', label: 'SR', tooltip: 'Strike Rate', numeric: true },
+    { key: 'ducks', label: 'Ducks', tooltip: 'Times Dismissed for 0 runs', numeric: true },
+    { key: 'goldenDucks', label: 'GD', tooltip: 'Golden Ducks (out for 0 on first ball)', numeric: true },
     { key: 'wicketsTaken', label: 'Wkts', tooltip: 'Wickets Taken', numeric: true },
     { key: 'economyRate', label: 'Econ', tooltip: 'Economy Rate', numeric: true },
   ];
@@ -148,6 +150,8 @@ export function PlayerStatsTable({ players, teams, matches }: { players: Player[
                   <TableCell className="text-right">{stats.highestScore}</TableCell>
                   <TableCell className="text-right">{stats.battingAverage?.toFixed(2) ?? '-'}</TableCell>
                   <TableCell className="text-right">{stats.strikeRate?.toFixed(2) ?? '-'}</TableCell>
+                  <TableCell className="text-right">{stats.ducks}</TableCell>
+                  <TableCell className="text-right">{stats.goldenDucks}</TableCell>
                   <TableCell className="text-right font-bold">{stats.wicketsTaken}</TableCell>
                   <TableCell className="text-right">{stats.economyRate?.toFixed(2) ?? '-'}</TableCell>
                   <TableCell className="text-right">{stats.bestBowlingWickets > 0 ? `${stats.bestBowlingWickets}/${stats.bestBowlingRuns}` : '-'}</TableCell>

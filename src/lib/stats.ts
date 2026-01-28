@@ -18,6 +18,7 @@ export type AggregatedPlayerStats = {
   fours: number;
   sixes: number;
   ducks: number;
+  goldenDucks: number;
 
   // Bowling
   inningsBowled: number;
@@ -46,7 +47,7 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
         const playerMatches = matches.filter(m => m.status === 'completed' && (m.innings.some(i => i.battingTeamId === player.teamId || i.bowlingTeamId === player.teamId)));
         
         let runsScored = 0, ballsFaced = 0, fours = 0, sixes = 0;
-        let highestScore = 0, fifties = 0, hundreds = 0, ducks = 0, notOuts = 0;
+        let highestScore = 0, fifties = 0, hundreds = 0, ducks = 0, goldenDucks = 0, notOuts = 0;
         let inningsBatted = 0;
         
         let ballsBowled = 0, runsConceded = 0, wicketsTaken = 0;
@@ -67,6 +68,7 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
                         playedInMatch = true;
                         inningsBatted++;
                         let runsThisInning = 0;
+                        let ballsFacedThisInning = 0;
 
                         playerDeliveriesAsStriker.forEach(d => {
                             if (d.extra !== 'byes' && d.extra !== 'legbyes') {
@@ -75,7 +77,10 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
                                 if (d.runs === 4) fours++;
                                 if (d.runs === 6) sixes++;
                             }
-                            if (d.extra !== 'wide') ballsFaced++;
+                            if (d.extra !== 'wide') {
+                                ballsFaced++;
+                                ballsFacedThisInning++;
+                            }
                         });
 
                         if (runsThisInning >= 50 && runsThisInning < 100) fifties++;
@@ -84,7 +89,12 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
                         
                         const wasOut = inning.deliveryHistory.some(d => d.isWicket && d.strikerId === player.id);
                         if (wasOut) {
-                           if (runsThisInning === 0) ducks++;
+                           if (runsThisInning === 0) {
+                               ducks++;
+                               if (ballsFacedThisInning === 1) {
+                                   goldenDucks++;
+                               }
+                           }
                         } else {
                            notOuts++;
                         }
@@ -148,6 +158,7 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
             fours,
             sixes,
             ducks,
+            goldenDucks,
             inningsBowled,
             oversBowled: formatOvers(ballsBowled),
             ballsBowled,
