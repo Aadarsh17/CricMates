@@ -133,28 +133,42 @@ export default function MatchPage() {
     const bowler = getPlayerById(currentInning.bowlerId || '');
 
     const handleShare = async () => {
-        if (!team1 || !team2 || !match.result) return;
+        if (!team1 || !team2) {
+            toast({
+                variant: "destructive",
+                title: "Data still loading",
+                description: "Please wait for team data to load before sharing.",
+            });
+            return;
+        }
+
+        const shareText = match.result 
+            ? `${match.result}. View the full scorecard for ${team1.name} vs ${team2.name}.`
+            : `Check out the scorecard for ${team1.name} vs ${team2.name}.`;
+
         const shareData = {
             title: `Cricket Match: ${team1.name} vs ${team2.name}`,
-            text: `${match.result}. View the full scorecard.`,
+            text: shareText,
             url: window.location.href,
         };
+
         try {
             if (navigator.share) {
                 await navigator.share(shareData);
             } else {
-                navigator.clipboard.writeText(window.location.href);
+                await navigator.clipboard.writeText(window.location.href);
                 toast({
                     title: "URL Copied!",
                     description: "Scorecard URL has been copied to your clipboard.",
                 });
             }
         } catch (err) {
-            console.error("Error sharing:", err);
+            console.error("Sharing failed:", err);
+            const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
             toast({
                 variant: "destructive",
-                title: "Uh oh! Something went wrong.",
-                description: "Could not share scorecard.",
+                title: "Sharing Failed",
+                description: `Could not share the scorecard. ${errorMessage}`,
             });
         }
     };
