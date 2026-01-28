@@ -153,24 +153,19 @@ export default function MatchPage() {
         };
 
         try {
-            // We only try to use navigator.share if it's available.
-            if (navigator.share) {
-                await navigator.share(shareData);
-            } else {
-                // Fallback for browsers that don't support the Web Share API.
+            if (!navigator.share) {
                 throw new Error("Web Share API not supported.");
             }
+            await navigator.share(shareData);
         } catch (err) {
-            // If sharing fails for any reason (permission denied, unsupported, etc.),
-            // we fall back to copying the URL to the clipboard.
+            // This catch block handles both lack of support and runtime errors (like permission denied).
             try {
                 await navigator.clipboard.writeText(window.location.href);
                 toast({
-                    title: "Sharing failed, URL copied!",
-                    description: "The scorecard URL has been copied to your clipboard.",
+                    title: "URL Copied!",
+                    description: "The native share dialog could not be opened. The URL has been copied to your clipboard instead.",
                 });
             } catch (copyError) {
-                // If even copying to clipboard fails.
                 toast({
                     variant: "destructive",
                     title: "Action Failed",
