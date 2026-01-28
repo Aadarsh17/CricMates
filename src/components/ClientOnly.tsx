@@ -21,7 +21,7 @@ export function ClientOnly({
   }, []);
 
   if (!hasMounted) {
-    return fallback || null;
+    return fallback;
   }
 
   return <>{children}</>;
