@@ -233,7 +233,7 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                     }
                 }
 
-                if (newState.totalWickets >= newState.players.length - 1) {
+                if (newState.totalWickets >= newState.players.length) {
                     newState.status = 'completed';
                     return newState;
                 }
