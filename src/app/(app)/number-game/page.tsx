@@ -37,7 +37,7 @@ export type GameState = {
 export default function NumberGamePage() {
   const [gameState, setGameState] = useState<GameState>({
     status: 'setup',
-    players: Array.from({ length: 10 }, (_, i) => ({
+    players: Array.from({ length: 5 }, (_, i) => ({
       id: `player-${i + 1}`,
       name: `Player ${i + 1}`,
       runs: 0,
@@ -51,7 +51,7 @@ export default function NumberGamePage() {
       wicketsTaken: 0,
     })),
     currentBatsmanIndex: 0,
-    currentBowlerIndex: 9,
+    currentBowlerIndex: 4,
     currentOver: { deliveries: [], legalBalls: 0 },
     totalScore: 0,
     totalWickets: 0,
@@ -70,7 +70,7 @@ export default function NumberGamePage() {
   const resetGame = () => {
     setGameState({
       status: 'setup',
-      players: Array.from({ length: 10 }, (_, i) => ({
+      players: Array.from({ length: 5 }, (_, i) => ({
         id: `player-${i + 1}`,
         name: `Player ${i + 1}`,
         runs: 0,
@@ -84,7 +84,7 @@ export default function NumberGamePage() {
         wicketsTaken: 0,
       })),
       currentBatsmanIndex: 0,
-      currentBowlerIndex: 9,
+      currentBowlerIndex: 4,
       currentOver: { deliveries: [], legalBalls: 0 },
       totalScore: 0,
       totalWickets: 0,

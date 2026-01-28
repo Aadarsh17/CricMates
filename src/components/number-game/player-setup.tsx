@@ -15,8 +15,8 @@ interface PlayerSetupProps {
 }
 
 export function PlayerSetup({ initialPlayers, onStartGame }: PlayerSetupProps) {
-  const [players, setPlayers] = useState<Player[]>(initialPlayers.slice(0, 9)); // Default to 9 players
-  const [playerCount, setPlayerCount] = useState<number>(9);
+  const [players, setPlayers] = useState<Player[]>(initialPlayers);
+  const [playerCount, setPlayerCount] = useState<number>(initialPlayers.length);
 
   const handlePlayerNameChange = (id: string, name: string) => {
     setPlayers(players.map(p => (p.id === id ? { ...p, name } : p)));
@@ -44,7 +44,7 @@ export function PlayerSetup({ initialPlayers, onStartGame }: PlayerSetupProps) {
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle>Number Game Setup</CardTitle>
-        <CardDescription>Configure players for your game. You can have 9 or 10 players.</CardDescription>
+        <CardDescription>Configure players for your game. You can have between 5 and 10 players.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="space-y-2">
@@ -54,6 +54,10 @@ export function PlayerSetup({ initialPlayers, onStartGame }: PlayerSetupProps) {
                     <SelectValue placeholder="Select count" />
                 </SelectTrigger>
                 <SelectContent>
+                    <SelectItem value="5">5 Players</SelectItem>
+                    <SelectItem value="6">6 Players</SelectItem>
+                    <SelectItem value="7">7 Players</SelectItem>
+                    <SelectItem value="8">8 Players</SelectItem>
                     <SelectItem value="9">9 Players</SelectItem>
                     <SelectItem value="10">10 Players</SelectItem>
                 </SelectContent>
