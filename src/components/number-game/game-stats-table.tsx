@@ -11,6 +11,27 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Player } from "@/app/(app)/number-game/page";
 
+const formatDismissal = (dismissal: Player['dismissal']) => {
+    if (!dismissal) return 'Not Out';
+    const { type, bowlerName, fielderName } = dismissal;
+
+    switch(type) {
+        case 'Bowled':
+        case 'Hit wicket':
+            return `${type.toLowerCase()} b. ${bowlerName}`;
+        case 'Caught out':
+            return `c. ${fielderName || 'fielder'} b. ${bowlerName}`;
+        case 'Stumping':
+            return `st. ${fielderName || 'keeper'} b. ${bowlerName}`;
+        case 'Run out':
+            return `run out (${fielderName || 'fielder'})`;
+        case '3-dots':
+             return `3-dots b. ${bowlerName}`;
+        default:
+            return `${type} b. ${bowlerName}`;
+    }
+}
+
 export function GameStatsTable({ players }: { players: Player[] }) {
   return (
     <Card>
@@ -38,11 +59,7 @@ export function GameStatsTable({ players }: { players: Player[] }) {
                 <TableRow key={p.id}>
                   <TableCell className="font-medium">{p.name}</TableCell>
                   <TableCell>
-                    {p.isOut
-                      ? p.dismissal
-                        ? `${p.dismissal.type} b. ${p.dismissal.bowlerName}`
-                        : 'Out'
-                      : 'Not Out'}
+                    {p.isOut ? formatDismissal(p.dismissal) : 'Not Out'}
                   </TableCell>
                   <TableCell className="text-right">{p.runs}</TableCell>
                   <TableCell className="text-right">{p.balls}</TableCell>

@@ -18,6 +18,7 @@ export type Player = {
   dismissal?: {
     type: string;
     bowlerName: string;
+    fielderName?: string;
   };
   oversBowled: number;
   ballsBowled: number;

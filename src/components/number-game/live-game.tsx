@@ -9,6 +9,7 @@ import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { WicketDialog } from './wicket-dialog';
 
 interface LiveGameProps {
   gameState: GameState;
@@ -66,7 +67,7 @@ const BowlingScorecard = ({ players }: { players: Player[] }) => (
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {players.filter(p => p.ballsBowled > 0).map((p) => (
+                    {players.filter(p => p.ballsBowled > 0).map((p, index) => (
                          <TableRow key={p.id}>
                             <TableCell>{players.findIndex(pl => pl.id === p.id) + 1}</TableCell>
                             <TableCell>{p.name}</TableCell>
@@ -81,13 +82,13 @@ const BowlingScorecard = ({ players }: { players: Player[] }) => (
     </Card>
 )
 
-const UmpireControls = ({ onRecordDelivery }: { onRecordDelivery: (runs: number, isWicket: boolean, isWide: boolean, isNoBall: boolean) => void }) => {
+const UmpireControls = ({ onAttemptDelivery }: { onAttemptDelivery: (runs: number, isWicket: boolean, isWide: boolean, isNoBall: boolean) => void }) => {
   const [isWicket, setIsWicket] = useState(false);
   const [isWide, setIsWide] = useState(false);
   const [isNoBall, setIsNoBall] = useState(false);
 
   const handleDelivery = (runs: number) => {
-    onRecordDelivery(runs, isWicket, isWide, isNoBall);
+    onAttemptDelivery(runs, isWicket, isWide, isNoBall);
     setIsWicket(false);
     setIsWide(false);
     setIsNoBall(false);
@@ -145,24 +146,41 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
     const prevPlayersRef = useRef<Player[]>(JSON.parse(JSON.stringify(players)));
     const prevWicketsRef = useRef<number>(totalWickets);
 
+    const [isWicketDialogOpen, setIsWicketDialogOpen] = useState(false);
+    const [deliveryForWicket, setDeliveryForWicket] = useState<{ runs: number, isWide: boolean, isNoBall: boolean } | null>(null);
+
     useEffect(() => {
         if (totalWickets > prevWicketsRef.current) {
             const outPlayer = players.find((p, i) => p.isOut && !prevPlayersRef.current[i].isOut);
 
             if (outPlayer) {
-                let dismissalInfo = '';
+                 let dismissalInfo = '';
                 if (outPlayer.dismissal) {
-                    dismissalInfo = ` (${outPlayer.dismissal.type} b. ${outPlayer.dismissal.bowlerName})`;
+                    const { type, bowlerName, fielderName } = outPlayer.dismissal;
+                    switch(type) {
+                        case 'Caught out':
+                            dismissalInfo = `c. ${fielderName || 'fielder'} b. ${bowlerName}`;
+                            break;
+                        case 'Run out':
+                            dismissalInfo = `run out (${fielderName || 'fielder'})`;
+                            break;
+                        case 'Stumping':
+                            dismissalInfo = `st. ${fielderName || 'keeper'} b. ${bowlerName}`;
+                            break;
+                        default:
+                            dismissalInfo = `${type.toLowerCase()} b. ${bowlerName}`;
+                    }
                 }
+
 
                 let description = 'Game Over! All players are out.';
                 if (gameState.status !== 'completed' && players[currentBatsmanIndex]) {
-                    const nextBatsman = players[currentBatsmanIndex];
-                    description = `Next batsman is ${nextBatsman.name}.`;
+                    const nextBatsman = players.find((p, i) => i > players.findIndex(p => p.id === outPlayer.id) && !p.isOut);
+                    description = nextBatsman ? `Next batsman is ${nextBatsman.name}.` : 'All players have batted.';
                 }
 
                 toast({
-                    title: `${outPlayer.name} is Out!${dismissalInfo}`,
+                    title: `${outPlayer.name} is Out! (${dismissalInfo})`,
                     description: description,
                 });
             }
@@ -172,8 +190,31 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
         prevPlayersRef.current = JSON.parse(JSON.stringify(players));
     }, [totalWickets, players, currentBatsmanIndex, gameState.status, toast]);
 
-    const handleRecordDelivery = (runs: number, isWicket: boolean, isWide: boolean, isNoBall: boolean) => {
+    const handleAttemptDelivery = (runs: number, isWicket: boolean, isWide: boolean, isNoBall: boolean) => {
+        if (isWicket) {
+            setDeliveryForWicket({ runs, isWide, isNoBall });
+            setIsWicketDialogOpen(true);
+        } else {
+            handleRecordDelivery({ runs, isWicket, isWide, isNoBall });
+        }
+    };
+    
+    const handleWicketConfirm = (wicketData: { dismissalType: string; fielderId?: string; }) => {
+        if (!deliveryForWicket) return;
+
+        handleRecordDelivery({
+            ...deliveryForWicket,
+            isWicket: true,
+            wicketDetails: wicketData,
+        });
+
+        setIsWicketDialogOpen(false);
+        setDeliveryForWicket(null);
+    };
+
+    const handleRecordDelivery = (delivery: { runs: number, isWicket: boolean, isWide: boolean, isNoBall: boolean, wicketDetails?: { dismissalType: string, fielderId?: string } }) => {
         setGameState(prev => {
+            const { runs, isWicket, isWide, isNoBall, wicketDetails } = delivery;
             const newState = JSON.parse(JSON.stringify(prev)) as GameState;
             const batsman = newState.players[newState.currentBatsmanIndex];
             const bowler = newState.players[newState.currentBowlerIndex];
@@ -189,13 +230,13 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
             } else if (isWide) {
                 batsman.consecutiveDots = 0;
             }
-
-            const isThreeDotsOut = batsman.consecutiveDots === 3;
             
+            const isThreeDotsOut = batsman.consecutiveDots === 3;
+
             if (!isWide) {
                 batsman.balls++;
             }
-            
+
             if (isWicket || isThreeDotsOut) {
                 deliveryOutcome = 'W';
             } else if (isWide) {
@@ -203,17 +244,17 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
             } else if (isNoBall) {
                 deliveryOutcome = 'Nb';
             }
-            
+
             newState.currentOver.deliveries.push(deliveryOutcome);
 
-            if(!isWide && !isNoBall) {
-                 newState.currentOver.legalBalls++;
+            if (!isWide && !isNoBall) {
+                newState.currentOver.legalBalls++;
             }
 
             if (isWide || isNoBall) {
                 bowler.runsConceded += 1;
             }
-            
+
             if (!isWide) {
                 batsman.runs += runs;
                 bowler.runsConceded += runs;
@@ -224,16 +265,46 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
             if (!isWide && !isNoBall) {
                 bowler.ballsBowled++;
             }
+            
+            const bowlerIndexBeforeChange = newState.currentBowlerIndex;
 
-            if(isWicket || isThreeDotsOut) {
+            if (newState.currentOver.legalBalls === 6) {
+                newState.totalOvers++;
+                newState.currentOver = { deliveries: [], legalBalls: 0 };
+                
+                let nextBowlerIndex;
+                let attempts = 0;
+                do {
+                    nextBowlerIndex = newState.currentBowlerIndex - 1;
+                    if (nextBowlerIndex < 0) {
+                        nextBowlerIndex = newState.players.length - 1;
+                    }
+                    newState.currentBowlerIndex = nextBowlerIndex;
+                    attempts++;
+                } while (newState.currentBowlerIndex === newState.currentBatsmanIndex && attempts < newState.players.length)
+            }
+
+
+            if (isWicket || isThreeDotsOut) {
                 batsman.isOut = true;
-                batsman.dismissal = {
-                    type: isThreeDotsOut ? '3-dots' : 'Wicket',
-                    bowlerName: bowler.name
-                };
                 bowler.wicketsTaken++;
                 newState.totalWickets++;
                 batsman.consecutiveDots = 0;
+                
+                if (isWicket && wicketDetails) {
+                    const fielder = newState.players.find(p => p.id === wicketDetails.fielderId);
+                    batsman.dismissal = {
+                        type: wicketDetails.dismissalType,
+                        bowlerName: bowler.name,
+                        fielderName: fielder?.name,
+                    };
+                } else if (isThreeDotsOut) {
+                     batsman.dismissal = {
+                        type: '3-dots',
+                        bowlerName: bowler.name,
+                    };
+                }
+
 
                 if (batsman.runs === 0) {
                     batsman.duck = true;
@@ -242,63 +313,42 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                     }
                 }
 
-                if (newState.totalWickets >= newState.players.length) {
+                if (newState.totalWickets >= newState.players.length - 1) {
                     newState.status = 'completed';
                     return newState;
                 }
-                
-                let nextBatsmanIndex = newState.currentBatsmanIndex + 1;
-                while(nextBatsmanIndex < newState.players.length && newState.players[nextBatsmanIndex].isOut) {
-                    nextBatsmanIndex++;
-                }
 
-                if (nextBatsmanIndex >= newState.players.length) {
-                     newState.status = 'completed';
-                     return newState;
-                }
+                let nextBatsmanIndex = newState.currentBatsmanIndex;
+                let attempts = 0;
+                do {
+                    nextBatsmanIndex = (nextBatsmanIndex + 1) % newState.players.length;
+                    attempts++;
+                } while (newState.players[nextBatsmanIndex].isOut && attempts < newState.players.length)
+                
                 newState.currentBatsmanIndex = nextBatsmanIndex;
 
-                if (newState.currentBatsmanIndex === newState.currentBowlerIndex) {
-                    if (newState.currentOver.legalBalls > 0) {
-                        newState.totalOvers++;
-                    }
-                    newState.currentOver = { deliveries: [], legalBalls: 0 };
-                    
-                    let newBowlerIndex = newState.currentBowlerIndex - 1;
-                    if (newBowlerIndex < 0) {
-                        newBowlerIndex = newState.players.length - 1;
-                    }
-
-                    if (newBowlerIndex === newState.currentBatsmanIndex) {
-                        newBowlerIndex = newBowlerIndex - 1;
-                        if (newBowlerIndex < 0) {
-                            newBowlerIndex = newState.players.length - 1;
-                        }
-                    }
-                    newState.currentBowlerIndex = newBowlerIndex;
-                }
-
             }
-
-            if (newState.currentOver.legalBalls === 6) {
-                newState.totalOvers++;
+            
+            if (newState.currentBatsmanIndex === bowlerIndexBeforeChange) {
+                if (newState.currentOver.legalBalls > 0) {
+                    newState.totalOvers++;
+                }
                 newState.currentOver = { deliveries: [], legalBalls: 0 };
 
-                let nextBowlerIndex = newState.currentBowlerIndex - 1;
-                
-                if (nextBowlerIndex < 0) {
-                    nextBowlerIndex = newState.players.length - 1;
+                let newBowlerIndex = bowlerIndexBeforeChange - 1;
+                if (newBowlerIndex < 0) {
+                    newBowlerIndex = newState.players.length - 1;
                 }
-
-                if (nextBowlerIndex === newState.currentBatsmanIndex) {
-                    nextBowlerIndex = nextBowlerIndex - 1;
-                    if (nextBowlerIndex < 0) {
-                        nextBowlerIndex = newState.players.length - 1;
+                
+                if(newBowlerIndex === newState.currentBatsmanIndex) {
+                     newBowlerIndex = newBowlerIndex - 1;
+                     if (newBowlerIndex < 0) {
+                        newBowlerIndex = newState.players.length - 1;
                     }
                 }
-                
-                newState.currentBowlerIndex = nextBowlerIndex;
+                newState.currentBowlerIndex = newBowlerIndex;
             }
+
 
             return newState;
         });
@@ -308,33 +358,45 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
     const currentBowler = players[currentBowlerIndex];
 
   return (
-    <div className="space-y-6">
-        <Card>
-            <CardHeader>
-                <CardTitle>Live Match</CardTitle>
-                <CardDescription>Wickets: {totalWickets} | Overs: {totalOvers}.{currentOver.legalBalls}</CardDescription>
-            </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-4">
-               <div><span className="font-semibold">Batting:</span> {currentBatsman?.name} {currentBatsman && `(${currentBatsman.consecutiveDots || 0} dots)`}</div>
-               <div><span className="font-semibold">Bowling:</span> {currentBowler?.name}</div>
-               <div className='md:col-span-2 space-y-2'>
-                    <Label>This Over</Label>
-                    <div className="flex flex-wrap gap-2 p-2 bg-muted rounded-md min-h-[40px] items-center">
-                        {currentOver.deliveries.length > 0 ? currentOver.deliveries.map((d, i) => (
-                            <Badge key={i} variant={d === 'W' ? 'destructive' : 'secondary'} className="text-md">
-                                {d}
-                            </Badge>
-                        )) : <p className="text-sm text-muted-foreground px-2">No deliveries bowled in this over yet.</p>}
-                    </div>
-                </div>
-            </CardContent>
-        </Card>
-        <UmpireControls onRecordDelivery={handleRecordDelivery} />
-        <Scorecard players={players} />
-        <BowlingScorecard players={players} />
-        <div className="text-center p-4 bg-muted rounded-lg">
-          <p className="text-sm text-muted-foreground">Note: Game state is not saved. Refreshing the page will restart the game setup.</p>
-        </div>
-    </div>
+    <>
+      {currentBatsman && currentBowler && (
+            <WicketDialog
+                open={isWicketDialogOpen}
+                onClose={() => setIsWicketDialogOpen(false)}
+                batsman={currentBatsman}
+                bowler={currentBowler}
+                allPlayers={players}
+                onConfirm={handleWicketConfirm}
+            />
+        )}
+      <div className="space-y-6">
+          <Card>
+              <CardHeader>
+                  <CardTitle>Live Match</CardTitle>
+                  <CardDescription>Wickets: {totalWickets} | Overs: {totalOvers}.{currentOver.legalBalls}</CardDescription>
+              </CardHeader>
+              <CardContent className="grid md:grid-cols-2 gap-4">
+                <div><span className="font-semibold">Batting:</span> {currentBatsman?.name} {currentBatsman && `(${currentBatsman.consecutiveDots || 0} dots)`}</div>
+                <div><span className="font-semibold">Bowling:</span> {currentBowler?.name}</div>
+                <div className='md:col-span-2 space-y-2'>
+                      <Label>This Over</Label>
+                      <div className="flex flex-wrap gap-2 p-2 bg-muted rounded-md min-h-[40px] items-center">
+                          {currentOver.deliveries.length > 0 ? currentOver.deliveries.map((d, i) => (
+                              <Badge key={i} variant={d === 'W' ? 'destructive' : 'secondary'} className="text-md">
+                                  {d}
+                              </Badge>
+                          )) : <p className="text-sm text-muted-foreground px-2">No deliveries bowled in this over yet.</p>}
+                      </div>
+                  </div>
+              </CardContent>
+          </Card>
+          <UmpireControls onAttemptDelivery={handleAttemptDelivery} />
+          <Scorecard players={players} />
+          <BowlingScorecard players={players} />
+          <div className="text-center p-4 bg-muted rounded-lg">
+            <p className="text-sm text-muted-foreground">Note: Game state is not saved. Refreshing the page will restart the game setup.</p>
+          </div>
+      </div>
+    </>
   );
 }
