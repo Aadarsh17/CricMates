@@ -153,23 +153,30 @@ export default function MatchPage() {
         };
 
         try {
+            // We only try to use navigator.share if it's available.
             if (navigator.share) {
                 await navigator.share(shareData);
             } else {
-                await navigator.clipboard.writeText(window.location.href);
-                toast({
-                    title: "URL Copied!",
-                    description: "Scorecard URL has been copied to your clipboard.",
-                });
+                // Fallback for browsers that don't support the Web Share API.
+                throw new Error("Web Share API not supported.");
             }
         } catch (err) {
-            console.error("Sharing failed:", err);
-            const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
-            toast({
-                variant: "destructive",
-                title: "Sharing Failed",
-                description: `Could not share the scorecard. ${errorMessage}`,
-            });
+            // If sharing fails for any reason (permission denied, unsupported, etc.),
+            // we fall back to copying the URL to the clipboard.
+            try {
+                await navigator.clipboard.writeText(window.location.href);
+                toast({
+                    title: "Sharing failed, URL copied!",
+                    description: "The scorecard URL has been copied to your clipboard.",
+                });
+            } catch (copyError) {
+                // If even copying to clipboard fails.
+                toast({
+                    variant: "destructive",
+                    title: "Action Failed",
+                    description: "Could not share or copy the URL.",
+                });
+            }
         }
     };
     
