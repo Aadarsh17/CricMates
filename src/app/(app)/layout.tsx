@@ -27,6 +27,8 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { AppProvider } from "@/context/AppContext";
 import { FirebaseClientProvider } from "@/firebase";
+import { ClientOnly } from "@/components/ClientOnly";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -103,6 +105,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex flex-col">
+            <ClientOnly fallback={<Skeleton className="h-14 w-full border-b lg:h-[60px]" />}>
               <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 print:hidden">
                 <Sheet>
                   <SheetTrigger asChild>
@@ -212,6 +215,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </header>
+            </ClientOnly>
             <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background print:bg-transparent print:p-0 print:gap-0">
               {children}
             </main>
