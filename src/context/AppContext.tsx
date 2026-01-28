@@ -200,7 +200,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       name: playerData.name,
       role: playerData.role,
       battingStyle: playerData.battingStyle,
-      bowlingStyle: playerData.bowlingStyle === 'None' ? undefined : playerData.bowlingStyle,
+      bowlingStyle: playerData.bowlingStyle === 'None' ? null : playerData.bowlingStyle,
       isCaptain: playerData.isCaptain || false,
       isWicketKeeper: playerData.isWicketKeeper || false,
       stats: { matches: 0, runs: 0, wickets: 0, highestScore: 0, bestBowling: 'N/A' },
@@ -238,7 +238,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const batch = writeBatch(db);
     const dataToUpdate = {
         ...playerData,
-        bowlingStyle: playerData.bowlingStyle === 'None' ? undefined : playerData.bowlingStyle,
+        bowlingStyle: playerData.bowlingStyle === 'None' ? null : playerData.bowlingStyle,
     };
     batch.update(doc(db, 'players', playerId), dataToUpdate);
 

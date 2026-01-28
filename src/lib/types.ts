@@ -25,7 +25,7 @@ export type Player = {
   isCaptain?: boolean;
   isWicketKeeper?: boolean;
   battingStyle?: string;
-  bowlingStyle?: string;
+  bowlingStyle?: string | null;
 };
 
 export type DeliveryRecord = {
