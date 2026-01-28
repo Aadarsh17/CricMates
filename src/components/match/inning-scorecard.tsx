@@ -12,6 +12,7 @@ import type { Inning } from "@/lib/types";
 import { useAppContext } from "@/context/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Separator } from "../ui/separator";
+import { Avatar, AvatarFallback } from "../ui/avatar";
 
 type BattingStats = {
   runs: number;
@@ -128,7 +129,7 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
             } else if (battedPlayerIds.has(p.id)) {
                 stat.dismissal = 'Not Out';
             } else {
-                stat.dismissal = 'Yet to bat';
+                stat.dismissal = 'Did not bat';
             }
         }
     });
@@ -164,13 +165,22 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
     }, 0);
 
 
-    // Sort batting order: batted, then yet to bat
+    // Sort batting order: active, then out, then did not bat
     const sortedBattingPlayers = [...battingTeamPlayers].sort((a, b) => {
         const aBatted = battedPlayerIds.has(a.id);
         const bBatted = battedPlayerIds.has(b.id);
+        const aOut = outPlayerIds.has(a.id);
+        const bOut = outPlayerIds.has(b.id);
+
         if (aBatted && !bBatted) return -1;
         if (!aBatted && bBatted) return 1;
-        return 0; // keep original order for players who batted/not batted
+
+        if (aBatted && bBatted) {
+            if (!aOut && bOut) return -1;
+            if(aOut && !bOut) return 1;
+        }
+
+        return 0; // keep original order for players in same category
     });
 
 
@@ -180,11 +190,11 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
                 <CardTitle>{battingTeam.name} Innings</CardTitle>
             </CardHeader>
             <CardContent>
-                <h3 className="font-semibold mb-2 text-sm text-muted-foreground">BATTING</h3>
+                <h3 className="font-semibold mb-2 text-sm text-muted-foreground uppercase tracking-wider">Batting</h3>
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[200px]">Batsman</TableHead>
+                            <TableHead className="w-[45%]">Batsman</TableHead>
                             <TableHead className="text-right">R</TableHead>
                             <TableHead className="text-right">B</TableHead>
                             <TableHead className="text-right">4s</TableHead>
@@ -195,17 +205,41 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
                     <TableBody>
                         {sortedBattingPlayers.map(p => {
                             const stats = battingStats.get(p.id)!;
+                            if (stats.dismissal === 'Did not bat') {
+                                return (
+                                    <TableRow key={p.id}>
+                                        <TableCell colSpan={6} className="py-2">
+                                            <div className="flex items-center gap-3">
+                                                <Avatar className="h-8 w-8 bg-muted-foreground/10">
+                                                    <AvatarFallback className="bg-transparent text-muted-foreground/50">{p.name.charAt(0)}</AvatarFallback>
+                                                </Avatar>
+                                                <div>
+                                                    <p className="font-medium text-muted-foreground/80">{p.name}</p>
+                                                    <p className="text-xs text-muted-foreground">{stats.dismissal}</p>
+                                                </div>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                )
+                            }
                             return (
                             <TableRow key={p.id}>
                                 <TableCell>
-                                    <p className="font-medium">{p.name}</p>
-                                    <p className="text-xs text-muted-foreground">{stats.dismissal}</p>
+                                    <div className="flex items-center gap-3">
+                                        <Avatar className="h-8 w-8">
+                                            <AvatarFallback>{p.name.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                            <p className="font-medium">{p.name}</p>
+                                            <p className="text-xs text-muted-foreground">{stats.dismissal}</p>
+                                        </div>
+                                    </div>
                                 </TableCell>
-                                <TableCell className="text-right">{stats.runs}</TableCell>
-                                <TableCell className="text-right">{stats.balls}</TableCell>
-                                <TableCell className="text-right">{stats.fours}</TableCell>
-                                <TableCell className="text-right">{stats.sixes}</TableCell>
-                                <TableCell className="text-right">{stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00'}</TableCell>
+                                <TableCell className="text-right font-mono font-semibold">{stats.runs}</TableCell>
+                                <TableCell className="text-right font-mono">{stats.balls}</TableCell>
+                                <TableCell className="text-right font-mono">{stats.fours}</TableCell>
+                                <TableCell className="text-right font-mono">{stats.sixes}</TableCell>
+                                <TableCell className="text-right font-mono">{stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00'}</TableCell>
                             </TableRow>
                         )})}
                     </TableBody>
@@ -218,11 +252,11 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
 
                 <Separator className="my-6" />
 
-                <h3 className="font-semibold mb-2 text-sm text-muted-foreground">BOWLING</h3>
+                <h3 className="font-semibold mb-2 text-sm text-muted-foreground uppercase tracking-wider">Bowling</h3>
                 <Table>
                      <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[200px]">Bowler</TableHead>
+                            <TableHead className="w-[45%]">Bowler</TableHead>
                             <TableHead className="text-right">O</TableHead>
                             <TableHead className="text-right">M</TableHead>
                             <TableHead className="text-right">R</TableHead>
@@ -237,12 +271,19 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
                             if (!bowler || !stats) return null;
                             return (
                                  <TableRow key={bowler.id}>
-                                    <TableCell className="font-medium">{bowler.name}</TableCell>
-                                    <TableCell className="text-right">{stats.overs}</TableCell>
-                                    <TableCell className="text-right">{stats.maidens}</TableCell>
-                                    <TableCell className="text-right">{stats.runs}</TableCell>
-                                    <TableCell className="text-right">{stats.wickets}</TableCell>
-                                    <TableCell className="text-right">{stats.economy > 0 ? stats.economy.toFixed(2): '0.00'}</TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-3">
+                                          <Avatar className="h-8 w-8">
+                                              <AvatarFallback>{bowler.name.charAt(0)}</AvatarFallback>
+                                          </Avatar>
+                                          <p className="font-medium">{bowler.name}</p>
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono">{stats.overs}</TableCell>
+                                    <TableCell className="text-right font-mono">{stats.maidens}</TableCell>
+                                    <TableCell className="text-right font-mono">{stats.runs}</TableCell>
+                                    <TableCell className="text-right font-mono font-semibold">{stats.wickets}</TableCell>
+                                    <TableCell className="text-right font-mono">{stats.economy > 0 ? stats.economy.toFixed(2): '0.00'}</TableCell>
                                 </TableRow>
                             )
                         })}
