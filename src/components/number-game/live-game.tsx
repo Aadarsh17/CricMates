@@ -252,8 +252,11 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                 }
 
                 if (nextBatsmanIndex >= newState.players.length) {
-                    newState.status = 'completed';
-                    return newState;
+                    const availableBatsmen = newState.players.filter(p => !p.isOut);
+                     if (availableBatsmen.length === 0) {
+                         newState.status = 'completed';
+                         return newState;
+                     }
                 }
                 newState.currentBatsmanIndex = nextBatsmanIndex;
             }
@@ -269,12 +272,12 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                 }
                 
                 let nextBowlerIndex = newState.currentBowlerIndex - 1;
-                while(nextBowlerIndex >= 0 && (newState.players[nextBowlerIndex].isOut || (newState.players[nextBowlerIndex].oversBowled || 0) > 0)) {
+                while(nextBowlerIndex >= 0 && (newState.players[nextBowlerIndex].oversBowled || 0) > 0) {
                      nextBowlerIndex--;
                 }
 
                 if (nextBowlerIndex < 0 || nextBowlerIndex === newState.currentBatsmanIndex) {
-                    const availableBowlers = newState.players.filter((p,i) => !p.isOut && i !== newState.currentBatsmanIndex && (p.oversBowled || 0) === 0);
+                    const availableBowlers = newState.players.filter((p,i) => i !== newState.currentBatsmanIndex && (p.oversBowled || 0) === 0);
                     if (availableBowlers.length > 0) {
                          newState.currentBowlerIndex = newState.players.findIndex(p => p.id === availableBowlers[availableBowlers.length - 1].id);
                     } else {
