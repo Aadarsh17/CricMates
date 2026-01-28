@@ -7,6 +7,9 @@ import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
+import { collection, query, where } from 'firebase/firestore';
+import type { Match } from '@/lib/types';
 
 const StatRow = ({ label, value }: { label: string; value: string | number | null | undefined }) => (
     <TableRow>
@@ -72,7 +75,12 @@ const BowlingSummary = ({ stats }: { stats: AggregatedPlayerStats }) => (
 export default function PlayerProfilePage() {
     const params = useParams();
     const playerId = params.id as string;
-    const { players, teams, matches, getPlayerById, loading } = useAppContext();
+    const { players, teams, getPlayerById, loading } = useAppContext();
+    const { firestore: db } = useFirebase();
+
+    const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'completed')) : null, [db]);
+    const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
+    const matches = matchesData || [];
 
     const player = useMemo(() => getPlayerById(playerId), [playerId, getPlayerById]);
     
@@ -81,7 +89,7 @@ export default function PlayerProfilePage() {
         return calculatePlayerStats([player], teams, matches)[0];
     }, [player, teams, matches]);
 
-    if (loading.players || loading.teams || loading.matches) {
+    if (loading.players || loading.teams || matchesLoading) {
         return (
             <div className="space-y-6">
                 <Skeleton className="h-12 w-1/2" />
