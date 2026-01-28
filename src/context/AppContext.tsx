@@ -33,7 +33,7 @@ interface AppContextType {
   getPlayerById: (playerId: string) => Player | undefined;
   getPlayersByTeamId: (teamId: string) => Player[];
   addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => Promise<string>;
-  recordDelivery: (match: Match, outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null, outcome: string }) => Promise<void>;
+  recordDelivery: (match: Match, outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null, outcome: string, wicketDetails?: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; } }) => Promise<void>;
   setPlayerInMatch: (match: Match, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => Promise<void>;
   swapStrikers: (match: Match) => Promise<void>;
   undoDelivery: (match: Match) => Promise<void>;
@@ -441,7 +441,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await updateMatch(match.id, updatedMatch);
   }, [updateMatch, toast]);
 
-  const recordDelivery = useCallback(async (match: Match, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string }) => {
+  const recordDelivery = useCallback(async (match: Match, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string; wicketDetails?: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; }}) => {
     if (!match || match.status !== 'live') return;
 
     let updatedMatch = JSON.parse(JSON.stringify(match)); 
@@ -453,10 +453,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     const deliveryRecord: DeliveryRecord = { 
-      ...outcome, 
       strikerId: inning.strikerId,
       nonStrikerId: inning.nonStrikerId,
       bowlerId: inning.bowlerId,
+      runs: outcome.runs,
+      isWicket: outcome.isWicket,
+      extra: outcome.extra,
+      outcome: outcome.isWicket ? outcome.wicketDetails!.dismissalType : outcome.outcome,
+      dismissal: outcome.isWicket ? {
+          type: outcome.wicketDetails!.dismissalType,
+          batsmanOutId: outcome.wicketDetails!.batsmanOutId,
+      } : undefined,
       timestamp: Date.now() 
     };
     inning.deliveryHistory.push(deliveryRecord);
@@ -485,11 +492,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     
     if (outcome.isWicket) {
         inning.wickets += 1;
-        inning.strikerId = null; // New batsman needed
+        const { batsmanOutId, newBatsmanId } = outcome.wicketDetails!;
+        
+        if (inning.strikerId === batsmanOutId) {
+            inning.strikerId = newBatsmanId || null;
+        } else if (inning.nonStrikerId === batsmanOutId) {
+            inning.nonStrikerId = newBatsmanId || null;
+        }
     }
 
     const runsConsideredForStrikerSwap = (outcome.extra === 'byes' || outcome.extra === 'legbyes') ? 0 : outcome.runs;
-    if (isLegalDelivery && (runsConsideredForStrikerSwap % 2 !== 0)) {
+    if (isLegalDelivery && (runsConsideredForStrikerSwap % 2 !== 0) && !outcome.isWicket) {
         const temp = inning.strikerId;
         inning.strikerId = inning.nonStrikerId;
         inning.nonStrikerId = temp;

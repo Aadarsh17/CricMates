@@ -114,7 +114,7 @@ export default function MatchPage() {
     
     const allOutWickets = battingTeamPlayers.length > 1 ? battingTeamPlayers.length - 1 : 10;
     
-    const outPlayerIds = new Set(match.innings.flatMap(inning => inning.deliveryHistory.filter(d => d.isWicket).map(d => d.strikerId)));
+    const outPlayerIds = new Set(match.innings.flatMap(inning => inning.deliveryHistory.filter(d => d.isWicket && d.dismissal).map(d => d.dismissal!.batsmanOutId)));
     const retiredHurtPlayerIds = new Set(currentInning.retiredHurtPlayerIds || []);
 
     const activeBatsmen = battingTeamPlayers.filter(p => !outPlayerIds.has(p.id) && !retiredHurtPlayerIds.has(p.id));

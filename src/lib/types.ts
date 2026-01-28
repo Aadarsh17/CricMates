@@ -36,6 +36,10 @@ export type DeliveryRecord = {
   isWicket: boolean;
   extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null;
   outcome: string; // e.g. '1', 'W', '4', 'Wd'
+  dismissal?: {
+      type: string;
+      batsmanOutId: string;
+  };
   timestamp: number;
 };
 

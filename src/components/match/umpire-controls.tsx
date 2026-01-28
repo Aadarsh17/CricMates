@@ -10,6 +10,7 @@ import { useAppContext } from "@/context/AppContext";
 import type { Match, Player } from "@/lib/types";
 import { Badge } from '../ui/badge';
 import { RetirePlayerDialog } from './retire-player-dialog';
+import { WicketDialog } from './wicket-dialog';
 
 type ExtraOptions = {
     wicket: boolean;
@@ -20,14 +21,28 @@ type ExtraOptions = {
 };
 
 export function UmpireControls({ match }: { match: Match }) {
-    const { recordDelivery, swapStrikers, undoDelivery, retireStriker, forceEndInning, getPlayerById } = useAppContext();
+    const { recordDelivery, swapStrikers, undoDelivery, retireStriker, forceEndInning, getPlayerById, getPlayersByTeamId } = useAppContext();
     const [extras, setExtras] = useState<ExtraOptions>({
         wicket: false, wide: false, noball: false, byes: false, legbyes: false
     });
     const [isRetireDialogOpen, setIsRetireDialogOpen] = useState(false);
+    const [isWicketDialogOpen, setIsWicketDialogOpen] = useState(false);
+    const [deliveryForWicket, setDeliveryForWicket] = useState<{ runs: number, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null } | null>(null);
     
     const currentInning = match.innings[match.currentInning - 1];
     const striker = getPlayerById(currentInning.strikerId || '');
+    const nonStriker = getPlayerById(currentInning.nonStrikerId || '');
+
+    // Get available batsmen
+    const battingTeamPlayers = getPlayersByTeamId(currentInning.battingTeamId);
+    const outPlayerIds = new Set(match.innings.flatMap(inning => inning.deliveryHistory.filter(d => d.isWicket && d.dismissal).map(d => d.dismissal!.batsmanOutId)));
+    const retiredHurtPlayerIds = new Set(currentInning.retiredHurtPlayerIds || []);
+    const onFieldPlayerIds = new Set([currentInning.strikerId, currentInning.nonStrikerId].filter(Boolean));
+    const availableBatsmen = battingTeamPlayers.filter(p => 
+        !outPlayerIds.has(p.id) && 
+        !retiredHurtPlayerIds.has(p.id) &&
+        !onFieldPlayerIds.has(p.id)
+    );
 
     const handleExtraChange = (extra: keyof ExtraOptions, checked: boolean) => {
         setExtras(prev => {
@@ -56,6 +71,12 @@ export function UmpireControls({ match }: { match: Match }) {
         else if (extras.byes) extraType = 'byes';
         else if (extras.legbyes) extraType = 'legbyes';
 
+        if (extras.wicket) {
+            setDeliveryForWicket({ runs, extra: extraType });
+            setIsWicketDialogOpen(true);
+            return;
+        }
+
         let outcomeString = runs.toString();
         if(extras.wicket) outcomeString = 'W';
         if(extraType === 'wide') outcomeString = `${runs > 0 ? runs : ''}wd`;
@@ -74,6 +95,22 @@ export function UmpireControls({ match }: { match: Match }) {
         // Reset extras after recording
         setExtras({ wicket: false, wide: false, noball: false, byes: false, legbyes: false });
     };
+    
+    const handleWicketConfirm = (wicketData: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; }) => {
+        if (!deliveryForWicket) return;
+
+        recordDelivery(match, {
+            runs: deliveryForWicket.runs,
+            isWicket: true,
+            extra: deliveryForWicket.extra,
+            outcome: wicketData.dismissalType,
+            wicketDetails: wicketData,
+        });
+
+        setIsWicketDialogOpen(false);
+        setDeliveryForWicket(null);
+        setExtras({ wicket: false, wide: false, noball: false, byes: false, legbyes: false });
+    }
 
     const handleRetireConfirm = () => {
         retireStriker(match);
@@ -125,6 +162,14 @@ export function UmpireControls({ match }: { match: Match }) {
 
     return (
         <>
+            <WicketDialog
+                open={isWicketDialogOpen}
+                onClose={() => setIsWicketDialogOpen(false)}
+                striker={striker}
+                nonStriker={nonStriker}
+                availableBatsmen={availableBatsmen}
+                onConfirm={handleWicketConfirm}
+            />
             <RetirePlayerDialog 
                 open={isRetireDialogOpen}
                 onClose={() => setIsRetireDialogOpen(false)}
