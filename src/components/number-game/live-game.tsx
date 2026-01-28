@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { GameState, Player } from '@/app/(app)/number-game/page';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
@@ -8,6 +8,7 @@ import { Button } from '../ui/button';
 import { Checkbox } from '../ui/checkbox';
 import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
+import { useToast } from '@/hooks/use-toast';
 
 interface LiveGameProps {
   gameState: GameState;
@@ -140,6 +141,31 @@ const UmpireControls = ({ onRecordDelivery }: { onRecordDelivery: (runs: number,
 
 export function LiveGame({ gameState, setGameState }: LiveGameProps) {
     const { players, currentBatsmanIndex, currentBowlerIndex, totalScore, totalWickets, totalOvers, currentOver } = gameState;
+    const { toast } = useToast();
+    const prevPlayersRef = useRef<Player[]>(players);
+    const prevWicketsRef = useRef<number>(totalWickets);
+
+    useEffect(() => {
+        if (totalWickets > prevWicketsRef.current) {
+            const outPlayer = prevPlayersRef.current.find((p, i) => !p.isOut && players[i].isOut);
+
+            if (outPlayer) {
+                let description = 'Game Over! All players are out.';
+                if (gameState.status !== 'completed') {
+                    const nextBatsman = players[currentBatsmanIndex];
+                    description = `Next batsman is ${nextBatsman.name}.`;
+                }
+
+                toast({
+                    title: `${outPlayer.name} is Out!`,
+                    description: description,
+                });
+            }
+        }
+        
+        prevWicketsRef.current = totalWickets;
+        prevPlayersRef.current = players;
+    }, [totalWickets, players, currentBatsmanIndex, gameState.status, toast]);
 
     const handleRecordDelivery = (runs: number, isWicket: boolean, isWide: boolean, isNoBall: boolean) => {
         setGameState(prev => {
@@ -149,7 +175,6 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
 
             let deliveryOutcome = runs.toString();
 
-            // Handle consecutive dots logic
             if (!isWide && !isNoBall) {
                 if (runs === 0 && !isWicket) {
                     batsman.consecutiveDots = (batsman.consecutiveDots || 0) + 1;
@@ -157,17 +182,15 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                     batsman.consecutiveDots = 0;
                 }
             } else if (isWide) {
-                batsman.consecutiveDots = 0; // Reset dots on a wide
+                batsman.consecutiveDots = 0;
             }
 
             const isThreeDotsOut = batsman.consecutiveDots === 3;
             
-            // Increment balls faced for legal deliveries
             if (!isWide) {
                 batsman.balls++;
             }
             
-            // Determine delivery outcome string for UI
             if (isWicket || isThreeDotsOut) {
                 deliveryOutcome = 'W';
             } else if (isWide) {
@@ -178,18 +201,16 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
             
             newState.currentOver.deliveries.push(deliveryOutcome);
 
-            // Increment legal balls for the over
             if(!isWide && !isNoBall) {
                  newState.currentOver.legalBalls++;
             }
 
-            // Update scores
             if (isWide || isNoBall) {
-                newState.totalScore += 1; // Extra run for wide/no-ball
+                newState.totalScore += 1;
                 bowler.runsConceded += 1;
             }
             
-            if (!isWide) { // Runs off bat only count on legal or no-balls
+            if (!isWide) {
                 batsman.runs += runs;
                 newState.totalScore += runs;
                 bowler.runsConceded += runs;
@@ -199,8 +220,6 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
 
             bowler.ballsBowled++;
 
-
-            // Handle Wicket
             if(isWicket || isThreeDotsOut) {
                 batsman.isOut = true;
                 bowler.wicketsTaken++;
@@ -230,7 +249,6 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                 newState.currentBatsmanIndex = nextBatsmanIndex;
             }
 
-            // End of Over
             if (newState.currentOver.legalBalls === 6) {
                 bowler.oversBowled = (bowler.oversBowled || 0) + 1;
                 newState.totalOvers++;
@@ -241,19 +259,12 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                      return newState;
                 }
                 
-                // Swap batsmen at end of over
-                const temp = newState.currentBatsmanIndex;
-                // This logic is simple and might need refinement for a real game,
-                // but for number game, we just swap with next available non-out player.
-                // For now, let's keep it simple and just change bowler.
-
                 let nextBowlerIndex = newState.currentBowlerIndex - 1;
                 while(nextBowlerIndex >= 0 && (newState.players[nextBowlerIndex].isOut || (newState.players[nextBowlerIndex].oversBowled || 0) > 0)) {
                      nextBowlerIndex--;
                 }
 
                 if (nextBowlerIndex < 0 || nextBowlerIndex === newState.currentBatsmanIndex) {
-                    // Find any player who hasn't bowled
                     const availableBowlers = newState.players.filter((p,i) => !p.isOut && i !== newState.currentBatsmanIndex && (p.oversBowled || 0) === 0);
                     if (availableBowlers.length > 0) {
                          newState.currentBowlerIndex = newState.players.findIndex(p => p.id === availableBowlers[availableBowlers.length - 1].id);
