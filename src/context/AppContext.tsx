@@ -358,11 +358,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!match) return;
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
+
+    if ((role === 'striker' || role === 'nonStriker') && inning.retiredHurtPlayerIds?.includes(playerId)) {
+      inning.retiredHurtPlayerIds = inning.retiredHurtPlayerIds.filter((id: string) => id !== playerId);
+      toast({ title: "Player Resuming", description: "The retired batsman is returning to bat." });
+    }
+
     if (role === 'striker') inning.strikerId = playerId;
     if (role === 'nonStriker') inning.nonStrikerId = playerId;
     if (role === 'bowler') inning.bowlerId = playerId;
     await updateMatch(match.id, updatedMatch);
-  }, [updateMatch]);
+  }, [updateMatch, toast]);
   
   const retireStriker = useCallback(async (match: Match) => {
     if (!match || match.status !== 'live') return;
@@ -375,23 +381,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
     }
     
-    const deliveryRecord: DeliveryRecord = { 
-        runs: 0, 
-        isWicket: true, 
-        extra: null, 
-        outcome: `Retired`,
-        strikerId: inning.strikerId,
-        nonStrikerId: inning.nonStrikerId,
-        bowlerId: inning.bowlerId || '',
-        timestamp: Date.now() 
-    };
-    inning.deliveryHistory.push(deliveryRecord);
-    inning.wickets += 1;
+    if (!inning.retiredHurtPlayerIds) {
+      inning.retiredHurtPlayerIds = [];
+    }
+    if (!inning.retiredHurtPlayerIds.includes(inning.strikerId)) {
+      inning.retiredHurtPlayerIds.push(inning.strikerId);
+    }
+    
     inning.strikerId = null;
     
-    updatedMatch = handleInningEnd(updatedMatch);
+    toast({ title: "Player Retired Hurt", description: "The batsman can return to bat later." });
     await updateMatch(match.id, updatedMatch);
-  }, [handleInningEnd, updateMatch, toast]);
+  }, [updateMatch, toast]);
 
   const undoDelivery = useCallback(async (match: Match) => {
     if (!match) return;

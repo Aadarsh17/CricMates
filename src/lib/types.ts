@@ -49,6 +49,7 @@ export type Inning = {
   nonStrikerId: string | null;
   bowlerId: string | null;
   deliveryHistory: DeliveryRecord[];
+  retiredHurtPlayerIds?: string[];
 };
 
 export type Match = {

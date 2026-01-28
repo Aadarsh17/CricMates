@@ -7,9 +7,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { UserX } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
-import type { Match } from "@/lib/types";
+import type { Match, Player } from "@/lib/types";
 import { Badge } from '../ui/badge';
-import { Separator } from '../ui/separator';
+import { RetirePlayerDialog } from './retire-player-dialog';
 
 type ExtraOptions = {
     wicket: boolean;
@@ -20,12 +20,14 @@ type ExtraOptions = {
 };
 
 export function UmpireControls({ match }: { match: Match }) {
-    const { recordDelivery, swapStrikers, undoDelivery, retireStriker, forceEndInning } = useAppContext();
+    const { recordDelivery, swapStrikers, undoDelivery, retireStriker, forceEndInning, getPlayerById } = useAppContext();
     const [extras, setExtras] = useState<ExtraOptions>({
         wicket: false, wide: false, noball: false, byes: false, legbyes: false
     });
+    const [isRetireDialogOpen, setIsRetireDialogOpen] = useState(false);
     
     const currentInning = match.innings[match.currentInning - 1];
+    const striker = getPlayerById(currentInning.strikerId || '');
 
     const handleExtraChange = (extra: keyof ExtraOptions, checked: boolean) => {
         setExtras(prev => {
@@ -73,6 +75,11 @@ export function UmpireControls({ match }: { match: Match }) {
         setExtras({ wicket: false, wide: false, noball: false, byes: false, legbyes: false });
     };
 
+    const handleRetireConfirm = () => {
+        retireStriker(match);
+        setIsRetireDialogOpen(false);
+    };
+
     const CurrentOver = () => {
         const deliveries = currentInning.deliveryHistory;
         const overs = currentInning.overs;
@@ -117,43 +124,51 @@ export function UmpireControls({ match }: { match: Match }) {
     const endInningButtonText = match.currentInning === 1 ? 'End 1st Inning' : 'End Match';
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Umpire Controls</CardTitle>
-                <CardDescription>Record the outcome of each delivery.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                <CurrentOver />
-                <div className="space-y-3">
-                    <Label>Extras & Wicket</Label>
-                    <div className="flex flex-wrap gap-4 items-center">
-                        {Object.keys(extras).map(extra => (
-                            <div key={extra} className="flex items-center space-x-2">
-                                <Checkbox 
-                                    id={extra} 
-                                    checked={extras[extra as keyof ExtraOptions]}
-                                    onCheckedChange={(checked) => handleExtraChange(extra as keyof ExtraOptions, !!checked)}
-                                />
-                                <Label htmlFor={extra} className="font-normal capitalize">{extra === 'noball' ? 'NB' : extra}</Label>
-                            </div>
-                        ))}
+        <>
+            <RetirePlayerDialog 
+                open={isRetireDialogOpen}
+                onClose={() => setIsRetireDialogOpen(false)}
+                striker={striker}
+                onConfirm={handleRetireConfirm}
+            />
+            <Card>
+                <CardHeader>
+                    <CardTitle>Umpire Controls</CardTitle>
+                    <CardDescription>Record the outcome of each delivery.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <CurrentOver />
+                    <div className="space-y-3">
+                        <Label>Extras & Wicket</Label>
+                        <div className="flex flex-wrap gap-4 items-center">
+                            {Object.keys(extras).map(extra => (
+                                <div key={extra} className="flex items-center space-x-2">
+                                    <Checkbox 
+                                        id={extra} 
+                                        checked={extras[extra as keyof ExtraOptions]}
+                                        onCheckedChange={(checked) => handleExtraChange(extra as keyof ExtraOptions, !!checked)}
+                                    />
+                                    <Label htmlFor={extra} className="font-normal capitalize">{extra === 'noball' ? 'NB' : extra}</Label>
+                                </div>
+                            ))}
+                        </div>
                     </div>
-                </div>
 
-                <div className="grid grid-cols-4 gap-2">
-                    {[0, 1, 2, 3, 4, 6].map(runs => (
-                        <Button key={runs} className="h-14 text-lg" variant="outline" onClick={() => handleDelivery(runs)}>
-                            {runs}
-                        </Button>
-                    ))}
-                    <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => swapStrikers(match)}>Swap</Button>
-                    <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => undoDelivery(match)}>Undo</Button>
-                </div>
-                 <div className="grid grid-cols-1 gap-2 border-t pt-4 mt-2">
-                    <Button variant="destructive" onClick={() => retireStriker(match)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
-                    <Button variant="destructive" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match)}>{endInningButtonText}</Button>
-                </div>
-            </CardContent>
-        </Card>
+                    <div className="grid grid-cols-4 gap-2">
+                        {[0, 1, 2, 3, 4, 6].map(runs => (
+                            <Button key={runs} className="h-14 text-lg" variant="outline" onClick={() => handleDelivery(runs)}>
+                                {runs}
+                            </Button>
+                        ))}
+                        <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => swapStrikers(match)}>Swap</Button>
+                        <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => undoDelivery(match)}>Undo</Button>
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 border-t pt-4 mt-2">
+                        <Button variant="destructive" onClick={() => setIsRetireDialogOpen(true)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
+                        <Button variant="destructive" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match)}>{endInningButtonText}</Button>
+                    </div>
+                </CardContent>
+            </Card>
+        </>
     );
 }

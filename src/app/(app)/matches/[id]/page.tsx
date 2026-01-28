@@ -113,17 +113,24 @@ export default function MatchPage() {
     const bowlingTeamPlayers = getPlayersByTeamId(currentInning.bowlingTeamId);
     
     const allOutWickets = battingTeamPlayers.length > 1 ? battingTeamPlayers.length - 1 : 10;
+    
+    const outPlayerIds = new Set(match.innings.flatMap(inning => inning.deliveryHistory.filter(d => d.isWicket).map(d => d.strikerId)));
+    const retiredHurtPlayerIds = new Set(currentInning.retiredHurtPlayerIds || []);
+
+    const activeBatsmen = battingTeamPlayers.filter(p => !outPlayerIds.has(p.id) && !retiredHurtPlayerIds.has(p.id));
+    const retiredBatsmen = battingTeamPlayers.filter(p => retiredHurtPlayerIds.has(p.id) && !outPlayerIds.has(p.id));
+
+    const activeBatsmenPool = activeBatsmen.filter(p => p.id !== currentInning.strikerId && p.id !== currentInning.nonStrikerId);
+    
+    const canRetiredReturn = activeBatsmenPool.length === 0;
+    
+    const selectableBatsmen = canRetiredReturn ? [...activeBatsmen, ...retiredBatsmen] : activeBatsmen;
+
+    const noPlayersLeftToBat = selectableBatsmen.filter(p => p.id !== currentInning.strikerId && p.id !== currentInning.nonStrikerId).length === 0;
 
     const striker = getPlayerById(currentInning.strikerId || '');
     const nonStriker = getPlayerById(currentInning.nonStrikerId || '');
     const bowler = getPlayerById(currentInning.bowlerId || '');
-
-    const battedPlayerIds = new Set(match.innings.flatMap(inning => inning.deliveryHistory.map(d => d.strikerId)));
-    const outPlayerIds = new Set(match.innings.flatMap(inning => inning.deliveryHistory.filter(d => d.isWicket).map(d => d.strikerId)));
-    
-    const unbattedPlayers = battingTeamPlayers.filter(p => !battedPlayerIds.has(p.id) || (battedPlayerIds.has(p.id) && !outPlayerIds.has(p.id)));
-    
-    const noPlayersLeftToBat = unbattedPlayers.filter(p => p.id !== currentInning.strikerId && p.id !== currentInning.nonStrikerId).length === 0;
 
     const handleShare = async () => {
         if (!team1 || !team2 || !match.result) return;
@@ -199,8 +206,8 @@ export default function MatchPage() {
                  {match.status === 'live' && (
                     <CardContent className="space-y-4">
                         <div className="flex flex-col md:flex-row gap-4">
-                            <PlayerSelector label="Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.nonStrikerId)} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match, 'striker', id)} disabled={!!currentInning.strikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
-                            <PlayerSelector label="Non-Striker" players={unbattedPlayers.filter(p => p.id !== currentInning.strikerId)} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match, 'nonStriker', id)} disabled={!!currentInning.nonStrikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
+                            <PlayerSelector label="Striker" players={selectableBatsmen.filter(p => p.id !== currentInning.nonStrikerId)} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match, 'striker', id)} disabled={!!currentInning.strikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
+                            <PlayerSelector label="Non-Striker" players={selectableBatsmen.filter(p => p.id !== currentInning.strikerId)} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match, 'nonStriker', id)} disabled={!!currentInning.nonStrikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
                              { !isBowlerDialogOpen && <PlayerSelector label="Bowler" players={bowlingTeamPlayers} selectedPlayerId={currentInning.bowlerId} onSelect={(id) => setPlayerInMatch(match, 'bowler', id)} disabled={!!currentInning.bowlerId} /> }
                         </div>
                     </CardContent>
