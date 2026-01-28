@@ -12,7 +12,6 @@ import type { Inning } from "@/lib/types";
 import { useAppContext } from "@/context/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Separator } from "../ui/separator";
-import { Avatar, AvatarFallback } from "../ui/avatar";
 
 type BattingStats = {
   runs: number;
@@ -129,7 +128,7 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
             } else if (battedPlayerIds.has(p.id)) {
                 stat.dismissal = 'Not Out';
             } else {
-                stat.dismissal = 'Did not bat';
+                stat.dismissal = 'Yet to Bat';
             }
         }
     });
@@ -164,8 +163,6 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
         return acc;
     }, 0);
 
-
-    // Sort batting order: active, then out, then did not bat
     const sortedBattingPlayers = [...battingTeamPlayers].sort((a, b) => {
         const aBatted = battedPlayerIds.has(a.id);
         const bBatted = battedPlayerIds.has(b.id);
@@ -185,83 +182,58 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
 
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>{battingTeam.name} Innings</CardTitle>
+        <Card className="overflow-hidden">
+            <CardHeader className="bg-foreground p-3">
+                <CardTitle className="text-lg text-background">{battingTeam.name} Innings</CardTitle>
             </CardHeader>
-            <CardContent>
-                <h3 className="font-semibold mb-2 text-sm text-muted-foreground uppercase tracking-wider">Batting</h3>
+            <CardContent className="p-0">
                 <Table>
                     <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[45%]">Batsman</TableHead>
-                            <TableHead className="text-right">R</TableHead>
-                            <TableHead className="text-right">B</TableHead>
-                            <TableHead className="text-right">4s</TableHead>
-                            <TableHead className="text-right">6s</TableHead>
-                            <TableHead className="text-right">SR</TableHead>
+                        <TableRow className="bg-secondary hover:bg-secondary/90">
+                            <TableHead className="w-[45%] text-secondary-foreground">Batsman</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">R</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">B</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">4s</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">6s</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">SR</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {sortedBattingPlayers.map(p => {
                             const stats = battingStats.get(p.id)!;
-                            if (stats.dismissal === 'Did not bat') {
-                                return (
-                                    <TableRow key={p.id}>
-                                        <TableCell colSpan={6} className="py-2">
-                                            <div className="flex items-center gap-3">
-                                                <Avatar className="h-8 w-8 bg-muted-foreground/10">
-                                                    <AvatarFallback className="bg-transparent text-muted-foreground/50">{p.name.charAt(0)}</AvatarFallback>
-                                                </Avatar>
-                                                <div>
-                                                    <p className="font-medium text-muted-foreground/80">{p.name}</p>
-                                                    <p className="text-xs text-muted-foreground">{stats.dismissal}</p>
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                )
-                            }
+                            const isYetToBat = stats.dismissal === 'Yet to Bat';
                             return (
                             <TableRow key={p.id}>
                                 <TableCell>
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-8 w-8">
-                                            <AvatarFallback>{p.name.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                            <p className="font-medium">{p.name}</p>
-                                            <p className="text-xs text-muted-foreground">{stats.dismissal}</p>
-                                        </div>
+                                    <div>
+                                        <p className="font-medium">{p.name}</p>
+                                        <p className="text-xs text-muted-foreground">{stats.dismissal}</p>
                                     </div>
                                 </TableCell>
-                                <TableCell className="text-right font-mono font-semibold">{stats.runs}</TableCell>
-                                <TableCell className="text-right font-mono">{stats.balls}</TableCell>
-                                <TableCell className="text-right font-mono">{stats.fours}</TableCell>
-                                <TableCell className="text-right font-mono">{stats.sixes}</TableCell>
-                                <TableCell className="text-right font-mono">{stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00'}</TableCell>
+                                <TableCell className="text-right font-mono font-semibold">{isYetToBat ? '0' : stats.runs}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.balls}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.fours}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.sixes}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '0.00' : (stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00')}</TableCell>
                             </TableRow>
                         )})}
                     </TableBody>
                 </Table>
 
-                <div className="flex justify-between items-center mt-4 px-4 py-2 bg-muted/50 rounded-md">
+                <div className="flex justify-between items-center px-4 py-2 bg-secondary/20">
                    <p className="text-sm">Extras: {extrasTotal}</p>
                    <p className="font-bold">Total: {inning.score}/{inning.wickets} <span className="font-normal text-sm text-muted-foreground">({inning.overs.toFixed(1)} Overs)</span></p>
                 </div>
 
-                <Separator className="my-6" />
-
-                <h3 className="font-semibold mb-2 text-sm text-muted-foreground uppercase tracking-wider">Bowling</h3>
                 <Table>
                      <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-[45%]">Bowler</TableHead>
-                            <TableHead className="text-right">O</TableHead>
-                            <TableHead className="text-right">M</TableHead>
-                            <TableHead className="text-right">R</TableHead>
-                            <TableHead className="text-right">W</TableHead>
-                            <TableHead className="text-right">ER</TableHead>
+                        <TableRow className="bg-secondary hover:bg-secondary/90">
+                            <TableHead className="w-[45%] text-secondary-foreground">Bowler</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">O</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">M</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">R</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">W</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">ER</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -272,10 +244,7 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
                             return (
                                  <TableRow key={bowler.id}>
                                     <TableCell>
-                                      <div className="flex items-center gap-3">
-                                          <Avatar className="h-8 w-8">
-                                              <AvatarFallback>{bowler.name.charAt(0)}</AvatarFallback>
-                                          </Avatar>
+                                      <div>
                                           <p className="font-medium">{bowler.name}</p>
                                       </div>
                                     </TableCell>
