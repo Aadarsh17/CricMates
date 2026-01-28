@@ -151,6 +151,20 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
             if (isWicket) deliveryOutcome = 'W';
             if (isWide) deliveryOutcome = 'Wd';
             if (isNoBall) deliveryOutcome = 'Nb';
+            
+            if (!isWide && !isNoBall) {
+                if (runs === 0) {
+                    batsman.consecutiveDots = (batsman.consecutiveDots || 0) + 1;
+                } else {
+                    batsman.consecutiveDots = 0;
+                }
+            }
+
+            const isThreeDotsOut = batsman.consecutiveDots === 3;
+            if (isThreeDotsOut) {
+                deliveryOutcome = 'W';
+            }
+            
             newState.currentOver.deliveries.push(deliveryOutcome);
 
             if (!isWide) {
@@ -173,10 +187,11 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                 bowler.runsConceded += runs;
             }
 
-            if(isWicket) {
+            if(isWicket || isThreeDotsOut) {
                 batsman.isOut = true;
                 bowler.wicketsTaken++;
                 newState.totalWickets++;
+                batsman.consecutiveDots = 0;
                 if (newState.totalWickets >= newState.players.length - 1) {
                     newState.status = 'completed';
                     return newState;
@@ -231,7 +246,7 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                 <CardDescription>Total Score: {totalScore}/{totalWickets} in {totalOvers}.{currentOver.legalBalls} overs</CardDescription>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-4">
-               <div><span className="font-semibold">Batting:</span> {currentBatsman?.name}</div>
+               <div><span className="font-semibold">Batting:</span> {currentBatsman?.name} {currentBatsman && `(${currentBatsman.consecutiveDots || 0} dots)`}</div>
                <div><span className="font-semibold">Bowling:</span> {currentBowler?.name}</div>
                <div className='md:col-span-2 space-y-2'>
                     <Label>This Over</Label>

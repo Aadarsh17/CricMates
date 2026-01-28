@@ -18,6 +18,7 @@ export type Player = {
   ballsBowled: number;
   runsConceded: number;
   wicketsTaken: number;
+  consecutiveDots: number;
 };
 
 export type GameState = {
@@ -49,6 +50,7 @@ export default function NumberGamePage() {
       ballsBowled: 0,
       runsConceded: 0,
       wicketsTaken: 0,
+      consecutiveDots: 0,
     })),
     currentBatsmanIndex: 0,
     currentBowlerIndex: 4,
@@ -82,6 +84,7 @@ export default function NumberGamePage() {
         ballsBowled: 0,
         runsConceded: 0,
         wicketsTaken: 0,
+        consecutiveDots: 0,
       })),
       currentBatsmanIndex: 0,
       currentBowlerIndex: 4,
