@@ -79,14 +79,14 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
             if (d.runs === 4 && (d.extra !== 'byes' && d.extra !== 'legbyes')) strikerStat.fours += 1;
             if (d.runs === 6 && (d.extra !== 'byes' && d.extra !== 'legbyes')) strikerStat.sixes += 1;
 
-            if (d.isWicket) {
+            if (d.isWicket && d.dismissal && d.dismissal.type !== 'Run out') {
                 const currentWickets = wicketsTakenByBowler.get(d.bowlerId) || 0;
                 wicketsTakenByBowler.set(d.bowlerId, currentWickets + 1);
             }
         }
     });
 
-    const outPlayerIds = new Set(inning.deliveryHistory.filter(d => d.isWicket).map(d => d.strikerId));
+    const outPlayerIds = new Set(inning.deliveryHistory.filter(d => d.isWicket && d.dismissal).map(d => d.dismissal!.batsmanOutId));
     const battedPlayerIds = new Set(inning.deliveryHistory.flatMap(d => [d.strikerId, d.nonStrikerId].filter(Boolean) as string[]));
 
     battingTeamPlayers.forEach(p => {
@@ -95,9 +95,36 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
             stat.strikeRate = calculateStrikeRate(stat.runs, stat.balls);
 
             if (outPlayerIds.has(p.id)) {
-                const wicketDelivery = inning.deliveryHistory.find(d => d.isWicket && d.strikerId === p.id)!;
-                const bowler = getPlayerById(wicketDelivery.bowlerId);
-                stat.dismissal = wicketDelivery.outcome === 'Retired' ? 'Retired' : `b. ${bowler?.name || 'Unknown'}`;
+                const wicketDelivery = inning.deliveryHistory.find(d => d.isWicket && d.dismissal?.batsmanOutId === p.id);
+                if (wicketDelivery && wicketDelivery.dismissal) {
+                    const bowler = getPlayerById(wicketDelivery.bowlerId);
+                    const fielder = wicketDelivery.dismissal.fielderId ? getPlayerById(wicketDelivery.dismissal.fielderId) : null;
+                    let dismissalString = '';
+
+                    switch (wicketDelivery.dismissal.type) {
+                        case 'Catch out':
+                            dismissalString = `c ${fielder?.name || 'fielder'} b ${bowler?.name || 'bowler'}`;
+                            break;
+                        case 'Run out':
+                            dismissalString = `run out (${fielder?.name || 'fielder'})`;
+                            break;
+                        case 'Stumping':
+                            dismissalString = `st ${fielder?.name || 'keeper'} b ${bowler?.name || 'bowler'}`;
+                            break;
+                        case 'Bowled':
+                            dismissalString = `b ${bowler?.name || 'bowler'}`;
+                            break;
+                        case 'Hit wicket':
+                             dismissalString = `hit wicket b ${bowler?.name || 'bowler'}`;
+                             break;
+                        default:
+                            dismissalString = `b ${bowler?.name || 'bowler'}`;
+                            break;
+                    }
+                    stat.dismissal = dismissalString;
+                } else {
+                    stat.dismissal = 'Out'; // Fallback
+                }
             } else if (battedPlayerIds.has(p.id)) {
                 stat.dismissal = 'Not Out';
             } else {

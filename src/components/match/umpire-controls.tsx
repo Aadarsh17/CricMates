@@ -21,7 +21,7 @@ type ExtraOptions = {
 };
 
 export function UmpireControls({ match }: { match: Match }) {
-    const { recordDelivery, swapStrikers, undoDelivery, retireStriker, forceEndInning, getPlayerById, getPlayersByTeamId } = useAppContext();
+    const { recordDelivery, swapStrikers, undoDelivery, retireStriker, forceEndInning, getPlayerById, getPlayersByTeamId, getTeamById } = useAppContext();
     const [extras, setExtras] = useState<ExtraOptions>({
         wicket: false, wide: false, noball: false, byes: false, legbyes: false
     });
@@ -43,6 +43,8 @@ export function UmpireControls({ match }: { match: Match }) {
         !retiredHurtPlayerIds.has(p.id) &&
         !onFieldPlayerIds.has(p.id)
     );
+
+    const bowlingTeamPlayers = getPlayersByTeamId(currentInning.bowlingTeamId);
 
     const handleExtraChange = (extra: keyof ExtraOptions, checked: boolean) => {
         setExtras(prev => {
@@ -96,7 +98,7 @@ export function UmpireControls({ match }: { match: Match }) {
         setExtras({ wicket: false, wide: false, noball: false, byes: false, legbyes: false });
     };
     
-    const handleWicketConfirm = (wicketData: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; }) => {
+    const handleWicketConfirm = (wicketData: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; fielderId?: string; }) => {
         if (!deliveryForWicket) return;
 
         recordDelivery(match, {
@@ -168,6 +170,7 @@ export function UmpireControls({ match }: { match: Match }) {
                 striker={striker}
                 nonStriker={nonStriker}
                 availableBatsmen={availableBatsmen}
+                bowlingTeamPlayers={bowlingTeamPlayers}
                 onConfirm={handleWicketConfirm}
             />
             <RetirePlayerDialog 

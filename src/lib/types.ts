@@ -39,6 +39,7 @@ export type DeliveryRecord = {
   dismissal?: {
       type: string;
       batsmanOutId: string;
+      fielderId?: string;
   };
   timestamp: number;
 };

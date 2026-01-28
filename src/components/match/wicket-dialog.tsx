@@ -28,27 +28,31 @@ interface WicketDialogProps {
   striker?: Player;
   nonStriker?: Player;
   availableBatsmen: Player[];
+  bowlingTeamPlayers: Player[];
   onConfirm: (wicketData: {
     batsmanOutId: string;
     dismissalType: string;
     newBatsmanId?: string;
+    fielderId?: string;
   }) => void;
 }
 
 const dismissalTypes = [
-  'Bowled', 'Catch out', 'Run out', 'LBW', 'Stumping', 'Hit wicket'
+  'Bowled', 'Catch out', 'Run out', 'Stumping', 'Hit wicket'
 ];
 
-export function WicketDialog({ open, onClose, striker, nonStriker, availableBatsmen, onConfirm }: WicketDialogProps) {
+export function WicketDialog({ open, onClose, striker, nonStriker, availableBatsmen, bowlingTeamPlayers, onConfirm }: WicketDialogProps) {
   const [batsmanOutId, setBatsmanOutId] = useState<string | undefined>(striker?.id);
   const [dismissalType, setDismissalType] = useState<string>('Bowled');
   const [newBatsmanId, setNewBatsmanId] = useState<string | undefined>();
+  const [fielderId, setFielderId] = useState<string | undefined>();
   
   useEffect(() => {
-    if(open && striker) {
-        setBatsmanOutId(striker.id);
+    if(open) {
+        setBatsmanOutId(striker?.id);
         setDismissalType('Bowled');
         setNewBatsmanId(undefined);
+        setFielderId(undefined);
     }
   }, [open, striker]);
 
@@ -56,13 +60,25 @@ export function WicketDialog({ open, onClose, striker, nonStriker, availableBats
     if (!batsmanOutId || !dismissalType) {
       return;
     }
+     if ( (dismissalType === 'Catch out' || dismissalType === 'Run out' || dismissalType === 'Stumping') && !fielderId ) {
+        return;
+    }
     onConfirm({
       batsmanOutId,
       dismissalType,
       newBatsmanId,
+      fielderId,
     });
     onClose();
   };
+
+  const showFielderSelect = ['Catch out', 'Run out', 'Stumping'].includes(dismissalType);
+  const wicketKeeper = bowlingTeamPlayers.find(p => p.isWicketKeeper);
+
+  let fielderOptions = bowlingTeamPlayers;
+  if(dismissalType === 'Stumping' && wicketKeeper) {
+    fielderOptions = [wicketKeeper];
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -117,11 +133,27 @@ export function WicketDialog({ open, onClose, striker, nonStriker, availableBats
               ))}
             </div>
           </div>
+          
+          {showFielderSelect && (
+            <div className="space-y-2">
+                <Label>{dismissalType === 'Stumping' ? 'Wicket Keeper' : 'Fielder'}</Label>
+                <Select onValueChange={setFielderId} value={fielderId}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select a player" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {fielderOptions.map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+          )}
 
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleConfirm} disabled={!batsmanOutId || !dismissalType}>Submit</Button>
+          <Button onClick={handleConfirm} disabled={!batsmanOutId || !dismissalType || (showFielderSelect && !fielderId)}>Submit</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
