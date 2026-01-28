@@ -264,13 +264,22 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                 newState.totalOvers++;
                 newState.currentOver = { deliveries: [], legalBalls: 0 };
 
-                let nextBowlerIndex = newState.currentBowlerIndex;
-                do {
-                    nextBowlerIndex--;
+                // Determine the next bowler in reverse sequence
+                let nextBowlerIndex = newState.currentBowlerIndex - 1;
+                
+                // Wrap around if we've gone past the first bowler (index 0)
+                if (nextBowlerIndex < 0) {
+                    nextBowlerIndex = newState.players.length - 1;
+                }
+
+                // If the next bowler is the current batsman, skip them and go to the previous bowler in sequence
+                if (nextBowlerIndex === newState.currentBatsmanIndex) {
+                    nextBowlerIndex = nextBowlerIndex - 1;
+                    // Handle wrap-around again if necessary
                     if (nextBowlerIndex < 0) {
                         nextBowlerIndex = newState.players.length - 1;
                     }
-                } while (nextBowlerIndex === newState.currentBatsmanIndex);
+                }
                 
                 newState.currentBowlerIndex = nextBowlerIndex;
             }
