@@ -33,7 +33,6 @@ export type GameState = {
     deliveries: string[];
     legalBalls: number;
   };
-  totalScore: number;
   totalWickets: number;
   totalOvers: number;
 };
@@ -60,7 +59,6 @@ export default function NumberGamePage() {
     currentBatsmanIndex: 0,
     currentBowlerIndex: 4,
     currentOver: { deliveries: [], legalBalls: 0 },
-    totalScore: 0,
     totalWickets: 0,
     totalOvers: 0,
   });
@@ -97,7 +95,6 @@ export default function NumberGamePage() {
       currentBatsmanIndex: 0,
       currentBowlerIndex: playerCount - 1,
       currentOver: { deliveries: [], legalBalls: 0 },
-      totalScore: 0,
       totalWickets: 0,
       totalOvers: 0,
     });
@@ -121,8 +118,7 @@ export default function NumberGamePage() {
                 <CardTitle className='text-center'>Game Over!</CardTitle>
               </CardHeader>
               <CardContent className="text-center space-y-4">
-                <p className="text-2xl font-bold">Final Score: {gameState.totalScore} / {gameState.totalWickets}</p>
-                <p className="text-xl">Winner is player: <span className='font-bold'>{gameState.players.sort((a,b) => b.runs - a.runs)[0].name}</span></p>
+                <p className="text-2xl">Winner is player: <span className='font-bold'>{gameState.players.sort((a,b) => b.runs - a.runs)[0].name}</span></p>
                 <Button onClick={resetGame}>Play Again</Button>
               </CardContent>
             </Card>

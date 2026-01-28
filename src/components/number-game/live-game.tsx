@@ -140,7 +140,7 @@ const UmpireControls = ({ onRecordDelivery }: { onRecordDelivery: (runs: number,
 
 
 export function LiveGame({ gameState, setGameState }: LiveGameProps) {
-    const { players, currentBatsmanIndex, currentBowlerIndex, totalScore, totalWickets, totalOvers, currentOver } = gameState;
+    const { players, currentBatsmanIndex, currentBowlerIndex, totalWickets, totalOvers, currentOver } = gameState;
     const { toast } = useToast();
     const prevPlayersRef = useRef<Player[]>(players);
     const prevWicketsRef = useRef<number>(totalWickets);
@@ -206,13 +206,11 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
             }
 
             if (isWide || isNoBall) {
-                newState.totalScore += 1;
                 bowler.runsConceded += 1;
             }
             
             if (!isWide) {
                 batsman.runs += runs;
-                newState.totalScore += runs;
                 bowler.runsConceded += runs;
                 if (runs === 4) batsman.fours++;
                 if (runs === 6) batsman.sixes++;
@@ -243,8 +241,11 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                     nextBatsmanIndex++;
                 }
                 if (nextBatsmanIndex >= newState.players.length) {
-                    newState.status = 'completed';
-                    return newState;
+                     const allOut = newState.players.every(p => p.isOut);
+                     if(allOut) {
+                        newState.status = 'completed';
+                        return newState;
+                     }
                 }
                 newState.currentBatsmanIndex = nextBatsmanIndex;
             }
@@ -289,7 +290,7 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
         <Card>
             <CardHeader>
                 <CardTitle>Live Match</CardTitle>
-                <CardDescription>Total Score: {totalScore}/{totalWickets} in {totalOvers}.{currentOver.legalBalls} overs</CardDescription>
+                <CardDescription>Wickets: {totalWickets} | Overs: {totalOvers}.{currentOver.legalBalls}</CardDescription>
             </CardHeader>
             <CardContent className="grid md:grid-cols-2 gap-4">
                <div><span className="font-semibold">Batting:</span> {currentBatsman?.name} {currentBatsman && `(${currentBatsman.consecutiveDots || 0} dots)`}</div>
