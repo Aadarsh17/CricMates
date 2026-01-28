@@ -65,7 +65,7 @@ const BowlingScorecard = ({ players }: { players: Player[] }) => (
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {players.filter(p => p.oversBowled > 0).map((p, index) => (
+                    {players.filter(p => p.oversBowled > 0 || p.ballsBowled > 0).map((p, index) => (
                          <TableRow key={p.id}>
                             <TableCell>{players.length - index}</TableCell>
                             <TableCell>{p.name}</TableCell>
@@ -148,21 +148,25 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
             const bowler = newState.players[newState.currentBowlerIndex];
 
             let deliveryOutcome = runs.toString();
-            if (isWicket) deliveryOutcome = 'W';
-            if (isWide) deliveryOutcome = 'Wd';
-            if (isNoBall) deliveryOutcome = 'Nb';
-            
+
             if (!isWide && !isNoBall) {
                 if (runs === 0) {
                     batsman.consecutiveDots = (batsman.consecutiveDots || 0) + 1;
                 } else {
                     batsman.consecutiveDots = 0;
                 }
+            } else if (isWide) {
+                batsman.consecutiveDots = 0;
             }
 
             const isThreeDotsOut = batsman.consecutiveDots === 3;
-            if (isThreeDotsOut) {
+            
+            if (isWicket || isThreeDotsOut) {
                 deliveryOutcome = 'W';
+            } else if (isWide) {
+                deliveryOutcome = 'Wd';
+            } else if (isNoBall) {
+                deliveryOutcome = 'Nb';
             }
             
             newState.currentOver.deliveries.push(deliveryOutcome);
@@ -183,7 +187,7 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
             }
 
             bowler.ballsBowled++;
-            if (!isWide) { // No ball runs are conceded by bowler
+            if (!isWide) {
                 bowler.runsConceded += runs;
             }
 
@@ -196,7 +200,7 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                     newState.status = 'completed';
                     return newState;
                 }
-                // Find next batsman
+                
                 let nextBatsmanIndex = newState.currentBatsmanIndex + 1;
                 while(nextBatsmanIndex < newState.players.length && newState.players[nextBatsmanIndex].isOut) {
                     nextBatsmanIndex++;
@@ -209,7 +213,7 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
             }
 
             if (newState.currentOver.legalBalls === 6) {
-                bowler.oversBowled = 1;
+                bowler.oversBowled = (bowler.oversBowled || 0) + 1;
                 newState.totalOvers++;
                 newState.currentOver = { deliveries: [], legalBalls: 0 };
 
@@ -218,9 +222,8 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                      return newState;
                 }
                 
-                // Find next bowler
                 let nextBowlerIndex = newState.currentBowlerIndex - 1;
-                while(nextBowlerIndex >= 0 && newState.players[nextBowlerIndex].oversBowled > 0) {
+                while(nextBowlerIndex >= 0 && (newState.players[nextBowlerIndex].oversBowled || 0) > 0) {
                      nextBowlerIndex--;
                 }
 
