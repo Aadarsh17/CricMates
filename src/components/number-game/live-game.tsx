@@ -149,18 +149,25 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
 
             let deliveryOutcome = runs.toString();
 
+            // Handle consecutive dots logic
             if (!isWide && !isNoBall) {
-                if (runs === 0) {
+                if (runs === 0 && !isWicket) {
                     batsman.consecutiveDots = (batsman.consecutiveDots || 0) + 1;
                 } else {
                     batsman.consecutiveDots = 0;
                 }
             } else if (isWide) {
-                batsman.consecutiveDots = 0;
+                batsman.consecutiveDots = 0; // Reset dots on a wide
             }
 
             const isThreeDotsOut = batsman.consecutiveDots === 3;
             
+            // Increment balls faced for legal deliveries
+            if (!isWide) {
+                batsman.balls++;
+            }
+            
+            // Determine delivery outcome string for UI
             if (isWicket || isThreeDotsOut) {
                 deliveryOutcome = 'W';
             } else if (isWide) {
@@ -171,31 +178,42 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
             
             newState.currentOver.deliveries.push(deliveryOutcome);
 
-            if (!isWide) {
-                batsman.balls++;
-            }
-            
+            // Increment legal balls for the over
             if(!isWide && !isNoBall) {
                  newState.currentOver.legalBalls++;
             }
 
-            if (!isWide) {
+            // Update scores
+            if (isWide || isNoBall) {
+                newState.totalScore += 1; // Extra run for wide/no-ball
+                bowler.runsConceded += 1;
+            }
+            
+            if (!isWide) { // Runs off bat only count on legal or no-balls
                 batsman.runs += runs;
                 newState.totalScore += runs;
+                bowler.runsConceded += runs;
                 if (runs === 4) batsman.fours++;
                 if (runs === 6) batsman.sixes++;
             }
 
             bowler.ballsBowled++;
-            if (!isWide) {
-                bowler.runsConceded += runs;
-            }
 
+
+            // Handle Wicket
             if(isWicket || isThreeDotsOut) {
                 batsman.isOut = true;
                 bowler.wicketsTaken++;
                 newState.totalWickets++;
                 batsman.consecutiveDots = 0;
+
+                if (batsman.runs === 0) {
+                    batsman.duck = true;
+                    if (batsman.balls === 1) {
+                        batsman.goldenDuck = true;
+                    }
+                }
+
                 if (newState.totalWickets >= newState.players.length - 1) {
                     newState.status = 'completed';
                     return newState;
@@ -212,6 +230,7 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                 newState.currentBatsmanIndex = nextBatsmanIndex;
             }
 
+            // End of Over
             if (newState.currentOver.legalBalls === 6) {
                 bowler.oversBowled = (bowler.oversBowled || 0) + 1;
                 newState.totalOvers++;
@@ -222,16 +241,29 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                      return newState;
                 }
                 
+                // Swap batsmen at end of over
+                const temp = newState.currentBatsmanIndex;
+                // This logic is simple and might need refinement for a real game,
+                // but for number game, we just swap with next available non-out player.
+                // For now, let's keep it simple and just change bowler.
+
                 let nextBowlerIndex = newState.currentBowlerIndex - 1;
-                while(nextBowlerIndex >= 0 && (newState.players[nextBowlerIndex].oversBowled || 0) > 0) {
+                while(nextBowlerIndex >= 0 && (newState.players[nextBowlerIndex].isOut || (newState.players[nextBowlerIndex].oversBowled || 0) > 0)) {
                      nextBowlerIndex--;
                 }
 
-                if (nextBowlerIndex < 0) {
-                    newState.status = 'completed';
-                    return newState;
+                if (nextBowlerIndex < 0 || nextBowlerIndex === newState.currentBatsmanIndex) {
+                    // Find any player who hasn't bowled
+                    const availableBowlers = newState.players.filter((p,i) => !p.isOut && i !== newState.currentBatsmanIndex && (p.oversBowled || 0) === 0);
+                    if (availableBowlers.length > 0) {
+                         newState.currentBowlerIndex = newState.players.findIndex(p => p.id === availableBowlers[availableBowlers.length - 1].id);
+                    } else {
+                        newState.status = 'completed';
+                        return newState;
+                    }
+                } else {
+                    newState.currentBowlerIndex = nextBowlerIndex;
                 }
-                newState.currentBowlerIndex = nextBowlerIndex;
             }
 
             return newState;

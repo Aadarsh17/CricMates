@@ -31,7 +31,7 @@ export function PlayerSetup({ initialPlayers, onStartGame }: PlayerSetupProps) {
       const newPlayers: Player[] = Array.from({ length: newCount - currentCount }, (_, i) => ({
         id: `player-${currentCount + i + 1}`,
         name: `Player ${currentCount + i + 1}`,
-        runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false, oversBowled: 0, ballsBowled: 0, runsConceded: 0, wicketsTaken: 0, consecutiveDots: 0,
+        runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false, oversBowled: 0, ballsBowled: 0, runsConceded: 0, wicketsTaken: 0, consecutiveDots: 0, duck: false, goldenDuck: false,
       }));
       setPlayers([...players, ...newPlayers]);
     } else if (newCount < currentCount) {

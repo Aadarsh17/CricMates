@@ -5,6 +5,7 @@ import { PlayerSetup } from '@/components/number-game/player-setup';
 import { LiveGame } from '@/components/number-game/live-game';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { GameStatsTable } from '@/components/number-game/game-stats-table';
 
 export type Player = {
   id: string;
@@ -19,6 +20,8 @@ export type Player = {
   runsConceded: number;
   wicketsTaken: number;
   consecutiveDots: number;
+  duck: boolean;
+  goldenDuck: boolean;
 };
 
 export type GameState = {
@@ -51,6 +54,8 @@ export default function NumberGamePage() {
       runsConceded: 0,
       wicketsTaken: 0,
       consecutiveDots: 0,
+      duck: false,
+      goldenDuck: false,
     })),
     currentBatsmanIndex: 0,
     currentBowlerIndex: 4,
@@ -70,9 +75,10 @@ export default function NumberGamePage() {
   };
 
   const resetGame = () => {
+    const playerCount = gameState.players.length;
     setGameState({
       status: 'setup',
-      players: Array.from({ length: 5 }, (_, i) => ({
+      players: Array.from({ length: playerCount }, (_, i) => ({
         id: `player-${i + 1}`,
         name: `Player ${i + 1}`,
         runs: 0,
@@ -85,9 +91,11 @@ export default function NumberGamePage() {
         runsConceded: 0,
         wicketsTaken: 0,
         consecutiveDots: 0,
+        duck: false,
+        goldenDuck: false,
       })),
       currentBatsmanIndex: 0,
-      currentBowlerIndex: 4,
+      currentBowlerIndex: playerCount - 1,
       currentOver: { deliveries: [], legalBalls: 0 },
       totalScore: 0,
       totalWickets: 0,
@@ -107,16 +115,19 @@ export default function NumberGamePage() {
         <LiveGame gameState={gameState} setGameState={setGameState} />
       )}
       {gameState.status === 'completed' && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Game Over!</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <p className="text-2xl font-bold">Final Score: {gameState.totalScore} / {gameState.totalWickets}</p>
-            <p className="text-xl">Winner is player: <span className='font-bold'>{gameState.players.sort((a,b) => b.runs - a.runs)[0].name}</span></p>
-            <Button onClick={resetGame}>Play Again</Button>
-          </CardContent>
-        </Card>
+        <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className='text-center'>Game Over!</CardTitle>
+              </CardHeader>
+              <CardContent className="text-center space-y-4">
+                <p className="text-2xl font-bold">Final Score: {gameState.totalScore} / {gameState.totalWickets}</p>
+                <p className="text-xl">Winner is player: <span className='font-bold'>{gameState.players.sort((a,b) => b.runs - a.runs)[0].name}</span></p>
+                <Button onClick={resetGame}>Play Again</Button>
+              </CardContent>
+            </Card>
+            <GameStatsTable players={gameState.players} />
+        </div>
       )}
     </div>
   );
