@@ -15,6 +15,10 @@ export type Player = {
   fours: number;
   sixes: number;
   isOut: boolean;
+  dismissal?: {
+    type: string;
+    bowlerName: string;
+  };
   oversBowled: number;
   ballsBowled: number;
   runsConceded: number;

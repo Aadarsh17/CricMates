@@ -24,6 +24,7 @@ export function GameStatsTable({ players }: { players: Player[] }) {
             <TableHeader>
               <TableRow>
                 <TableHead>Player</TableHead>
+                <TableHead>Dismissal</TableHead>
                 <TableHead className="text-right">Runs</TableHead>
                 <TableHead className="text-right">Balls</TableHead>
                 <TableHead className="text-right">4s</TableHead>
@@ -35,7 +36,14 @@ export function GameStatsTable({ players }: { players: Player[] }) {
             <TableBody>
               {players.map((p) => (
                 <TableRow key={p.id}>
-                  <TableCell className="font-medium">{p.name} {p.isOut ? '(Out)' : '(Not Out)'}</TableCell>
+                  <TableCell className="font-medium">{p.name}</TableCell>
+                  <TableCell>
+                    {p.isOut
+                      ? p.dismissal
+                        ? `${p.dismissal.type} b. ${p.dismissal.bowlerName}`
+                        : 'Out'
+                      : 'Not Out'}
+                  </TableCell>
                   <TableCell className="text-right">{p.runs}</TableCell>
                   <TableCell className="text-right">{p.balls}</TableCell>
                   <TableCell className="text-right">{p.fours}</TableCell>
