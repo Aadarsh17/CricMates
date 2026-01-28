@@ -1,24 +1,43 @@
 'use client';
 
 import { useAppContext } from "@/context/AppContext";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { DeliveryRecord, Inning, Match } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+
+const DeliveryBadge = ({ delivery }: { delivery: DeliveryRecord }) => {
+    const isFour = delivery.runs === 4 && !delivery.extra;
+    const isSix = delivery.runs === 6 && !delivery.extra;
+    const isWicket = delivery.isWicket;
+
+    let baseClasses = "flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm";
+    let variantClasses = "bg-muted text-muted-foreground";
+
+    if (isWicket) {
+        variantClasses = "bg-destructive text-destructive-foreground";
+    } else if (isFour || isSix) {
+        variantClasses = "bg-primary text-primary-foreground";
+    } else if (delivery.extra) {
+        variantClasses = "bg-secondary text-secondary-foreground";
+    }
+
+    return (
+        <div className={`${baseClasses} ${variantClasses}`}>
+            {delivery.outcome}
+        </div>
+    )
+}
+
 
 const OverSummary = ({ overNumber, deliveries, inning }: { overNumber: number, deliveries: DeliveryRecord[], inning: Inning }) => {
     const { getPlayerById } = useAppContext();
     const bowler = getPlayerById(deliveries[0]?.bowlerId);
     
     let runsInOver = 0;
-    let wicketsInOver = 0;
     deliveries.forEach(d => {
         runsInOver += d.runs;
         if (d.extra === 'wide' || d.extra === 'noball') {
             runsInOver += 1;
-        }
-        if (d.isWicket) {
-            wicketsInOver++;
         }
     });
 
@@ -41,19 +60,21 @@ const OverSummary = ({ overNumber, deliveries, inning }: { overNumber: number, d
     const nonStriker = getPlayerById(deliveries[deliveries.length - 1].nonStrikerId || '');
 
     return (
-        <div className="space-y-2">
-            <div className="flex justify-between items-center text-sm font-medium">
-                <p>End of Over {overNumber}: <span className="font-bold">{runsInOver} run{runsInOver !== 1 && 's'}</span></p>
-                <p className="font-semibold">{scoreAtOverEnd}/{wicketsAtOverEnd}</p>
+        <div className="space-y-3">
+            <div className="flex justify-between items-baseline">
+                <div className="text-sm">
+                    <p className="text-muted-foreground">Over {overNumber} • {bowler?.name || 'N/A'}</p>
+                    <p className="font-bold">{runsInOver} Run{runsInOver !== 1 && 's'}</p>
+                </div>
+                <p className="font-bold text-lg">{scoreAtOverEnd}/{wicketsAtOverEnd}</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
                 {deliveries.map((d, i) => (
-                    <Badge key={i} variant={d.isWicket ? "destructive" : "secondary"} className="text-sm">{d.outcome}</Badge>
+                    <DeliveryBadge key={i} delivery={d} />
                 ))}
             </div>
-            <div className="text-xs text-muted-foreground flex justify-between">
-              <p>Striker: {striker?.name} | Non-striker: {nonStriker?.name}</p>
-              <p>Bowler: {bowler?.name || 'N/A'}</p>
+            <div className="text-xs text-muted-foreground">
+              <p><span className="font-semibold">On Strike:</span> {striker?.name} | <span className="font-semibold">Non-striker:</span> {nonStriker?.name}</p>
             </div>
         </div>
     )
@@ -85,12 +106,11 @@ const InningOvers = ({ inning }: { inning: Inning }) => {
     }
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>{battingTeam?.name} Innings</CardTitle>
-                <CardDescription>Over by Over Summary</CardDescription>
+        <Card className="overflow-hidden">
+            <CardHeader className="bg-foreground text-background p-4">
+                <CardTitle className="text-lg">{battingTeam?.name} Innings</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4 pt-4">
+            <CardContent className="p-4 space-y-4">
                 {overs.length > 0 ? (
                     overs.reverse().map((overDeliveries, index) => (
                         <div key={index} className="space-y-4">
@@ -103,7 +123,7 @@ const InningOvers = ({ inning }: { inning: Inning }) => {
                         </div>
                     ))
                 ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">No overs have been bowled yet.</p>
+                    <p className="text-sm text-muted-foreground text-center py-8">No overs have been bowled yet.</p>
                 )}
             </CardContent>
         </Card>

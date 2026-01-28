@@ -7,19 +7,19 @@ import { Shield, Star } from "lucide-react";
 import type { Player } from "@/lib/types";
 
 const PlayerListItem = ({ player }: { player: Player }) => (
-    <div className="flex items-center justify-between p-2 hover:bg-muted/50 rounded-md">
+    <div className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg -mx-2 transition-colors">
         <div className="flex items-center gap-3">
-            <Avatar className="h-8 w-8">
-                <AvatarFallback>{player.name.charAt(0)}</AvatarFallback>
+            <Avatar className="h-9 w-9">
+                <AvatarFallback>{player.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
             </Avatar>
             <div>
-                <p className="font-medium">{player.name}</p>
+                <p className="font-semibold text-sm">{player.name}</p>
                 <p className="text-xs text-muted-foreground">{player.role}</p>
             </div>
         </div>
         <div className="flex items-center gap-2">
             {player.isCaptain && <Shield className="h-4 w-4 text-primary" title="Captain" />}
-            {player.isWicketKeeper && <Star className="h-4 w-4 text-primary" title="Wicket-Keeper" />}
+            {player.isWicketKeeper && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" title="Wicket-Keeper" />}
         </div>
     </div>
 );
@@ -32,11 +32,11 @@ const TeamSquad = ({ teamId }: { teamId: string }) => {
     if (!team) return null;
 
     return (
-        <Card>
-            <CardHeader>
+        <Card className="overflow-hidden">
+            <CardHeader className="bg-foreground text-background p-4">
                 <CardTitle className="text-lg">{team.name} Squad</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2 pt-4">
+            <CardContent className="p-4 space-y-1">
                 {players.length > 0 ? (
                     players.map(player => <PlayerListItem key={player.id} player={player} />)
                 ) : (
@@ -47,7 +47,7 @@ const TeamSquad = ({ teamId }: { teamId: string }) => {
     )
 }
 
-export function MatchSquads({ team1Id, team2Id }: { team1Id: string; team2Id: string; }) {
+export function MatchSquads({ team1Id, team2Id }: { team1Id: string; team2Id:string; }) {
     return (
         <div className="grid md:grid-cols-2 gap-6">
             <TeamSquad teamId={team1Id} />
