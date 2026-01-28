@@ -21,6 +21,7 @@ import {
   ArrowLeft,
   MoreVertical,
   Medal,
+  Sigma,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -99,6 +100,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   >
                     <Medal className="h-4 w-4" />
                     Rankings
+                  </Link>
+                  <Link
+                    href="/number-game"
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+                  >
+                    <Sigma className="h-4 w-4" />
+                    Number Game
                   </Link>
                 </nav>
               </div>
@@ -179,6 +187,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       >
                         <Medal className="h-5 w-5" />
                         Rankings
+                      </Link>
+                      <Link
+                        href="/number-game"
+                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
+                      >
+                        <Sigma className="h-5 w-5" />
+                        Number Game
                       </Link>
                     </nav>
                   </SheetContent>
