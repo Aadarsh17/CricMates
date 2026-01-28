@@ -155,7 +155,7 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                     dismissalInfo = ` (${outPlayer.dismissal.type} b. ${outPlayer.dismissal.bowlerName})`;
                 }
 
-                let description = 'Game Over! All but one player are out.';
+                let description = 'Game Over! All players are out.';
                 if (gameState.status !== 'completed' && players[currentBatsmanIndex]) {
                     const nextBatsman = players[currentBatsmanIndex];
                     description = `Next batsman is ${nextBatsman.name}.`;
@@ -242,8 +242,7 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                     }
                 }
 
-                const notOutPlayers = newState.players.filter(p => !p.isOut);
-                if (notOutPlayers.length < 2) {
+                if (newState.totalWickets >= newState.players.length) {
                     newState.status = 'completed';
                     return newState;
                 }
@@ -258,24 +257,41 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                      return newState;
                 }
                 newState.currentBatsmanIndex = nextBatsmanIndex;
+
+                if (newState.currentBatsmanIndex === newState.currentBowlerIndex) {
+                    if (newState.currentOver.legalBalls > 0) {
+                        newState.totalOvers++;
+                    }
+                    newState.currentOver = { deliveries: [], legalBalls: 0 };
+                    
+                    let newBowlerIndex = newState.currentBowlerIndex - 1;
+                    if (newBowlerIndex < 0) {
+                        newBowlerIndex = newState.players.length - 1;
+                    }
+
+                    if (newBowlerIndex === newState.currentBatsmanIndex) {
+                        newBowlerIndex = newBowlerIndex - 1;
+                        if (newBowlerIndex < 0) {
+                            newBowlerIndex = newState.players.length - 1;
+                        }
+                    }
+                    newState.currentBowlerIndex = newBowlerIndex;
+                }
+
             }
 
             if (newState.currentOver.legalBalls === 6) {
                 newState.totalOvers++;
                 newState.currentOver = { deliveries: [], legalBalls: 0 };
 
-                // Determine the next bowler in reverse sequence
                 let nextBowlerIndex = newState.currentBowlerIndex - 1;
                 
-                // Wrap around if we've gone past the first bowler (index 0)
                 if (nextBowlerIndex < 0) {
                     nextBowlerIndex = newState.players.length - 1;
                 }
 
-                // If the next bowler is the current batsman, skip them and go to the previous bowler in sequence
                 if (nextBowlerIndex === newState.currentBatsmanIndex) {
                     nextBowlerIndex = nextBowlerIndex - 1;
-                    // Handle wrap-around again if necessary
                     if (nextBowlerIndex < 0) {
                         nextBowlerIndex = newState.players.length - 1;
                     }
