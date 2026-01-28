@@ -162,8 +162,8 @@ export default function MatchPage() {
             try {
                 await navigator.clipboard.writeText(window.location.href);
                 toast({
-                    title: "URL Copied!",
-                    description: "The native share dialog could not be opened. The URL has been copied to your clipboard instead.",
+                    title: "URL Copied to Clipboard",
+                    description: "Your browser prevented the share dialog from opening. You can now paste the link to share it.",
                 });
             } catch (copyError) {
                 toast({
