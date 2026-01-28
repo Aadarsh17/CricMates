@@ -68,10 +68,10 @@ export function GameStatsTable({ players }: { players: Player[] }) {
                   </TableRow>
               </TableHeader>
               <TableBody>
-                  {players.filter(p => p.oversBowled > 0 || p.ballsBowled > 0).map((p) => (
+                  {players.filter(p => p.ballsBowled > 0).map((p) => (
                        <TableRow key={p.id}>
                           <TableCell className="font-medium">{p.name}</TableCell>
-                          <TableCell className="text-right">{p.oversBowled}.{p.ballsBowled % 6}</TableCell>
+                          <TableCell className="text-right">{`${Math.floor(p.ballsBowled / 6)}.${p.ballsBowled % 6}`}</TableCell>
                           <TableCell className="text-right">{p.runsConceded}</TableCell>
                           <TableCell className="text-right">{p.wicketsTaken}</TableCell>
                        </TableRow>

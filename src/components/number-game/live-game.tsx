@@ -66,11 +66,11 @@ const BowlingScorecard = ({ players }: { players: Player[] }) => (
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {players.filter(p => p.oversBowled > 0 || p.ballsBowled > 0).map((p, index) => (
+                    {players.filter(p => p.ballsBowled > 0).map((p) => (
                          <TableRow key={p.id}>
-                            <TableCell>{players.length - index}</TableCell>
+                            <TableCell>{players.findIndex(pl => pl.id === p.id) + 1}</TableCell>
                             <TableCell>{p.name}</TableCell>
-                            <TableCell className="text-right">{p.oversBowled}.{p.ballsBowled % 6}</TableCell>
+                            <TableCell className="text-right">{`${Math.floor(p.ballsBowled / 6)}.${p.ballsBowled % 6}`}</TableCell>
                             <TableCell className="text-right">{p.runsConceded}</TableCell>
                             <TableCell className="text-right">{p.wicketsTaken}</TableCell>
                          </TableRow>
@@ -221,7 +221,9 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                 if (runs === 6) batsman.sixes++;
             }
 
-            bowler.ballsBowled++;
+            if (!isWide && !isNoBall) {
+                bowler.ballsBowled++;
+            }
 
             if(isWicket || isThreeDotsOut) {
                 batsman.isOut = true;
@@ -252,41 +254,25 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                 }
 
                 if (nextBatsmanIndex >= newState.players.length) {
-                    const availableBatsmen = newState.players.filter(p => !p.isOut);
-                     if (availableBatsmen.length === 0) {
-                         newState.status = 'completed';
-                         return newState;
-                     }
+                     newState.status = 'completed';
+                     return newState;
                 }
                 newState.currentBatsmanIndex = nextBatsmanIndex;
             }
 
             if (newState.currentOver.legalBalls === 6) {
-                bowler.oversBowled = (bowler.oversBowled || 0) + 1;
                 newState.totalOvers++;
                 newState.currentOver = { deliveries: [], legalBalls: 0 };
 
-                if (newState.totalOvers >= newState.players.length) {
-                     newState.status = 'completed';
-                     return newState;
-                }
-                
-                let nextBowlerIndex = newState.currentBowlerIndex - 1;
-                while(nextBowlerIndex >= 0 && (newState.players[nextBowlerIndex].oversBowled || 0) > 0) {
-                     nextBowlerIndex--;
-                }
-
-                if (nextBowlerIndex < 0 || nextBowlerIndex === newState.currentBatsmanIndex) {
-                    const availableBowlers = newState.players.filter((p,i) => i !== newState.currentBatsmanIndex && (p.oversBowled || 0) === 0);
-                    if (availableBowlers.length > 0) {
-                         newState.currentBowlerIndex = newState.players.findIndex(p => p.id === availableBowlers[availableBowlers.length - 1].id);
-                    } else {
-                        newState.status = 'completed';
-                        return newState;
+                let nextBowlerIndex = newState.currentBowlerIndex;
+                do {
+                    nextBowlerIndex--;
+                    if (nextBowlerIndex < 0) {
+                        nextBowlerIndex = newState.players.length - 1;
                     }
-                } else {
-                    newState.currentBowlerIndex = nextBowlerIndex;
-                }
+                } while (nextBowlerIndex === newState.currentBatsmanIndex);
+                
+                newState.currentBowlerIndex = nextBowlerIndex;
             }
 
             return newState;
