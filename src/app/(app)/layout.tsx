@@ -231,7 +231,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </DropdownMenu>
               </header>
             </ClientOnly>
-            <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 bg-background print:bg-transparent print:p-0 print:gap-0">
+            <main className="flex flex-1 flex-col gap-4 p-2 sm:p-4 lg:gap-6 lg:p-6 bg-background print:bg-transparent print:p-0 print:gap-0">
               {children}
             </main>
           </div>

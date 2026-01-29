@@ -44,7 +44,7 @@ export function RankingsTable({ data, type }: RankingsTableProps) {
 
     return (
         <Card>
-            <Table>
+            <Table className="[&_td]:py-3 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
                 <TableHeader>
                     <TableRow>
                         <TableHead className="w-[80px] font-semibold">Rank</TableHead>

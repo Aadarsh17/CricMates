@@ -130,7 +130,7 @@ export default function NewMatchPage() {
                     <CardTitle>Configure New Match</CardTitle>
                     <CardDescription>Select the two teams that will be playing.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
                         <div className="space-y-2">
                             <Label htmlFor="team1">Team 1</Label>
@@ -186,7 +186,7 @@ export default function NewMatchPage() {
             <CardTitle>Match Setup</CardTitle>
             <CardDescription>Configure the match settings before you start.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="overs">Number of Overs</Label>
               <Input 

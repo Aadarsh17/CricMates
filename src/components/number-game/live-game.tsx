@@ -21,8 +21,8 @@ const Scorecard = ({ players }: { players: Player[] }) => (
     <CardHeader>
       <CardTitle>Scorecard</CardTitle>
     </CardHeader>
-    <CardContent>
-      <Table>
+    <CardContent className="p-0">
+      <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
         <TableHeader>
           <TableRow>
             <TableHead>#</TableHead>
@@ -55,8 +55,8 @@ const BowlingScorecard = ({ players }: { players: Player[] }) => (
         <CardHeader>
             <CardTitle>Bowling</CardTitle>
         </CardHeader>
-        <CardContent>
-            <Table>
+        <CardContent className="p-0">
+            <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
                 <TableHeader>
                     <TableRow>
                         <TableHead>#</TableHead>
@@ -263,7 +263,15 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                 bowler.ballsBowled++;
             }
             
-            if (newState.currentOver.legalBalls === 6) {
+            // Check if bowler's turn to bat is next, and if the over is now complete
+             if (newState.currentBatsmanIndex === newState.currentBowlerIndex && newState.currentOver.legalBalls > 0) {
+                newState.totalOvers++;
+                newState.currentOver = { deliveries: [], legalBalls: 0 };
+                 let nextBowlerIndex = newState.currentBowlerIndex - 1;
+                if (nextBowlerIndex < 0) nextBowlerIndex = newState.players.length - 1;
+                newState.currentBowlerIndex = nextBowlerIndex;
+            }
+            else if (newState.currentOver.legalBalls === 6) {
                 newState.totalOvers++;
                 newState.currentOver = { deliveries: [], legalBalls: 0 };
                 
@@ -308,11 +316,13 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                     }
                 }
 
-                if (newState.currentBatsmanIndex === newState.players.length - 1) {
+                const nextBatsmanIndex = newState.currentBatsmanIndex + 1;
+
+                if (nextBatsmanIndex >= newState.players.length) {
                     newState.status = 'completed';
                     return newState;
                 } else {
-                    newState.currentBatsmanIndex++;
+                    newState.currentBatsmanIndex = nextBatsmanIndex;
 
                     if (newState.currentBatsmanIndex === newState.currentBowlerIndex) {
                         if (newState.currentOver.legalBalls > 0) {
@@ -352,7 +362,7 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
           <Card>
               <CardHeader>
                   <CardTitle>Live Match</CardTitle>
-                  <CardDescription>Total Wickets: {gameState.totalWickets} | Overs: {totalOvers}.{currentOver.legalBalls}</CardDescription>
+                  <CardDescription>Wickets: {gameState.totalWickets} | Overs: {totalOvers}.{currentOver.legalBalls}</CardDescription>
               </CardHeader>
               <CardContent className="grid md:grid-cols-2 gap-4">
                 <div><span className="font-semibold">Batting:</span> {currentBatsman?.name} {currentBatsman && `(${currentBatsman.consecutiveDots || 0} dots)`}</div>

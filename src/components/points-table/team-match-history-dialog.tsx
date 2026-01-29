@@ -43,7 +43,7 @@ export function TeamMatchHistoryDialog({ team, matches, open, onOpenChange }: Te
         </DialogHeader>
         <div className="max-h-[60vh] overflow-y-auto">
             {matches.length > 0 ? (
-                 <Table>
+                 <Table className="[&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
                     <TableHeader>
                         <TableRow>
                             <TableHead>Date</TableHead>

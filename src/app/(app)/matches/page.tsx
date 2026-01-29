@@ -29,7 +29,7 @@ export default function MatchesHistoryPage() {
             <Skeleton className="h-4 w-64 mt-2" />
           </div>
         </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(3)].map((_, i) => (
              <Card key={i}>
                 <CardHeader>
@@ -70,7 +70,7 @@ export default function MatchesHistoryPage() {
           </p>
         </div>
       </div>
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {completedMatches.map(match => {
           const team1 = getTeamById(match.team1Id);
           const team2 = getTeamById(match.team2Id);

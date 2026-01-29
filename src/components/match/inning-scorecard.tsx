@@ -187,7 +187,7 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
                 <CardTitle className="text-lg text-background">{battingTeam.name} Innings</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-                <Table>
+                <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
                     <TableHeader>
                         <TableRow className="bg-secondary hover:bg-secondary/90">
                             <TableHead className="w-[45%] text-secondary-foreground">Batsman</TableHead>
@@ -225,7 +225,7 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
                    <p className="font-bold">Total: {inning.score}/{inning.wickets} <span className="font-normal text-sm text-muted-foreground">({inning.overs.toFixed(1)} Overs)</span></p>
                 </div>
 
-                <Table>
+                <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
                      <TableHeader>
                         <TableRow className="bg-secondary hover:bg-secondary/90">
                             <TableHead className="w-[45%] text-secondary-foreground">Bowler</TableHead>

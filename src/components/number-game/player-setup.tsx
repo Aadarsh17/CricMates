@@ -46,7 +46,7 @@ export function PlayerSetup({ initialPlayers, onStartGame }: PlayerSetupProps) {
         <CardTitle>Number Game Setup</CardTitle>
         <CardDescription>Configure players for your game. You can have between 5 and 10 players.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         <div className="space-y-2">
             <Label htmlFor='player-count'>Number of Players</Label>
             <Select onValueChange={handlePlayerCountChange} defaultValue={String(playerCount)}>
@@ -63,7 +63,7 @@ export function PlayerSetup({ initialPlayers, onStartGame }: PlayerSetupProps) {
                 </SelectContent>
             </Select>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-3">
             <Label>Player Names</Label>
           {players.map((player, index) => (
             <div key={player.id} className="flex items-center gap-2">

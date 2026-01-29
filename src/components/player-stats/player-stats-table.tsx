@@ -110,7 +110,7 @@ export function PlayerStatsTable({ players, teams, matches }: { players: Player[
       </div>
       <TooltipProvider>
         <div className="rounded-lg border">
-          <Table>
+          <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[200px] font-semibold">Player</TableHead>

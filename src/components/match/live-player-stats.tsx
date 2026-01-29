@@ -58,7 +58,7 @@ export function LivePlayerStats({ striker, nonStriker, bowler, inning }: { strik
     return (
         <Card>
             <CardContent className="p-0">
-                <Table>
+                <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
                     <TableHeader>
                         <TableRow>
                             <TableHead className="w-[120px]">Player</TableHead>
@@ -89,7 +89,7 @@ export function LivePlayerStats({ striker, nonStriker, bowler, inning }: { strik
                     </TableBody>
                 </Table>
                 <div className="border-t">
-                    <Table>
+                    <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
                         <TableHeader>
                             <TableRow>
                                 <TableHead className="w-[120px]">Bowler</TableHead>

@@ -135,7 +135,7 @@ export function PointsTable({ teams, matches, players }: { teams: Team[], matche
         />
       )}
       <div className="rounded-lg border">
-        <Table>
+        <Table className="[&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
           <TableHeader>
             <TableRow>
               <TableHead className="w-[250px] font-semibold">Team</TableHead>

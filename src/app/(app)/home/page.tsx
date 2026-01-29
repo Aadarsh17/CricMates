@@ -23,7 +23,7 @@ export default function HomePage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-4 md:space-y-6">
         <div className="flex items-center justify-between">
             <div>
               <Skeleton className="h-8 w-48" />
@@ -34,7 +34,7 @@ export default function HomePage() {
                  <Skeleton className="h-10 w-36" />
             </div>
         </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Teams</CardTitle>
@@ -75,7 +75,7 @@ export default function HomePage() {
   const completedMatches = matches.filter(m => m.status === 'completed');
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
         <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold tracking-tight font-headline">
@@ -99,7 +99,7 @@ export default function HomePage() {
             </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
             <Link href="/teams" className="block hover:no-underline">
                 <Card className="hover:bg-muted/50 transition-colors h-full">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -147,7 +147,7 @@ export default function HomePage() {
         {liveMatches.length > 0 && (
             <div>
                  <h2 className="text-2xl font-bold tracking-tight font-headline mb-4">Live Matches</h2>
-                 <div className="grid gap-6 md:grid-cols-2">
+                 <div className="grid gap-4 md:gap-6 md:grid-cols-2">
                     {liveMatches.map(match => {
                         const team1 = getTeamById(match.team1Id);
                         const team2 = getTeamById(match.team2Id);

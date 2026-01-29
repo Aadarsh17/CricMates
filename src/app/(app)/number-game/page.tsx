@@ -119,7 +119,7 @@ export default function NumberGamePage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-8">
+    <div className="container mx-auto py-4 space-y-6">
       {gameState.status === 'setup' && (
         <PlayerSetup
           initialPlayers={gameState.players}

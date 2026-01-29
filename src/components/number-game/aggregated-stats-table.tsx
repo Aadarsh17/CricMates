@@ -61,7 +61,7 @@ export function AggregatedStatsTable({ gameHistory }: { gameHistory: GameState[]
       <CardContent>
         <h3 className="font-semibold mb-2">Batting</h3>
         <div className="rounded-lg border">
-          <Table>
+          <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
             <TableHeader>
               <TableRow>
                 <TableHead>Player</TableHead>
@@ -93,7 +93,7 @@ export function AggregatedStatsTable({ gameHistory }: { gameHistory: GameState[]
 
         <h3 className="font-semibold mt-6 mb-2">Bowling</h3>
         <div className="rounded-lg border">
-          <Table>
+          <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
               <TableHeader>
                   <TableRow>
                       <TableHead>Player</TableHead>

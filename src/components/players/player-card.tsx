@@ -47,7 +47,7 @@ export default function PlayerCard({ player, onEdit, onDelete }: PlayerCardProps
           </DropdownMenu>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm text-muted-foreground">
+      <CardContent className="px-6 pb-6 pt-0 space-y-2 text-sm text-muted-foreground">
         <div className="flex items-center gap-3">
           <BarChart className="h-4 w-4 text-primary" />
           <span>Matches: {player.stats.matches}</span>
