@@ -54,6 +54,7 @@ export type GameState = {
   };
   totalWickets: number;
   totalOvers: number;
+  id: string;
 };
 
 const initialPlayerState = (count: number, names: string[] = []) =>
@@ -83,24 +84,45 @@ export default function NumberGamePage() {
     currentOver: { deliveries: [], legalBalls: 0 },
     totalWickets: 0,
     totalOvers: 0,
+    id: `game-${Date.now()}`,
   });
 
   const [gameHistory, setGameHistory] = useState<GameState[]>([]);
   
+  // Load history from localStorage on initial render
+  useEffect(() => {
+    try {
+      const savedHistory = window.localStorage.getItem('numberGameHistory');
+      if (savedHistory) {
+        setGameHistory(JSON.parse(savedHistory));
+      }
+    } catch (error) {
+      console.error("Failed to load game history from localStorage", error);
+    }
+  }, []);
+
+  // Save history to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('numberGameHistory', JSON.stringify(gameHistory));
+    } catch (error) {
+      console.error("Failed to save game history to localStorage", error);
+    }
+  }, [gameHistory]);
+  
   useEffect(() => {
     if (gameState.status === 'completed') {
-      // Check if the game is already in history to prevent duplicates on re-renders
+      // Check if the game is already in history to prevent duplicates
       const isAlreadyInHistory = gameHistory.some(
-        (histGame) =>
-          JSON.stringify(histGame.players) === JSON.stringify(gameState.players) &&
-          histGame.totalOvers === gameState.totalOvers
+        (histGame) => histGame.id === gameState.id
       );
 
       if (!isAlreadyInHistory) {
         setGameHistory((prev) => [...prev, gameState]);
       }
     }
-  }, [gameState, gameHistory]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState.status, gameState.id]);
 
   const handleStartGame = (players: Player[]) => {
     setGameState({
@@ -111,6 +133,7 @@ export default function NumberGamePage() {
       currentOver: { deliveries: [], legalBalls: 0 },
       totalWickets: 0,
       totalOvers: 0,
+      id: `game-${Date.now()}`
     });
   };
 
@@ -125,11 +148,12 @@ export default function NumberGamePage() {
       currentOver: { deliveries: [], legalBalls: 0 },
       totalWickets: 0,
       totalOvers: 0,
+      id: `game-${Date.now()}`
     });
   }
 
-  const handleDeleteGame = (gameIndex: number) => {
-    setGameHistory(prev => prev.filter((_, index) => index !== gameIndex));
+  const handleDeleteGame = (gameId: string) => {
+    setGameHistory(prev => prev.filter((game) => game.id !== gameId));
   };
 
 
@@ -166,9 +190,8 @@ export default function NumberGamePage() {
           <div className="space-y-4">
             <h2 className="text-3xl font-bold tracking-tight text-center font-headline">Match History</h2>
             {gameHistory.slice().reverse().map((game, index) => {
-                 const originalIndex = gameHistory.length - 1 - index;
                  return (
-                  <Card key={originalIndex}>
+                  <Card key={game.id}>
                     <CardHeader className="flex flex-row items-center justify-between">
                       <CardTitle>Match {gameHistory.length - index}</CardTitle>
                        <AlertDialog>
@@ -186,7 +209,7 @@ export default function NumberGamePage() {
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => handleDeleteGame(originalIndex)}>Delete</AlertDialogAction>
+                                <AlertDialogAction onClick={() => handleDeleteGame(game.id)}>Delete</AlertDialogAction>
                               </AlertDialogFooter>
                           </AlertDialogContent>
                       </AlertDialog>
