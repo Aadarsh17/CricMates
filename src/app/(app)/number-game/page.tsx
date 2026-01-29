@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 
 
 export type Player = {
@@ -88,27 +89,36 @@ export default function NumberGamePage() {
   });
 
   const [gameHistory, setGameHistory] = useState<GameState[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   // Load history from localStorage on initial render
   useEffect(() => {
     try {
       const savedHistory = window.localStorage.getItem('numberGameHistory');
       if (savedHistory) {
-        setGameHistory(JSON.parse(savedHistory));
+        const parsedHistory: GameState[] = JSON.parse(savedHistory);
+         if (parsedHistory.length > 0) {
+            setGameHistory(parsedHistory);
+            // Restore the view to the last completed game
+            setGameState(parsedHistory[parsedHistory.length - 1]);
+        }
       }
     } catch (error) {
       console.error("Failed to load game history from localStorage", error);
+    } finally {
+        setIsLoading(false);
     }
   }, []);
 
   // Save history to localStorage whenever it changes
   useEffect(() => {
+    if (isLoading) return;
     try {
       window.localStorage.setItem('numberGameHistory', JSON.stringify(gameHistory));
     } catch (error) {
       console.error("Failed to save game history to localStorage", error);
     }
-  }, [gameHistory]);
+  }, [gameHistory, isLoading]);
   
   useEffect(() => {
     if (gameState.status === 'completed') {
@@ -138,8 +148,9 @@ export default function NumberGamePage() {
   };
 
   const resetGame = () => {
-    const playerCount = gameState.players.length;
-    const playerNames = gameState.players.map(p => p.name);
+    const lastGame = gameHistory.length > 0 ? gameHistory[gameHistory.length - 1] : gameState;
+    const playerCount = lastGame.players.length;
+    const playerNames = lastGame.players.map(p => p.name);
     setGameState({
       status: 'setup',
       players: initialPlayerState(playerCount, playerNames),
@@ -153,8 +164,24 @@ export default function NumberGamePage() {
   }
 
   const handleDeleteGame = (gameId: string) => {
-    setGameHistory(prev => prev.filter((game) => game.id !== gameId));
+    const updatedHistory = gameHistory.filter((game) => game.id !== gameId);
+    setGameHistory(updatedHistory);
+
+    if(gameState.id === gameId) {
+        resetGame();
+    }
   };
+
+  if (isLoading) {
+    return (
+        <div className="container mx-auto py-2 sm:py-4 space-y-4">
+            <Card>
+                <CardHeader><Skeleton className="h-8 w-48" /></CardHeader>
+                <CardContent><Skeleton className="h-64 w-full" /></CardContent>
+            </Card>
+        </div>
+    )
+  }
 
 
   return (
