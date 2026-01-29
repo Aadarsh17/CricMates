@@ -7,6 +7,19 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { GameStatsTable } from '@/components/number-game/game-stats-table';
 import { AggregatedStatsTable } from '@/components/number-game/aggregated-stats-table';
+import { Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
+
 
 export type Player = {
   id: string;
@@ -45,7 +58,7 @@ export type GameState = {
 
 const initialPlayerState = (count: number, names: string[] = []) =>
   Array.from({ length: count }, (_, i) => ({
-    id: `player-${i + 1}`,
+    id: `player-${Date.now()}-${i}`,
     name: names[i] || `Player ${i + 1}`,
     runs: 0,
     balls: 0,
@@ -79,11 +92,8 @@ export default function NumberGamePage() {
       // Check if the game is already in history to prevent duplicates on re-renders
       const isAlreadyInHistory = gameHistory.some(
         (histGame) =>
-          histGame.players.every((p, i) => 
-            p.runs === gameState.players[i].runs && 
-            p.balls === gameState.players[i].balls &&
-            p.wicketsTaken === gameState.players[i].wicketsTaken
-          ) && histGame.totalOvers === gameState.totalOvers
+          JSON.stringify(histGame.players) === JSON.stringify(gameState.players) &&
+          histGame.totalOvers === gameState.totalOvers
       );
 
       if (!isAlreadyInHistory) {
@@ -118,8 +128,13 @@ export default function NumberGamePage() {
     });
   }
 
+  const handleDeleteGame = (gameIndex: number) => {
+    setGameHistory(prev => prev.filter((_, index) => index !== gameIndex));
+  };
+
+
   return (
-    <div className="container mx-auto py-4 space-y-6">
+    <div className="container mx-auto py-2 sm:py-4 space-y-4">
       {gameState.status === 'setup' && (
         <PlayerSetup
           initialPlayers={gameState.players}
@@ -130,7 +145,7 @@ export default function NumberGamePage() {
         <LiveGame gameState={gameState} setGameState={setGameState} />
       )}
       {gameState.status === 'completed' && (
-        <div className="space-y-6">
+        <div className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className='text-center'>Game Over!</CardTitle>
@@ -145,21 +160,43 @@ export default function NumberGamePage() {
       )}
 
       {gameHistory.length > 0 && (
-        <div className="space-y-8">
+        <div className="space-y-6">
           <AggregatedStatsTable gameHistory={gameHistory} />
 
-          <div className="space-y-6">
+          <div className="space-y-4">
             <h2 className="text-3xl font-bold tracking-tight text-center font-headline">Match History</h2>
-            {gameHistory.slice().reverse().map((game, index) => (
-              <Card key={index}>
-                <CardHeader>
-                  <CardTitle>Match {gameHistory.length - index}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <GameStatsTable players={game.players} />
-                </CardContent>
-              </Card>
-            ))}
+            {gameHistory.slice().reverse().map((game, index) => {
+                 const originalIndex = gameHistory.length - 1 - index;
+                 return (
+                  <Card key={originalIndex}>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle>Match {gameHistory.length - index}</CardTitle>
+                       <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                             <Button variant="ghost" size="icon">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This action cannot be undone. This will permanently delete this match history.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDeleteGame(originalIndex)}>Delete</AlertDialogAction>
+                              </AlertDialogFooter>
+                          </AlertDialogContent>
+                      </AlertDialog>
+                    </CardHeader>
+                    <CardContent>
+                      <GameStatsTable players={game.players} />
+                    </CardContent>
+                  </Card>
+                );
+            })}
           </div>
         </div>
       )}

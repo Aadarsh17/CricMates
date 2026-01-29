@@ -5,9 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { X, Plus, Users } from 'lucide-react';
+import { X, Plus } from 'lucide-react';
 import type { Player } from '@/app/(app)/number-game/page';
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select';
+import { useToast } from '@/hooks/use-toast';
 
 interface PlayerSetupProps {
   initialPlayers: Player[];
@@ -16,29 +16,48 @@ interface PlayerSetupProps {
 
 export function PlayerSetup({ initialPlayers, onStartGame }: PlayerSetupProps) {
   const [players, setPlayers] = useState<Player[]>(initialPlayers);
-  const [playerCount, setPlayerCount] = useState<number>(initialPlayers.length);
+  const { toast } = useToast();
 
   const handlePlayerNameChange = (id: string, name: string) => {
     setPlayers(players.map(p => (p.id === id ? { ...p, name } : p)));
   };
 
-  const handlePlayerCountChange = (count: string) => {
-    const newCount = parseInt(count, 10);
-    setPlayerCount(newCount);
-    const currentCount = players.length;
-
-    if (newCount > currentCount) {
-      const newPlayers: Player[] = Array.from({ length: newCount - currentCount }, (_, i) => ({
-        id: `player-${currentCount + i + 1}`,
-        name: `Player ${currentCount + i + 1}`,
-        runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false, oversBowled: 0, ballsBowled: 0, runsConceded: 0, wicketsTaken: 0, consecutiveDots: 0, duck: false, goldenDuck: false,
-      }));
-      setPlayers([...players, ...newPlayers]);
-    } else if (newCount < currentCount) {
-      setPlayers(players.slice(0, newCount));
+  const addPlayer = () => {
+    if (players.length >= 10) {
+        toast({ title: "Maximum players reached", description: "You can have a maximum of 10 players.", variant: "destructive" });
+        return;
     }
-  };
+    const newPlayer: Player = {
+        id: `player-${Date.now()}`,
+        name: `Player ${players.length + 1}`,
+        runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false, oversBowled: 0, ballsBowled: 0, runsConceded: 0, wicketsTaken: 0, consecutiveDots: 0, duck: false, goldenDuck: false,
+    };
+    setPlayers([...players, newPlayer]);
+  }
 
+  const removePlayer = (id: string) => {
+    if (players.length <= 5) {
+        toast({ title: "Minimum players required", description: "You need at least 5 players.", variant: "destructive" });
+        return;
+    }
+    setPlayers(players.filter(p => p.id !== id));
+  }
+
+  const handleStartGame = () => {
+    if (players.length < 5) {
+        toast({ title: "Not enough players", description: "You need at least 5 players to start.", variant: "destructive" });
+        return;
+    }
+    
+    const playerNames = players.map(p => p.name.trim().toLowerCase());
+    const uniquePlayerNames = new Set(playerNames);
+    if (playerNames.length !== uniquePlayerNames.size) {
+        toast({ title: "Duplicate player names", description: "Player names must be unique.", variant: "destructive" });
+        return;
+    }
+
+    onStartGame(players);
+  }
 
   return (
     <Card className="w-full max-w-2xl mx-auto">
@@ -46,25 +65,11 @@ export function PlayerSetup({ initialPlayers, onStartGame }: PlayerSetupProps) {
         <CardTitle>Number Game Setup</CardTitle>
         <CardDescription>Configure players for your game. You can have between 5 and 10 players.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-            <Label htmlFor='player-count'>Number of Players</Label>
-            <Select onValueChange={handlePlayerCountChange} defaultValue={String(playerCount)}>
-                <SelectTrigger id="player-count" className="w-[180px]">
-                    <SelectValue placeholder="Select count" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="5">5 Players</SelectItem>
-                    <SelectItem value="6">6 Players</SelectItem>
-                    <SelectItem value="7">7 Players</SelectItem>
-                    <SelectItem value="8">8 Players</SelectItem>
-                    <SelectItem value="9">9 Players</SelectItem>
-                    <SelectItem value="10">10 Players</SelectItem>
-                </SelectContent>
-            </Select>
-        </div>
-        <div className="space-y-3">
+      <CardContent className="space-y-3">
+        <div>
             <Label>Player Names</Label>
+        </div>
+        <div className="space-y-2">
           {players.map((player, index) => (
             <div key={player.id} className="flex items-center gap-2">
               <span className="font-bold text-muted-foreground w-6">{index + 1}.</span>
@@ -73,12 +78,18 @@ export function PlayerSetup({ initialPlayers, onStartGame }: PlayerSetupProps) {
                 onChange={(e) => handlePlayerNameChange(player.id, e.target.value)}
                 placeholder={`Player ${index + 1} Name`}
               />
+              <Button variant="ghost" size="icon" onClick={() => removePlayer(player.id)} disabled={players.length <= 5}>
+                <X className="h-4 w-4 text-muted-foreground" />
+              </Button>
             </div>
           ))}
         </div>
+        <Button variant="outline" className="w-full" onClick={addPlayer} disabled={players.length >= 10}>
+            <Plus className="mr-2 h-4 w-4" /> Add Player
+        </Button>
       </CardContent>
       <CardFooter>
-        <Button onClick={() => onStartGame(players)} className="w-full">
+        <Button onClick={handleStartGame} className="w-full">
           Start Game
         </Button>
       </CardFooter>
