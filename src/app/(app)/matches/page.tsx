@@ -8,36 +8,122 @@ import { format } from 'date-fns';
 import { Trophy, Medal } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
-import type { Match, Player } from '@/lib/types';
+import type { Match, Player, Team } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const getPlayerOfTheMatch = (match: Match, players: Player[]): Player | null => {
-  if (match.status !== 'completed') return null;
+const getPlayerOfTheMatch = (match: Match, players: Player[], teams: Team[]): Player | null => {
+  if (match.status !== 'completed' || !match.result) return null;
+
+  const playerPoints: { [playerId: string]: number } = {};
+  const matchPlayerIds = new Set(players.filter(p => p.teamId === match.team1Id || p.teamId === match.team2Id).map(p => p.id));
+  matchPlayerIds.forEach(id => {
+    playerPoints[id] = 0;
+  });
+
+  const team1 = teams.find(t => t.id === match.team1Id);
+  const team2 = teams.find(t => t.id === match.team2Id);
+  if (!team1 || !team2) return null;
+
+  const winningTeamName = match.result.split(' won by')[0].trim();
+  const winningTeam = [team1, team2].find(t => t.name === winningTeamName);
+
+  // BONUS: Winning team bonus
+  if (winningTeam) {
+    const winningTeamPlayers = players.filter(p => p.teamId === winningTeam.id);
+    winningTeamPlayers.forEach(p => {
+        playerPoints[p.id] = (playerPoints[p.id] || 0) + 10;
+        if (p.isCaptain) {
+            playerPoints[p.id] = (playerPoints[p.id] || 0) + 15;
+        }
+    });
+  }
+
+  match.innings.forEach(inning => {
+    const battingStats: Map<string, { runs: number, balls: number }> = new Map();
+    const bowlingStats: Map<string, { runs: number, balls: number, wickets: number }> = new Map();
+
+    inning.deliveryHistory.forEach(delivery => {
+        const { strikerId, bowlerId, runs, isWicket, extra, dismissal } = delivery;
+
+        if (!battingStats.has(strikerId)) battingStats.set(strikerId, { runs: 0, balls: 0 });
+        if (bowlerId && !bowlingStats.has(bowlerId)) bowlingStats.set(bowlerId, { runs: 0, balls: 0, wickets: 0 });
+        
+        if (playerPoints[strikerId] === undefined) playerPoints[strikerId] = 0;
+        if (bowlerId && playerPoints[bowlerId] === undefined) playerPoints[bowlerId] = 0;
+
+        // BATTING POINTS
+        const strikerBatStats = battingStats.get(strikerId)!;
+        if (extra !== 'byes' && extra !== 'legbyes') {
+            playerPoints[strikerId] += runs;
+            strikerBatStats.runs += runs;
+        }
+        if (extra !== 'wide') {
+            strikerBatStats.balls += 1;
+        }
+
+        // BOWLING & FIELDING POINTS
+        if (bowlerId) {
+            const bowlerBowlStats = bowlingStats.get(bowlerId)!;
+            
+            let conceded = runs;
+            if (extra === 'wide' || extra === 'noball') {
+                conceded += 1;
+            }
+            bowlerBowlStats.runs += conceded;
+
+            if (extra !== 'wide' && extra !== 'noball') {
+                bowlerBowlStats.balls += 1;
+            }
+
+            if (isWicket && dismissal) {
+                if (dismissal.type !== 'Run out') {
+                    playerPoints[bowlerId] += 25;
+                    bowlerBowlStats.wickets += 1;
+                }
+                if (dismissal.fielderId) {
+                    if (playerPoints[dismissal.fielderId] === undefined) playerPoints[dismissal.fielderId] = 0;
+                    playerPoints[dismissal.fielderId] += 10;
+                }
+            }
+        }
+    });
+
+    // Batting bonuses
+    battingStats.forEach((stats, playerId) => {
+        if (stats.runs >= 100) playerPoints[playerId] += 20;
+        else if (stats.runs >= 50) playerPoints[playerId] += 10;
+        
+        if (stats.balls >= 20) {
+            const strikeRate = (stats.runs / stats.balls) * 100;
+            if (strikeRate >= 150) playerPoints[playerId] += 10;
+            else if (strikeRate >= 120) playerPoints[playerId] += 5;
+        }
+        
+        if (inning.score > 0) {
+            const percentageOfRuns = (stats.runs / inning.score) * 100;
+            if (percentageOfRuns >= 40) playerPoints[playerId] += 15;
+            else if (percentageOfRuns >= 25) playerPoints[playerId] += 5;
+        }
+    });
+
+    // Bowling bonuses
+    bowlingStats.forEach((stats, playerId) => {
+        if (stats.wickets >= 5) playerPoints[playerId] += 20;
+        else if (stats.wickets >= 3) playerPoints[playerId] += 10;
+
+        if (stats.balls >= 12) {
+            const economy = stats.runs / (stats.balls / 6);
+            if (economy <= 4.0) playerPoints[playerId] += 15;
+            else if (economy <= 6.0) playerPoints[playerId] += 5;
+        }
+    });
+  });
 
   let potm: Player | null = null;
   let maxPoints = -1;
 
-  const playerPoints: { [key: string]: number } = {};
-
-  match.innings.forEach(inning => {
-      inning.deliveryHistory.forEach(delivery => {
-          const { strikerId, bowlerId, runs, isWicket, extra, dismissal } = delivery;
-
-          if (!playerPoints[strikerId]) playerPoints[strikerId] = 0;
-          if (bowlerId && !playerPoints[bowlerId]) playerPoints[bowlerId] = 0;
-
-          if (extra !== 'byes' && extra !== 'legbyes') {
-              playerPoints[strikerId] += runs;
-          }
-          
-          if (bowlerId && isWicket && dismissal?.type !== 'Run out') {
-              playerPoints[bowlerId] += 20; // 20 points per wicket
-          }
-      });
-  });
-
   for (const playerId in playerPoints) {
-      if (playerPoints[playerId] > maxPoints) {
+      if (matchPlayerIds.has(playerId) && playerPoints[playerId] > maxPoints) {
           maxPoints = playerPoints[playerId];
           const player = players.find(p => p.id === playerId);
           if (player) {
@@ -46,14 +132,14 @@ const getPlayerOfTheMatch = (match: Match, players: Player[]): Player | null => 
       }
   }
   
-  if (maxPoints <= 0) return null;
+  if (maxPoints <= 25) return null;
 
   return potm;
 };
 
 
 export default function MatchesHistoryPage() {
-  const { getTeamById, players, loading: contextLoading } = useAppContext();
+  const { getTeamById, teams, players, loading: contextLoading } = useAppContext();
   const { firestore: db } = useFirebase();
   
   const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'completed')) : null, [db]);
@@ -117,7 +203,7 @@ export default function MatchesHistoryPage() {
           const team2 = getTeamById(match.team2Id);
           if (!team1 || !team2) return null;
 
-          const playerOfTheMatch = getPlayerOfTheMatch(match, players);
+          const playerOfTheMatch = getPlayerOfTheMatch(match, players, teams);
 
           return (
             <Card key={match.id} className="flex flex-col">
