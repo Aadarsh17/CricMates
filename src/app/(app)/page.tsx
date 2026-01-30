@@ -1,6 +1,5 @@
-import { notFound } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
-export default function ConflictingRootPage() {
-  notFound();
-  return null;
+export default function AppRootPage() {
+  redirect('/home');
 }
