@@ -43,7 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="flex h-full max-h-screen flex-col gap-2">
               <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
                 <Link
-                  href="/home"
+                  href="/"
                   className="flex items-center gap-2 font-semibold"
                 >
                   <Image src="/logo.svg" alt="CricMates Logo" width={24} height={24} />
@@ -130,7 +130,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <SheetHeader>
                       <SheetTitle>
                         <Link
-                          href="/home"
+                          href="/"
                           className="flex items-center gap-2 text-lg font-semibold"
                         >
                           <Image src="/logo.svg" alt="CricMates Logo" width={24} height={24} />
