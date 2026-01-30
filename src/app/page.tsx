@@ -29,7 +29,7 @@ export default function WelcomePage() {
               size="lg"
               className="group shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-shadow"
             >
-              <Link href="/teams">
+              <Link href="/home">
                 Get Started{" "}
                 <MoveRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
               </Link>
