@@ -59,9 +59,7 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
             playerPoints += runs;
 
             // Boundary bonuses
-            if (runs === 4) {
-              playerPoints += 2; // 2 extra points for a 4
-            } else if (runs === 6) {
+            if (runs === 6) {
               playerPoints += 4; // 4 extra points for a 6
             }
           }
