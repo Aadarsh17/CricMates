@@ -238,6 +238,7 @@ export const InningScorecard = ({ inning, match }: { inning: Inning; match: Matc
                             <TableHead className="text-right text-secondary-foreground">R</TableHead>
                             <TableHead className="text-right text-secondary-foreground">W</TableHead>
                             <TableHead className="text-right text-secondary-foreground">ER</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">CVP</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -245,6 +246,7 @@ export const InningScorecard = ({ inning, match }: { inning: Inning; match: Matc
                             const bowler = getPlayerById(bowlerId);
                             const stats = bowlingStats.get(bowlerId);
                             if (!bowler || !stats) return null;
+                            const cvp = match.status === 'completed' ? calculatePlayerCVP(bowler, match, allPlayers, allTeams) : 0;
                             return (
                                  <TableRow key={bowler.id}>
                                     <TableCell>
@@ -257,6 +259,7 @@ export const InningScorecard = ({ inning, match }: { inning: Inning; match: Matc
                                     <TableCell className="text-right font-mono">{stats.runs}</TableCell>
                                     <TableCell className="text-right font-mono font-semibold">{stats.wickets}</TableCell>
                                     <TableCell className="text-right font-mono">{stats.economy > 0 ? stats.economy.toFixed(2): '0.00'}</TableCell>
+                                    <TableCell className="text-right font-mono font-semibold">{cvp}</TableCell>
                                 </TableRow>
                             )
                         })}
