@@ -24,10 +24,10 @@ export default function HomePage() {
   if (loading) {
     return (
       <div className="space-y-4 md:space-y-6">
-        <div className="flex items-center justify-between">
-            <div>
+        <div className="flex flex-col items-center space-y-4">
+            <div className="flex flex-col items-center space-y-2">
               <Skeleton className="h-8 w-48" />
-              <Skeleton className="h-4 w-64 mt-2" />
+              <Skeleton className="h-4 w-64" />
             </div>
             <div className="flex gap-2">
                  <Skeleton className="h-10 w-36" />
@@ -76,7 +76,7 @@ export default function HomePage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col items-center text-center space-y-4">
             <div>
               <h1 className="text-3xl font-bold tracking-tight font-headline">
                 Welcome, Mates!
