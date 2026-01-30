@@ -47,6 +47,11 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
 
       let playerPoints = 0;
       const playerId = player.id;
+      
+      // 1 CVP for being in squad
+      if (player.teamId === match.team1Id || player.teamId === match.team2Id) {
+          playerPoints += 1;
+      }
 
       // Batting, Bowling, and Fielding points from deliveries
       match.innings.forEach(inning => {
@@ -59,6 +64,9 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
             playerPoints += runs;
 
             // Boundary bonuses
+            if (runs === 4) {
+              playerPoints += 2; // 2 extra points for a 4
+            }
             if (runs === 6) {
               playerPoints += 4; // 4 extra points for a 6
             }
