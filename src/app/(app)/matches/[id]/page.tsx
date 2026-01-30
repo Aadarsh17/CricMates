@@ -145,32 +145,46 @@ export default function MatchPage() {
         const shareText = match.result 
             ? `${match.result}. View the full scorecard for ${team1.name} vs ${team2.name}.`
             : `Check out the scorecard for ${team1.name} vs ${team2.name}.`;
-
+        
+        // The URL is removed to avoid sharing internal workstation links.
+        // In a production environment, you would construct the public URL here.
         const shareData = {
             title: `Cricket Match: ${team1.name} vs ${team2.name}`,
             text: shareText,
-            url: window.location.href,
         };
 
         try {
+            // Check for Web Share API support
             if (!navigator.share) {
-                throw new Error("Web Share API not supported.");
+                 // Fallback for browsers that don't support it: copy text to clipboard
+                await navigator.clipboard.writeText(`${shareData.title}\n\n${shareData.text}`);
+                toast({
+                    title: "Match Info Copied",
+                    description: "The match summary has been copied to your clipboard.",
+                });
+                return;
             }
+            
             await navigator.share(shareData);
-        } catch (err) {
-            // This catch block handles both lack of support and runtime errors (like permission denied).
-            try {
-                await navigator.clipboard.writeText(window.location.href);
-                toast({
-                    title: "URL Copied to Clipboard",
-                    description: "Your browser prevented the share dialog from opening. You can now paste the link to share it.",
-                });
-            } catch (copyError) {
-                toast({
-                    variant: "destructive",
-                    title: "Action Failed",
-                    description: "Could not share or copy the URL.",
-                });
+
+        } catch (err: any) {
+            // Handles cases where sharing is cancelled by the user.
+            // We can ignore this, but you could add logging if needed.
+            if (err.name !== 'AbortError') {
+                 try {
+                    // Final fallback: copy text to clipboard if sharing fails for other reasons
+                    await navigator.clipboard.writeText(`${shareData.title}\n\n${shareData.text}`);
+                    toast({
+                        title: "Match Info Copied",
+                        description: "Sharing failed, so the summary has been copied to your clipboard.",
+                    });
+                } catch (copyError) {
+                    toast({
+                        variant: "destructive",
+                        title: "Action Failed",
+                        description: "Could not share or copy the match info.",
+                    });
+                }
             }
         }
     };
