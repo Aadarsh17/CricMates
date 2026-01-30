@@ -10,139 +10,30 @@ import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import type { Match, Player, Team } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import { calculatePlayerCVP } from '@/lib/stats';
 
-const getPlayerOfTheMatch = (match: Match, players: Player[], teams: Team[]): Player | null => {
-  if (match.status !== 'completed' || !match.result) return null;
+const getPlayerOfTheMatch = (match: Match, players: Player[], teams: Team[]): { player: Player | null, cvp: number } => {
+  if (match.status !== 'completed' || !match.result) return { player: null, cvp: 0 };
 
-  // Initialize points for all players in the match
-  const playerPoints: { [playerId: string]: number } = {};
   const matchPlayerIds = new Set(players.filter(p => p.teamId === match.team1Id || p.teamId === match.team2Id).map(p => p.id));
-  matchPlayerIds.forEach(id => {
-    playerPoints[id] = 0;
-  });
+  const matchPlayers = players.filter(p => matchPlayerIds.has(p.id));
 
-  const team1 = teams.find(t => t.id === match.team1Id);
-  const team2 = teams.find(t => t.id === match.team2Id);
-  if (!team1 || !team2) return null;
+  if (matchPlayers.length === 0) return { player: null, cvp: 0 };
 
-  // Batting, Bowling, and Fielding points from deliveries
-  match.innings.forEach(inning => {
-    inning.deliveryHistory.forEach(delivery => {
-        const { strikerId, bowlerId, runs, isWicket, extra, dismissal } = delivery;
-
-        // Ensure player IDs are in our points map
-        if (strikerId && playerPoints[strikerId] === undefined) playerPoints[strikerId] = 0;
-        if (bowlerId && playerPoints[bowlerId] === undefined) playerPoints[bowlerId] = 0;
-        if (dismissal?.fielderId && playerPoints[dismissal.fielderId] === undefined) playerPoints[dismissal.fielderId] = 0;
-
-        // 1. Batting Points
-        if (strikerId && extra !== 'byes' && extra !== 'legbyes') {
-            // 1 point per run
-            playerPoints[strikerId] += runs;
-            
-            // Boundary bonuses
-            if (runs === 4) {
-                playerPoints[strikerId] += 2; // 2 extra points for a 4
-            } else if (runs === 6) {
-                playerPoints[strikerId] += 4; // 4 extra points for a 6
-            }
-        }
-        
-        // 2. Bowling & Fielding Points
-        if (isWicket && dismissal && bowlerId) {
-            if (dismissal.type === 'Run out') {
-                if(dismissal.fielderId) playerPoints[dismissal.fielderId] += 5;
-            } else if (dismissal.type === 'Catch out' || dismissal.type === 'Stumping') {
-                playerPoints[bowlerId] += 10; // Wicket for bowler
-                if(dismissal.fielderId) playerPoints[dismissal.fielderId] += 5; // Fielding point
-            } else { // Bowled, LBW, Hit Wicket etc.
-                playerPoints[bowlerId] += 10;
-            }
-        }
-    });
-  });
-
-  // Post-match bonuses (Strike Rate, Economy, Winning Team)
-  const battingStatsInMatch: { [playerId: string]: { runs: number, balls: number } } = {};
-  const bowlingStatsInMatch: { [playerId: string]: { runs: number, balls: number } } = {};
-
-  matchPlayerIds.forEach(id => {
-      battingStatsInMatch[id] = { runs: 0, balls: 0 };
-      bowlingStatsInMatch[id] = { runs: 0, balls: 0 };
-  });
-  
-  match.innings.forEach(inning => {
-      inning.deliveryHistory.forEach(delivery => {
-          const { strikerId, bowlerId, runs, extra } = delivery;
-          // Aggregate stats for SR and Economy calculation
-          if (strikerId && extra !== 'byes' && extra !== 'legbyes') {
-              battingStatsInMatch[strikerId].runs += runs;
-          }
-          if (strikerId && extra !== 'wide') {
-              battingStatsInMatch[strikerId].balls += 1;
-          }
-          if (bowlerId) {
-              let conceded = runs;
-              if (extra === 'wide' || extra === 'noball') conceded += 1;
-              bowlingStatsInMatch[bowlerId].runs += conceded;
-
-              if (extra !== 'wide' && extra !== 'noball') {
-                  bowlingStatsInMatch[bowlerId].balls += 1;
-              }
-          }
-      });
-  });
-  
-  // Calculate SR and Economy bonuses
-  matchPlayerIds.forEach(playerId => {
-      const battingStats = battingStatsInMatch[playerId];
-      if (battingStats.balls > 0) {
-          const strikeRate = (battingStats.runs / battingStats.balls) * 100;
-          if (strikeRate > 200) {
-              playerPoints[playerId] = (playerPoints[playerId] || 0) + 5;
-          }
-      }
-
-      const bowlingStats = bowlingStatsInMatch[playerId];
-      if (bowlingStats.balls > 0) {
-          const economy = bowlingStats.runs / (bowlingStats.balls / 6);
-          if (economy <= 7) {
-              playerPoints[playerId] = (playerPoints[playerId] || 0) + 5;
-          }
-      }
-  });
-
-
-  // Winning team bonus
-  const winningTeamName = match.result.split(' won by')[0].trim();
-  const winningTeam = [team1, team2].find(t => t.name === winningTeamName);
-
-  if (winningTeam) {
-    const winningTeamPlayers = players.filter(p => p.teamId === winningTeam.id);
-    winningTeamPlayers.forEach(p => {
-        if (playerPoints[p.id] !== undefined) {
-          playerPoints[p.id] += 3;
-        }
-    });
-  }
-
-  // Find player with max points
   let potm: Player | null = null;
   let maxPoints = -1;
 
-  for (const playerId in playerPoints) {
-      if (matchPlayerIds.has(playerId) && playerPoints[playerId] > maxPoints) {
-          maxPoints = playerPoints[playerId];
-          const player = players.find(p => p.id === playerId);
-          if (player) {
-              potm = player;
-          }
-      }
-  }
+  matchPlayers.forEach(player => {
+    const cvp = calculatePlayerCVP(player, match, teams, players);
+    if (cvp > maxPoints) {
+      maxPoints = cvp;
+      potm = player;
+    }
+  });
   
-  if (maxPoints <= 10) return null;
+  if (maxPoints <= 10) return { player: null, cvp: 0 };
 
-  return potm;
+  return { player: potm, cvp: maxPoints };
 };
 
 
@@ -211,7 +102,7 @@ export default function MatchesHistoryPage() {
           const team2 = getTeamById(match.team2Id);
           if (!team1 || !team2) return null;
 
-          const playerOfTheMatch = getPlayerOfTheMatch(match, players, teams);
+          const { player: playerOfTheMatch, cvp: potmCVP } = getPlayerOfTheMatch(match, players, teams);
 
           return (
             <Card key={match.id} className="flex flex-col">
@@ -220,7 +111,7 @@ export default function MatchesHistoryPage() {
                     <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">CricMates Valuable Player (CVP)</p>
                     <div className="flex items-center gap-2 pt-1">
                         <Medal className="w-5 h-5 text-primary"/>
-                        <p className="font-bold text-primary text-lg">{playerOfTheMatch.name}</p>
+                        <p className="font-bold text-primary text-lg">{playerOfTheMatch.name} ({potmCVP})</p>
                     </div>
                 </div>
               )}

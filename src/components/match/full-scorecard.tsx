@@ -9,8 +9,8 @@ export function FullScorecard({ match }: { match: Match }) {
     
     return (
         <div className="space-y-6">
-            <InningScorecard inning={firstInning} />
-            {secondInning && <InningScorecard inning={secondInning} />}
+            <InningScorecard inning={firstInning} match={match} />
+            {secondInning && <InningScorecard inning={secondInning} match={match} />}
         </div>
     )
 }

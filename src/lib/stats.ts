@@ -42,6 +42,103 @@ const formatOvers = (balls: number) => {
   return `${overs}.${remainingBalls}`;
 };
 
+export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Player[], allTeams: Team[]): number => {
+      if (match.status !== 'completed' || !match.result) return 0;
+
+      let playerPoints = 0;
+      const playerId = player.id;
+
+      // Batting, Bowling, and Fielding points from deliveries
+      match.innings.forEach(inning => {
+        inning.deliveryHistory.forEach(delivery => {
+          const { strikerId, bowlerId, runs, isWicket, extra, dismissal } = delivery;
+
+          // 1. Batting Points
+          if (strikerId === playerId && extra !== 'byes' && extra !== 'legbyes') {
+            // 1 point per run
+            playerPoints += runs;
+
+            // Boundary bonuses
+            if (runs === 4) {
+              playerPoints += 2; // 2 extra points for a 4
+            } else if (runs === 6) {
+              playerPoints += 4; // 4 extra points for a 6
+            }
+          }
+
+          // 2. Bowling & Fielding Points
+          if (isWicket && dismissal) {
+            if (dismissal.type === 'Run out') {
+              if (dismissal.fielderId === playerId) playerPoints += 5;
+            } else if (dismissal.type === 'Catch out' || dismissal.type === 'Stumping') {
+              if (bowlerId === playerId) playerPoints += 10; // Wicket for bowler
+              if (dismissal.fielderId === playerId) playerPoints += 5; // Fielding point
+            } else { // Bowled, LBW, Hit Wicket etc.
+              if (bowlerId === playerId) playerPoints += 10;
+            }
+          }
+        });
+      });
+
+      // Post-match bonuses (Strike Rate, Economy, Winning Team)
+      const battingStatsInMatch = { runs: 0, balls: 0 };
+      const bowlingStatsInMatch = { runs: 0, balls: 0 };
+
+      match.innings.forEach(inning => {
+        inning.deliveryHistory.forEach(delivery => {
+          const { strikerId, bowlerId, runs, extra } = delivery;
+          // Aggregate stats for SR and Economy calculation
+          if (strikerId === playerId) {
+            if (extra !== 'byes' && extra !== 'legbyes') {
+              battingStatsInMatch.runs += runs;
+            }
+            if (extra !== 'wide') {
+              battingStatsInMatch.balls += 1;
+            }
+          }
+
+          if (bowlerId === playerId) {
+            let conceded = runs;
+            if (extra === 'wide' || extra === 'noball') conceded += 1;
+            bowlingStatsInMatch.runs += conceded;
+
+            if (extra !== 'wide' && extra !== 'noball') {
+              bowlingStatsInMatch.balls += 1;
+            }
+          }
+        });
+      });
+
+      // Calculate SR and Economy bonuses
+      if (battingStatsInMatch.balls > 0) {
+        const strikeRate = (battingStatsInMatch.runs / battingStatsInMatch.balls) * 100;
+        if (strikeRate > 200) {
+          playerPoints += 5;
+        }
+      }
+
+      if (bowlingStatsInMatch.balls > 0) {
+        const economy = bowlingStatsInMatch.runs / (bowlingStatsInMatch.balls / 6);
+        if (economy <= 7) {
+          playerPoints += 5;
+        }
+      }
+
+      // Winning team bonus
+      const team1 = allTeams.find(t => t.id === match.team1Id);
+      const team2 = allTeams.find(t => t.id === match.team2Id);
+      if(team1 && team2) {
+          const winningTeamName = match.result.split(' won by')[0].trim();
+          const winningTeam = [team1, team2].find(t => t.name === winningTeamName);
+
+          if (winningTeam && player.teamId === winningTeam.id) {
+            playerPoints += 3;
+          }
+      }
+
+      return Math.round(playerPoints);
+    };
+
 export const calculatePlayerStats = (players: Player[], teams: Team[], matches: Match[]): AggregatedPlayerStats[] => {
     return players.map(player => {
         const playerMatches = matches.filter(m => m.status === 'completed' && (m.innings.some(i => i.battingTeamId === player.teamId || i.bowlingTeamId === player.teamId)));

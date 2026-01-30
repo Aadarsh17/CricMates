@@ -4,9 +4,11 @@ import { useAppContext } from "@/context/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Shield, Star } from "lucide-react";
-import type { Player } from "@/lib/types";
+import type { Player, Match } from "@/lib/types";
+import { calculatePlayerCVP } from "@/lib/stats";
+import { Badge } from "../ui/badge";
 
-const PlayerListItem = ({ player }: { player: Player }) => (
+const PlayerListItem = ({ player, cvp }: { player: Player, cvp: number }) => (
     <div className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg -mx-2 transition-colors">
         <div className="flex items-center gap-3">
             <Avatar className="h-9 w-9">
@@ -18,14 +20,15 @@ const PlayerListItem = ({ player }: { player: Player }) => (
             </div>
         </div>
         <div className="flex items-center gap-2">
+            {cvp > 0 && <Badge variant="secondary">{cvp} CVP</Badge>}
             {player.isCaptain && <Shield className="h-4 w-4 text-primary" title="Captain" />}
             {player.isWicketKeeper && <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" title="Wicket-Keeper" />}
         </div>
     </div>
 );
 
-const TeamSquad = ({ teamId }: { teamId: string }) => {
-    const { getTeamById, getPlayersByTeamId } = useAppContext();
+const TeamSquad = ({ teamId, match }: { teamId: string, match: Match }) => {
+    const { getTeamById, getPlayersByTeamId, players: allPlayers, teams: allTeams } = useAppContext();
     const team = getTeamById(teamId);
     const players = getPlayersByTeamId(teamId);
 
@@ -38,7 +41,10 @@ const TeamSquad = ({ teamId }: { teamId: string }) => {
             </CardHeader>
             <CardContent className="p-4 space-y-1">
                 {players.length > 0 ? (
-                    players.map(player => <PlayerListItem key={player.id} player={player} />)
+                    players.map(player => {
+                        const cvp = match.status === 'completed' ? calculatePlayerCVP(player, match, allPlayers, allTeams) : 0;
+                        return <PlayerListItem key={player.id} player={player} cvp={cvp} />
+                    })
                 ) : (
                     <p className="text-sm text-muted-foreground text-center py-4">No players in this squad.</p>
                 )}
@@ -47,11 +53,11 @@ const TeamSquad = ({ teamId }: { teamId: string }) => {
     )
 }
 
-export function MatchSquads({ team1Id, team2Id }: { team1Id: string; team2Id:string; }) {
+export function MatchSquads({ match }: { match: Match }) {
     return (
         <div className="grid md:grid-cols-2 gap-6">
-            <TeamSquad teamId={team1Id} />
-            <TeamSquad teamId={team2Id} />
+            <TeamSquad teamId={match.team1Id} match={match} />
+            <TeamSquad teamId={match.team2Id} match={match} />
         </div>
     );
 }

@@ -280,7 +280,7 @@ export default function MatchPage() {
                     )}
                 </TabsContent>
                 <TabsContent value="squads" className="mt-4">
-                    <MatchSquads team1Id={match.team1Id} team2Id={match.team2Id} />
+                    <MatchSquads match={match} />
                 </TabsContent>
                 <TabsContent value="overs" className="mt-4">
                     <OverByOver match={match} />

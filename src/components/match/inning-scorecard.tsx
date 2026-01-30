@@ -8,10 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Inning } from "@/lib/types";
+import type { Inning, Match } from "@/lib/types";
 import { useAppContext } from "@/context/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
-import { Separator } from "../ui/separator";
+import { calculatePlayerCVP } from "@/lib/stats";
+
 
 type BattingStats = {
   runs: number;
@@ -47,8 +48,8 @@ const formatOvers = (balls: number) => {
   return `${overs}.${remainingBalls}`;
 };
 
-export const InningScorecard = ({ inning }: { inning: Inning }) => {
-    const { getPlayerById, getTeamById, getPlayersByTeamId } = useAppContext();
+export const InningScorecard = ({ inning, match }: { inning: Inning; match: Match; }) => {
+    const { getPlayerById, getTeamById, getPlayersByTeamId, teams: allTeams, players: allPlayers } = useAppContext();
     
     const battingTeam = getTeamById(inning.battingTeamId);
     const bowlingTeam = getTeamById(inning.bowlingTeamId);
@@ -196,12 +197,14 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
                             <TableHead className="text-right text-secondary-foreground">4s</TableHead>
                             <TableHead className="text-right text-secondary-foreground">6s</TableHead>
                             <TableHead className="text-right text-secondary-foreground">SR</TableHead>
+                            <TableHead className="text-right text-secondary-foreground">CVP</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
                         {sortedBattingPlayers.map(p => {
                             const stats = battingStats.get(p.id)!;
                             const isYetToBat = stats.dismissal === 'Yet to Bat';
+                            const cvp = match.status === 'completed' ? calculatePlayerCVP(p, match, allPlayers, allTeams) : 0;
                             return (
                             <TableRow key={p.id}>
                                 <TableCell>
@@ -215,6 +218,7 @@ export const InningScorecard = ({ inning }: { inning: Inning }) => {
                                 <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.fours}</TableCell>
                                 <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.sixes}</TableCell>
                                 <TableCell className="text-right font-mono">{isYetToBat ? '0.00' : (stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00')}</TableCell>
+                                <TableCell className="text-right font-mono font-semibold">{cvp}</TableCell>
                             </TableRow>
                         )})}
                     </TableBody>
