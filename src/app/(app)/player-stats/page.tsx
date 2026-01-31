@@ -1,7 +1,8 @@
 'use client';
 
 import { PlayerStatsTable } from "@/components/player-stats/player-stats-table";
-import { useCollection, useFirebase, useMemoFirebase, useAppContext } from "@/firebase";
+import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
+import { useAppContext } from "@/context/AppContext";
 import { collection, query, where } from 'firebase/firestore';
 import type { Match, Player, Team } from "@/lib/types";
 import { AddPlayerDialog } from "@/components/players/add-player-dialog";
