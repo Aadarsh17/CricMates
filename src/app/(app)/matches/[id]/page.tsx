@@ -47,6 +47,7 @@ export default function MatchPage() {
     const [isBowlerDialogOpen, setIsBowlerDialogOpen] = useState(false);
     const [isInningStartDialogOpen, setIsInningStartDialogOpen] = useState(false);
     const [inningStartDialogShownFor, setInningStartDialogShownFor] = useState(0);
+    const [bowlerDialogShownForOver, setBowlerDialogShownForOver] = useState(0);
 
     const matchRef = useMemoFirebase(() => db ? doc(db, 'matches', matchId) : null, [db, matchId]);
     const { data: match, isLoading: isMatchLoading } = useDoc<Match>(matchRef);
@@ -69,10 +70,9 @@ export default function MatchPage() {
         const inning = match.innings[match.currentInning - 1];
         
         const isOverComplete = inning.overs > 0 && inning.overs % 1 === 0 && inning.deliveryHistory.length > 0;
-        if (isOverComplete && !inning.bowlerId) {
-            if (!isBowlerDialogOpen) {
-                setIsBowlerDialogOpen(true);
-            }
+        if (isOverComplete && !inning.bowlerId && bowlerDialogShownForOver !== inning.overs) {
+            setIsBowlerDialogOpen(true);
+            setBowlerDialogShownForOver(inning.overs);
         }
 
         const isFirstInningStart = match.currentInning === 1 && inning.deliveryHistory.length === 0 && inning.overs === 0;
@@ -83,7 +83,7 @@ export default function MatchPage() {
             setInningStartDialogShownFor(match.currentInning);
         }
 
-    }, [match, isBowlerDialogOpen, isMatchLoading, inningStartDialogShownFor]);
+    }, [match, isMatchLoading, inningStartDialogShownFor, bowlerDialogShownForOver]);
 
 
     if (isMatchLoading || teamsLoading || playersLoading) {
