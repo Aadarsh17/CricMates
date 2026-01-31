@@ -23,6 +23,8 @@ import {
   Medal,
   Sigma,
   TrendingUp,
+  PanelLeftClose,
+  PanelRightOpen,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -31,94 +33,75 @@ import { AppProvider } from "@/context/AppContext";
 import { FirebaseClientProvider } from "@/firebase";
 import { ClientOnly } from "@/components/ClientOnly";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useState } from "react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+
+const NavLink = ({ href, icon, label, isCollapsed }: { href: string, icon: React.ReactNode, label: string, isCollapsed: boolean }) => {
+  return (
+    <TooltipProvider delayDuration={0}>
+        <Tooltip>
+            <TooltipTrigger asChild>
+                 <Link
+                    href={href}
+                    className={`flex items-center gap-3 rounded-lg py-2 text-muted-foreground transition-all hover:text-primary ${isCollapsed ? 'h-10 w-10 justify-center' : 'px-3'}`}
+                  >
+                    {icon}
+                    <span className={isCollapsed ? 'sr-only' : ''}>{label}</span>
+                  </Link>
+            </TooltipTrigger>
+            {isCollapsed && <TooltipContent side="right"><p>{label}</p></TooltipContent>}
+        </Tooltip>
+    </TooltipProvider>
+  )
+}
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   return (
     <FirebaseClientProvider>
       <AppProvider>
-        <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-          <div className="hidden border-r bg-muted/40 md:block print:hidden">
-            <div className="flex h-full max-h-screen flex-col gap-2">
-              <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
+        <div className={`grid min-h-screen w-full transition-[grid-template-columns] duration-300 ease-in-out ${isSidebarCollapsed ? 'md:grid-cols-[72px_1fr]' : 'md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]'}`}>
+          <div className="hidden border-r bg-muted/40 md:flex md:flex-col print:hidden">
+            <div className="flex h-full max-h-screen flex-col">
+              <div className={`flex h-14 items-center border-b lg:h-[60px] ${isSidebarCollapsed ? 'justify-center px-2' : 'px-4 lg:px-6'}`}>
                 <Link
                   href="/"
                   className="flex items-center gap-2 font-semibold"
                 >
                   <Image src="/logo.svg" alt="CricMates Logo" width={24} height={24} />
-                  <span className="font-headline">CricMates</span>
+                  {!isSidebarCollapsed && <span className="font-headline">CricMates</span>}
                 </Link>
               </div>
-              <div className="flex-1">
+              <div className="flex-1 overflow-auto py-2">
                 <ClientOnly fallback={
-                  <div className="grid items-start px-2 text-sm font-medium lg:px-4 space-y-2 py-2">
-                    <Skeleton className="h-8 rounded-lg" />
-                    <Skeleton className="h-8 rounded-lg" />
-                    <Skeleton className="h-8 rounded-lg" />
-                    <Skeleton className="h-8 rounded-lg" />
+                  <div className={`space-y-2 py-2 ${isSidebarCollapsed ? 'px-3' : 'px-2 lg:px-4'}`}>
+                    <Skeleton className="h-10 rounded-lg" />
+                    <Skeleton className="h-10 rounded-lg" />
+                    <Skeleton className="h-10 rounded-lg" />
+                    <Skeleton className="h-10 rounded-lg" />
                   </div>
                 }>
-                  <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-                    <Link
-                      href="/home"
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                    >
-                      <Home className="h-4 w-4" />
-                      Home
-                    </Link>
-                     <Link
-                      href="/teams"
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                    >
-                      <Users className="h-4 w-4" />
-                      Teams
-                    </Link>
-                    <Link
-                      href="/matches/new"
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                    >
-                      <PlusCircle className="h-4 w-4" />
-                      New Match
-                    </Link>
-                    <Link
-                      href="/matches"
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                    >
-                      <BarChart className="h-4 w-4" />
-                      Match History
-                    </Link>
-                    <Link
-                      href="/points-table"
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                    >
-                      <Trophy className="h-4 w-4" />
-                      Points Table
-                    </Link>
-                     <Link
-                      href="/player-stats"
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                    >
-                      <Medal className="h-4 w-4" />
-                      Player Stats
-                    </Link>
-                    <Link
-                      href="/rankings"
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                    >
-                      <TrendingUp className="h-4 w-4" />
-                      Rankings
-                    </Link>
-                     <Link
-                      href="/number-game"
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                    >
-                      <Sigma className="h-4 w-4" />
-                      Number Game
-                    </Link>
+                  <nav className={`grid items-start text-sm font-medium ${isSidebarCollapsed ? 'px-2 justify-center' : 'px-2 lg:px-4'}`}>
+                      <NavLink href="/home" icon={<Home className="h-5 w-5" />} label="Home" isCollapsed={isSidebarCollapsed} />
+                      <NavLink href="/teams" icon={<Users className="h-5 w-5" />} label="Teams" isCollapsed={isSidebarCollapsed} />
+                      <NavLink href="/matches/new" icon={<PlusCircle className="h-5 w-5" />} label="New Match" isCollapsed={isSidebarCollapsed} />
+                      <NavLink href="/matches" icon={<BarChart className="h-5 w-5" />} label="Match History" isCollapsed={isSidebarCollapsed} />
+                      <NavLink href="/points-table" icon={<Trophy className="h-5 w-5" />} label="Points Table" isCollapsed={isSidebarCollapsed} />
+                      <NavLink href="/player-stats" icon={<Medal className="h-5 w-5" />} label="Player Stats" isCollapsed={isSidebarCollapsed} />
+                      <NavLink href="/rankings" icon={<TrendingUp className="h-5 w-5" />} label="Rankings" isCollapsed={isSidebarCollapsed} />
+                      <NavLink href="/number-game" icon={<Sigma className="h-5 w-5" />} label="Number Game" isCollapsed={isSidebarCollapsed} />
                   </nav>
                 </ClientOnly>
+              </div>
+              <div className="mt-auto border-t p-2">
+                  <Button variant="ghost" size="icon" className="w-full" onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}>
+                      {isSidebarCollapsed ? <PanelRightOpen /> : <PanelLeftClose />}
+                      <span className="sr-only">Toggle Sidebar</span>
+                  </Button>
               </div>
             </div>
           </div>
