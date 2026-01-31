@@ -9,7 +9,6 @@ import { collection, doc, addDoc, updateDoc, deleteDoc, writeBatch, query, where
 type PlayerData = {
   name: string;
   role: 'Batsman' | 'Bowler' | 'All-rounder';
-  isCaptain?: boolean;
   isWicketKeeper?: boolean;
   battingStyle?: string;
   bowlingStyle?: string;
@@ -19,10 +18,10 @@ interface AppContextType {
   addTeam: (name: string) => Promise<void>;
   editTeam: (teamId: string, name: string) => Promise<void>;
   deleteTeam: (teamId: string) => Promise<void>;
-  addPlayer: (teamId: string, players: Player[], playerData: PlayerData) => Promise<void>;
-  editPlayer: (playerId: string, teamId: string, players: Player[], playerData: PlayerData) => Promise<void>;
+  addPlayer: (playerData: PlayerData) => Promise<void>;
+  editPlayer: (playerId: string, playerData: PlayerData) => Promise<void>;
   deletePlayer: (playerId: string) => Promise<void>;
-  addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => Promise<string>;
+  addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; team1PlayerIds: string[]; team2PlayerIds: string[]; team1CaptainId: string, team2CaptainId: string }) => Promise<string>;
   recordDelivery: (match: Match, teams: Team[], players: Player[], outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null, outcome: string, wicketDetails?: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; fielderId?: string; } }) => Promise<void>;
   setPlayerInMatch: (match: Match, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => Promise<void>;
   swapStrikers: (match: Match) => Promise<void>;
@@ -41,7 +40,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
 
-    const battingTeamPlayers = players.filter(p => p.teamId === inning.battingTeamId);
+    const battingTeamPlayers = players.filter(p => (updatedMatch.team1PlayerIds?.includes(p.id) && updatedMatch.team1Id === inning.battingTeamId) || (updatedMatch.team2PlayerIds?.includes(p.id) && updatedMatch.team2Id === inning.battingTeamId));
     const numberOfPlayers = battingTeamPlayers.length > 0 ? battingTeamPlayers.length : 11;
     const allOutWickets = numberOfPlayers - 1;
 
@@ -81,7 +80,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 updatedMatch.result = "Result could not be determined."
             }
             else if (secondInning.score > firstInning.score) {
-                const secondInningBattingTeamPlayers = players.filter(p => p.teamId === secondInning.battingTeamId);
+                const secondInningBattingTeamPlayers = players.filter(p => (updatedMatch.team1PlayerIds?.includes(p.id) && updatedMatch.team1Id === secondInning.battingTeamId) || (updatedMatch.team2PlayerIds?.includes(p.id) && updatedMatch.team2Id === secondInning.battingTeamId));
                 const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length > 0 ? secondInningBattingTeamPlayers.length : 11;
                 const wicketsRemaining = numberOfPlayersInSecondTeam - 1 - secondInning.wickets;
                 updatedMatch.result = `${secondInningTeam?.name} won by ${wicketsRemaining} wickets.`;
@@ -139,53 +138,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
     }
     try {
-      const batch = writeBatch(db);
-      batch.delete(doc(db, 'teams', teamId));
-      
-      const playersQuery = query(collection(db, 'players'), where('teamId', '==', teamId));
-      const playersSnapshot = await getDocs(playersQuery);
-      playersSnapshot.forEach(playerDoc => {
-          batch.delete(playerDoc.ref);
-      });
-
-      await batch.commit();
-      toast({ title: "Team Deleted", description: "The team and its players have been deleted." });
+      await deleteDoc(doc(db, 'teams', teamId));
+      toast({ title: "Team Deleted", description: "The team has been deleted." });
     } catch (e: any) {
         console.error("Failed to delete team:", e);
         toast({ variant: "destructive", title: "Error Deleting Team", description: "Could not delete the team. Please try again." });
     }
   }, [db, toast]);
   
-  const addPlayer = useCallback(async (teamId: string, players: Player[], playerData: PlayerData) => {
+  const addPlayer = useCallback(async (playerData: PlayerData) => {
     if (!db) {
         toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
         return;
     }
-    const batch = writeBatch(db);
-    const newPlayerRef = doc(collection(db, 'players'));
 
     const newPlayer: Omit<Player, 'id'> = {
-      teamId: teamId,
       name: playerData.name,
       role: playerData.role,
       battingStyle: playerData.battingStyle,
       bowlingStyle: playerData.bowlingStyle === 'None' ? null : playerData.bowlingStyle,
-      isCaptain: playerData.isCaptain || false,
       isWicketKeeper: playerData.isWicketKeeper || false,
       stats: { matches: 0, runs: 0, wickets: 0, highestScore: 0, bestBowling: 'N/A' },
       isRetired: false,
     };
     
-    if (newPlayer.isCaptain) {
-        const currentCaptain = players.find(p => p.teamId === teamId && p.isCaptain);
-        if (currentCaptain) {
-            batch.update(doc(db, 'players', currentCaptain.id), { isCaptain: false });
-        }
-    }
-
-    batch.set(newPlayerRef, newPlayer);
     try {
-      await batch.commit();
+      await addDoc(collection(db, 'players'), newPlayer);
       toast({ title: "Player Added", description: `${playerData.name} has been added.` });
     } catch (e: any) {
         console.error("Failed to add player:", e);
@@ -193,27 +171,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [db, toast]);
 
-  const editPlayer = useCallback(async (playerId: string, teamId: string, players: Player[], playerData: PlayerData) => {
+  const editPlayer = useCallback(async (playerId: string, playerData: PlayerData) => {
     if (!db) {
         toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
         return;
     }
 
-    const batch = writeBatch(db);
     const dataToUpdate = {
         ...playerData,
         bowlingStyle: playerData.bowlingStyle === 'None' ? null : playerData.bowlingStyle,
     };
-    batch.update(doc(db, 'players', playerId), dataToUpdate);
-
-    if (playerData.isCaptain) {
-        const currentCaptain = players.find(p => p.teamId === teamId && p.isCaptain && p.id !== playerId);
-        if (currentCaptain) {
-            batch.update(doc(db, 'players', currentCaptain.id), { isCaptain: false });
-        }
-    }
+    
     try {
-      await batch.commit();
+      await updateDoc(doc(db, 'players', playerId), dataToUpdate);
       toast({ title: "Player Updated", description: "Player details have been updated." });
     } catch (e: any) {
       console.error("Failed to edit player:", e);
@@ -235,12 +205,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [db, toast]);
 
-  const addMatch = useCallback(async (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => {
+  const addMatch = useCallback(async (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; team1PlayerIds: string[]; team2PlayerIds: string[]; team1CaptainId: string, team2CaptainId: string }) => {
     if (!db) {
         toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
         return '';
     }
-    const { team1Id, team2Id, overs, tossWinnerId, tossDecision } = matchConfig;
+    const { team1Id, team2Id, overs, tossWinnerId, tossDecision, team1PlayerIds, team2PlayerIds, team1CaptainId, team2CaptainId } = matchConfig;
     
     const otherTeamId = tossWinnerId === team1Id ? team2Id : team1Id;
     const battingTeamId = tossDecision === 'bat' ? tossWinnerId : otherTeamId;
@@ -249,6 +219,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const newMatch: Omit<Match, 'id'> = {
       team1Id,
       team2Id,
+      team1PlayerIds,
+      team2PlayerIds,
+      team1CaptainId,
+      team2CaptainId,
       overs,
       status: 'live',
       tossWinnerId,

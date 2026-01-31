@@ -2,7 +2,6 @@ import type { Team, Match, Player } from "@/lib/types";
 
 export type AggregatedPlayerStats = {
   player: Player;
-  team: Team | undefined;
   matches: number;
   
   // Batting
@@ -47,12 +46,21 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
 
     let playerPoints = 0;
     const playerId = player.id;
+    
+    const isPlayerInMatch = (match.team1PlayerIds?.includes(playerId)) || (match.team2PlayerIds?.includes(playerId));
+    
+    if (!isPlayerInMatch) return 0;
 
     // ✅ Participation: +1 point
-    const playerTeamIds = new Set(allPlayers.filter(p => p.teamId === match.team1Id || p.teamId === match.team2Id).map(p => p.teamId));
-    if (playerTeamIds.has(player.teamId)) {
-        playerPoints += 1;
+    playerPoints += 1;
+
+    let playerTeamId: string | undefined;
+    if (match.team1PlayerIds?.includes(playerId)) {
+      playerTeamId = match.team1Id;
+    } else if (match.team2PlayerIds?.includes(playerId)) {
+      playerTeamId = match.team2Id;
     }
+
 
     match.innings.forEach(inning => {
         // --- Batting, Fielding, Wicket points ---
@@ -156,10 +164,10 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
     // --- 4. Team Bonus ---
     const team1 = allTeams.find(t => t.id === match.team1Id);
     const team2 = allTeams.find(t => t.id === match.team2Id);
-    if (team1 && team2) {
-        if (match.result.startsWith(team1.name) && player.teamId === team1.id) {
+    if (team1 && team2 && playerTeamId) {
+        if (match.result.startsWith(team1.name) && playerTeamId === team1.id) {
             playerPoints += 3;
-        } else if (match.result.startsWith(team2.name) && player.teamId === team2.id) {
+        } else if (match.result.startsWith(team2.name) && playerTeamId === team2.id) {
             playerPoints += 3;
         }
     }
@@ -169,9 +177,9 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
 
 export const getPlayerOfTheMatch = (match: Match, allPlayers: Player[], allTeams: Team[]): { player: Player | null, cvp: number } => {
   if (match.status !== 'completed' || !match.result) return { player: null, cvp: 0 };
-
-  const matchPlayerIds = new Set(allPlayers.filter(p => p.teamId === match.team1Id || p.teamId === match.team2Id).map(p => p.id));
-  const matchPlayers = allPlayers.filter(p => matchPlayerIds.has(p.id));
+  
+  const matchPlayerIds = [...(match.team1PlayerIds || []), ...(match.team2PlayerIds || [])];
+  const matchPlayers = allPlayers.filter(p => matchPlayerIds.includes(p.id));
 
   if (matchPlayers.length === 0) return { player: null, cvp: 0 };
 
@@ -193,7 +201,7 @@ export const getPlayerOfTheMatch = (match: Match, allPlayers: Player[], allTeams
 
 export const calculatePlayerStats = (players: Player[], teams: Team[], matches: Match[]): AggregatedPlayerStats[] => {
     return players.map(player => {
-        const playerMatches = matches.filter(m => m.status === 'completed' && (m.innings.some(i => i.battingTeamId === player.teamId || i.bowlingTeamId === player.teamId)));
+        const playerMatches = matches.filter(m => m.status === 'completed' && (m.team1PlayerIds?.includes(player.id) || m.team2PlayerIds?.includes(player.id)));
         
         let runsScored = 0, ballsFaced = 0, fours = 0, sixes = 0;
         let highestScore = 0, fifties = 0, hundreds = 0, ducks = 0, goldenDucks = 0, notOuts = 0;
@@ -204,14 +212,12 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
         let inningsBowled = 0;
         let bestBowlingWickets = 0, bestBowlingRuns = Infinity;
 
-        const uniqueMatchIds = new Set<string>();
-
         playerMatches.forEach(match => {
-            let playedInMatch = false;
-            
+            const playerTeamId = match.team1PlayerIds?.includes(player.id) ? match.team1Id : match.team2Id;
+
             match.innings.forEach(inning => {
                 // Batting Stats
-                if (inning.battingTeamId === player.teamId) {
+                if (inning.battingTeamId === playerTeamId) {
                     let playerBatted = false;
                     let runsThisInning = 0;
                     let ballsFacedThisInning = 0;
@@ -219,7 +225,6 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
                     inning.deliveryHistory.forEach(d => {
                         if (d.strikerId === player.id) {
                             playerBatted = true;
-                            playedInMatch = true;
                             if (d.extra !== 'byes' && d.extra !== 'legbyes') {
                                 runsScored += d.runs;
                                 runsThisInning += d.runs;
@@ -254,10 +259,9 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
                 }
                 
                 // Bowling Stats
-                if (inning.bowlingTeamId === player.teamId) {
+                if (inning.bowlingTeamId === playerTeamId) {
                     const playerDeliveriesAsBowler = inning.deliveryHistory.filter(d => d.bowlerId === player.id);
                     if (playerDeliveriesAsBowler.length > 0) {
-                        playedInMatch = true;
                         inningsBowled++;
                         let wicketsThisInning = 0, runsConcededThisInning = 0;
     
@@ -287,16 +291,13 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
                     }
                 }
             });
-            if (playedInMatch) uniqueMatchIds.add(match.id);
         });
         
-        const matchesPlayed = uniqueMatchIds.size;
         const outs = inningsBatted - notOuts;
         
         return {
             player,
-            team: teams.find(t => t.id === player.teamId),
-            matches: matchesPlayed,
+            matches: playerMatches.length,
             inningsBatted,
             notOuts,
             runsScored,

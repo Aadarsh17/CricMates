@@ -9,7 +9,7 @@ import { type Team } from "@/lib/types";
 import Image from "next/image";
 import Link from "next/link";
 import { Button } from "../ui/button";
-import { Users, MoreVertical } from "lucide-react";
+import { MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,12 +21,11 @@ import { EditTeamDialog } from "./edit-team-dialog";
 
 interface TeamCardProps {
   team: Team;
-  playerCount: number;
   onEdit: (name: string) => void;
   onDelete: () => void;
 }
 
-export default function TeamCard({ team, playerCount, onEdit, onDelete }: TeamCardProps) {
+export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
   return (
     <Card className="flex flex-col hover:shadow-lg transition-shadow duration-300">
       <CardHeader className="flex flex-row items-start justify-between pb-2">
@@ -52,10 +51,6 @@ export default function TeamCard({ team, playerCount, onEdit, onDelete }: TeamCa
           className="rounded-full border-4 border-secondary"
           data-ai-hint={team.imageHint}
         />
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Users className="h-4 w-4" />
-          <span>{playerCount} Players</span>
-        </div>
       </CardContent>
       <CardFooter>
         <Button asChild className="w-full">

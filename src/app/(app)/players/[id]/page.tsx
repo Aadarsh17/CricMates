@@ -78,9 +78,6 @@ export default function PlayerProfilePage() {
 
     const playerRef = useMemoFirebase(() => db ? doc(db, 'players', playerId) : null, [db, playerId]);
     const { data: player, isLoading: playerLoading } = useDoc<Player>(playerRef);
-
-    const teamRef = useMemoFirebase(() => (db && player) ? doc(db, 'teams', player.teamId) : null, [db, player]);
-    const { data: team, isLoading: teamLoading } = useDoc<Team>(teamRef);
     
     const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
     const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
@@ -95,7 +92,7 @@ export default function PlayerProfilePage() {
         return calculatePlayerStats([player], teams, matches)[0];
     }, [player, teams, matches]);
 
-    if (playerLoading || teamLoading || teamsLoading || matchesLoading) {
+    if (playerLoading || teamsLoading || matchesLoading) {
         return (
             <div className="space-y-6">
                 <Skeleton className="h-12 w-1/2" />
@@ -115,7 +112,6 @@ export default function PlayerProfilePage() {
         <div className="space-y-6">
             <div>
                 <h1 className="text-4xl font-bold tracking-tight font-headline">{player.name}</h1>
-                <p className="text-xl text-muted-foreground">{team?.name || 'Unattached'}</p>
             </div>
             
             <Card>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -31,14 +31,26 @@ export function UmpireControls({ match, teams, players }: { match: Match, teams:
     
     const currentInning = match.innings[match.currentInning - 1];
     
-    const getPlayerById = (id: string) => players.find(p => p.id === id);
-    const getPlayersByTeamId = (id: string) => players.filter(p => p.teamId === id);
+    const getPlayerById = useMemo(() => (id: string) => players.find(p => p.id === id), [players]);
+    const getPlayersFromIds = useMemo(() => (playerIds: string[]): Player[] => {
+        return players.filter(p => playerIds.includes(p.id));
+    }, [players]);
+
+
+    const battingTeamPlayers = useMemo(() => {
+        const playerIds = currentInning.battingTeamId === match.team1Id ? match.team1PlayerIds : match.team2PlayerIds;
+        return playerIds ? getPlayersFromIds(playerIds) : [];
+    }, [currentInning.battingTeamId, match.team1Id, match.team1PlayerIds, match.team2PlayerIds, getPlayersFromIds]);
+
+    const bowlingTeamPlayers = useMemo(() => {
+        const playerIds = currentInning.bowlingTeamId === match.team1Id ? match.team1PlayerIds : match.team2PlayerIds;
+        return playerIds ? getPlayersFromIds(playerIds) : [];
+    }, [currentInning.bowlingTeamId, match.team1Id, match.team1PlayerIds, match.team2PlayerIds, getPlayersFromIds]);
 
     const striker = getPlayerById(currentInning.strikerId || '');
     const nonStriker = getPlayerById(currentInning.nonStrikerId || '');
 
     // Get available batsmen
-    const battingTeamPlayers = getPlayersByTeamId(currentInning.battingTeamId);
     const outPlayerIds = new Set(match.innings.flatMap(inning => inning.deliveryHistory.filter(d => d.isWicket && d.dismissal).map(d => d.dismissal!.batsmanOutId)));
     const retiredHurtPlayerIds = new Set(currentInning.retiredHurtPlayerIds || []);
     const onFieldPlayerIds = new Set([currentInning.strikerId, currentInning.nonStrikerId].filter(Boolean));
@@ -47,8 +59,6 @@ export function UmpireControls({ match, teams, players }: { match: Match, teams:
         !retiredHurtPlayerIds.has(p.id) &&
         !onFieldPlayerIds.has(p.id)
     );
-
-    const bowlingTeamPlayers = getPlayersByTeamId(currentInning.bowlingTeamId);
 
     const handleExtraChange = (extra: keyof ExtraOptions, checked: boolean) => {
         setExtras(prev => {

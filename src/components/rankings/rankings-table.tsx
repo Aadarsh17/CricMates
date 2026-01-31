@@ -12,6 +12,8 @@ import type { Player, Team } from "@/lib/types";
 import Image from "next/image";
 import { Card } from "../ui/card";
 import Link from "next/link";
+import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
+import { collection } from "firebase/firestore";
 
 export type RankedPlayer = {
     rank: number;
@@ -28,10 +30,13 @@ export type RankedTeam = {
 type RankingsTableProps = {
     data: (RankedPlayer[] | RankedTeam[]);
     type: 'player' | 'team';
-    teams: Team[];
 }
 
-export function RankingsTable({ data, type, teams }: RankingsTableProps) {
+export function RankingsTable({ data, type }: RankingsTableProps) {
+    const { firestore: db } = useFirebase();
+    const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
+    const { data: teamsData } = useCollection<Team>(teamsCollection);
+    const teams = teamsData || [];
 
     const getTeamById = (teamId: string) => teams.find(t => t.id === teamId);
 
@@ -57,14 +62,13 @@ export function RankingsTable({ data, type, teams }: RankingsTableProps) {
                     {data.map((item) => {
                         if (type === 'player') {
                             const rankedPlayer = item as RankedPlayer;
-                            const team = getTeamById(rankedPlayer.player.teamId);
                             return (
                                 <TableRow key={rankedPlayer.player.id}>
                                     <TableCell className="font-bold text-muted-foreground text-lg">{rankedPlayer.rank}</TableCell>
                                     <TableCell>
                                         <Link href={`/players/${rankedPlayer.player.id}`} className="block hover:no-underline">
                                             <p className="font-semibold hover:underline">{rankedPlayer.player.name}</p>
-                                            <p className="text-sm text-muted-foreground">{team?.name || 'Unattached'}</p>
+                                            <p className="text-sm text-muted-foreground">{rankedPlayer.player.role}</p>
                                         </Link>
                                     </TableCell>
                                     <TableCell className="text-right font-bold text-lg">{rankedPlayer.points}</TableCell>

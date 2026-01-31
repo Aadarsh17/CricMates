@@ -63,7 +63,10 @@ export default function MatchPage() {
 
     const getTeamById = useMemo(() => (teamId: string) => teams.find(t => t.id === teamId), [teams]);
     const getPlayerById = useMemo(() => (playerId: string) => players.find(p => p.id === playerId), [players]);
-    const getPlayersByTeamId = useMemo(() => (teamId: string) => players.filter(p => p.teamId === teamId), [players]);
+    
+    const getPlayersFromIds = useMemo(() => (playerIds: string[]): Player[] => {
+        return players.filter(p => playerIds.includes(p.id));
+    }, [players]);
 
     useEffect(() => {
         if (isMatchLoading || !match || match.status !== 'live') return;
@@ -118,13 +121,16 @@ export default function MatchPage() {
     
     const currentInning = match.innings[match.currentInning-1];
     
-    if (!team1 || !team2 || !currentInning) {
+    if (!team1 || !team2 || !currentInning || !match.team1PlayerIds || !match.team2PlayerIds) {
         notFound();
     }
 
+    const team1Players = getPlayersFromIds(match.team1PlayerIds);
+    const team2Players = getPlayersFromIds(match.team2PlayerIds);
+
     const battingTeam = getTeamById(currentInning.battingTeamId);
-    const battingTeamPlayers = getPlayersByTeamId(currentInning.battingTeamId);
-    const bowlingTeamPlayers = getPlayersByTeamId(currentInning.bowlingTeamId);
+    const battingTeamPlayers = currentInning.battingTeamId === team1.id ? team1Players : team2Players;
+    const bowlingTeamPlayers = currentInning.bowlingTeamId === team1.id ? team1Players : team2Players;
     
     const allOutWickets = battingTeamPlayers.length > 1 ? battingTeamPlayers.length - 1 : 10;
     
@@ -148,66 +154,33 @@ export default function MatchPage() {
 
     const handleShare = async () => {
         if (!match || !team1 || !team2) return;
-
-        const shareTitle = `${team1.name} vs ${team2.name} Scorecard`;
-
-        let shareText = '';
-
-        if (match.status === 'completed') {
-            const firstInning = match.innings[0];
-            const secondInning = match.innings.length > 1 ? match.innings[1] : null;
-
-            const firstInningTeam = getTeamById(firstInning.battingTeamId);
-            const secondInningTeam = secondInning ? getTeamById(secondInning.battingTeamId) : null;
-            
-            let scoreSummary = `${firstInningTeam?.name}: ${firstInning.score}/${firstInning.wickets} (${firstInning.overs.toFixed(1)})\n`;
-            if (secondInning && secondInningTeam) {
-                 scoreSummary += `${secondInningTeam?.name}: ${secondInning.score}/${secondInning.wickets} (${secondInning.overs.toFixed(1)})`;
-            }
-
-            shareText = `${match.result}\n\n${scoreSummary}`;
-
-            const { player: playerOfTheMatch, cvp: potmCVP } = getPlayerOfTheMatch(match, players, teams);
-
-            if (playerOfTheMatch) {
-                shareText += `\n\nCricMates Valuable Player (CVP):\n${playerOfTheMatch.name} (${potmCVP})`;
-            }
-
-        } else {
-            const currentInning = match.innings[match.currentInning - 1];
-            const battingTeam = getTeamById(currentInning.battingTeamId);
-            shareText = `Live Score: ${battingTeam?.name} are ${currentInning.score}/${currentInning.wickets} in ${currentInning.overs.toFixed(1)} overs.`;
-        }
+        const shareUrl = `${window.location.origin}/share/match/${match.id}`;
         
         if (navigator.share) {
             try {
                 await navigator.share({
-                    title: shareTitle,
-                    text: shareText,
+                    title: `${team1.name} vs ${team2.name}`,
+                    text: 'View the live scorecard on CricMates!',
+                    url: shareUrl,
                 });
             } catch (err: any) {
                 if (err.name !== 'AbortError') {
                     console.error('Share failed:', err);
-                    toast({
-                        variant: 'destructive',
-                        title: 'Share Failed',
-                        description: 'Could not share the match info.',
-                    });
                 }
             }
         } else {
             try {
-                await navigator.clipboard.writeText(shareText);
+                await navigator.clipboard.writeText(shareUrl);
                 toast({
-                    title: "Match Info Copied",
-                    description: "Match summary has been copied to your clipboard.",
+                    title: "Match Link Copied",
+                    description: "Shareable match link has been copied to your clipboard.",
                 });
             } catch (err: any) {
                 console.error("Copy failed:", err);
                 toast({
                     variant: "destructive",
                     title: "Action Failed",
-                    description: "Could not copy the match info.",
+                    description: "Could not copy the match link.",
                 });
             }
         }
@@ -239,20 +212,18 @@ export default function MatchPage() {
                     <CardHeader>
                         <CardTitle className="text-xl font-bold tracking-tight font-headline flex justify-between items-center">
                             <span>{team1.name} vs {team2.name}</span>
-                            {match.status === 'completed' ? (
                             <div className="flex items-center gap-2">
                                 <Button variant="outline" size="icon" onClick={handleShare}>
                                     <Share2 className="h-4 w-4" />
                                     <span className="sr-only">Share</span>
                                 </Button>
+                                {match.status === 'completed' && (
                                 <Button variant="outline" size="icon" onClick={handlePrint}>
                                     <Printer className="h-4 w-4" />
                                     <span className="sr-only">Print or Save as PDF</span>
                                 </Button>
+                                )}
                             </div>
-                            ) : (
-                                <span className="text-sm font-normal text-muted-foreground">{match.overs} Over Match</span>
-                            )}
                         </CardTitle>
                         <CardDescription>
                             {`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}

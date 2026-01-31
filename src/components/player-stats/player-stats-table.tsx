@@ -17,11 +17,30 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { MoreVertical, Search } from "lucide-react";
 import { AggregatedPlayerStats, calculatePlayerStats } from "@/lib/stats";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import { Button } from "../ui/button";
+import { EditPlayerDialog } from "../players/edit-player-dialog";
+import { DeletePlayerDialog } from "../players/delete-player-dialog";
+
+type PlayerFormData = {
+  name: string;
+  role: 'Batsman' | 'Bowler' | 'All-rounder';
+  isWicketKeeper?: boolean;
+  battingStyle?: string;
+  bowlingStyle?: string;
+}
+interface PlayerStatsTableProps {
+  players: Player[];
+  teams: Team[];
+  matches: Match[];
+  onEditPlayer: (playerId: string, playerData: PlayerFormData) => void;
+  onDeletePlayer: (playerId: string) => void;
+}
 
 
-export function PlayerStatsTable({ players, teams, matches }: { players: Player[], teams: Team[], matches: Match[] }) {
+export function PlayerStatsTable({ players, teams, matches, onEditPlayer, onDeletePlayer }: PlayerStatsTableProps) {
 
   const [searchQuery, setSearchQuery] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: keyof AggregatedPlayerStats; direction: 'ascending' | 'descending' } | null>({ key: 'runsScored', direction: 'descending' });
@@ -89,7 +108,7 @@ export function PlayerStatsTable({ players, teams, matches }: { players: Player[
             <div className="flex flex-col items-center gap-1 text-center">
               <h3 className="text-2xl font-bold tracking-tight">No Players Found</h3>
               <p className="text-sm text-muted-foreground">
-                Add players to teams to see their stats.
+                Add players to see their stats.
               </p>
             </div>
           </div>
@@ -136,6 +155,7 @@ export function PlayerStatsTable({ players, teams, matches }: { players: Player[
                       </TooltipContent>
                     </Tooltip>
                 </TableHead>
+                <TableHead><span className="sr-only">Actions</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -143,7 +163,7 @@ export function PlayerStatsTable({ players, teams, matches }: { players: Player[
                 <TableRow key={stats.player.id}>
                   <TableCell>
                       <p className="font-bold">{stats.player.name}</p>
-                      <p className="text-xs font-semibold text-muted-foreground">{stats.team?.name || 'No Team'}</p>
+                      <p className="text-xs font-semibold text-muted-foreground">{stats.player.role}</p>
                   </TableCell>
                   <TableCell className="text-right">{stats.matches}</TableCell>
                   <TableCell className="text-right font-bold">{stats.runsScored}</TableCell>
@@ -155,6 +175,19 @@ export function PlayerStatsTable({ players, teams, matches }: { players: Player[
                   <TableCell className="text-right font-bold">{stats.wicketsTaken}</TableCell>
                   <TableCell className="text-right">{stats.economyRate?.toFixed(2) ?? '-'}</TableCell>
                   <TableCell className="text-right">{stats.bestBowlingWickets > 0 ? `${stats.bestBowlingWickets}/${stats.bestBowlingRuns}` : '-'}</TableCell>
+                  <TableCell>
+                      <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                              </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                              <EditPlayerDialog player={stats.player} onPlayerEdit={(data) => onEditPlayer(stats.player.id, data)} />
+                              <DeletePlayerDialog onDelete={() => onDeletePlayer(stats.player.id)} />
+                          </DropdownMenuContent>
+                      </DropdownMenu>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

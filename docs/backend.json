@@ -39,10 +39,6 @@
           "type": "string",
           "description": "Unique identifier for the player."
         },
-        "teamId": {
-          "type": "string",
-          "description": "Reference to Team. (Relationship: Team 1:N Player)"
-        },
         "name": {
           "type": "string",
           "description": "Name of the player."
@@ -63,7 +59,6 @@
       },
       "required": [
         "id",
-        "teamId",
         "name",
         "role"
       ]

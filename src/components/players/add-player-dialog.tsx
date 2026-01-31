@@ -41,7 +41,6 @@ const formSchema = z.object({
   role: z.enum(['Batsman', 'Bowler', 'All-rounder']),
   battingStyle: z.string().optional(),
   bowlingStyle: z.string().optional(),
-  isCaptain: z.boolean().default(false),
   isWicketKeeper: z.boolean().default(false),
 });
 
@@ -49,9 +48,10 @@ type PlayerFormData = z.infer<typeof formSchema>;
 
 interface AddPlayerDialogProps {
   onPlayerAdd: (data: PlayerFormData) => void;
+  trigger?: React.ReactNode;
 }
 
-export function AddPlayerDialog({ onPlayerAdd }: AddPlayerDialogProps) {
+export function AddPlayerDialog({ onPlayerAdd, trigger }: AddPlayerDialogProps) {
   const [open, setOpen] = useState(false);
   const form = useForm<PlayerFormData>({
     resolver: zodResolver(formSchema),
@@ -60,7 +60,6 @@ export function AddPlayerDialog({ onPlayerAdd }: AddPlayerDialogProps) {
       role: 'Batsman',
       battingStyle: 'Right-hand bat',
       bowlingStyle: 'None',
-      isCaptain: false,
       isWicketKeeper: false,
     },
   });
@@ -74,9 +73,11 @@ export function AddPlayerDialog({ onPlayerAdd }: AddPlayerDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <PlusCircle className="mr-2 h-4 w-4" /> Add Player
-        </Button>
+        {trigger || (
+            <Button>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Player
+            </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <Form {...form}>
@@ -168,24 +169,6 @@ export function AddPlayerDialog({ onPlayerAdd }: AddPlayerDialogProps) {
                   </FormItem>
                 )}
               />
-              <div className="flex items-center space-x-6">
-                <FormField
-                  control={form.control}
-                  name="isCaptain"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 rounded-md border p-3 shadow-sm">
-                      <FormControl>
-                        <Checkbox
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                      <div className="space-y-1 leading-none">
-                        <FormLabel>Captain</FormLabel>
-                      </div>
-                    </FormItem>
-                  )}
-                />
                 <FormField
                   control={form.control}
                   name="isWicketKeeper"
@@ -203,7 +186,6 @@ export function AddPlayerDialog({ onPlayerAdd }: AddPlayerDialogProps) {
                     </FormItem>
                   )}
                 />
-              </div>
             </div>
             <DialogFooter>
               <Button type="submit">Save Player</Button>

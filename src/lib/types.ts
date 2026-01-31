@@ -12,7 +12,6 @@ export type Team = {
 export type Player = {
   id: string;
   name: string;
-  teamId: string;
   role: 'Batsman' | 'Bowler' | 'All-rounder';
   stats: {
     matches: number;
@@ -22,7 +21,6 @@ export type Player = {
     bestBowling: string; // e.g., "3/25"
   };
   isRetired: boolean;
-  isCaptain?: boolean;
   isWicketKeeper?: boolean;
   battingStyle?: string;
   bowlingStyle?: string | null;
@@ -61,6 +59,10 @@ export type Match = {
   id: string;
   team1Id: string;
   team2Id: string;
+  team1PlayerIds?: string[];
+  team2PlayerIds?: string[];
+  team1CaptainId?: string;
+  team2CaptainId?: string;
   overs: number;
   status: 'live' | 'completed';
   tossWinnerId: string;

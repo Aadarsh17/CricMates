@@ -1,12 +1,14 @@
 'use client';
 
 import { PlayerStatsTable } from "@/components/player-stats/player-stats-table";
-import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
+import { useCollection, useFirebase, useMemoFirebase, useAppContext } from "@/firebase";
 import { collection, query, where } from 'firebase/firestore';
 import type { Match, Player, Team } from "@/lib/types";
+import { AddPlayerDialog } from "@/components/players/add-player-dialog";
 
 export default function PlayerStatsPage() {
   const { firestore: db } = useFirebase();
+  const { addPlayer, editPlayer, deletePlayer } = useAppContext();
 
   const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
   const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
@@ -41,11 +43,12 @@ export default function PlayerStatsPage() {
             Player Statistics
           </h1>
           <p className="text-muted-foreground">
-            Overall career statistics for every player.
+            Overall career statistics for every player in the league.
           </p>
         </div>
+        <AddPlayerDialog onPlayerAdd={addPlayer} />
       </div>
-      <PlayerStatsTable players={players} teams={teams} matches={matches} />
+      <PlayerStatsTable players={players} teams={teams} matches={matches} onEditPlayer={editPlayer} onDeletePlayer={deletePlayer} />
     </div>
   );
 }
