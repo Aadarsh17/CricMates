@@ -146,16 +146,20 @@ export default function MatchPage() {
     const bowler = getPlayerById(currentInning.bowlerId || '');
 
     const handleShare = async () => {
-        const shareTitle = `${team1.name} vs ${team2.name} Scorecard`;
+        if (!match) return;
+
+        const shareUrl = `${window.location.origin}/share/match/${match.id}`;
+        const shareTitle = `${team1?.name || 'Team 1'} vs ${team2?.name || 'Team 2'} Scorecard`;
         const shareText = match.result 
-            ? `${match.result}. Full scorecard for ${team1.name} vs ${team2.name}.`
-            : `Live scorecard for ${team1.name} vs ${team2.name}.`;
+            ? `${match.result}. View the full scorecard for ${team1?.name} vs ${team2?.name}.`
+            : `Live scorecard for ${team1?.name} vs ${team2?.name}.`;
         
         if (navigator.share) {
             try {
                 await navigator.share({
                     title: shareTitle,
                     text: shareText,
+                    url: shareUrl,
                 });
             } catch (err: any) {
                 if (err.name !== 'AbortError') {
@@ -169,17 +173,17 @@ export default function MatchPage() {
             }
         } else {
             try {
-                await navigator.clipboard.writeText(`${shareTitle}\n\n${shareText}`);
+                await navigator.clipboard.writeText(shareUrl);
                 toast({
-                    title: "Match Info Copied",
-                    description: "The match summary has been copied to your clipboard.",
+                    title: "Match Link Copied",
+                    description: "A shareable link to the scorecard has been copied to your clipboard.",
                 });
             } catch (err: any) {
                 console.error("Copy failed:", err);
                 toast({
                     variant: "destructive",
                     title: "Action Failed",
-                    description: "Could not copy the match info.",
+                    description: "Could not copy the match link.",
                 });
             }
         }
