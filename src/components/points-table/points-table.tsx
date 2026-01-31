@@ -130,6 +130,7 @@ export function PointsTable({ teams, matches, players }: { teams: Team[], matche
         <TeamMatchHistoryDialog
           team={selectedTeam}
           matches={completedMatches.filter(m => m.team1Id === selectedTeam.id || m.team2Id === selectedTeam.id)}
+          teams={teams}
           open={!!selectedTeam}
           onOpenChange={(isOpen) => !isOpen && setSelectedTeam(null)}
         />

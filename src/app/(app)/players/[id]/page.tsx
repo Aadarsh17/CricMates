@@ -1,15 +1,14 @@
 'use client';
 
 import { useParams, notFound } from 'next/navigation';
-import { useAppContext } from '@/context/AppContext';
 import { AggregatedPlayerStats, calculatePlayerStats } from '@/lib/stats';
 import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
-import type { Match } from '@/lib/types';
+import { useCollection, useDoc, useFirebase, useMemoFirebase } from '@/firebase';
+import { collection, doc, query, where } from 'firebase/firestore';
+import type { Match, Player, Team } from '@/lib/types';
 
 const StatRow = ({ label, value }: { label: string; value: string | number | null | undefined }) => (
     <TableRow>
@@ -75,21 +74,28 @@ const BowlingSummary = ({ stats }: { stats: AggregatedPlayerStats }) => (
 export default function PlayerProfilePage() {
     const params = useParams();
     const playerId = params.id as string;
-    const { players, teams, getPlayerById, loading } = useAppContext();
     const { firestore: db } = useFirebase();
+
+    const playerRef = useMemoFirebase(() => db ? doc(db, 'players', playerId) : null, [db, playerId]);
+    const { data: player, isLoading: playerLoading } = useDoc<Player>(playerRef);
+
+    const teamRef = useMemoFirebase(() => (db && player) ? doc(db, 'teams', player.teamId) : null, [db, player]);
+    const { data: team, isLoading: teamLoading } = useDoc<Team>(teamRef);
+    
+    const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
+    const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
+    const teams = teamsData || [];
 
     const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'completed')) : null, [db]);
     const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
     const matches = matchesData || [];
 
-    const player = useMemo(() => getPlayerById(playerId), [playerId, getPlayerById]);
-    
     const playerStats = useMemo(() => {
         if (!player) return null;
         return calculatePlayerStats([player], teams, matches)[0];
     }, [player, teams, matches]);
 
-    if (loading.players || loading.teams || matchesLoading) {
+    if (playerLoading || teamLoading || teamsLoading || matchesLoading) {
         return (
             <div className="space-y-6">
                 <Skeleton className="h-12 w-1/2" />
@@ -104,8 +110,6 @@ export default function PlayerProfilePage() {
     if (!player || !playerStats) {
         notFound();
     }
-
-    const team = teams.find(t => t.id === player.teamId);
 
     return (
         <div className="space-y-6">

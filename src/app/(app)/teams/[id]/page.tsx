@@ -4,7 +4,10 @@ import { notFound, useParams } from "next/navigation";
 import { useAppContext } from "@/context/AppContext";
 import PlayerCard from '@/components/players/player-card';
 import { AddPlayerDialog } from '@/components/players/add-player-dialog';
-import type { Player } from '@/lib/types';
+import type { Player, Team } from '@/lib/types';
+import { useCollection, useDoc, useFirebase, useMemoFirebase } from "@/firebase";
+import { collection, doc, query, where } from "firebase/firestore";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type PlayerData = {
   name: string;
@@ -18,9 +21,16 @@ type PlayerData = {
 export default function TeamDetailPage() {
   const params = useParams();
   const id = params.id as string;
-  const { getTeamById, getPlayersByTeamId, addPlayer, editPlayer, deletePlayer, loading } = useAppContext();
+  const { addPlayer, editPlayer, deletePlayer } = useAppContext();
+  const { firestore: db } = useFirebase();
 
-  if (loading.teams || loading.players) {
+  const teamRef = useMemoFirebase(() => (db ? doc(db, 'teams', id) : null), [db, id]);
+  const { data: team, isLoading: teamLoading } = useDoc<Team>(teamRef);
+  
+  const playersQuery = useMemoFirebase(() => (db ? query(collection(db, 'players'), where('teamId', '==', id)) : null), [db, id]);
+  const { data: teamPlayers, isLoading: playersLoading } = useCollection<Player>(playersQuery);
+
+  if (teamLoading || playersLoading) {
     return (
       <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm">
         <div className="flex flex-col items-center gap-1 text-center">
@@ -33,20 +43,18 @@ export default function TeamDetailPage() {
     );
   }
 
-  const team = getTeamById(id);
-
   if (!team) {
     notFound();
   }
 
-  const teamPlayers = getPlayersByTeamId(team.id);
-
   const handleAddPlayer = (playerData: PlayerData) => {
-    addPlayer(team.id, playerData);
+    if (!teamPlayers) return;
+    addPlayer(team.id, teamPlayers, playerData);
   };
 
   const handleEditPlayer = (playerId: string, playerData: PlayerData) => {
-    editPlayer(playerId, playerData);
+    if (!teamPlayers) return;
+    editPlayer(playerId, team.id, teamPlayers, playerData);
   };
 
   const handleDeletePlayer = (playerId: string) => {
@@ -65,7 +73,7 @@ export default function TeamDetailPage() {
         <AddPlayerDialog onPlayerAdd={handleAddPlayer} />
       </div>
 
-      {teamPlayers.length > 0 ? (
+      {teamPlayers && teamPlayers.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {teamPlayers.map((player) => (
             <PlayerCard 

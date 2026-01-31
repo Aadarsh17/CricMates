@@ -15,22 +15,23 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { useAppContext } from '@/context/AppContext';
 import { type Team, type Match } from '@/lib/types';
 import Link from 'next/link';
 import { Button } from '../ui/button';
 import { format } from 'date-fns';
 import { Trophy } from 'lucide-react';
+import { useMemo } from 'react';
 
 interface TeamMatchHistoryDialogProps {
   team: Team;
   matches: Match[];
+  teams: Team[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function TeamMatchHistoryDialog({ team, matches, open, onOpenChange }: TeamMatchHistoryDialogProps) {
-  const { getTeamById } = useAppContext();
+export function TeamMatchHistoryDialog({ team, matches, teams, open, onOpenChange }: TeamMatchHistoryDialogProps) {
+  const getTeamById = useMemo(() => (teamId: string) => teams.find(t => t.id === teamId), [teams]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

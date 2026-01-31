@@ -1,20 +1,26 @@
 'use client';
 
-import { useAppContext } from "@/context/AppContext";
 import { PlayerStatsTable } from "@/components/player-stats/player-stats-table";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
 import { collection, query, where } from 'firebase/firestore';
-import type { Match } from "@/lib/types";
+import type { Match, Player, Team } from "@/lib/types";
 
 export default function PlayerStatsPage() {
-  const { teams, players, loading: contextLoading } = useAppContext();
   const { firestore: db } = useFirebase();
+
+  const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
+  const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
+  const teams = teamsData || [];
+
+  const playersCollection = useMemoFirebase(() => (db ? collection(db, 'players') : null), [db]);
+  const { data: playersData, isLoading: playersLoading } = useCollection<Player>(playersCollection);
+  const players = playersData || [];
 
   const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'completed')) : null, [db]);
   const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
   const matches = matchesData || [];
 
-   if (contextLoading.teams || matchesLoading || contextLoading.players) {
+   if (teamsLoading || matchesLoading || playersLoading) {
     return (
       <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm">
         <div className="flex flex-col items-center gap-1 text-center">

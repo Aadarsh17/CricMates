@@ -1,10 +1,10 @@
 'use client';
 
-import { createContext, useContext, ReactNode, useMemo, useCallback, useRef, useEffect } from 'react';
+import { createContext, useContext, ReactNode, useMemo, useCallback } from 'react';
 import type { Team, Player, Match, Inning, DeliveryRecord } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
-import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
-import { collection, doc, addDoc, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { useFirebase } from '@/firebase';
+import { collection, doc, addDoc, updateDoc, deleteDoc, writeBatch, query, where, getDocs } from 'firebase/firestore';
 
 type PlayerData = {
   name: string;
@@ -16,29 +16,19 @@ type PlayerData = {
 }
 
 interface AppContextType {
-  loading: {
-    teams: boolean;
-    players: boolean;
-  };
-  teams: Team[];
-  players: Player[];
   addTeam: (name: string) => Promise<void>;
   editTeam: (teamId: string, name: string) => Promise<void>;
-  deleteTeam: (teamId: string) => Promise<void>;
-  addPlayer: (teamId: string, playerData: PlayerData) => Promise<void>;
-  editPlayer: (playerId: string, playerData: PlayerData) => Promise<void>;
+  deleteTeam: (teamId: string, players: Player[]) => Promise<void>;
+  addPlayer: (teamId: string, players: Player[], playerData: PlayerData) => Promise<void>;
+  editPlayer: (playerId: string, teamId: string, players: Player[], playerData: PlayerData) => Promise<void>;
   deletePlayer: (playerId: string) => Promise<void>;
-  getPlayerCountForTeam: (teamId: string) => number;
-  getTeamById: (teamId: string) => Team | undefined;
-  getPlayerById: (playerId: string) => Player | undefined;
-  getPlayersByTeamId: (teamId: string) => Player[];
   addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => Promise<string>;
-  recordDelivery: (match: Match, outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null, outcome: string, wicketDetails?: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; fielderId?: string; } }) => Promise<void>;
+  recordDelivery: (match: Match, teams: Team[], players: Player[], outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null, outcome: string, wicketDetails?: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; fielderId?: string; } }) => Promise<void>;
   setPlayerInMatch: (match: Match, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => Promise<void>;
   swapStrikers: (match: Match) => Promise<void>;
   undoDelivery: (match: Match) => Promise<void>;
   retireStriker: (match: Match) => Promise<void>;
-  forceEndInning: (match: Match) => Promise<void>;
+  forceEndInning: (match: Match, teams: Team[], players: Player[]) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -47,35 +37,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const { firestore: db } = useFirebase();
 
-  const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
-  const playersCollection = useMemoFirebase(() => (db ? collection(db, 'players') : null), [db]);
-
-  const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
-  const { data: playersData, isLoading: playersLoading } = useCollection<Player>(playersCollection);
-  
-  const teams = teamsData || [];
-  const players = playersData || [];
-
-  const loading = {
-      teams: teamsLoading,
-      players: playersLoading,
-  };
-
-  const teamsRef = useRef(teams);
-  useEffect(() => {
-    teamsRef.current = teams;
-  }, [teams]);
-
-  const playersRef = useRef(players);
-  useEffect(() => {
-    playersRef.current = players;
-  }, [players]);
-
-  const handleInningEnd = useCallback((match: Match): Match => {
+  const handleInningEnd = useCallback((match: Match, teams: Team[], players: Player[]): Match => {
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
 
-    const battingTeamPlayers = playersRef.current.filter(p => p.teamId === inning.battingTeamId);
+    const battingTeamPlayers = players.filter(p => p.teamId === inning.battingTeamId);
     const numberOfPlayers = battingTeamPlayers.length > 0 ? battingTeamPlayers.length : 11;
     const allOutWickets = numberOfPlayers - 1;
 
@@ -108,14 +74,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
             updatedMatch.status = 'completed';
             const firstInning = updatedMatch.innings[0];
             const secondInning = updatedMatch.innings[1];
-            const firstInningTeam = teamsRef.current.find(t => t.id === firstInning.battingTeamId);
-            const secondInningTeam = teamsRef.current.find(t => t.id === secondInning.battingTeamId);
+            const firstInningTeam = teams.find(t => t.id === firstInning.battingTeamId);
+            const secondInningTeam = teams.find(t => t.id === secondInning.battingTeamId);
 
             if (!firstInningTeam || !secondInningTeam) {
                 updatedMatch.result = "Result could not be determined."
             }
             else if (secondInning.score > firstInning.score) {
-                const secondInningBattingTeamPlayers = playersRef.current.filter(p => p.teamId === secondInning.battingTeamId);
+                const secondInningBattingTeamPlayers = players.filter(p => p.teamId === secondInning.battingTeamId);
                 const numberOfPlayersInSecondTeam = secondInningBattingTeamPlayers.length > 0 ? secondInningBattingTeamPlayers.length : 11;
                 const wicketsRemaining = numberOfPlayersInSecondTeam - 1 - secondInning.wickets;
                 updatedMatch.result = `${secondInningTeam?.name} won by ${wicketsRemaining} wickets.`;
@@ -167,7 +133,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [db, toast]);
 
-  const deleteTeam = useCallback(async (teamId: string) => {
+  const deleteTeam = useCallback(async (teamId: string, players: Player[]) => {
     if (!db) {
         toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
         return;
@@ -175,7 +141,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const batch = writeBatch(db);
       batch.delete(doc(db, 'teams', teamId));
-      const teamPlayers = playersRef.current.filter(p => p.teamId === teamId);
+      const teamPlayers = players.filter(p => p.teamId === teamId);
       teamPlayers.forEach(p => {
           batch.delete(doc(db, 'players', p.id));
       });
@@ -187,7 +153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [db, toast]);
   
-  const addPlayer = useCallback(async (teamId: string, playerData: PlayerData) => {
+  const addPlayer = useCallback(async (teamId: string, players: Player[], playerData: PlayerData) => {
     if (!db) {
         toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
         return;
@@ -208,7 +174,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     
     if (newPlayer.isCaptain) {
-        const currentCaptain = playersRef.current.find(p => p.teamId === teamId && p.isCaptain);
+        const currentCaptain = players.find(p => p.teamId === teamId && p.isCaptain);
         if (currentCaptain) {
             batch.update(doc(db, 'players', currentCaptain.id), { isCaptain: false });
         }
@@ -224,16 +190,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [db, toast]);
 
-  const editPlayer = useCallback(async (playerId: string, playerData: PlayerData) => {
+  const editPlayer = useCallback(async (playerId: string, teamId: string, players: Player[], playerData: PlayerData) => {
     if (!db) {
         toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
         return;
     }
-    const playerToEdit = playersRef.current.find(p => p.id === playerId);
-    if (!playerToEdit) {
-        toast({ variant: "destructive", title: "Error", description: "Player not found." });
-        return;
-    };
 
     const batch = writeBatch(db);
     const dataToUpdate = {
@@ -243,7 +204,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     batch.update(doc(db, 'players', playerId), dataToUpdate);
 
     if (playerData.isCaptain) {
-        const currentCaptain = playersRef.current.find(p => p.teamId === playerToEdit.teamId && p.isCaptain && p.id !== playerId);
+        const currentCaptain = players.find(p => p.teamId === teamId && p.isCaptain && p.id !== playerId);
         if (currentCaptain) {
             batch.update(doc(db, 'players', currentCaptain.id), { isCaptain: false });
         }
@@ -270,22 +231,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       toast({ variant: "destructive", title: "Error Deleting Player", description: "Could not delete the player. Please try again." });
     }
   }, [db, toast]);
-
-  const getPlayerCountForTeam = useCallback((teamId: string) => {
-    return players.filter(p => p.teamId === teamId).length;
-  }, [players]);
-  
-  const getTeamById = useCallback((teamId: string) => {
-    return teams.find(t => t.id === teamId);
-  }, [teams]);
-
-  const getPlayerById = useCallback((playerId: string) => {
-    return players.find(p => p.id === playerId);
-  }, [players]);
-
-  const getPlayersByTeamId = useCallback((teamId: string) => {
-    return players.filter(p => p.teamId === teamId);
-  }, [players]);
 
   const addMatch = useCallback(async (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; }) => {
     if (!db) {
@@ -441,7 +386,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await updateMatch(match.id, updatedMatch);
   }, [updateMatch, toast]);
 
-  const recordDelivery = useCallback(async (match: Match, outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string; wicketDetails?: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; fielderId?: string; }}) => {
+  const recordDelivery = useCallback(async (match: Match, teams: Team[], players: Player[], outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string; wicketDetails?: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; fielderId?: string; }}) => {
     if (!match || match.status !== 'live') return;
 
     let updatedMatch = JSON.parse(JSON.stringify(match)); 
@@ -509,11 +454,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         inning.nonStrikerId = temp;
     }
 
-    updatedMatch = handleInningEnd(updatedMatch);
+    updatedMatch = handleInningEnd(updatedMatch, teams, players);
     await updateMatch(match.id, updatedMatch);
   }, [handleInningEnd, updateMatch, toast]);
 
-  const forceEndInning = useCallback(async (match: Match) => {
+  const forceEndInning = useCallback(async (match: Match, teams: Team[], players: Player[]) => {
     if (!match || match.status !== 'live') return;
 
     let updatedMatch = JSON.parse(JSON.stringify(match));
@@ -536,26 +481,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
         updatedMatch.currentInning = 2;
         toast({ title: "Inning Ended Manually", description: "The first inning has been concluded. Starting second inning." });
     } else { 
-        updatedMatch = handleInningEnd({...updatedMatch, status: 'completed'}); // Force completion check
+        updatedMatch = handleInningEnd({...updatedMatch, status: 'completed'}, teams, players); // Force completion check
         toast({ title: "Match Ended", description: `Match has been manually concluded. ${updatedMatch.result}` });
     }
     await updateMatch(match.id, updatedMatch);
   }, [handleInningEnd, updateMatch, toast]);
 
   const value: AppContextType = useMemo(() => ({
-      loading,
-      teams,
-      players,
       addTeam,
       editTeam,
       deleteTeam,
       addPlayer,
       editPlayer,
       deletePlayer,
-      getPlayerCountForTeam,
-      getTeamById,
-      getPlayerById,
-      getPlayersByTeamId,
       addMatch,
       recordDelivery,
       setPlayerInMatch,
@@ -564,19 +502,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       retireStriker,
       forceEndInning,
   }), [
-      loading,
-      teams,
-      players,
       addTeam,
       editTeam,
       deleteTeam,
       addPlayer,
       editPlayer,
       deletePlayer,
-      getPlayerCountForTeam,
-      getTeamById,
-      getPlayerById,
-      getPlayersByTeamId,
       addMatch,
       recordDelivery,
       setPlayerInMatch,

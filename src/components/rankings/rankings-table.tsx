@@ -9,7 +9,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Player, Team } from "@/lib/types";
-import { useAppContext } from "@/context/AppContext";
 import Image from "next/image";
 import { Card } from "../ui/card";
 import Link from "next/link";
@@ -29,10 +28,12 @@ export type RankedTeam = {
 type RankingsTableProps = {
     data: (RankedPlayer[] | RankedTeam[]);
     type: 'player' | 'team';
+    teams: Team[];
 }
 
-export function RankingsTable({ data, type }: RankingsTableProps) {
-    const { getTeamById } = useAppContext();
+export function RankingsTable({ data, type, teams }: RankingsTableProps) {
+
+    const getTeamById = (teamId: string) => teams.find(t => t.id === teamId);
 
     if (data.length === 0) {
         return (

@@ -1,12 +1,12 @@
 'use client';
 
-import { useAppContext } from "@/context/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Shield, Star } from "lucide-react";
-import type { Player, Match } from "@/lib/types";
+import type { Player, Match, Team } from "@/lib/types";
 import { calculatePlayerCVP } from "@/lib/stats";
 import { Badge } from "../ui/badge";
+import { useMemo } from "react";
 
 const PlayerListItem = ({ player, cvp }: { player: Player, cvp: number }) => (
     <div className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg -mx-2 transition-colors">
@@ -27,10 +27,11 @@ const PlayerListItem = ({ player, cvp }: { player: Player, cvp: number }) => (
     </div>
 );
 
-const TeamSquad = ({ teamId, match }: { teamId: string, match: Match }) => {
-    const { getTeamById, getPlayersByTeamId, players: allPlayers, teams: allTeams } = useAppContext();
+const TeamSquad = ({ teamId, match, teams, players }: { teamId: string, match: Match, teams: Team[], players: Player[] }) => {
+    const getTeamById = useMemo(() => (id: string) => teams.find(t => t.id === id), [teams]);
+    const getPlayersByTeamId = useMemo(() => (id: string) => players.filter(p => p.teamId === id), [players]);
     const team = getTeamById(teamId);
-    const players = getPlayersByTeamId(teamId);
+    const teamPlayers = getPlayersByTeamId(teamId);
 
     if (!team) return null;
 
@@ -40,9 +41,9 @@ const TeamSquad = ({ teamId, match }: { teamId: string, match: Match }) => {
                 <CardTitle className="text-lg">{team.name} Squad</CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-1">
-                {players.length > 0 ? (
-                    players.map(player => {
-                        const cvp = match.status === 'completed' ? calculatePlayerCVP(player, match, allPlayers, allTeams) : 0;
+                {teamPlayers.length > 0 ? (
+                    teamPlayers.map(player => {
+                        const cvp = match.status === 'completed' ? calculatePlayerCVP(player, match, players, teams) : 0;
                         return <PlayerListItem key={player.id} player={player} cvp={cvp} />
                     })
                 ) : (
@@ -53,11 +54,11 @@ const TeamSquad = ({ teamId, match }: { teamId: string, match: Match }) => {
     )
 }
 
-export function MatchSquads({ match }: { match: Match }) {
+export function MatchSquads({ match, teams, players }: { match: Match; teams: Team[]; players: Player[] }) {
     return (
         <div className="grid md:grid-cols-2 gap-6">
-            <TeamSquad teamId={match.team1Id} match={match} />
-            <TeamSquad teamId={match.team2Id} match={match} />
+            <TeamSquad teamId={match.team1Id} match={match} teams={teams} players={players} />
+            <TeamSquad teamId={match.team2Id} match={match} teams={teams} players={players} />
         </div>
     );
 }

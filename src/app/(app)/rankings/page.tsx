@@ -1,6 +1,5 @@
 'use client';
 
-import { useAppContext } from '@/context/AppContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RankingsTable, RankedPlayer, RankedTeam } from '@/components/rankings/rankings-table';
 import type { Player, Team, Match } from '@/lib/types';
@@ -99,8 +98,15 @@ const calculateTeamRankings = (teams: Team[], matches: Match[]): RankedTeam[] =>
 
 
 export default function RankingsPage() {
-    const { players, teams, loading: contextLoading } = useAppContext();
     const { firestore: db } = useFirebase();
+
+    const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
+    const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
+    const teams = teamsData || [];
+
+    const playersCollection = useMemoFirebase(() => (db ? collection(db, 'players') : null), [db]);
+    const { data: playersData, isLoading: playersLoading } = useCollection<Player>(playersCollection);
+    const players = playersData || [];
 
     const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'completed')) : null, [db]);
     const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
@@ -112,7 +118,7 @@ export default function RankingsPage() {
     const allRounderRankings = useMemo(() => calculateAllRounderRankings(playerStats), [playerStats]);
     const teamRankings = useMemo(() => calculateTeamRankings(teams, matches), [teams, matches]);
 
-    if (contextLoading.players || contextLoading.teams || matchesLoading) {
+    if (playersLoading || teamsLoading || matchesLoading) {
         return (
             <div className="space-y-6">
                 <div>
@@ -146,16 +152,16 @@ export default function RankingsPage() {
                     <TabsTrigger value="teams">Teams</TabsTrigger>
                 </TabsList>
                 <TabsContent value="batting" className="mt-4">
-                    <RankingsTable data={battingRankings} type="player" />
+                    <RankingsTable data={battingRankings} type="player" teams={teams} />
                 </TabsContent>
                 <TabsContent value="bowling" className="mt-4">
-                    <RankingsTable data={bowlingRankings} type="player" />
+                    <RankingsTable data={bowlingRankings} type="player" teams={teams} />
                 </TabsContent>
                 <TabsContent value="all-rounder" className="mt-4">
-                    <RankingsTable data={allRounderRankings} type="player" />
+                    <RankingsTable data={allRounderRankings} type="player" teams={teams} />
                 </TabsContent>
                 <TabsContent value="teams" className="mt-4">
-                    <RankingsTable data={teamRankings} type="team" />
+                    <RankingsTable data={teamRankings} type="team" teams={teams} />
                 </TabsContent>
             </Tabs>
         </div>

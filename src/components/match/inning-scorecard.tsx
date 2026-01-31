@@ -8,10 +8,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import type { Inning, Match } from "@/lib/types";
-import { useAppContext } from "@/context/AppContext";
+import type { Inning, Match, Player, Team } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { calculatePlayerCVP } from "@/lib/stats";
+import { useMemo } from "react";
 
 
 type BattingStats = {
@@ -48,9 +48,12 @@ const formatOvers = (balls: number) => {
   return `${overs}.${remainingBalls}`;
 };
 
-export const InningScorecard = ({ inning, match }: { inning: Inning; match: Match; }) => {
-    const { getPlayerById, getTeamById, getPlayersByTeamId, teams: allTeams, players: allPlayers } = useAppContext();
+export const InningScorecard = ({ inning, match, teams, players }: { inning: Inning; match: Match; teams: Team[], players: Player[] }) => {
     
+    const getPlayerById = useMemo(() => (playerId: string) => players.find(p => p.id === playerId), [players]);
+    const getTeamById = useMemo(() => (teamId: string) => teams.find(t => t.id === teamId), [teams]);
+    const getPlayersByTeamId = useMemo(() => (teamId: string) => players.filter(p => p.teamId === teamId), [players]);
+
     const battingTeam = getTeamById(inning.battingTeamId);
     const bowlingTeam = getTeamById(inning.bowlingTeamId);
 
@@ -204,7 +207,7 @@ export const InningScorecard = ({ inning, match }: { inning: Inning; match: Matc
                         {sortedBattingPlayers.map(p => {
                             const stats = battingStats.get(p.id)!;
                             const isYetToBat = stats.dismissal === 'Yet to Bat';
-                            const cvp = match.status === 'completed' ? calculatePlayerCVP(p, match, allPlayers, allTeams) : 0;
+                            const cvp = match.status === 'completed' ? calculatePlayerCVP(p, match, players, teams) : 0;
                             return (
                             <TableRow key={p.id}>
                                 <TableCell>
@@ -246,7 +249,7 @@ export const InningScorecard = ({ inning, match }: { inning: Inning; match: Matc
                             const bowler = getPlayerById(bowlerId);
                             const stats = bowlingStats.get(bowlerId);
                             if (!bowler || !stats) return null;
-                            const cvp = match.status === 'completed' ? calculatePlayerCVP(bowler, match, allPlayers, allTeams) : 0;
+                            const cvp = match.status === 'completed' ? calculatePlayerCVP(bowler, match, players, teams) : 0;
                             return (
                                  <TableRow key={bowler.id}>
                                     <TableCell>

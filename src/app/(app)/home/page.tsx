@@ -8,18 +8,26 @@ import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
 import { collection } from "firebase/firestore";
-import type { Match } from "@/lib/types";
+import type { Match, Team, Player } from "@/lib/types";
 
 export default function HomePage() {
-  const { teams, players, loading: contextLoading, getTeamById } = useAppContext();
   const { firestore: db } = useFirebase();
+
+  const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
+  const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
+  const teams = teamsData || [];
+
+  const playersCollection = useMemoFirebase(() => (db ? collection(db, 'players') : null), [db]);
+  const { data: playersData, isLoading: playersLoading } = useCollection<Player>(playersCollection);
+  const players = playersData || [];
 
   const matchesCollection = useMemoFirebase(() => (db ? collection(db, 'matches') : null), [db]);
   const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesCollection);
-  
   const matches = matchesData || [];
   
-  const loading = contextLoading.teams || contextLoading.players || matchesLoading;
+  const getTeamById = (teamId: string) => teams.find(t => t.id === teamId);
+  
+  const loading = teamsLoading || playersLoading || matchesLoading;
 
   if (loading) {
     return (

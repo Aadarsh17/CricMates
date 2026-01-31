@@ -1,15 +1,14 @@
 'use client';
 
 import { useParams, notFound } from 'next/navigation';
-import { useAppContext } from '@/context/AppContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Trophy, Printer, Share2 } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Player, Match } from '@/lib/types';
+import type { Player, Match, Team } from '@/lib/types';
 import { SelectBowlerDialog } from '@/components/match/select-bowler-dialog';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { InningStartDialog } from '@/components/match/inning-start-dialog';
 import { FullScorecard } from '@/components/match/full-scorecard';
 import { Scoreboard } from '@/components/match/scoreboard';
@@ -19,8 +18,10 @@ import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MatchSquads } from '@/components/match/match-squads';
 import { OverByOver } from '@/components/match/over-by-over';
-import { useDoc, useFirebase, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useCollection, useDoc, useFirebase, useMemoFirebase } from '@/firebase';
+import { collection, doc } from 'firebase/firestore';
+import { useAppContext } from '@/context/AppContext';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled = false }: { label: string, players: Player[], selectedPlayerId: string | null, onSelect: (playerId: string) => void, disabled?: boolean }) => (
     <div className="space-y-2 flex-1">
@@ -39,7 +40,7 @@ const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled =
 export default function MatchPage() {
     const params = useParams();
     const matchId = params.id as string;
-    const { getTeamById, getPlayersByTeamId, setPlayerInMatch, getPlayerById, loading: contextLoading } = useAppContext();
+    const { setPlayerInMatch } = useAppContext();
     const { toast } = useToast();
     const { firestore: db } = useFirebase();
 
@@ -49,6 +50,18 @@ export default function MatchPage() {
 
     const matchRef = useMemoFirebase(() => db ? doc(db, 'matches', matchId) : null, [db, matchId]);
     const { data: match, isLoading: isMatchLoading } = useDoc<Match>(matchRef);
+    
+    const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
+    const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
+    const teams = teamsData || [];
+
+    const playersCollection = useMemoFirebase(() => (db ? collection(db, 'players') : null), [db]);
+    const { data: playersData, isLoading: playersLoading } = useCollection<Player>(playersCollection);
+    const players = playersData || [];
+
+    const getTeamById = useMemo(() => (teamId: string) => teams.find(t => t.id === teamId), [teams]);
+    const getPlayerById = useMemo(() => (playerId: string) => players.find(p => p.id === playerId), [players]);
+    const getPlayersByTeamId = useMemo(() => (teamId: string) => players.filter(p => p.teamId === teamId), [players]);
 
     useEffect(() => {
         if (isMatchLoading || !match || match.status !== 'live') return;
@@ -73,7 +86,7 @@ export default function MatchPage() {
     }, [match, isBowlerDialogOpen, isMatchLoading, inningStartDialogShownFor]);
 
 
-    if (isMatchLoading || contextLoading.teams || contextLoading.players) {
+    if (isMatchLoading || teamsLoading || playersLoading) {
         return (
             <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm">
                 <div className="flex flex-col items-center gap-1 text-center">
@@ -265,25 +278,25 @@ export default function MatchPage() {
                 <TabsContent value="scorecard" className="mt-4">
                     {match.status === 'live' && (
                         <div className="space-y-4">
-                            <Scoreboard match={match} />
+                            <Scoreboard match={match} teams={teams} />
                             <LivePlayerStats
                                 striker={striker}
                                 nonStriker={nonStriker}
                                 bowler={bowler}
                                 inning={currentInning}
                             />
-                            <UmpireControls match={match} />
+                            <UmpireControls match={match} teams={teams} players={players} />
                         </div>
                     )}
                     {match.status === 'completed' && (
-                        <FullScorecard match={match} />
+                        <FullScorecard match={match} teams={teams} players={players} />
                     )}
                 </TabsContent>
                 <TabsContent value="squads" className="mt-4">
-                    <MatchSquads match={match} />
+                    <MatchSquads match={match} teams={teams} players={players} />
                 </TabsContent>
                 <TabsContent value="overs" className="mt-4">
-                    <OverByOver match={match} />
+                    <OverByOver match={match} players={players} teams={teams} />
                 </TabsContent>
             </Tabs>
         </div>

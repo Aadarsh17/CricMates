@@ -1,10 +1,10 @@
 'use client';
-import type { Match } from "@/lib/types";
+import type { Match, Team } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
-import { useAppContext } from "@/context/AppContext";
+import { useMemo } from "react";
 
-export function Scoreboard({ match }: { match: Match }) {
-    const { getTeamById } = useAppContext();
+export function Scoreboard({ match, teams }: { match: Match, teams: Team[] }) {
+    const getTeamById = useMemo(() => (teamId: string) => teams.find(t => t.id === teamId), [teams]);
     const currentInning = match.innings[match.currentInning - 1];
     const battingTeam = getTeamById(currentInning.battingTeamId);
 

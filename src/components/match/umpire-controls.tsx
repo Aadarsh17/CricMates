@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { UserX } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
-import type { Match, Player } from "@/lib/types";
+import type { Match, Player, Team } from "@/lib/types";
 import { Badge } from '../ui/badge';
 import { RetirePlayerDialog } from './retire-player-dialog';
 import { WicketDialog } from './wicket-dialog';
@@ -20,8 +20,8 @@ type ExtraOptions = {
     legbyes: boolean;
 };
 
-export function UmpireControls({ match }: { match: Match }) {
-    const { recordDelivery, swapStrikers, undoDelivery, retireStriker, forceEndInning, getPlayerById, getPlayersByTeamId, getTeamById } = useAppContext();
+export function UmpireControls({ match, teams, players }: { match: Match, teams: Team[], players: Player[] }) {
+    const { recordDelivery, swapStrikers, undoDelivery, retireStriker, forceEndInning } = useAppContext();
     const [extras, setExtras] = useState<ExtraOptions>({
         wicket: false, wide: false, noball: false, byes: false, legbyes: false
     });
@@ -30,6 +30,10 @@ export function UmpireControls({ match }: { match: Match }) {
     const [deliveryForWicket, setDeliveryForWicket] = useState<{ runs: number, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null } | null>(null);
     
     const currentInning = match.innings[match.currentInning - 1];
+    
+    const getPlayerById = (id: string) => players.find(p => p.id === id);
+    const getPlayersByTeamId = (id: string) => players.filter(p => p.teamId === id);
+
     const striker = getPlayerById(currentInning.strikerId || '');
     const nonStriker = getPlayerById(currentInning.nonStrikerId || '');
 
@@ -87,7 +91,7 @@ export function UmpireControls({ match }: { match: Match }) {
         if(extraType === 'legbyes') outcomeString = `${runs}lb`;
 
 
-        recordDelivery(match, {
+        recordDelivery(match, teams, players, {
             runs: runs,
             isWicket: extras.wicket,
             extra: extraType,
@@ -101,7 +105,7 @@ export function UmpireControls({ match }: { match: Match }) {
     const handleWicketConfirm = (wicketData: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; fielderId?: string; }) => {
         if (!deliveryForWicket) return;
 
-        recordDelivery(match, {
+        recordDelivery(match, teams, players, {
             runs: deliveryForWicket.runs,
             isWicket: true,
             extra: deliveryForWicket.extra,
@@ -213,7 +217,7 @@ export function UmpireControls({ match }: { match: Match }) {
                     </div>
                     <div className="grid grid-cols-1 gap-2 border-t pt-4 mt-2">
                         <Button variant="destructive" onClick={() => setIsRetireDialogOpen(true)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
-                        <Button variant="destructive" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match)}>{endInningButtonText}</Button>
+                        <Button variant="destructive" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match, teams, players)}>{endInningButtonText}</Button>
                     </div>
                 </CardContent>
             </Card>

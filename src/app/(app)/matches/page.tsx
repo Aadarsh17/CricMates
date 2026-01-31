@@ -24,7 +24,7 @@ const getPlayerOfTheMatch = (match: Match, players: Player[], teams: Team[]): { 
   let maxPoints = -1;
 
   matchPlayers.forEach(player => {
-    const cvp = calculatePlayerCVP(player, match, teams, players);
+    const cvp = calculatePlayerCVP(player, match, players, teams);
     if (cvp > maxPoints) {
       maxPoints = cvp;
       potm = player;
@@ -38,15 +38,24 @@ const getPlayerOfTheMatch = (match: Match, players: Player[], teams: Team[]): { 
 
 
 export default function MatchesHistoryPage() {
-  const { getTeamById, teams, players, loading: contextLoading } = useAppContext();
   const { firestore: db } = useFirebase();
+
+  const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
+  const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
+  const teams = teamsData || [];
+
+  const playersCollection = useMemoFirebase(() => (db ? collection(db, 'players') : null), [db]);
+  const { data: playersData, isLoading: playersLoading } = useCollection<Player>(playersCollection);
+  const players = playersData || [];
   
   const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'completed')) : null, [db]);
   const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
   
   const completedMatches = (matchesData || []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  if (matchesLoading || contextLoading.teams || contextLoading.players) {
+  const getTeamById = (teamId: string) => teams.find(t => t.id === teamId);
+
+  if (matchesLoading || teamsLoading || playersLoading) {
      return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">

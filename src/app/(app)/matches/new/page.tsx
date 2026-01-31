@@ -18,9 +18,11 @@ import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/hooks/use-toast';
 import { ArrowRight } from 'lucide-react';
 import type { Team } from '@/lib/types';
+import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
 
 export default function NewMatchPage() {
-  const { teams, addMatch, loading } = useAppContext();
+  const { addMatch } = useAppContext();
   const { toast } = useToast();
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -30,6 +32,11 @@ export default function NewMatchPage() {
   const [tossWinner, setTossWinner] = useState<string | null>(null);
   const [tossDecision, setTossDecision] = useState<'bat' | 'bowl' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { firestore: db } = useFirebase();
+
+  const teamsCollection = useMemoFirebase(() => db ? collection(db, 'teams') : null, [db]);
+  const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
+  const teams = teamsData || [];
 
   const goToTeamSelection = () => {
     setStep(2);
@@ -93,7 +100,7 @@ export default function NewMatchPage() {
     }
   };
 
-  if (loading.teams) {
+  if (teamsLoading) {
     return (
       <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm">
         <div className="flex flex-col items-center gap-1 text-center">

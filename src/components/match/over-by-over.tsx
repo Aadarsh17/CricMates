@@ -1,9 +1,9 @@
 'use client';
 
-import { useAppContext } from "@/context/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { DeliveryRecord, Inning, Match } from "@/lib/types";
+import type { DeliveryRecord, Inning, Match, Player, Team } from "@/lib/types";
 import { Separator } from "@/components/ui/separator";
+import { useMemo } from "react";
 
 const DeliveryBadge = ({ delivery }: { delivery: DeliveryRecord }) => {
     const isFour = delivery.runs === 4 && !delivery.extra;
@@ -29,8 +29,8 @@ const DeliveryBadge = ({ delivery }: { delivery: DeliveryRecord }) => {
 }
 
 
-const OverSummary = ({ overNumber, deliveries, inning }: { overNumber: number, deliveries: DeliveryRecord[], inning: Inning }) => {
-    const { getPlayerById } = useAppContext();
+const OverSummary = ({ overNumber, deliveries, inning, players }: { overNumber: number, deliveries: DeliveryRecord[], inning: Inning, players: Player[] }) => {
+    const getPlayerById = useMemo(() => (playerId: string) => players.find(p => p.id === playerId), [players]);
     const bowler = getPlayerById(deliveries[0]?.bowlerId);
     
     let runsInOver = 0;
@@ -80,8 +80,8 @@ const OverSummary = ({ overNumber, deliveries, inning }: { overNumber: number, d
     )
 }
 
-const InningOvers = ({ inning }: { inning: Inning }) => {
-    const { getTeamById } = useAppContext();
+const InningOvers = ({ inning, teams, players }: { inning: Inning, teams: Team[], players: Player[] }) => {
+    const getTeamById = useMemo(() => (teamId: string) => teams.find(t => t.id === teamId), [teams]);
     const battingTeam = getTeamById(inning.battingTeamId);
 
     const overs: DeliveryRecord[][] = [];
@@ -118,6 +118,7 @@ const InningOvers = ({ inning }: { inning: Inning }) => {
                                 overNumber={overs.length - index} 
                                 deliveries={overDeliveries} 
                                 inning={inning} 
+                                players={players}
                             />
                             {index < overs.length -1 && <Separator />}
                         </div>
@@ -131,14 +132,14 @@ const InningOvers = ({ inning }: { inning: Inning }) => {
 };
 
 
-export function OverByOver({ match }: { match: Match }) {
+export function OverByOver({ match, teams, players }: { match: Match; teams: Team[]; players: Player[]; }) {
     const firstInning = match.innings[0];
     const secondInning = match.innings.length > 1 ? match.innings[1] : null;
 
     return (
         <div className="space-y-6">
-            {secondInning && <InningOvers inning={secondInning} />}
-            {firstInning && <InningOvers inning={firstInning} />}
+            {secondInning && <InningOvers inning={secondInning} teams={teams} players={players} />}
+            {firstInning && <InningOvers inning={firstInning} teams={teams} players={players} />}
         </div>
     )
 }
