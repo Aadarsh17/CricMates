@@ -31,7 +31,6 @@ import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { AppProvider } from "@/context/AppContext";
 import { FirebaseClientProvider } from "@/firebase";
-import { ClientOnly } from "@/components/ClientOnly";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -77,14 +76,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </Link>
               </div>
               <div className="flex-1 overflow-auto py-2">
-                <ClientOnly fallback={
-                  <div className={`space-y-2 py-2 ${isSidebarCollapsed ? 'px-3' : 'px-2 lg:px-4'}`}>
-                    <Skeleton className="h-10 rounded-lg" />
-                    <Skeleton className="h-10 rounded-lg" />
-                    <Skeleton className="h-10 rounded-lg" />
-                    <Skeleton className="h-10 rounded-lg" />
-                  </div>
-                }>
                   <nav className={`grid items-start text-sm font-medium ${isSidebarCollapsed ? 'px-2 justify-center' : 'px-2 lg:px-4'}`}>
                       <NavLink href="/home" icon={<Home className="h-5 w-5" />} label="Home" isCollapsed={isSidebarCollapsed} />
                       <NavLink href="/teams" icon={<Users className="h-5 w-5" />} label="Teams" isCollapsed={isSidebarCollapsed} />
@@ -95,7 +86,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       <NavLink href="/rankings" icon={<TrendingUp className="h-5 w-5" />} label="Rankings" isCollapsed={isSidebarCollapsed} />
                       <NavLink href="/number-game" icon={<Sigma className="h-5 w-5" />} label="Number Game" isCollapsed={isSidebarCollapsed} />
                   </nav>
-                </ClientOnly>
               </div>
               <div className="mt-auto border-t p-2">
                   <Button variant="ghost" size="icon" className="w-full" onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}>
@@ -106,7 +96,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex flex-col">
-            <ClientOnly fallback={<Skeleton className="h-14 w-full border-b lg:h-[60px]" />}>
               <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6 print:hidden">
                 <Sheet>
                   <SheetTrigger asChild>
@@ -199,7 +188,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </header>
-            </ClientOnly>
             <main className="flex flex-1 flex-col gap-4 p-2 sm:p-4 lg:gap-6 lg:p-6 bg-background print:bg-transparent print:p-0 print:gap-0">
               {children}
             </main>
