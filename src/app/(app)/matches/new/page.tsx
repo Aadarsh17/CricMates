@@ -260,7 +260,6 @@ export default function NewMatchPage() {
   }
 
   if (step === 4) {
-    const availablePlayers = allPlayers.filter(p => !team1PlayerIds.includes(p.id) && !team2PlayerIds.includes(p.id));
     const team1SelectedPlayers = allPlayers.filter(p => team1PlayerIds.includes(p.id));
     const team2SelectedPlayers = allPlayers.filter(p => team2PlayerIds.includes(p.id));
 
@@ -269,7 +268,7 @@ export default function NewMatchPage() {
             <Card className="w-full max-w-4xl">
                  <CardHeader>
                     <CardTitle>Squad Selection</CardTitle>
-                    <CardDescription>Select 11 players and a captain for each team.</CardDescription>
+                    <CardDescription>Select players for each team. Both teams must have the same number of players.</CardDescription>
                 </CardHeader>
                 <CardContent className="grid md:grid-cols-2 gap-6">
                     {/* Team 1 Selection */}
@@ -287,17 +286,15 @@ export default function NewMatchPage() {
                         <Label>Players ({team1PlayerIds.length})</Label>
                         <ScrollArea className="h-72 w-full rounded-md border p-2">
                             <div className="space-y-2">
-                                {team1SelectedPlayers.map(player => (
-                                    <div key={player.id} className="flex items-center justify-between">
-                                        <Label htmlFor={`t1-${player.id}`} className="font-normal flex-1">{player.name}</Label>
-                                        <Checkbox id={`t1-${player.id}`} checked={team1PlayerIds.includes(player.id)} onCheckedChange={() => handlePlayerSelection('team1', player.id)} />
-                                    </div>
-                                ))}
-                                {team1PlayerIds.length > 0 && availablePlayers.length > 0 && <hr/>}
-                                {availablePlayers.map(player => (
-                                    <div key={player.id} className="flex items-center justify-between">
-                                        <Label htmlFor={`t1-${player.id}`} className="font-normal flex-1">{player.name}</Label>
-                                        <Checkbox id={`t1-${player.id}`} checked={team1PlayerIds.includes(player.id)} onCheckedChange={() => handlePlayerSelection('team1', player.id)} />
+                                {allPlayers.map(player => (
+                                    <div key={player.id} className="flex items-center justify-between p-1">
+                                        <Label htmlFor={`t1-${player.id}`} className={`font-normal flex-1 ${team2PlayerIds.includes(player.id) ? 'text-muted-foreground' : ''}`}>{player.name}</Label>
+                                        <Checkbox 
+                                            id={`t1-${player.id}`} 
+                                            checked={team1PlayerIds.includes(player.id)} 
+                                            onCheckedChange={() => handlePlayerSelection('team1', player.id)}
+                                            disabled={team2PlayerIds.includes(player.id)}
+                                        />
                                     </div>
                                 ))}
                             </div>
@@ -319,17 +316,15 @@ export default function NewMatchPage() {
                         <Label>Players ({team2PlayerIds.length})</Label>
                         <ScrollArea className="h-72 w-full rounded-md border p-2">
                             <div className="space-y-2">
-                                 {team2SelectedPlayers.map(player => (
-                                    <div key={player.id} className="flex items-center justify-between">
-                                        <Label htmlFor={`t2-${player.id}`} className="font-normal flex-1">{player.name}</Label>
-                                        <Checkbox id={`t2-${player.id}`} checked={team2PlayerIds.includes(player.id)} onCheckedChange={() => handlePlayerSelection('team2', player.id)} />
-                                    </div>
-                                ))}
-                                {team2PlayerIds.length > 0 && availablePlayers.length > 0 && <hr/>}
-                                {availablePlayers.map(player => (
-                                    <div key={player.id} className="flex items-center justify-between">
-                                        <Label htmlFor={`t2-${player.id}`} className="font-normal flex-1">{player.name}</Label>
-                                        <Checkbox id={`t2-${player.id}`} checked={team2PlayerIds.includes(player.id)} onCheckedChange={() => handlePlayerSelection('team2', player.id)} />
+                                {allPlayers.map(player => (
+                                    <div key={player.id} className="flex items-center justify-between p-1">
+                                        <Label htmlFor={`t2-${player.id}`} className={`font-normal flex-1 ${team1PlayerIds.includes(player.id) ? 'text-muted-foreground' : ''}`}>{player.name}</Label>
+                                        <Checkbox 
+                                            id={`t2-${player.id}`} 
+                                            checked={team2PlayerIds.includes(player.id)} 
+                                            onCheckedChange={() => handlePlayerSelection('team2', player.id)}
+                                            disabled={team1PlayerIds.includes(player.id)}
+                                        />
                                     </div>
                                 ))}
                             </div>
