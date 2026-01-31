@@ -9,7 +9,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Inning, Match, Player, Team } from "@/lib/types";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { calculatePlayerCVP } from "@/lib/stats";
 import { useMemo } from "react";
 
@@ -186,90 +185,84 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
 
 
     return (
-        <Card className="overflow-hidden break-inside-avoid print:shadow-none print:border">
-            <CardHeader className="bg-foreground p-3 print:bg-gray-200 print:p-2">
-                <CardTitle className="text-lg text-background print:text-black print:text-base">{battingTeam.name} Innings</CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-                <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4 print:text-xs print:[&_td]:py-1 print:[&_td]:px-2 print:[&_th]:py-1 print:[&_th]:px-2">
-                    <TableHeader>
-                        <TableRow className="bg-secondary hover:bg-secondary/90 print:bg-gray-100">
-                            <TableHead className="w-[45%] text-secondary-foreground print:text-black">Batsman</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">R</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">B</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">4s</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">6s</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">SR</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">CVP</TableHead>
+        <div>
+            <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4 print:text-xs print:[&_td]:py-1 print:[&_td]:px-2 print:[&_th]:py-1 print:[&_th]:px-2">
+                <TableHeader>
+                    <TableRow className="bg-secondary hover:bg-secondary/90 print:bg-gray-100">
+                        <TableHead className="w-[45%] text-secondary-foreground print:text-black">Batsman</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">R</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">B</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">4s</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">6s</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">SR</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">CVP</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {sortedBattingPlayers.map(p => {
+                        const stats = battingStats.get(p.id)!;
+                        const isYetToBat = stats.dismissal === 'Yet to Bat';
+                        const cvp = match.status === 'completed' ? calculatePlayerCVP(p, match, players, teams) : 0;
+                        return (
+                        <TableRow key={p.id}>
+                            <TableCell>
+                                <div>
+                                    <p className="font-medium">{p.name}</p>
+                                    <p className="text-xs text-muted-foreground print:text-gray-600">{stats.dismissal}</p>
+                                </div>
+                            </TableCell>
+                            <TableCell className="text-right font-mono font-semibold">{isYetToBat ? '0' : stats.runs}</TableCell>
+                            <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.balls}</TableCell>
+                            <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.fours}</TableCell>
+                            <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.sixes}</TableCell>
+                            <TableCell className="text-right font-mono">{isYetToBat ? '0.00' : (stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00')}</TableCell>
+                            <TableCell className="text-right font-mono font-semibold">{cvp > 0 ? cvp : ''}</TableCell>
                         </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {sortedBattingPlayers.map(p => {
-                            const stats = battingStats.get(p.id)!;
-                            const isYetToBat = stats.dismissal === 'Yet to Bat';
-                            const cvp = match.status === 'completed' ? calculatePlayerCVP(p, match, players, teams) : 0;
-                            return (
-                            <TableRow key={p.id}>
+                    )})}
+                </TableBody>
+            </Table>
+
+            <div className="flex justify-between items-center px-4 py-2 bg-secondary/20 print:bg-gray-100 print:px-2 print:py-1">
+               <p className="text-sm print:text-xs">Extras: {extrasTotal}</p>
+               <p className="font-bold print:font-semibold">Total: {inning.score}/{inning.wickets} <span className="font-normal text-sm text-muted-foreground print:text-xs print:font-normal">({inning.overs.toFixed(1)} Overs)</span></p>
+            </div>
+
+            <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4 print:text-xs print:[&_td]:py-1 print:[&_td]:px-2 print:[&_th]:py-1 print:[&_th]:px-2">
+                 <TableHeader>
+                    <TableRow className="bg-secondary hover:bg-secondary/90 print:bg-gray-100">
+                        <TableHead className="w-[45%] text-secondary-foreground print:text-black">Bowler</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">O</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">M</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">R</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">W</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">ER</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black">CVP</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {bowlersUsed.map(bowlerId => {
+                        const bowler = getPlayerById(bowlerId);
+                        const stats = bowlingStats.get(bowlerId);
+                        if (!bowler || !stats) return null;
+                        const cvp = match.status === 'completed' ? calculatePlayerCVP(bowler, match, players, teams) : 0;
+                        return (
+                             <TableRow key={bowler.id}>
                                 <TableCell>
-                                    <div>
-                                        <p className="font-medium">{p.name}</p>
-                                        <p className="text-xs text-muted-foreground print:text-gray-600">{stats.dismissal}</p>
-                                    </div>
+                                  <div>
+                                      <p className="font-medium">{bowler.name}</p>
+                                  </div>
                                 </TableCell>
-                                <TableCell className="text-right font-mono font-semibold">{isYetToBat ? '0' : stats.runs}</TableCell>
-                                <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.balls}</TableCell>
-                                <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.fours}</TableCell>
-                                <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.sixes}</TableCell>
-                                <TableCell className="text-right font-mono">{isYetToBat ? '0.00' : (stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00')}</TableCell>
+                                <TableCell className="text-right font-mono">{stats.overs}</TableCell>
+                                <TableCell className="text-right font-mono">{stats.maidens}</TableCell>
+                                <TableCell className="text-right font-mono">{stats.runs}</TableCell>
+                                <TableCell className="text-right font-mono font-semibold">{stats.wickets}</TableCell>
+                                <TableCell className="text-right font-mono">{stats.economy > 0 ? stats.economy.toFixed(2): '0.00'}</TableCell>
                                 <TableCell className="text-right font-mono font-semibold">{cvp > 0 ? cvp : ''}</TableCell>
                             </TableRow>
-                        )})}
-                    </TableBody>
-                </Table>
-
-                <div className="flex justify-between items-center px-4 py-2 bg-secondary/20 print:bg-gray-100 print:px-2 print:py-1">
-                   <p className="text-sm print:text-xs">Extras: {extrasTotal}</p>
-                   <p className="font-bold print:font-semibold">Total: {inning.score}/{inning.wickets} <span className="font-normal text-sm text-muted-foreground print:text-xs print:font-normal">({inning.overs.toFixed(1)} Overs)</span></p>
-                </div>
-
-                <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4 print:text-xs print:[&_td]:py-1 print:[&_td]:px-2 print:[&_th]:py-1 print:[&_th]:px-2">
-                     <TableHeader>
-                        <TableRow className="bg-secondary hover:bg-secondary/90 print:bg-gray-100">
-                            <TableHead className="w-[45%] text-secondary-foreground print:text-black">Bowler</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">O</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">M</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">R</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">W</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">ER</TableHead>
-                            <TableHead className="text-right text-secondary-foreground print:text-black">CVP</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {bowlersUsed.map(bowlerId => {
-                            const bowler = getPlayerById(bowlerId);
-                            const stats = bowlingStats.get(bowlerId);
-                            if (!bowler || !stats) return null;
-                            const cvp = match.status === 'completed' ? calculatePlayerCVP(bowler, match, players, teams) : 0;
-                            return (
-                                 <TableRow key={bowler.id}>
-                                    <TableCell>
-                                      <div>
-                                          <p className="font-medium">{bowler.name}</p>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="text-right font-mono">{stats.overs}</TableCell>
-                                    <TableCell className="text-right font-mono">{stats.maidens}</TableCell>
-                                    <TableCell className="text-right font-mono">{stats.runs}</TableCell>
-                                    <TableCell className="text-right font-mono font-semibold">{stats.wickets}</TableCell>
-                                    <TableCell className="text-right font-mono">{stats.economy > 0 ? stats.economy.toFixed(2): '0.00'}</TableCell>
-                                    <TableCell className="text-right font-mono font-semibold">{cvp > 0 ? cvp : ''}</TableCell>
-                                </TableRow>
-                            )
-                        })}
-                    </TableBody>
-                </Table>
-
-            </CardContent>
-        </Card>
+                        )
+                    })}
+                </TableBody>
+            </Table>
+        </div>
     )
 }
