@@ -21,6 +21,7 @@ import { OverByOver } from '@/components/match/over-by-over';
 import { useCollection, useDoc, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAppContext } from '@/context/AppContext';
 
 const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled = false }: { label: string, players: Player[], selectedPlayerId: string | null, onSelect: (playerId: string) => void, disabled?: boolean }) => (
     <div className="space-y-2 flex-1">
@@ -41,6 +42,7 @@ export default function MatchPage() {
     const matchId = params.id as string;
     const { toast } = useToast();
     const { firestore: db } = useFirebase();
+    const { setPlayerInMatch } = useAppContext();
 
     const [isBowlerDialogOpen, setIsBowlerDialogOpen] = useState(false);
     const [isInningStartDialogOpen, setIsInningStartDialogOpen] = useState(false);
@@ -185,10 +187,6 @@ export default function MatchPage() {
     
     const handlePrint = () => {
         window.print();
-    };
-
-    const setPlayerInMatch = (match: Match, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => {
-        // Dummy function because the real one is in context which this component doesn't need
     };
 
 
