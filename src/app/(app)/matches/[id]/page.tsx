@@ -20,7 +20,6 @@ import { MatchSquads } from '@/components/match/match-squads';
 import { OverByOver } from '@/components/match/over-by-over';
 import { useCollection, useDoc, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
-import { useAppContext } from '@/context/AppContext';
 import { Skeleton } from '@/components/ui/skeleton';
 
 const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled = false }: { label: string, players: Player[], selectedPlayerId: string | null, onSelect: (playerId: string) => void, disabled?: boolean }) => (
@@ -40,7 +39,6 @@ const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled =
 export default function MatchPage() {
     const params = useParams();
     const matchId = params.id as string;
-    const { setPlayerInMatch } = useAppContext();
     const { toast } = useToast();
     const { firestore: db } = useFirebase();
 
@@ -69,7 +67,7 @@ export default function MatchPage() {
         
         const inning = match.innings[match.currentInning - 1];
         
-        const isOverComplete = inning.overs > 0 && inning.overs % 1 === 0 && inning.deliveryHistory.length > 0;
+        const isOverComplete = inning.overs > 0 && inning.overs % 1 === 0 && inning.deliveryHistory.length > 0 && inning.deliveryHistory.at(-1)?.extra !== 'wide' && inning.deliveryHistory.at(-1)?.extra !== 'noball';
         if (isOverComplete && !inning.bowlerId && bowlerDialogShownForOver !== inning.overs) {
             setIsBowlerDialogOpen(true);
             setBowlerDialogShownForOver(inning.overs);
@@ -146,48 +144,32 @@ export default function MatchPage() {
     const bowler = getPlayerById(currentInning.bowlerId || '');
 
     const handleShare = async () => {
-        if (!team1 || !team2) {
-            toast({
-                variant: "destructive",
-                title: "Data still loading",
-                description: "Please wait for team data to load before sharing.",
-            });
-            return;
-        }
-
         const shareText = match.result 
             ? `${match.result}. Full scorecard for ${team1.name} vs ${team2.name}.`
             : `Live scorecard for ${team1.name} vs ${team2.name}.`;
         
-        const shareData = {
-            title: `Cricket Match: ${team1.name} vs ${team2.name}`,
-            text: shareText,
-        };
-
         try {
-            if (navigator.share) {
-                await navigator.share(shareData);
-            } else {
-                await navigator.clipboard.writeText(shareData.text);
-                toast({
-                    title: "Match Info Copied",
-                    description: "The match summary has been copied to your clipboard.",
-                });
-            }
+            await navigator.clipboard.writeText(shareText);
+            toast({
+                title: "Match Info Copied",
+                description: "The match summary has been copied to your clipboard.",
+            });
         } catch (err: any) {
-            if (err.name !== 'AbortError') {
-                 console.error("Share failed:", err);
-                 toast({
-                    variant: "destructive",
-                    title: "Action Failed",
-                    description: "Could not share or copy the match info.",
-                });
-            }
+            console.error("Copy failed:", err);
+            toast({
+                variant: "destructive",
+                title: "Action Failed",
+                description: "Could not copy the match info.",
+            });
         }
     };
     
     const handlePrint = () => {
         window.print();
+    };
+
+    const setPlayerInMatch = (match: Match, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => {
+        // Dummy function because the real one is in context which this component doesn't need
     };
 
 
@@ -286,14 +268,14 @@ export default function MatchPage() {
                 </Tabs>
             </div>
 
-            <div className="hidden print:block">
+            <div className="hidden print:block print:text-black">
                 {match.status === 'completed' && (
                      <>
-                        <div className="text-center mb-4">
-                            <h1 className="text-xl font-bold">{team1.name} vs {team2.name}</h1>
-                            <p className="text-sm">{`Match completed on ${new Date(match.date).toLocaleDateString()}`}</p>
-                            <p className="text-sm">{`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}</p>
-                            {match.result && <p className="font-semibold text-lg mt-2">{match.result}</p>}
+                        <div className="text-center mb-2">
+                            <h1 className="text-lg font-bold">{team1.name} vs {team2.name}</h1>
+                            <p className="text-xs">{`Match completed on ${new Date(match.date).toLocaleDateString()}`}</p>
+                            <p className="text-xs">{`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}</p>
+                            {match.result && <p className="font-semibold text-base mt-1">{match.result}</p>}
                         </div>
                         <FullScorecard match={match} teams={teams} players={players} />
                     </>
