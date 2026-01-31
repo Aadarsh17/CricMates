@@ -59,7 +59,7 @@ export default function TeamsPage() {
               team={team} 
               playerCount={getPlayerCountForTeam(team.id)}
               onEdit={(name) => editTeam(team.id, name)}
-              onDelete={() => deleteTeam(team.id, players)}
+              onDelete={() => deleteTeam(team.id)}
             />
           ))}
         </div>

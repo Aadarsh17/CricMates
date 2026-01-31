@@ -18,7 +18,7 @@ type PlayerData = {
 interface AppContextType {
   addTeam: (name: string) => Promise<void>;
   editTeam: (teamId: string, name: string) => Promise<void>;
-  deleteTeam: (teamId: string, players: Player[]) => Promise<void>;
+  deleteTeam: (teamId: string) => Promise<void>;
   addPlayer: (teamId: string, players: Player[], playerData: PlayerData) => Promise<void>;
   editPlayer: (playerId: string, teamId: string, players: Player[], playerData: PlayerData) => Promise<void>;
   deletePlayer: (playerId: string) => Promise<void>;
@@ -133,7 +133,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [db, toast]);
 
-  const deleteTeam = useCallback(async (teamId: string, players: Player[]) => {
+  const deleteTeam = useCallback(async (teamId: string) => {
     if (!db) {
         toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
         return;
@@ -141,10 +141,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const batch = writeBatch(db);
       batch.delete(doc(db, 'teams', teamId));
-      const teamPlayers = players.filter(p => p.teamId === teamId);
-      teamPlayers.forEach(p => {
-          batch.delete(doc(db, 'players', p.id));
+      
+      const playersQuery = query(collection(db, 'players'), where('teamId', '==', teamId));
+      const playersSnapshot = await getDocs(playersQuery);
+      playersSnapshot.forEach(playerDoc => {
+          batch.delete(playerDoc.ref);
       });
+
       await batch.commit();
       toast({ title: "Team Deleted", description: "The team and its players have been deleted." });
     } catch (e: any) {
