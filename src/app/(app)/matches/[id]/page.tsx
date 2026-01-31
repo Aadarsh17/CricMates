@@ -146,20 +146,36 @@ export default function MatchPage() {
     const bowler = getPlayerById(currentInning.bowlerId || '');
 
     const handleShare = async () => {
-        if (!match) return;
+        if (!match || !team1 || !team2) return;
 
-        const shareUrl = `${window.location.origin}/share/match/${match.id}`;
-        const shareTitle = `${team1?.name || 'Team 1'} vs ${team2?.name || 'Team 2'} Scorecard`;
-        const shareText = match.result 
-            ? `${match.result}. View the full scorecard for ${team1?.name} vs ${team2?.name}.`
-            : `Live scorecard for ${team1?.name} vs ${team2?.name}.`;
+        const shareTitle = `${team1.name} vs ${team2.name} Scorecard`;
+
+        let shareText = '';
+
+        if (match.status === 'completed') {
+            const firstInning = match.innings[0];
+            const secondInning = match.innings.length > 1 ? match.innings[1] : null;
+
+            const firstInningTeam = getTeamById(firstInning.battingTeamId);
+            const secondInningTeam = secondInning ? getTeamById(secondInning.battingTeamId) : null;
+            
+            let scoreSummary = `${firstInningTeam?.name}: ${firstInning.score}/${firstInning.wickets} (${firstInning.overs.toFixed(1)})\n`;
+            if (secondInning && secondInningTeam) {
+                 scoreSummary += `${secondInningTeam?.name}: ${secondInning.score}/${secondInning.wickets} (${secondInning.overs.toFixed(1)})`;
+            }
+
+            shareText = `${match.result}\n\n${scoreSummary}`;
+        } else {
+            const currentInning = match.innings[match.currentInning - 1];
+            const battingTeam = getTeamById(currentInning.battingTeamId);
+            shareText = `Live Score: ${battingTeam?.name} are ${currentInning.score}/${currentInning.wickets} in ${currentInning.overs.toFixed(1)} overs.`;
+        }
         
         if (navigator.share) {
             try {
                 await navigator.share({
                     title: shareTitle,
                     text: shareText,
-                    url: shareUrl,
                 });
             } catch (err: any) {
                 if (err.name !== 'AbortError') {
@@ -173,17 +189,17 @@ export default function MatchPage() {
             }
         } else {
             try {
-                await navigator.clipboard.writeText(shareUrl);
+                await navigator.clipboard.writeText(shareText);
                 toast({
-                    title: "Match Link Copied",
-                    description: "A shareable link to the scorecard has been copied to your clipboard.",
+                    title: "Match Info Copied",
+                    description: "Match summary has been copied to your clipboard.",
                 });
             } catch (err: any) {
                 console.error("Copy failed:", err);
                 toast({
                     variant: "destructive",
                     title: "Action Failed",
-                    description: "Could not copy the match link.",
+                    description: "Could not copy the match info.",
                 });
             }
         }
