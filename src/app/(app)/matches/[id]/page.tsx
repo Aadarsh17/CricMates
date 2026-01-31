@@ -144,23 +144,42 @@ export default function MatchPage() {
     const bowler = getPlayerById(currentInning.bowlerId || '');
 
     const handleShare = async () => {
+        const shareTitle = `${team1.name} vs ${team2.name} Scorecard`;
         const shareText = match.result 
             ? `${match.result}. Full scorecard for ${team1.name} vs ${team2.name}.`
             : `Live scorecard for ${team1.name} vs ${team2.name}.`;
         
-        try {
-            await navigator.clipboard.writeText(shareText);
-            toast({
-                title: "Match Info Copied",
-                description: "The match summary has been copied to your clipboard.",
-            });
-        } catch (err: any) {
-            console.error("Copy failed:", err);
-            toast({
-                variant: "destructive",
-                title: "Action Failed",
-                description: "Could not copy the match info.",
-            });
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: shareTitle,
+                    text: shareText,
+                });
+            } catch (err: any) {
+                if (err.name !== 'AbortError') {
+                    console.error('Share failed:', err);
+                    toast({
+                        variant: 'destructive',
+                        title: 'Share Failed',
+                        description: 'Could not share the match info.',
+                    });
+                }
+            }
+        } else {
+            try {
+                await navigator.clipboard.writeText(`${shareTitle}\n\n${shareText}`);
+                toast({
+                    title: "Match Info Copied",
+                    description: "The match summary has been copied to your clipboard.",
+                });
+            } catch (err: any) {
+                console.error("Copy failed:", err);
+                toast({
+                    variant: "destructive",
+                    title: "Action Failed",
+                    description: "Could not copy the match info.",
+                });
+            }
         }
     };
     
