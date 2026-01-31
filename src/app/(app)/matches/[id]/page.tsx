@@ -22,6 +22,7 @@ import { useCollection, useDoc, useFirebase, useMemoFirebase } from '@/firebase'
 import { collection, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAppContext } from '@/context/AppContext';
+import { getPlayerOfTheMatch } from '@/lib/stats';
 
 const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled = false }: { label: string, players: Player[], selectedPlayerId: string | null, onSelect: (playerId: string) => void, disabled?: boolean }) => (
     <div className="space-y-2 flex-1">
@@ -165,6 +166,13 @@ export default function MatchPage() {
             }
 
             shareText = `${match.result}\n\n${scoreSummary}`;
+
+            const { player: playerOfTheMatch, cvp: potmCVP } = getPlayerOfTheMatch(match, players, teams);
+
+            if (playerOfTheMatch) {
+                shareText += `\n\nCricMates Valuable Player (CVP):\n${playerOfTheMatch.name} (${potmCVP})`;
+            }
+
         } else {
             const currentInning = match.innings[match.currentInning - 1];
             const battingTeam = getTeamById(currentInning.battingTeamId);

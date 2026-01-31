@@ -167,6 +167,30 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
     return Math.round(playerPoints);
 };
 
+export const getPlayerOfTheMatch = (match: Match, allPlayers: Player[], allTeams: Team[]): { player: Player | null, cvp: number } => {
+  if (match.status !== 'completed' || !match.result) return { player: null, cvp: 0 };
+
+  const matchPlayerIds = new Set(allPlayers.filter(p => p.teamId === match.team1Id || p.teamId === match.team2Id).map(p => p.id));
+  const matchPlayers = allPlayers.filter(p => matchPlayerIds.has(p.id));
+
+  if (matchPlayers.length === 0) return { player: null, cvp: 0 };
+
+  let potm: Player | null = null;
+  let maxPoints = -1;
+
+  matchPlayers.forEach(player => {
+    const cvp = calculatePlayerCVP(player, match, allPlayers, allTeams);
+    if (cvp > maxPoints) {
+      maxPoints = cvp;
+      potm = player;
+    }
+  });
+  
+  if (maxPoints <= 10) return { player: null, cvp: 0 };
+
+  return { player: potm, cvp: maxPoints };
+};
+
 export const calculatePlayerStats = (players: Player[], teams: Team[], matches: Match[]): AggregatedPlayerStats[] => {
     return players.map(player => {
         const playerMatches = matches.filter(m => m.status === 'completed' && (m.innings.some(i => i.battingTeamId === player.teamId || i.bowlingTeamId === player.teamId)));

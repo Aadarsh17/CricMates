@@ -8,33 +8,8 @@ import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import type { Match, Player, Team } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
-import { calculatePlayerCVP } from '@/lib/stats';
+import { getPlayerOfTheMatch } from '@/lib/stats';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-
-
-const getPlayerOfTheMatch = (match: Match, players: Player[], teams: Team[]): { player: Player | null, cvp: number } => {
-  if (match.status !== 'completed' || !match.result) return { player: null, cvp: 0 };
-
-  const matchPlayerIds = new Set(players.filter(p => p.teamId === match.team1Id || p.teamId === match.team2Id).map(p => p.id));
-  const matchPlayers = players.filter(p => matchPlayerIds.has(p.id));
-
-  if (matchPlayers.length === 0) return { player: null, cvp: 0 };
-
-  let potm: Player | null = null;
-  let maxPoints = -1;
-
-  matchPlayers.forEach(player => {
-    const cvp = calculatePlayerCVP(player, match, players, teams);
-    if (cvp > maxPoints) {
-      maxPoints = cvp;
-      potm = player;
-    }
-  });
-  
-  if (maxPoints <= 10) return { player: null, cvp: 0 };
-
-  return { player: potm, cvp: maxPoints };
-};
 
 
 export default function MatchesHistoryPage() {
