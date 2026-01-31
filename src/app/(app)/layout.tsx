@@ -22,6 +22,7 @@ import {
   MoreVertical,
   Medal,
   Sigma,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -30,10 +31,15 @@ import { AppProvider } from "@/context/AppContext";
 import { FirebaseClientProvider } from "@/firebase";
 import { ClientOnly } from "@/components/ClientOnly";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useState } from 'react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const [isMatchCenterOpen, setMatchCenterOpen] = useState(true);
+  const [isLeagueOpen, setLeagueOpen] = useState(true);
+  const [isGamesOpen, setGamesOpen] = useState(true);
 
   return (
     <FirebaseClientProvider>
@@ -59,55 +65,63 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     <Home className="h-4 w-4" />
                     Home
                   </Link>
-                  <Link
-                    href="/teams"
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                  >
-                    <Users className="h-4 w-4" />
-                    Teams
-                  </Link>
-                  <Link
-                    href="/matches/new"
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                  >
-                    <PlusCircle className="h-4 w-4" />
-                    New Match
-                  </Link>
-                  <Link
-                    href="/matches"
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                  >
-                    <BarChart className="h-4 w-4" />
-                    Match History
-                  </Link>
-                  <Link
-                    href="/points-table"
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                  >
-                    <Trophy className="h-4 w-4" />
-                    Points Table
-                  </Link>
-                  <Link
-                    href="/player-stats"
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                  >
-                    <Users className="h-4 w-4" />
-                    Player Stats
-                  </Link>
-                  <Link
-                    href="/rankings"
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                  >
-                    <Medal className="h-4 w-4" />
-                    Rankings
-                  </Link>
-                  <Link
-                    href="/number-game"
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                  >
-                    <Sigma className="h-4 w-4" />
-                    Number Game
-                  </Link>
+
+                  <Collapsible open={isMatchCenterOpen} onOpenChange={setMatchCenterOpen} className="space-y-1">
+                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                        <div className="flex items-center gap-3">
+                            <BarChart className="h-4 w-4" />
+                            <span>Match Center</span>
+                        </div>
+                        <ChevronRight className={`h-4 w-4 transition-transform ${isMatchCenterOpen ? 'rotate-90' : ''}`} />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pl-7 space-y-1">
+                        <Link href="/matches/new" className="block rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                            New Match
+                        </Link>
+                        <Link href="/matches" className="block rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                            Match History
+                        </Link>
+                    </CollapsibleContent>
+                  </Collapsible>
+                  
+                  <Collapsible open={isLeagueOpen} onOpenChange={setLeagueOpen} className="space-y-1">
+                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                        <div className="flex items-center gap-3">
+                            <Trophy className="h-4 w-4" />
+                            <span>League Central</span>
+                        </div>
+                        <ChevronRight className={`h-4 w-4 transition-transform ${isLeagueOpen ? 'rotate-90' : ''}`} />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pl-7 space-y-1">
+                        <Link href="/teams" className="block rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                            Teams
+                        </Link>
+                        <Link href="/points-table" className="block rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                            Points Table
+                        </Link>
+                        <Link href="/player-stats" className="block rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                            Player Stats
+                        </Link>
+                        <Link href="/rankings" className="block rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                            Rankings
+                        </Link>
+                    </CollapsibleContent>
+                  </Collapsible>
+
+                  <Collapsible open={isGamesOpen} onOpenChange={setGamesOpen} className="space-y-1">
+                    <CollapsibleTrigger className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                        <div className="flex items-center gap-3">
+                            <Sigma className="h-4 w-4" />
+                            <span>Games</span>
+                        </div>
+                        <ChevronRight className={`h-4 w-4 transition-transform ${isGamesOpen ? 'rotate-90' : ''}`} />
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pl-7 space-y-1">
+                         <Link href="/number-game" className="block rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary">
+                            Number Game
+                        </Link>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </nav>
               </div>
             </div>
@@ -139,62 +153,67 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                       </SheetTitle>
                     </SheetHeader>
                     <nav className="grid gap-2 text-lg font-medium">
-                      <Link
-                        href="/home"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                      >
-                        <Home className="h-5 w-5" />
-                        Home
-                      </Link>
-                      <Link
-                        href="/teams"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                      >
-                        <Users className="h-5 w-5" />
-                        Teams
-                      </Link>
-                      <Link
-                        href="/matches/new"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                      >
-                        <PlusCircle className="h-5 w-5" />
-                        New Match
-                      </Link>
-                      <Link
-                        href="/matches"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                      >
-                        <BarChart className="h-5 w-5" />
-                        Match History
-                      </Link>
-                      <Link
-                        href="/points-table"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                      >
-                        <Trophy className="h-5 w-5" />
-                        Points Table
-                      </Link>
-                      <Link
-                        href="/player-stats"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                      >
-                        <Users className="h-5 w-5" />
-                        Player Stats
-                      </Link>
-                      <Link
-                        href="/rankings"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                      >
-                        <Medal className="h-5 w-5" />
-                        Rankings
-                      </Link>
-                      <Link
-                        href="/number-game"
-                        className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground"
-                      >
-                        <Sigma className="h-5 w-5" />
-                        Number Game
-                      </Link>
+                        <Link href="/home" className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground">
+                            <Home className="h-5 w-5" />
+                            Home
+                        </Link>
+
+                        <Collapsible open={isMatchCenterOpen} onOpenChange={setMatchCenterOpen} className="space-y-1">
+                            <CollapsibleTrigger className="mx-[-0.65rem] flex w-full items-center justify-between rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground text-lg font-medium">
+                                <div className="flex items-center gap-4">
+                                    <BarChart className="h-5 w-5" />
+                                    <span>Match Center</span>
+                                </div>
+                                <ChevronRight className={`h-5 w-5 transition-transform ${isMatchCenterOpen ? 'rotate-90' : ''}`} />
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="pl-12 space-y-1">
+                                <Link href="/matches/new" className="block rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground">
+                                    New Match
+                                </Link>
+                                <Link href="/matches" className="block rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground">
+                                    Match History
+                                </Link>
+                            </CollapsibleContent>
+                        </Collapsible>
+                        
+                        <Collapsible open={isLeagueOpen} onOpenChange={setLeagueOpen} className="space-y-1">
+                            <CollapsibleTrigger className="mx-[-0.65rem] flex w-full items-center justify-between rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground text-lg font-medium">
+                                <div className="flex items-center gap-4">
+                                    <Trophy className="h-5 w-5" />
+                                    <span>League Central</span>
+                                </div>
+                                <ChevronRight className={`h-5 w-5 transition-transform ${isLeagueOpen ? 'rotate-90' : ''}`} />
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="pl-12 space-y-1">
+                                <Link href="/teams" className="block rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground">
+                                    Teams
+                                </Link>
+                                <Link href="/points-table" className="block rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground">
+                                    Points Table
+                                </Link>
+                                <Link href="/player-stats" className="block rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground">
+                                    Player Stats
+                                </Link>
+                                <Link href="/rankings" className="block rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground">
+                                    Rankings
+                                </Link>
+                            </CollapsibleContent>
+                        </Collapsible>
+
+                        <Collapsible open={isGamesOpen} onOpenChange={setGamesOpen} className="space-y-1">
+                            <CollapsibleTrigger className="mx-[-0.65rem] flex w-full items-center justify-between rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground text-lg font-medium">
+                                <div className="flex items-center gap-4">
+                                    <Sigma className="h-5 w-5" />
+                                    <span>Games</span>
+                                </div>
+                                <ChevronRight className={`h-5 w-5 transition-transform ${isGamesOpen ? 'rotate-90' : ''}`} />
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="pl-12 space-y-1">
+                                <Link href="/number-game" className="block rounded-lg px-3 py-2 text-muted-foreground hover:text-foreground">
+                                    Number Game
+                                </Link>
+                            </CollapsibleContent>
+                        </Collapsible>
                     </nav>
                   </SheetContent>
                 </Sheet>
