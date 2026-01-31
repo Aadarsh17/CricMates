@@ -18,6 +18,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import Image from "next/image";
 
 type PointsTableEntry = {
   team: Team;
@@ -135,11 +136,12 @@ export function PointsTable({ teams, matches, players }: { teams: Team[], matche
           onOpenChange={(isOpen) => !isOpen && setSelectedTeam(null)}
         />
       )}
-      <div className="rounded-lg border">
-        <Table className="[&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
+      <div className="rounded-lg border overflow-hidden">
+        <Table className="[&_td]:py-3 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
           <TableHeader>
-            <TableRow>
-              <TableHead className="w-[250px] font-semibold">Team</TableHead>
+            <TableRow className="bg-muted hover:bg-muted">
+              <TableHead className="w-12 font-semibold">Pos</TableHead>
+              <TableHead className="min-w-[200px] font-semibold">Team</TableHead>
               <TableHead className="text-center font-semibold">MP</TableHead>
               <TableHead className="text-center font-semibold">W</TableHead>
               <TableHead className="text-center font-semibold">L</TableHead>
@@ -160,19 +162,30 @@ export function PointsTable({ teams, matches, players }: { teams: Team[], matche
             </TableRow>
           </TableHeader>
           <TableBody>
-            {pointsTableData.map(({ team, played, won, lost, tied, nrr, points }) => (
-              <TableRow key={team.id}>
+            {pointsTableData.map(({ team, played, won, lost, tied, nrr, points }, index) => (
+              <TableRow key={team.id} className={index < 4 ? 'bg-primary/5 hover:bg-primary/10' : ''}>
+                <TableCell className="font-bold text-muted-foreground text-lg">{index + 1}</TableCell>
                 <TableCell>
-                  <Button variant="link" className="p-0 h-auto font-medium text-foreground hover:no-underline" onClick={() => setSelectedTeam(team)}>
-                    {team.name}
+                   <Button variant="link" className="p-0 h-auto font-medium text-foreground hover:no-underline" onClick={() => setSelectedTeam(team)}>
+                    <div className="flex items-center gap-3">
+                      <Image 
+                        src={team.logoUrl} 
+                        alt={`${team.name} logo`} 
+                        width={32} 
+                        height={32} 
+                        className="rounded-full border"
+                        data-ai-hint={team.imageHint}
+                      />
+                      <span>{team.name}</span>
+                    </div>
                   </Button>
                 </TableCell>
                 <TableCell className="text-center">{played}</TableCell>
-                <TableCell className="text-center">{won}</TableCell>
+                <TableCell className="text-center font-semibold">{won}</TableCell>
                 <TableCell className="text-center">{lost}</TableCell>
                 <TableCell className="text-center">{tied}</TableCell>
                 <TableCell className="text-right font-mono">{nrr.toFixed(3)}</TableCell>
-                <TableCell className="text-right font-bold">{points}</TableCell>
+                <TableCell className="text-right font-bold text-lg">{points}</TableCell>
               </TableRow>
             ))}
           </TableBody>
