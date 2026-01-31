@@ -156,48 +156,32 @@ export default function MatchPage() {
         }
 
         const shareText = match.result 
-            ? `${match.result}. View the full scorecard for ${team1.name} vs ${team2.name}.`
-            : `Check out the scorecard for ${team1.name} vs ${team2.name}.`;
+            ? `${match.result}. Full scorecard for ${team1.name} vs ${team2.name}.`
+            : `Live scorecard for ${team1.name} vs ${team2.name}.`;
         
-        // The URL is removed to avoid sharing internal workstation links.
-        // In a production environment, you would construct the public URL here.
         const shareData = {
             title: `Cricket Match: ${team1.name} vs ${team2.name}`,
             text: shareText,
         };
 
         try {
-            // Check for Web Share API support
-            if (!navigator.share) {
-                 // Fallback for browsers that don't support it: copy text to clipboard
-                await navigator.clipboard.writeText(`${shareData.title}\n\n${shareData.text}`);
+            if (navigator.share) {
+                await navigator.share(shareData);
+            } else {
+                await navigator.clipboard.writeText(shareData.text);
                 toast({
                     title: "Match Info Copied",
                     description: "The match summary has been copied to your clipboard.",
                 });
-                return;
             }
-            
-            await navigator.share(shareData);
-
         } catch (err: any) {
-            // Handles cases where sharing is cancelled by the user.
-            // We can ignore this, but you could add logging if needed.
             if (err.name !== 'AbortError') {
-                 try {
-                    // Final fallback: copy text to clipboard if sharing fails for other reasons
-                    await navigator.clipboard.writeText(`${shareData.title}\n\n${shareData.text}`);
-                    toast({
-                        title: "Match Info Copied",
-                        description: "Sharing failed, so the summary has been copied to your clipboard.",
-                    });
-                } catch (copyError) {
-                    toast({
-                        variant: "destructive",
-                        title: "Action Failed",
-                        description: "Could not share or copy the match info.",
-                    });
-                }
+                 console.error("Share failed:", err);
+                 toast({
+                    variant: "destructive",
+                    title: "Action Failed",
+                    description: "Could not share or copy the match info.",
+                });
             }
         }
     };
@@ -208,97 +192,113 @@ export default function MatchPage() {
 
 
     return (
-        <div className="space-y-4">
-            <InningStartDialog
-                open={isInningStartDialogOpen}
-                onClose={() => setIsInningStartDialogOpen(false)}
-                inningNumber={match.currentInning}
-                battingTeamName={battingTeam?.name}
-            />
-            <SelectBowlerDialog 
-                open={isBowlerDialogOpen}
-                bowlers={bowlingTeamPlayers.filter(p => p.id !== match.innings[match.currentInning - 1]?.deliveryHistory.at(-1)?.bowlerId)}
-                onBowlerSelect={(bowlerId) => {
-                    setPlayerInMatch(match, 'bowler', bowlerId);
-                    setIsBowlerDialogOpen(false);
-                }}
-            />
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-xl font-bold tracking-tight font-headline flex justify-between items-center">
-                        <span>{team1.name} vs {team2.name}</span>
-                        {match.status === 'completed' ? (
-                           <div className="flex items-center gap-2 print:hidden">
-                               <Button variant="outline" size="icon" onClick={handleShare}>
-                                   <Share2 className="h-4 w-4" />
-                                   <span className="sr-only">Share</span>
-                               </Button>
-                               <Button variant="outline" size="icon" onClick={handlePrint}>
-                                   <Printer className="h-4 w-4" />
-                                   <span className="sr-only">Print or Save as PDF</span>
-                               </Button>
-                           </div>
-                        ) : (
-                            <span className="text-sm font-normal text-muted-foreground">{match.overs} Over Match</span>
-                        )}
-                    </CardTitle>
-                    <CardDescription>
-                        {`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}
-                    </CardDescription>
-                </CardHeader>
-                 {match.status === 'live' && (
-                    <CardContent className="space-y-4">
-                        <div className="flex flex-col md:flex-row gap-4">
-                            <PlayerSelector label="Striker" players={selectableBatsmen.filter(p => p.id !== currentInning.nonStrikerId)} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match, 'striker', id)} disabled={!!currentInning.strikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
-                            <PlayerSelector label="Non-Striker" players={selectableBatsmen.filter(p => p.id !== currentInning.strikerId)} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match, 'nonStriker', id)} disabled={!!currentInning.nonStrikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
-                             { !isBowlerDialogOpen && <PlayerSelector label="Bowler" players={bowlingTeamPlayers} selectedPlayerId={currentInning.bowlerId} onSelect={(id) => setPlayerInMatch(match, 'bowler', id)} disabled={!!currentInning.bowlerId} /> }
-                        </div>
-                    </CardContent>
-                 )}
-                 {match.status === 'completed' && <CardFooter><p className="text-sm text-muted-foreground">Match completed on {new Date(match.date).toLocaleDateString()}</p></CardFooter>}
-            </Card>
-
-            {match.status === 'completed' && match.result && (
+        <>
+            <div className="space-y-4 print:hidden">
+                <InningStartDialog
+                    open={isInningStartDialogOpen}
+                    onClose={() => setIsInningStartDialogOpen(false)}
+                    inningNumber={match.currentInning}
+                    battingTeamName={battingTeam?.name}
+                />
+                <SelectBowlerDialog 
+                    open={isBowlerDialogOpen}
+                    bowlers={bowlingTeamPlayers.filter(p => p.id !== match.innings[match.currentInning - 1]?.deliveryHistory.at(-1)?.bowlerId)}
+                    onBowlerSelect={(bowlerId) => {
+                        setPlayerInMatch(match, 'bowler', bowlerId);
+                        setIsBowlerDialogOpen(false);
+                    }}
+                />
                 <Card>
-                    <CardHeader className="text-center">
-                        <div className="flex justify-center items-center gap-2">
-                             <Trophy className="w-8 h-8 text-primary" />
-                             <CardTitle className="text-primary">{match.result}</CardTitle>
-                        </div>
+                    <CardHeader>
+                        <CardTitle className="text-xl font-bold tracking-tight font-headline flex justify-between items-center">
+                            <span>{team1.name} vs {team2.name}</span>
+                            {match.status === 'completed' ? (
+                            <div className="flex items-center gap-2">
+                                <Button variant="outline" size="icon" onClick={handleShare}>
+                                    <Share2 className="h-4 w-4" />
+                                    <span className="sr-only">Share</span>
+                                </Button>
+                                <Button variant="outline" size="icon" onClick={handlePrint}>
+                                    <Printer className="h-4 w-4" />
+                                    <span className="sr-only">Print or Save as PDF</span>
+                                </Button>
+                            </div>
+                            ) : (
+                                <span className="text-sm font-normal text-muted-foreground">{match.overs} Over Match</span>
+                            )}
+                        </CardTitle>
+                        <CardDescription>
+                            {`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}
+                        </CardDescription>
                     </CardHeader>
-                </Card>
-            )}
-
-            <Tabs defaultValue="scorecard" className="w-full">
-                <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
-                    <TabsTrigger value="squads">Squads</TabsTrigger>
-                    <TabsTrigger value="overs">Overs</TabsTrigger>
-                </TabsList>
-                <TabsContent value="scorecard" className="mt-4">
                     {match.status === 'live' && (
-                        <div className="space-y-4">
-                            <Scoreboard match={match} teams={teams} />
-                            <LivePlayerStats
-                                striker={striker}
-                                nonStriker={nonStriker}
-                                bowler={bowler}
-                                inning={currentInning}
-                            />
-                            <UmpireControls match={match} teams={teams} players={players} />
+                        <CardContent className="space-y-4">
+                            <div className="flex flex-col md:flex-row gap-4">
+                                <PlayerSelector label="Striker" players={selectableBatsmen.filter(p => p.id !== currentInning.nonStrikerId)} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match, 'striker', id)} disabled={!!currentInning.strikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
+                                <PlayerSelector label="Non-Striker" players={selectableBatsmen.filter(p => p.id !== currentInning.strikerId)} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match, 'nonStriker', id)} disabled={!!currentInning.nonStrikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
+                                { !isBowlerDialogOpen && <PlayerSelector label="Bowler" players={bowlingTeamPlayers} selectedPlayerId={currentInning.bowlerId} onSelect={(id) => setPlayerInMatch(match, 'bowler', id)} disabled={!!currentInning.bowlerId} /> }
+                            </div>
+                        </CardContent>
+                    )}
+                    {match.status === 'completed' && <CardFooter><p className="text-sm text-muted-foreground">Match completed on {new Date(match.date).toLocaleDateString()}</p></CardFooter>}
+                </Card>
+
+                {match.status === 'completed' && match.result && (
+                    <Card>
+                        <CardHeader className="text-center">
+                            <div className="flex justify-center items-center gap-2">
+                                <Trophy className="w-8 h-8 text-primary" />
+                                <CardTitle className="text-primary">{match.result}</CardTitle>
+                            </div>
+                        </CardHeader>
+                    </Card>
+                )}
+
+                <Tabs defaultValue="scorecard" className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
+                        <TabsTrigger value="squads">Squads</TabsTrigger>
+                        <TabsTrigger value="overs">Overs</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="scorecard" className="mt-4">
+                        {match.status === 'live' && (
+                            <div className="space-y-4">
+                                <Scoreboard match={match} teams={teams} />
+                                <LivePlayerStats
+                                    striker={striker}
+                                    nonStriker={nonStriker}
+                                    bowler={bowler}
+                                    inning={currentInning}
+                                />
+                                <UmpireControls match={match} teams={teams} players={players} />
+                            </div>
+                        )}
+                        {match.status === 'completed' && (
+                            <FullScorecard match={match} teams={teams} players={players} />
+                        )}
+                    </TabsContent>
+                    <TabsContent value="squads" className="mt-4">
+                        <MatchSquads match={match} teams={teams} players={players} />
+                    </TabsContent>
+                    <TabsContent value="overs" className="mt-4">
+                        <OverByOver match={match} players={players} teams={teams} />
+                    </TabsContent>
+                </Tabs>
+            </div>
+
+            <div className="hidden print:block">
+                {match.status === 'completed' && (
+                     <>
+                        <div className="text-center mb-4">
+                            <h1 className="text-xl font-bold">{team1.name} vs {team2.name}</h1>
+                            <p className="text-sm">{`Match completed on ${new Date(match.date).toLocaleDateString()}`}</p>
+                            <p className="text-sm">{`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}</p>
+                            {match.result && <p className="font-semibold text-lg mt-2">{match.result}</p>}
                         </div>
-                    )}
-                    {match.status === 'completed' && (
                         <FullScorecard match={match} teams={teams} players={players} />
-                    )}
-                </TabsContent>
-                <TabsContent value="squads" className="mt-4">
-                    <MatchSquads match={match} teams={teams} players={players} />
-                </TabsContent>
-                <TabsContent value="overs" className="mt-4">
-                    <OverByOver match={match} players={players} teams={teams} />
-                </TabsContent>
-            </Tabs>
-        </div>
+                    </>
+                )}
+            </div>
+        </>
     );
 }

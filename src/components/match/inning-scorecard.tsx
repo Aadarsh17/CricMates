@@ -186,7 +186,7 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
 
 
     return (
-        <Card className="overflow-hidden">
+        <Card className="overflow-hidden break-inside-avoid">
             <CardHeader className="bg-foreground p-3">
                 <CardTitle className="text-lg text-background">{battingTeam.name} Innings</CardTitle>
             </CardHeader>
