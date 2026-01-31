@@ -1,16 +1,16 @@
 'use client';
 
-import { useAppContext } from '@/context/AppContext';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { format } from 'date-fns';
-import { Trophy, Medal } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import type { Match, Player, Team } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
 import { calculatePlayerCVP } from '@/lib/stats';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+
 
 const getPlayerOfTheMatch = (match: Match, players: Player[], teams: Team[]): { player: Player | null, cvp: number } => {
   if (match.status !== 'completed' || !match.result) return { player: null, cvp: 0 };
@@ -105,40 +105,58 @@ export default function MatchesHistoryPage() {
           </p>
         </div>
       </div>
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {completedMatches.map(match => {
-          const team1 = getTeamById(match.team1Id);
-          const team2 = getTeamById(match.team2Id);
-          if (!team1 || !team2) return null;
+          const firstInning = match.innings[0];
+          const secondInning = match.innings.length > 1 ? match.innings[1] : null;
+
+          const firstInningTeam = getTeamById(firstInning.battingTeamId);
+          const secondInningTeam = secondInning ? getTeamById(secondInning.battingTeamId) : null;
+
+          if (!firstInningTeam) return null;
 
           const { player: playerOfTheMatch, cvp: potmCVP } = getPlayerOfTheMatch(match, players, teams);
 
           return (
-            <Card key={match.id} className="flex flex-col">
+            <Card key={match.id} className="flex flex-col overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                <CardHeader className="p-4">
+                    <p className="text-sm text-muted-foreground">{format(new Date(match.date), 'PPP')}</p>
+                    <p className="font-semibold text-primary pt-1">{match.result || 'Result not available'}</p>
+                </CardHeader>
+              
+              <CardContent className="p-4 space-y-2 flex-grow">
+                  <div className="flex justify-between items-center">
+                      <span className="font-bold text-lg">{firstInningTeam.name}</span>
+                      <span className="font-mono text-lg font-semibold">{firstInning.score}/{firstInning.wickets} <span className="text-sm font-normal text-muted-foreground">({firstInning.overs.toFixed(1)})</span></span>
+                  </div>
+                  {secondInning && secondInningTeam && (
+                      <div className="flex justify-between items-center">
+                          <span className="font-bold text-lg">{secondInningTeam.name}</span>
+                          <span className="font-mono text-lg font-semibold">{secondInning.score}/{secondInning.wickets} <span className="text-sm font-normal text-muted-foreground">({secondInning.overs.toFixed(1)})</span></span>
+                      </div>
+                  )}
+              </CardContent>
+
               {playerOfTheMatch && (
-                <div className="p-4 border-b bg-muted/20">
+                <div className="p-4 border-t bg-muted/20">
                     <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">CricMates Valuable Player (CVP)</p>
-                    <div className="flex items-center gap-2 pt-1">
-                        <Medal className="w-5 h-5 text-primary"/>
-                        <p className="font-bold text-primary text-lg">{playerOfTheMatch.name} ({potmCVP})</p>
+                    <div className="flex items-center gap-3 pt-2">
+                        <Avatar className="h-10 w-10">
+                            <AvatarImage src={`https://picsum.photos/seed/${playerOfTheMatch.id}/40/40`} alt={playerOfTheMatch.name} />
+                            <AvatarFallback>{playerOfTheMatch.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                            <p className="font-bold text-lg leading-tight">{playerOfTheMatch.name} ({potmCVP})</p>
+                        </div>
                     </div>
                 </div>
               )}
-              <CardHeader>
-                <CardDescription>{format(new Date(match.date), 'PPP')}</CardDescription>
-                <CardTitle>{team1.name} vs {team2.name}</CardTitle>
-              </CardHeader>
-              <CardContent className="flex-grow p-4">
-                <div className="flex items-center gap-2 text-primary font-semibold">
-                    <Trophy className="w-5 h-5"/>
-                    <p>{match.result || 'Result not available'}</p>
-                </div>
-              </CardContent>
-              <div className="p-4">
+              
+              <CardFooter className="p-2">
                 <Button asChild className="w-full">
                   <Link href={`/matches/${match.id}`}>View Scorecard</Link>
                 </Button>
-              </div>
+              </CardFooter>
             </Card>
           );
         })}
