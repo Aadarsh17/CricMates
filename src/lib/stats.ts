@@ -43,92 +43,114 @@ const formatOvers = (balls: number) => {
 };
 
 export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Player[], allTeams: Team[]): number => {
-    // This calculation is based on the CVP rules for short-form matches (4-8 overs)
     if (match.status !== 'completed' || !match.result) return 0;
 
     let playerPoints = 0;
     const playerId = player.id;
 
     // ✅ Participation: +1 point
-    if (player.teamId === match.team1Id || player.teamId === match.team2Id) {
+    const playerTeamIds = new Set(allPlayers.filter(p => p.teamId === match.team1Id || p.teamId === match.team2Id).map(p => p.teamId));
+    if (playerTeamIds.has(player.teamId)) {
         playerPoints += 1;
     }
 
     match.innings.forEach(inning => {
-        // --- 1. Batting, Fielding, and Wicket points (per delivery) ---
-        inning.deliveryHistory.forEach(delivery => {
-            const { strikerId, bowlerId, runs, isWicket, extra, dismissal } = delivery;
-
-            // 🏏 Batting Points
-            if (strikerId === playerId && extra !== 'byes' && extra !== 'legbyes') {
-                playerPoints += runs; // +1 per run
-                if (runs === 4) playerPoints += 1;
-                if (runs === 6) playerPoints += 2;
-            }
-
-            // 🎯 Wicket & 🧤 Fielding Points
-            if (isWicket && dismissal) {
-                if (bowlerId === playerId && dismissal.type !== 'Run out') {
-                    playerPoints += 12;
-                }
-                if (dismissal.fielderId === playerId) {
-                    if (dismissal.type === 'Catch out' || dismissal.type === 'Stumping') playerPoints += 6;
-                    else if (dismissal.type === 'Run out') playerPoints += 5;
-                }
-            }
-        });
-
-        // --- 2. Inning-level Batting Bonuses ---
+        // --- Batting, Fielding, Wicket points ---
+        const playerDeliveriesAsStriker = inning.deliveryHistory.filter(d => d.strikerId === playerId);
+        const playerDeliveriesAsBowler = inning.deliveryHistory.filter(d => d.bowlerId === playerId);
+        
         let runsThisInning = 0;
         let ballsFacedThisInning = 0;
-        const playerDeliveries = inning.deliveryHistory.filter(d => d.strikerId === playerId);
-        if (playerDeliveries.length > 0) {
-            playerDeliveries.forEach(d => {
-                if (d.extra !== 'byes' && d.extra !== 'legbyes') runsThisInning += d.runs;
-                if (d.extra !== 'wide') ballsFacedThisInning++;
+        let wasOut = inning.deliveryHistory.some(d => d.isWicket && d.dismissal?.batsmanOutId === playerId);
+
+        // Process Batting Points only if the player actually batted
+        if (playerDeliveriesAsStriker.length > 0) {
+            playerDeliveriesAsStriker.forEach(d => {
+                 if (d.extra !== 'byes' && d.extra !== 'legbyes') {
+                    playerPoints += d.runs; // +1 per run
+                    runsThisInning += d.runs;
+                    if (d.runs === 4) playerPoints += 1; // +1 for a four
+                    if (d.runs === 6) playerPoints += 2; // +2 for a six
+                }
+                if (d.extra !== 'wide') {
+                    ballsFacedThisInning++;
+                }
             });
 
+            // Strike Rate Bonuses/Penalties (min 6 balls)
             if (ballsFacedThisInning >= 6) {
                 const strikeRate = (runsThisInning / ballsFacedThisInning) * 100;
                 if (strikeRate >= 220) playerPoints += 5;
                 else if (strikeRate >= 180) playerPoints += 3;
+                
+                if (strikeRate < 80 && strikeRate >= 60) playerPoints -= 3;
+                else if (strikeRate < 60) playerPoints -= 5;
             }
+            
+            // % of Team Total Bonus
             if (inning.score > 0 && (runsThisInning / inning.score) * 100 >= 30) {
                 playerPoints += 5;
             }
-            const isOut = inning.deliveryHistory.some(d => d.isWicket && d.dismissal?.batsmanOutId === playerId);
-            if (!isOut && runsThisInning >= 10) {
+
+            // Not Out Bonus
+            if (!wasOut && runsThisInning >= 10) {
                 playerPoints += 3;
+            }
+
+            // Golden Duck Penalty
+            if (wasOut && runsThisInning === 0 && (ballsFacedThisInning === 1 || ballsFacedThisInning === 2)) {
+                playerPoints -= 2;
             }
         }
         
-        // --- 3. Over-level Bowling Bonuses ---
-        const bowlerDeliveriesInInning = inning.deliveryHistory.filter(d => d.bowlerId === playerId);
-        if (bowlerDeliveriesInInning.length > 0) {
-            // Per user rule: "Max 1 Over per Bowler" for short matches.
-            // We'll calculate stats for the bowler's entire spell in the inning.
-            let spellRuns = 0, spellWickets = 0, spellDots = 0, spellBalls = 0;
+        // Process Bowling Points
+        if (playerDeliveriesAsBowler.length > 0) {
+            const oversBowled = new Map<number, { runs: number; wickets: number; dots: number; }>();
 
-            bowlerDeliveriesInInning.forEach(d => {
-                if (d.extra !== 'wide' && d.extra !== 'noball') {
-                    spellBalls++;
-                    if (d.runs === 0 && !d.isWicket) spellDots++;
+            playerDeliveriesAsBowler.forEach(d => {
+                const overNumber = Math.floor(inning.deliveryHistory.filter(del => del.bowlerId === playerId && del.timestamp <= d.timestamp && del.extra !== 'wide' && del.extra !== 'noball').length / 6);
+                
+                if (!oversBowled.has(overNumber)) {
+                    oversBowled.set(overNumber, { runs: 0, wickets: 0, dots: 0 });
                 }
+                const overStats = oversBowled.get(overNumber)!;
+
                 let conceded = d.runs;
                 if (d.extra === 'wide' || d.extra === 'noball') conceded += 1;
-                spellRuns += conceded;
+                overStats.runs += conceded;
+
                 if (d.isWicket && d.dismissal?.type !== 'Run out') {
-                    spellWickets++;
+                    overStats.wickets++;
+                    playerPoints += 12; // +12 per wicket
+                }
+
+                if (d.runs === 0 && !d.isWicket && d.extra !== 'wide' && d.extra !== 'noball') {
+                    overStats.dots++;
+                    playerPoints += 1; // +1 per dot ball
                 }
             });
 
-            // If bowler bowled 1 over or less, apply these bonuses.
-            if (spellBalls <= 6) {
-                playerPoints += spellDots;
-                if (spellRuns <= 1) playerPoints += 5;
-                if (spellWickets >= 2) playerPoints += 6;
-            }
+            oversBowled.forEach(overStats => {
+                if(overStats.wickets >= 2) playerPoints += 6; // 2 wickets in an over bonus
+                if(overStats.runs <= 1) playerPoints += 5; // 0-1 run in over bonus
+
+                // Negative points only if no wicket was taken in the over
+                if (overStats.wickets === 0) {
+                    if (overStats.runs >= 18) playerPoints -= 8;
+                    else if (overStats.runs >= 15) playerPoints -= 5;
+                    else if (overStats.runs >= 12) playerPoints -= 3;
+                }
+            });
         }
+
+        // Process Fielding points from all deliveries in the inning
+        inning.deliveryHistory.forEach(delivery => {
+            if (delivery.isWicket && delivery.dismissal?.fielderId === playerId) {
+                if (delivery.dismissal.type === 'Catch out') playerPoints += 6;
+                if (delivery.dismissal.type === 'Stumping') playerPoints += 6;
+                if (delivery.dismissal.type === 'Run out') playerPoints += 5; // Assisted run-out
+            }
+        });
     });
 
     // --- 4. Team Bonus ---
@@ -166,14 +188,14 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
             match.innings.forEach(inning => {
                 // Batting Stats
                 if (inning.battingTeamId === player.teamId) {
-                    const playerDeliveriesAsStriker = inning.deliveryHistory.filter(d => d.strikerId === player.id);
-                    if (playerDeliveriesAsStriker.length > 0) {
-                        playedInMatch = true;
-                        inningsBatted++;
-                        let runsThisInning = 0;
-                        let ballsFacedThisInning = 0;
+                    let playerBatted = false;
+                    let runsThisInning = 0;
+                    let ballsFacedThisInning = 0;
 
-                        playerDeliveriesAsStriker.forEach(d => {
+                    inning.deliveryHistory.forEach(d => {
+                        if (d.strikerId === player.id) {
+                            playerBatted = true;
+                            playedInMatch = true;
                             if (d.extra !== 'byes' && d.extra !== 'legbyes') {
                                 runsScored += d.runs;
                                 runsThisInning += d.runs;
@@ -184,8 +206,11 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
                                 ballsFaced++;
                                 ballsFacedThisInning++;
                             }
-                        });
+                        }
+                    });
 
+                    if (playerBatted) {
+                        inningsBatted++;
                         if (runsThisInning >= 50 && runsThisInning < 100) fifties++;
                         if (runsThisInning >= 100) hundreds++;
                         if (runsThisInning > highestScore) highestScore = runsThisInning;
@@ -214,14 +239,13 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
     
                         playerDeliveriesAsBowler.forEach(d => {
                             if (d.extra !== 'wide' && d.extra !== 'noball') ballsBowled++;
-                            runsConceded += d.runs;
-                            runsConcededThisInning += d.runs;
+                            let conceded = d.runs;
+                            if (d.extra === 'wide' || d.extra === 'noball') conceded += 1;
+                            
+                            runsConceded += conceded;
+                            runsConcededThisInning += conceded;
     
-                            if (d.extra === 'wide' || d.extra === 'noball') {
-                                runsConceded++;
-                                runsConcededThisInning++;
-                            }
-                            if (d.isWicket && d.outcome !== 'Retired' && d.outcome !== 'run out') {
+                            if (d.isWicket && d.dismissal?.type !== 'Run out') {
                                 wicketsTaken++;
                                 wicketsThisInning++;
                             }
