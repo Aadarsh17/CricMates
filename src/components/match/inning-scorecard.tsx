@@ -216,11 +216,11 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                                         <p className="text-xs text-muted-foreground print:text-gray-600">{stats.dismissal}</p>
                                     </div>
                                 </TableCell>
-                                <TableCell className="text-right font-mono font-semibold">{isYetToBat ? '' : stats.runs}</TableCell>
-                                <TableCell className="text-right font-mono">{isYetToBat ? '' : stats.balls}</TableCell>
-                                <TableCell className="text-right font-mono">{isYetToBat ? '' : stats.fours}</TableCell>
-                                <TableCell className="text-right font-mono">{isYetToBat ? '' : stats.sixes}</TableCell>
-                                <TableCell className="text-right font-mono">{isYetToBat ? '' : (stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00')}</TableCell>
+                                <TableCell className="text-right font-mono font-semibold">{isYetToBat ? '0' : stats.runs}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.balls}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.fours}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.sixes}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '0.00' : (stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00')}</TableCell>
                                 <TableCell className="text-right font-mono font-semibold">{cvp > 0 ? cvp : ''}</TableCell>
                             </TableRow>
                         )})}
