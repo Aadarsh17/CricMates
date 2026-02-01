@@ -30,8 +30,8 @@ const InningCollapsible = ({ inning, match, teams, players, defaultOpen = true }
             </div>
             {/* Print View */}
             <div className="hidden print:block">
-                <div className="p-2 bg-gray-200 text-black text-left">
-                    <h3 className="text-sm font-semibold">{team?.name} Innings</h3>
+                <div className="p-1.5 bg-gray-700 text-white text-left">
+                    <h3 className="text-sm font-bold">{team?.name} Innings</h3>
                 </div>
                 <InningScorecard inning={inning} match={match} teams={teams} players={players} />
             </div>

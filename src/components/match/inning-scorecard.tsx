@@ -192,14 +192,14 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
         <div>
             <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4 print:text-xs print:[&_td]:py-1 print:[&_td]:px-2 print:[&_th]:py-1 print:[&_th]:px-2">
                 <TableHeader>
-                    <TableRow className="bg-secondary hover:bg-secondary/90 print:bg-gray-100">
-                        <TableHead className="w-[45%] text-secondary-foreground print:text-black">Batsman</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">R</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">B</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">4s</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">6s</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">SR</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black print:hidden">CVP</TableHead>
+                    <TableRow className="bg-secondary hover:bg-secondary/90 print:bg-gray-700">
+                        <TableHead className="w-[45%] text-secondary-foreground print:text-white">Batsman</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white">R</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white">B</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white">4s</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white">6s</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white">SR</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white print:hidden">CVP</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -226,21 +226,21 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                 </TableBody>
             </Table>
 
-            <div className="flex justify-between items-center px-4 py-2 bg-secondary/20 print:bg-gray-100 print:px-2 print:py-1">
+            <div className="flex justify-between items-center px-4 py-2 bg-secondary/20 print:bg-gray-200 print:px-2 print:py-1 print:font-semibold">
                <p className="text-sm print:text-xs">Extras: {extrasTotal}</p>
                <p className="font-bold print:font-semibold">Total: {inning.score}/{inning.wickets} <span className="font-normal text-sm text-muted-foreground print:text-xs print:font-normal">({inning.overs.toFixed(1)} Overs)</span></p>
             </div>
 
             <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4 print:text-xs print:[&_td]:py-1 print:[&_td]:px-2 print:[&_th]:py-1 print:[&_th]:px-2">
                  <TableHeader>
-                    <TableRow className="bg-secondary hover:bg-secondary/90 print:bg-gray-100">
-                        <TableHead className="w-[45%] text-secondary-foreground print:text-black">Bowler</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">O</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">M</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">R</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">W</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">ER</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black print:hidden">CVP</TableHead>
+                    <TableRow className="bg-secondary hover:bg-secondary/90 print:bg-gray-700">
+                        <TableHead className="w-[45%] text-secondary-foreground print:text-white">Bowler</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white">O</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white">M</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white">R</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white">W</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white">ER</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-white print:hidden">CVP</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>

@@ -310,18 +310,26 @@ export default function MatchPage() {
             <div className="hidden print:block print:text-black">
                 {match.status === 'completed' && (
                      <>
-                        <div className="text-center mb-2">
-                            <h1 className="text-base font-bold">{team1.name} vs {team2.name}</h1>
-                            <p className="text-[10px] leading-tight">{`Match completed on ${new Date(match.date).toLocaleDateString()}`}</p>
-                            <p className="text-[10px] leading-tight">{`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}</p>
-                            {match.result && <p className="font-semibold text-sm mt-1">{match.result}</p>}
-                            {playerOfTheMatch && (
-                                <div className="mt-2 p-1 border-2 border-dashed border-gray-400 rounded-md">
-                                    <p className="font-bold text-xs leading-tight uppercase">Player of the Match</p>
-                                    <p className="text-sm font-bold text-primary">{playerOfTheMatch.name} <span className="font-normal text-xs text-gray-600">(CVP: {potmCVP})</span></p>
-                                </div>
-                            )}
+                        <div className="space-y-1 text-center mb-2 border-b-2 border-black pb-2">
+                            <h1 className="text-base font-bold uppercase">{team1.name} vs {team2.name}</h1>
+                            <p className="text-xs">{`Match on ${new Date(match.date).toLocaleDateString()} • ${match.overs} Over Match`}</p>
+                            <p className="text-xs">{`Toss: ${getTeamById(match.tossWinnerId)?.name} won and chose to ${match.tossDecision}`}</p>
                         </div>
+                        
+                        {match.result && (
+                            <div className="text-center p-1 my-2 bg-gray-200 rounded-md">
+                                <p className="font-bold text-sm">{match.result}</p>
+                            </div>
+                        )}
+                        
+                        {playerOfTheMatch && (
+                            <div className="text-center mb-2">
+                                <span className="font-bold text-xs uppercase">Player of the Match: </span>
+                                <span className="font-semibold text-sm">{playerOfTheMatch.name}</span>
+                                <span className="text-xs text-gray-600"> (CVP: {potmCVP})</span>
+                            </div>
+                        )}
+
                         <FullScorecard match={match} teams={teams} players={players} />
                     </>
                 )}
