@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -64,6 +64,16 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
       isWicketKeeper: player.isWicketKeeper || false,
     },
   });
+
+  useEffect(() => {
+    form.reset({
+      name: player.name,
+      role: player.role,
+      battingStyle: player.battingStyle || 'Right-hand bat',
+      bowlingStyle: player.bowlingStyle || 'None',
+      isWicketKeeper: player.isWicketKeeper || false,
+    });
+  }, [player, form]);
 
   function onSubmit(values: PlayerFormData) {
     onPlayerEdit(values);
