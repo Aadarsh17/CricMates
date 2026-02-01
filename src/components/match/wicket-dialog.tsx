@@ -20,7 +20,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import type { Player } from '@/lib/types';
-import { Checkbox } from '../ui/checkbox';
 
 interface WicketDialogProps {
   open: boolean;
@@ -82,7 +81,7 @@ export function WicketDialog({ open, onClose, striker, nonStriker, availableBats
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="w-[95vw] max-w-2xl">
         <DialogHeader>
           <DialogTitle>Who is Out?</DialogTitle>
         </DialogHeader>
@@ -120,18 +119,14 @@ export function WicketDialog({ open, onClose, striker, nonStriker, availableBats
 
           <div className="space-y-3">
             <Label>How did the batsman get out?</Label>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+            <RadioGroup onValueChange={setDismissalType} value={dismissalType} className="grid grid-cols-2 gap-x-4 gap-y-3">
               {dismissalTypes.map(type => (
                 <div key={type} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`dismissal-${type}`}
-                    checked={dismissalType === type}
-                    onCheckedChange={() => setDismissalType(type)}
-                  />
-                  <Label htmlFor={`dismissal-${type}`} className="font-normal">{type}</Label>
+                    <RadioGroupItem value={type} id={`dismissal-${type}`} />
+                    <Label htmlFor={`dismissal-${type}`} className="font-normal">{type}</Label>
                 </div>
               ))}
-            </div>
+            </RadioGroup>
           </div>
           
           {showFielderSelect && (
