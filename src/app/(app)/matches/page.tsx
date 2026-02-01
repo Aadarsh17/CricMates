@@ -3,7 +3,7 @@
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, query, where } from 'firebase/firestore';
 import type { Match, Player, Team } from '@/lib/types';
@@ -26,7 +26,15 @@ export default function MatchesHistoryPage() {
   const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'completed')) : null, [db]);
   const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
   
-  const completedMatches = (matchesData || []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const completedMatches = (matchesData || []).sort((a, b) => {
+    const dateA = a.date ? new Date(a.date) : null;
+    const dateB = b.date ? new Date(b.date) : null;
+    
+    if (!dateA || !isValid(dateA)) return 1;
+    if (!dateB || !isValid(dateB)) return -1;
+    
+    return dateB.getTime() - dateA.getTime();
+  });
 
   const getTeamById = (teamId: string) => teams.find(t => t.id === teamId);
 
@@ -82,7 +90,20 @@ export default function MatchesHistoryPage() {
       </div>
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {completedMatches.map(match => {
+          // Robust checks for data integrity
+          if (!match.innings || match.innings.length === 0) {
+            return null;
+          }
           const firstInning = match.innings[0];
+          if (!firstInning || typeof firstInning.overs === 'undefined' || typeof firstInning.score === 'undefined' || typeof firstInning.wickets === 'undefined') {
+            return null;
+          }
+
+          const matchDate = match.date ? new Date(match.date) : null;
+          if (!matchDate || !isValid(matchDate)) {
+            return null; // Don't render card if date is invalid
+          }
+
           const secondInning = match.innings.length > 1 ? match.innings[1] : null;
 
           const firstInningTeam = getTeamById(firstInning.battingTeamId);
@@ -95,7 +116,7 @@ export default function MatchesHistoryPage() {
           return (
             <Card key={match.id} className="flex flex-col overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                 <CardHeader className="p-4">
-                    <p className="text-sm text-muted-foreground">{format(new Date(match.date), 'PPP')}</p>
+                    <p className="text-sm text-muted-foreground">{format(matchDate, 'PPP')}</p>
                     <p className="font-semibold text-primary pt-1">{match.result || 'Result not available'}</p>
                 </CardHeader>
               
@@ -107,7 +128,7 @@ export default function MatchesHistoryPage() {
                   {secondInning && secondInningTeam && (
                       <div className="flex justify-between items-center">
                           <span className="font-bold text-lg">{secondInningTeam.name}</span>
-                          <span className="font-mono text-lg font-semibold">{secondInning.score}/{secondInning.wickets} <span className="text-sm font-normal text-muted-foreground">({secondInning.overs.toFixed(1)})</span></span>
+                          <span className="font-mono text-lg font-semibold">{secondInning.score}/{secondInning.wickets} <span className="text-sm font-normal text-muted-foreground">({(secondInning.overs || 0).toFixed(1)})</span></span>
                       </div>
                   )}
               </CardContent>
