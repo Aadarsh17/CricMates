@@ -19,16 +19,12 @@ type ExtraOptions = {
     wicket: boolean;
     wide: boolean;
     noball: boolean;
-    byes: boolean;
-    legbyes: boolean;
 };
 
 const extraButtons: {key: keyof ExtraOptions; label: string}[] = [
     { key: 'wicket', label: 'Wicket' },
     { key: 'wide', label: 'Wd' },
     { key: 'noball', label: 'NB' },
-    { key: 'byes', label: 'Byes' },
-    { key: 'legbyes', label: 'LB' },
 ];
 
 const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled = false }: { label: string, players: Player[], selectedPlayerId: string | null, onSelect: (playerId: string) => void, disabled?: boolean }) => (
@@ -48,11 +44,11 @@ const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled =
 export function UmpireControls({ match, teams, players, striker, nonStriker, bowler }: { match: Match, teams: Team[], players: Player[], striker?: Player, nonStriker?: Player, bowler?: Player }) {
     const { recordDelivery, swapStrikers, retireStriker, forceEndInning, undoDelivery, setPlayerInMatch } = useAppContext();
     const [extras, setExtras] = useState<ExtraOptions>({
-        wicket: false, wide: false, noball: false, byes: false, legbyes: false
+        wicket: false, wide: false, noball: false
     });
     const [isRetireDialogOpen, setIsRetireDialogOpen] = useState(false);
     const [isWicketDialogOpen, setIsWicketDialogOpen] = useState(false);
-    const [deliveryForWicket, setDeliveryForWicket] = useState<{ runs: number, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null } | null>(null);
+    const [deliveryForWicket, setDeliveryForWicket] = useState<{ runs: number, extra: 'wide' | 'noball' | null } | null>(null);
     
     const currentInning = match.innings[match.currentInning - 1];
 
@@ -65,8 +61,6 @@ export function UmpireControls({ match, teams, players, striker, nonStriker, bow
         const playerIds = currentInning.bowlingTeamId === match.team1Id ? match.team1PlayerIds : match.team2PlayerIds;
         return playerIds ? players.filter(p => playerIds.includes(p.id)) : [];
     }, [currentInning.bowlingTeamId, match, players]);
-
-    const allOutWickets = useMemo(() => battingTeamPlayers.length > 1 ? battingTeamPlayers.length - 1 : 10, [battingTeamPlayers]);
 
     const outPlayerIds = useMemo(() => new Set(match.innings.flatMap(inning => inning.deliveryHistory.filter(d => d.isWicket && d.dismissal).map(d => d.dismissal!.batsmanOutId))), [match.innings]);
     const retiredHurtPlayerIds = useMemo(() => new Set(currentInning.retiredHurtPlayerIds || []), [currentInning.retiredHurtPlayerIds]);
@@ -93,12 +87,9 @@ export function UmpireControls({ match, teams, players, striker, nonStriker, bow
             // Mutually exclusive extras
             if (checked) {
                 if (extra === 'wide') {
-                    newExtras.noball = false; newExtras.byes = false; newExtras.legbyes = false;
+                    newExtras.noball = false;
                 }
                 if (extra === 'noball') {
-                    newExtras.wide = false;
-                }
-                if (extra === 'byes' || extra === 'legbyes') {
                     newExtras.wide = false;
                 }
             }
@@ -108,11 +99,9 @@ export function UmpireControls({ match, teams, players, striker, nonStriker, bow
     };
 
     const handleDelivery = (runs: number) => {
-        let extraType: 'wide' | 'noball' | 'byes' | 'legbyes' | null = null;
+        let extraType: 'wide' | 'noball' | null = null;
         if (extras.wide) extraType = 'wide';
         else if (extras.noball) extraType = 'noball';
-        else if (extras.byes) extraType = 'byes';
-        else if (extras.legbyes) extraType = 'legbyes';
 
         if (extras.wicket) {
             setDeliveryForWicket({ runs, extra: extraType });
@@ -124,9 +113,6 @@ export function UmpireControls({ match, teams, players, striker, nonStriker, bow
         if(extras.wicket) outcomeString = 'W';
         if(extraType === 'wide') outcomeString = `${runs > 0 ? runs : ''}wd`;
         if(extraType === 'noball') outcomeString = `${runs > 0 ? runs : ''}nb`;
-        if(extraType === 'byes') outcomeString = `${runs}b`;
-        if(extraType === 'legbyes') outcomeString = `${runs}lb`;
-
 
         recordDelivery(match, teams, players, {
             runs: runs,
@@ -136,7 +122,7 @@ export function UmpireControls({ match, teams, players, striker, nonStriker, bow
         });
 
         // Reset extras after recording
-        setExtras({ wicket: false, wide: false, noball: false, byes: false, legbyes: false });
+        setExtras({ wicket: false, wide: false, noball: false });
     };
     
     const handleWicketConfirm = (wicketData: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; fielderId?: string; }) => {
@@ -152,7 +138,7 @@ export function UmpireControls({ match, teams, players, striker, nonStriker, bow
 
         setIsWicketDialogOpen(false);
         setDeliveryForWicket(null);
-        setExtras({ wicket: false, wide: false, noball: false, byes: false, legbyes: false });
+        setExtras({ wicket: false, wide: false, noball: false });
     }
 
     const handleRetireConfirm = () => {
@@ -245,7 +231,7 @@ export function UmpireControls({ match, teams, players, striker, nonStriker, bow
                                     
                                     <div className="space-y-2">
                                         <Label>Extras</Label>
-                                        <div className="grid grid-cols-5 gap-2">
+                                        <div className="grid grid-cols-3 gap-2">
                                             {extraButtons.map(({key, label}) => (
                                                 <Button
                                                     key={key}
