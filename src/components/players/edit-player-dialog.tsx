@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -13,7 +13,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Form,
@@ -32,7 +31,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import type { Player } from '@/lib/types';
 
 const formSchema = z.object({
@@ -50,26 +48,15 @@ type PlayerFormData = z.infer<typeof formSchema>;
 interface EditPlayerDialogProps {
   player: Player;
   onPlayerEdit: (data: PlayerFormData) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
-export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps) {
-  const [open, setOpen] = useState(false);
-  
+export function EditPlayerDialog({ player, onPlayerEdit, open, onOpenChange }: EditPlayerDialogProps) {
   const form = useForm<PlayerFormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: player.name,
-      role: player.role,
-      battingStyle: player.battingStyle || '',
-      bowlingStyle: player.bowlingStyle || 'None',
-      isWicketKeeper: !!player.isWicketKeeper,
-    },
   });
 
-  // This effect synchronizes the form with the `player` prop.
-  // When you select a new player to edit, the `player` prop changes,
-  // and this effect calls `form.reset` to update the form fields.
-  // This is the correct and robust way to handle dynamic form data.
   useEffect(() => {
     if (player) {
       form.reset({
@@ -80,20 +67,15 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
         isWicketKeeper: !!player.isWicketKeeper,
       });
     }
-  }, [player, form]);
+  }, [player, open, form]);
 
   function onSubmit(values: PlayerFormData) {
     onPlayerEdit(values);
-    setOpen(false);
+    onOpenChange(false);
   }
   
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-          Edit
-        </DropdownMenuItem>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>

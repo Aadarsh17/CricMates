@@ -19,7 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { MoreVertical, Search } from "lucide-react";
 import { AggregatedPlayerStats, calculatePlayerStats } from "@/lib/stats";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
 import { Button } from "../ui/button";
 import { EditPlayerDialog } from "../players/edit-player-dialog";
 import { DeletePlayerDialog } from "../players/delete-player-dialog";
@@ -44,7 +44,8 @@ export function PlayerStatsTable({ players, teams, matches, onEditPlayer, onDele
 
   const [searchQuery, setSearchQuery] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: keyof AggregatedPlayerStats; direction: 'ascending' | 'descending' } | null>({ key: 'runsScored', direction: 'descending' });
-  
+  const [playerToEdit, setPlayerToEdit] = useState<Player | null>(null);
+
   const allPlayerStats = useMemo(() => calculatePlayerStats(players, teams, matches), [players, teams, matches]);
 
   const filteredPlayerStats = useMemo(() => {
@@ -183,7 +184,9 @@ export function PlayerStatsTable({ players, teams, matches, onEditPlayer, onDele
                               </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent>
-                              <EditPlayerDialog player={stats.player} onPlayerEdit={(data) => onEditPlayer(stats.player.id, data)} />
+                              <DropdownMenuItem onSelect={() => setPlayerToEdit(stats.player)}>
+                                Edit
+                              </DropdownMenuItem>
                               <DeletePlayerDialog onDelete={() => onDeletePlayer(stats.player.id)} />
                           </DropdownMenuContent>
                       </DropdownMenu>
@@ -194,6 +197,21 @@ export function PlayerStatsTable({ players, teams, matches, onEditPlayer, onDele
           </Table>
         </div>
       </TooltipProvider>
+
+      {playerToEdit && (
+        <EditPlayerDialog
+          player={playerToEdit}
+          onPlayerEdit={(data) => {
+            onEditPlayer(playerToEdit.id, data);
+          }}
+          open={!!playerToEdit}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) {
+              setPlayerToEdit(null);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
