@@ -288,10 +288,10 @@ export default function MatchPage() {
                 {match.status === 'completed' && (
                      <>
                         <div className="text-center mb-2">
-                            <h1 className="text-lg font-bold">{team1.name} vs {team2.name}</h1>
-                            <p className="text-xs">{`Match completed on ${new Date(match.date).toLocaleDateString()}`}</p>
-                            <p className="text-xs">{`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}</p>
-                            {match.result && <p className="font-semibold text-base mt-1">{match.result}</p>}
+                            <h1 className="text-base font-bold">{team1.name} vs {team2.name}</h1>
+                            <p className="text-[10px] leading-tight">{`Match completed on ${new Date(match.date).toLocaleDateString()}`}</p>
+                            <p className="text-[10px] leading-tight">{`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}</p>
+                            {match.result && <p className="font-semibold text-sm mt-1">{match.result}</p>}
                         </div>
                         <FullScorecard match={match} teams={teams} players={players} />
                     </>

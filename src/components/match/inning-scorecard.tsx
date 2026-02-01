@@ -199,7 +199,7 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                         <TableHead className="text-right text-secondary-foreground print:text-black">4s</TableHead>
                         <TableHead className="text-right text-secondary-foreground print:text-black">6s</TableHead>
                         <TableHead className="text-right text-secondary-foreground print:text-black">SR</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">CVP</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black print:hidden">CVP</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -220,7 +220,7 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                             <TableCell className="text-right font-mono">{isYetToBat ? '' : stats.fours}</TableCell>
                             <TableCell className="text-right font-mono">{isYetToBat ? '' : stats.sixes}</TableCell>
                             <TableCell className="text-right font-mono">{isYetToBat ? '' : (stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00')}</TableCell>
-                            <TableCell className="text-right font-mono font-semibold">{cvp > 0 ? cvp : ''}</TableCell>
+                            <TableCell className="text-right font-mono font-semibold print:hidden">{cvp > 0 ? cvp : ''}</TableCell>
                         </TableRow>
                     )})}
                 </TableBody>
@@ -240,7 +240,7 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                         <TableHead className="text-right text-secondary-foreground print:text-black">R</TableHead>
                         <TableHead className="text-right text-secondary-foreground print:text-black">W</TableHead>
                         <TableHead className="text-right text-secondary-foreground print:text-black">ER</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-black">CVP</TableHead>
+                        <TableHead className="text-right text-secondary-foreground print:text-black print:hidden">CVP</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -261,7 +261,7 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                                 <TableCell className="text-right font-mono">{stats.runs}</TableCell>
                                 <TableCell className="text-right font-mono font-semibold">{stats.wickets}</TableCell>
                                 <TableCell className="text-right font-mono">{stats.economy > 0 ? stats.economy.toFixed(2): '0.00'}</TableCell>
-                                <TableCell className="text-right font-mono font-semibold">{cvp > 0 ? cvp : ''}</TableCell>
+                                <TableCell className="text-right font-mono font-semibold print:hidden">{cvp > 0 ? cvp : ''}</TableCell>
                             </TableRow>
                         )
                     })}
