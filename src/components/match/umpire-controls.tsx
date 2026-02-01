@@ -248,7 +248,7 @@ export function UmpireControls({ match, teams, players, striker, nonStriker, bow
                                     <div className="space-y-2">
                                         <Label>Runs</Label>
                                         <div className="grid grid-cols-3 gap-2">
-                                            {[1, 2, 3, 4, 6, 0].map(runs => (
+                                            {[0, 1, 2, 3, 4, 6].map(runs => (
                                                 <Button key={runs} className="h-16 text-2xl font-bold" variant={runs === 0 ? "outline" : "default"} onClick={() => handleDelivery(runs)}>
                                                     {runs}
                                                 </Button>
