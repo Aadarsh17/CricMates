@@ -57,13 +57,12 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
   
   const form = useForm<PlayerFormData>({
     resolver: zodResolver(formSchema),
-    // Use `values` to ensure the form is controlled and updates when `player` prop changes.
-    values: {
-      name: player.name,
-      role: player.role,
-      battingStyle: player.battingStyle || '',
-      bowlingStyle: player.bowlingStyle || 'None',
-      isWicketKeeper: !!player.isWicketKeeper,
+    defaultValues: {
+      name: '',
+      role: 'Batsman',
+      battingStyle: '',
+      bowlingStyle: 'None',
+      isWicketKeeper: false,
     },
   });
 
@@ -72,9 +71,23 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
     onPlayerEdit(values);
     setOpen(false);
   }
+  
+  // When the dialog opens, reset the form to ensure it has the latest player data.
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
+      form.reset({
+        name: player.name,
+        role: player.role,
+        battingStyle: player.battingStyle || '',
+        bowlingStyle: player.bowlingStyle || 'None',
+        isWicketKeeper: !!player.isWicketKeeper,
+      });
+    }
+    setOpen(isOpen);
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
           Edit
