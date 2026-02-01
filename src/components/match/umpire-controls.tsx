@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { UserX } from "lucide-react";
+import { UserX, Undo } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
 import type { Match, Player, Team } from "@/lib/types";
 import { Badge } from '../ui/badge';
@@ -21,7 +21,7 @@ type ExtraOptions = {
 };
 
 export function UmpireControls({ match, teams, players }: { match: Match, teams: Team[], players: Player[] }) {
-    const { recordDelivery, swapStrikers, retireStriker, forceEndInning } = useAppContext();
+    const { recordDelivery, swapStrikers, retireStriker, forceEndInning, undoDelivery } = useAppContext();
     const [extras, setExtras] = useState<ExtraOptions>({
         wicket: false, wide: false, noball: false, byes: false, legbyes: false
     });
@@ -222,7 +222,10 @@ export function UmpireControls({ match, teams, players }: { match: Match, teams:
                                 {runs}
                             </Button>
                         ))}
-                        <Button className="h-14 text-sm font-bold col-span-2" variant="outline" onClick={() => swapStrikers(match)}>Swap Strikers</Button>
+                        <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => swapStrikers(match)}>Swap Strikers</Button>
+                        <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => undoDelivery(match)}>
+                            <Undo className="h-4 w-4" /> Undo
+                        </Button>
                     </div>
                     <div className="grid grid-cols-1 gap-2 border-t pt-4 mt-2">
                         <Button variant="destructive" onClick={() => setIsRetireDialogOpen(true)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
