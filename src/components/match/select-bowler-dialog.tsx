@@ -16,27 +16,38 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import type { Player } from '@/lib/types';
-import { useState } from 'react';
+import type { Player, Match } from '@/lib/types';
+import { useState, useMemo } from 'react';
+import { useAppContext } from '@/context/AppContext';
 
 interface SelectBowlerDialogProps {
   open: boolean;
-  bowlers: Player[];
-  onBowlerSelect: (bowlerId: string) => void;
+  onClose: () => void;
+  match: Match;
+  players: Player[];
 }
 
-export function SelectBowlerDialog({ open, bowlers, onBowlerSelect }: SelectBowlerDialogProps) {
+export function SelectBowlerDialog({ open, onClose, match, players }: SelectBowlerDialogProps) {
+  const { setPlayerInMatch } = useAppContext();
   const [selectedBowler, setSelectedBowler] = useState<string | null>(null);
+
+  const bowlers = useMemo(() => {
+      const inning = match.innings[match.currentInning - 1];
+      const bowlingTeamPlayerIds = inning.bowlingTeamId === match.team1Id ? match.team1PlayerIds : match.team2PlayerIds;
+      const lastBowlerId = inning.deliveryHistory.at(-1)?.bowlerId;
+      return players.filter(p => bowlingTeamPlayerIds?.includes(p.id) && p.id !== lastBowlerId);
+  }, [match, players]);
 
   const handleSelect = () => {
     if (selectedBowler) {
-      onBowlerSelect(selectedBowler);
+      setPlayerInMatch(match, 'bowler', selectedBowler);
       setSelectedBowler(null);
+      onClose();
     }
   };
 
   return (
-    <Dialog open={open}>
+    <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-[425px]" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Over Complete</DialogTitle>
