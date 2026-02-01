@@ -81,54 +81,41 @@ export function WicketDialog({ open, onClose, striker, nonStriker, availableBats
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-4xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Who is Out?</DialogTitle>
         </DialogHeader>
         <div className="py-4 space-y-6">
           <div className="space-y-2">
-            <RadioGroup value={batsmanOutId} onValueChange={setBatsmanOutId} className="flex gap-4">
+            <Label>Which batsman is out?</Label>
+            <RadioGroup value={batsmanOutId} onValueChange={setBatsmanOutId} className="flex flex-col gap-2">
               {striker && (
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 p-2 border rounded-md">
                   <RadioGroupItem value={striker.id} id={`out-${striker.id}`} />
-                  <Label htmlFor={`out-${striker.id}`} className="font-normal">{striker.name} (Striker)</Label>
+                  <Label htmlFor={`out-${striker.id}`} className="font-normal flex-1">{striker.name} (Striker)</Label>
                 </div>
               )}
               {nonStriker && (
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 p-2 border rounded-md">
                   <RadioGroupItem value={nonStriker.id} id={`out-${nonStriker.id}`} />
-                  <Label htmlFor={`out-${nonStriker.id}`} className="font-normal">{nonStriker.name} (Non-striker)</Label>
+                  <Label htmlFor={`out-${nonStriker.id}`} className="font-normal flex-1">{nonStriker.name} (Non-striker)</Label>
                 </div>
               )}
             </RadioGroup>
           </div>
 
           <div className="space-y-2">
-              <Label>Add new Batsman</Label>
-              <Select onValueChange={setNewBatsmanId} value={newBatsmanId}>
-                  <SelectTrigger>
-                      <SelectValue placeholder="Select incoming batsman" />
-                  </SelectTrigger>
-                  <SelectContent>
-                      {availableBatsmen.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                  </SelectContent>
-              </Select>
+              <Label>How did the batsman get out?</Label>
+              <RadioGroup onValueChange={setDismissalType} value={dismissalType} className="grid grid-cols-1 gap-y-2">
+                {dismissalTypes.map(type => (
+                  <div key={type} className="flex items-center space-x-2 p-2 border rounded-md">
+                      <RadioGroupItem value={type} id={`dismissal-${type}`} />
+                      <Label htmlFor={`dismissal-${type}`} className="font-normal flex-1">{type}</Label>
+                  </div>
+                ))}
+              </RadioGroup>
           </div>
 
-          <div className="space-y-3">
-            <Label>How did the batsman get out?</Label>
-            <RadioGroup onValueChange={setDismissalType} value={dismissalType} className="grid grid-cols-2 gap-x-4 gap-y-3">
-              {dismissalTypes.map(type => (
-                <div key={type} className="flex items-center space-x-2">
-                    <RadioGroupItem value={type} id={`dismissal-${type}`} />
-                    <Label htmlFor={`dismissal-${type}`} className="font-normal">{type}</Label>
-                </div>
-              ))}
-            </RadioGroup>
-          </div>
-          
           {showFielderSelect && (
             <div className="space-y-2">
                 <Label>{dismissalType === 'Stumping' ? 'Wicket Keeper' : 'Fielder'}</Label>
@@ -144,6 +131,20 @@ export function WicketDialog({ open, onClose, striker, nonStriker, availableBats
                 </Select>
             </div>
           )}
+
+           <div className="space-y-2">
+              <Label>Incoming Batsman (optional)</Label>
+              <Select onValueChange={setNewBatsmanId} value={newBatsmanId}>
+                  <SelectTrigger>
+                      <SelectValue placeholder="Select incoming batsman" />
+                  </SelectTrigger>
+                  <SelectContent>
+                      {availableBatsmen.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                  </SelectContent>
+              </Select>
+          </div>
 
         </div>
         <DialogFooter>
