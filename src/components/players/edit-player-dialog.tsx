@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -66,21 +66,21 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
     },
   });
 
-  const handleOpenDialog = (e: Event) => {
-    e.preventDefault();
-    // When opening the dialog, explicitly reset the form with the current player's data.
-    // This ensures that if the user clicks "Edit" on a different player,
-    // the form will have the correct data. This fixes the bug where
-    // old data was preserved, preventing edits.
-    form.reset({
-      name: player.name,
-      role: player.role,
-      battingStyle: player.battingStyle || '',
-      bowlingStyle: player.bowlingStyle || 'None',
-      isWicketKeeper: !!player.isWicketKeeper,
-    });
-    setOpen(true);
-  };
+  // This effect synchronizes the form with the `player` prop.
+  // When you select a new player to edit, the `player` prop changes,
+  // and this effect calls `form.reset` to update the form fields.
+  // This is the correct and robust way to handle dynamic form data.
+  useEffect(() => {
+    if (player) {
+      form.reset({
+        name: player.name,
+        role: player.role,
+        battingStyle: player.battingStyle || '',
+        bowlingStyle: player.bowlingStyle || 'None',
+        isWicketKeeper: !!player.isWicketKeeper,
+      });
+    }
+  }, [player, form]);
 
   function onSubmit(values: PlayerFormData) {
     onPlayerEdit(values);
@@ -90,7 +90,7 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <DropdownMenuItem onSelect={handleOpenDialog}>
+        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
           Edit
         </DropdownMenuItem>
       </DialogTrigger>
