@@ -221,7 +221,7 @@ export default function MatchPage() {
                         <CardTitle className="text-xl font-bold tracking-tight font-headline flex justify-between items-center">
                             <span>{team1.name} vs {team2.name}</span>
                             <div className="flex items-center gap-2">
-                                {match.status === 'live' && (
+                                {(match.status === 'live' || match.status === 'completed') && (
                                     <Button variant="outline" size="icon" onClick={() => undoDelivery(match)}>
                                         <Undo className="h-4 w-4" />
                                         <span className="sr-only">Undo Last Delivery</span>
