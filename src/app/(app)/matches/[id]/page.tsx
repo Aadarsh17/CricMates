@@ -23,6 +23,7 @@ import { collection, doc } from 'firebase/firestore';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAppContext } from '@/context/AppContext';
 import { getPlayerOfTheMatch } from '@/lib/stats';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const PlayerSelector = ({ label, players, selectedPlayerId, onSelect, disabled = false }: { label: string, players: Player[], selectedPlayerId: string | null, onSelect: (playerId: string) => void, disabled?: boolean }) => (
     <div className="space-y-2 flex-1">
@@ -67,6 +68,13 @@ export default function MatchPage() {
     const getPlayersFromIds = useMemo(() => (playerIds: string[]): Player[] => {
         return players.filter(p => playerIds.includes(p.id));
     }, [players]);
+
+    const { player: playerOfTheMatch, cvp: potmCVP } = useMemo(() => {
+        if (match?.status === 'completed') {
+          return getPlayerOfTheMatch(match, players, teams);
+        }
+        return { player: null, cvp: 0 };
+    }, [match, players, teams]);
 
     useEffect(() => {
         if (isMatchLoading || !match || match.status !== 'live') return;
@@ -249,6 +257,21 @@ export default function MatchPage() {
                                 <CardTitle className="text-primary">{match.result}</CardTitle>
                             </div>
                         </CardHeader>
+                        {playerOfTheMatch && (
+                             <CardContent className="text-center border-t pt-4">
+                                <p className="text-sm font-semibold uppercase text-muted-foreground tracking-wider">Player of the match</p>
+                                 <div className="flex items-center justify-center gap-3 pt-2">
+                                    <Avatar>
+                                        <AvatarImage src={`https://picsum.photos/seed/${playerOfTheMatch.id}/40/40`} />
+                                        <AvatarFallback>{playerOfTheMatch.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                                    </Avatar>
+                                    <div>
+                                        <p className="font-bold text-lg">{playerOfTheMatch.name}</p>
+                                        <p className="text-sm text-muted-foreground">CVP: {potmCVP}</p>
+                                    </div>
+                                </div>
+                             </CardContent>
+                        )}
                     </Card>
                 )}
 
@@ -292,6 +315,12 @@ export default function MatchPage() {
                             <p className="text-[10px] leading-tight">{`Match completed on ${new Date(match.date).toLocaleDateString()}`}</p>
                             <p className="text-[10px] leading-tight">{`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}</p>
                             {match.result && <p className="font-semibold text-sm mt-1">{match.result}</p>}
+                            {playerOfTheMatch && (
+                                <div className="mt-2 p-1 border-2 border-dashed border-gray-400 rounded-md">
+                                    <p className="font-bold text-xs leading-tight uppercase">Player of the Match</p>
+                                    <p className="text-sm font-bold text-primary">{playerOfTheMatch.name} <span className="font-normal text-xs text-gray-600">(CVP: {potmCVP})</span></p>
+                                </div>
+                            )}
                         </div>
                         <FullScorecard match={match} teams={teams} players={players} />
                     </>
