@@ -21,7 +21,7 @@ type ExtraOptions = {
 };
 
 export function UmpireControls({ match, teams, players }: { match: Match, teams: Team[], players: Player[] }) {
-    const { recordDelivery, swapStrikers, undoDelivery, retireStriker, forceEndInning } = useAppContext();
+    const { recordDelivery, swapStrikers, retireStriker, forceEndInning } = useAppContext();
     const [extras, setExtras] = useState<ExtraOptions>({
         wicket: false, wide: false, noball: false, byes: false, legbyes: false
     });
@@ -222,8 +222,7 @@ export function UmpireControls({ match, teams, players }: { match: Match, teams:
                                 {runs}
                             </Button>
                         ))}
-                        <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => swapStrikers(match)}>Swap</Button>
-                        <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => undoDelivery(match)}>Undo</Button>
+                        <Button className="h-14 text-sm font-bold col-span-2" variant="outline" onClick={() => swapStrikers(match)}>Swap Strikers</Button>
                     </div>
                     <div className="grid grid-cols-1 gap-2 border-t pt-4 mt-2">
                         <Button variant="destructive" onClick={() => setIsRetireDialogOpen(true)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>

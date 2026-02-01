@@ -3,7 +3,7 @@
 import { useParams, notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trophy, Printer, Share2 } from 'lucide-react';
+import { Trophy, Printer, Share2, Undo } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Player, Match, Team } from '@/lib/types';
@@ -44,7 +44,7 @@ export default function MatchPage() {
     const matchId = params.id as string;
     const { toast } = useToast();
     const { firestore: db } = useFirebase();
-    const { setPlayerInMatch } = useAppContext();
+    const { setPlayerInMatch, undoDelivery } = useAppContext();
 
     const [isBowlerDialogOpen, setIsBowlerDialogOpen] = useState(false);
     const [isInningStartDialogOpen, setIsInningStartDialogOpen] = useState(false);
@@ -221,6 +221,12 @@ export default function MatchPage() {
                         <CardTitle className="text-xl font-bold tracking-tight font-headline flex justify-between items-center">
                             <span>{team1.name} vs {team2.name}</span>
                             <div className="flex items-center gap-2">
+                                {match.status === 'live' && (
+                                    <Button variant="outline" size="icon" onClick={() => undoDelivery(match)}>
+                                        <Undo className="h-4 w-4" />
+                                        <span className="sr-only">Undo Last Delivery</span>
+                                    </Button>
+                                )}
                                 <Button variant="outline" size="icon" onClick={handleShare}>
                                     <Share2 className="h-4 w-4" />
                                     <span className="sr-only">Share</span>

@@ -320,24 +320,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const undoDelivery = useCallback(async (match: Match) => {
     if (!match) return;
 
-    const updatedMatch = JSON.parse(JSON.stringify(match));
-    const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
+    let updatedMatch = JSON.parse(JSON.stringify(match));
     
-    if (inning.deliveryHistory.length === 0) {
+    // Find the last delivery across all innings
+    let lastDelivery: DeliveryRecord | undefined;
+    let inningWithLastDelivery = updatedMatch.innings.length - 1;
+    
+    while(inningWithLastDelivery >= 0) {
+        if (updatedMatch.innings[inningWithLastDelivery].deliveryHistory.length > 0) {
+            lastDelivery = updatedMatch.innings[inningWithLastDelivery].deliveryHistory.pop();
+            break;
+        }
+        // If current inning has no history, maybe we need to delete the inning itself and go to prev
+        if(updatedMatch.innings.length > 1 && updatedMatch.innings[inningWithLastDelivery].deliveryHistory.length === 0) {
+            updatedMatch.innings.pop();
+            updatedMatch.currentInning -= 1;
+            inningWithLastDelivery -=1;
+        } else {
+            inningWithLastDelivery -= 1;
+        }
+    }
+
+    if (!lastDelivery) {
         toast({ variant: 'destructive', title: 'No deliveries to undo.'});
         return;
     }
+    
+    // Now we have the inning and the last delivery, let's revert state
+    const inning = updatedMatch.innings[inningWithLastDelivery];
 
-    const lastDelivery = inning.deliveryHistory.pop();
-
+    // Recalculate score, wickets, overs for THIS inning based on its new history
     let newScore = 0;
     let newWickets = 0;
     let newOvers = 0;
     
-    inning.strikerId = lastDelivery.strikerId;
-    inning.nonStrikerId = lastDelivery.nonStrikerId;
-    inning.bowlerId = lastDelivery.bowlerId;
-
     inning.deliveryHistory.forEach((delivery: DeliveryRecord) => {
        newScore += delivery.runs;
         if (delivery.extra === 'wide' || delivery.extra === 'noball') {
@@ -360,6 +376,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     inning.score = newScore;
     inning.wickets = newWickets;
     inning.overs = newOvers;
+
+    // Restore players from the undone delivery
+    inning.strikerId = lastDelivery.strikerId;
+    inning.nonStrikerId = lastDelivery.nonStrikerId;
+    inning.bowlerId = lastDelivery.bowlerId;
+    
+    // If we undid a delivery from a completed match, it is now live again
+    if (updatedMatch.status === 'completed') {
+        updatedMatch.status = 'live';
+        delete updatedMatch.result;
+    }
 
     await updateMatch(match.id, updatedMatch);
   }, [updateMatch, toast]);
