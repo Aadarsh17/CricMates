@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -57,7 +57,8 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
   
   const form = useForm<PlayerFormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
+    // Use `values` to ensure the form is controlled and updates when `player` prop changes.
+    values: {
       name: player.name,
       role: player.role,
       battingStyle: player.battingStyle || '',
@@ -65,18 +66,6 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
       isWicketKeeper: !!player.isWicketKeeper,
     },
   });
-
-  useEffect(() => {
-    // Reset the form with the new player data whenever the player prop changes.
-    // This ensures the dialog always shows the correct data for the selected player.
-    form.reset({
-      name: player.name,
-      role: player.role,
-      battingStyle: player.battingStyle || '',
-      bowlingStyle: player.bowlingStyle || 'None',
-      isWicketKeeper: !!player.isWicketKeeper,
-    });
-  }, [player, form.reset]);
 
 
   function onSubmit(values: PlayerFormData) {
