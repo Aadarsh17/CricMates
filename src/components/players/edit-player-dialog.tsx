@@ -66,14 +66,16 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
   });
 
   useEffect(() => {
-    form.reset({
-      name: player.name,
-      role: player.role,
-      battingStyle: player.battingStyle || 'Right-hand bat',
-      bowlingStyle: player.bowlingStyle || 'None',
-      isWicketKeeper: player.isWicketKeeper || false,
-    });
-  }, [player, form]);
+    if (open) {
+      form.reset({
+        name: player.name,
+        role: player.role,
+        battingStyle: player.battingStyle || 'Right-hand bat',
+        bowlingStyle: player.bowlingStyle || 'None',
+        isWicketKeeper: player.isWicketKeeper || false,
+      });
+    }
+  }, [player, open, form]);
 
   function onSubmit(values: PlayerFormData) {
     onPlayerEdit(values);
