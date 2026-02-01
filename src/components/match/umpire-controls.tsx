@@ -1,16 +1,16 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { UserX, Undo } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
-import type { Match, Player, Team } from "@/lib/types";
+import type { Match, Player, Team, Inning } from "@/lib/types";
 import { Badge } from '../ui/badge';
 import { RetirePlayerDialog } from './retire-player-dialog';
 import { WicketDialog } from './wicket-dialog';
+import { LivePlayerStats } from './live-player-stats';
+import { Label } from '../ui/label';
 
 type ExtraOptions = {
     wicket: boolean;
@@ -20,7 +20,15 @@ type ExtraOptions = {
     legbyes: boolean;
 };
 
-export function UmpireControls({ match, teams, players }: { match: Match, teams: Team[], players: Player[] }) {
+const extraButtons: {key: keyof ExtraOptions; label: string}[] = [
+    { key: 'wicket', label: 'Wicket' },
+    { key: 'wide', label: 'Wd' },
+    { key: 'noball', label: 'NB' },
+    { key: 'byes', label: 'Byes' },
+    { key: 'legbyes', label: 'LB' },
+];
+
+export function UmpireControls({ match, teams, players, striker, nonStriker, bowler }: { match: Match, teams: Team[], players: Player[], striker?: Player, nonStriker?: Player, bowler?: Player }) {
     const { recordDelivery, swapStrikers, retireStriker, forceEndInning, undoDelivery } = useAppContext();
     const [extras, setExtras] = useState<ExtraOptions>({
         wicket: false, wide: false, noball: false, byes: false, legbyes: false
@@ -31,11 +39,9 @@ export function UmpireControls({ match, teams, players }: { match: Match, teams:
     
     const currentInning = match.innings[match.currentInning - 1];
     
-    const getPlayerById = useMemo(() => (id: string) => players.find(p => p.id === id), [players]);
     const getPlayersFromIds = useMemo(() => (playerIds: string[]): Player[] => {
         return players.filter(p => playerIds.includes(p.id));
     }, [players]);
-
 
     const battingTeamPlayers = useMemo(() => {
         const playerIds = currentInning.battingTeamId === match.team1Id ? match.team1PlayerIds : match.team2PlayerIds;
@@ -47,10 +53,6 @@ export function UmpireControls({ match, teams, players }: { match: Match, teams:
         return playerIds ? getPlayersFromIds(playerIds) : [];
     }, [currentInning.bowlingTeamId, match.team1Id, match.team1PlayerIds, match.team2PlayerIds, getPlayersFromIds]);
 
-    const striker = getPlayerById(currentInning.strikerId || '');
-    const nonStriker = getPlayerById(currentInning.nonStrikerId || '');
-
-    // Get available batsmen
     const outPlayerIds = new Set(match.innings.flatMap(inning => inning.deliveryHistory.filter(d => d.isWicket && d.dismissal).map(d => d.dismissal!.batsmanOutId)));
     const retiredHurtPlayerIds = new Set(currentInning.retiredHurtPlayerIds || []);
     const onFieldPlayerIds = new Set([currentInning.strikerId, currentInning.nonStrikerId].filter(Boolean));
@@ -194,42 +196,45 @@ export function UmpireControls({ match, teams, players }: { match: Match, teams:
                 onConfirm={handleRetireConfirm}
             />
             <Card>
-                <CardHeader>
-                    <CardTitle>Umpire Controls</CardTitle>
-                    <CardDescription>Record the outcome of each delivery.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
+                <LivePlayerStats striker={striker} nonStriker={nonStriker} bowler={bowler} inning={currentInning} />
+                <CardContent className="p-4 space-y-4 border-t">
                     <CurrentOver />
-                    <div className="space-y-3">
-                        <Label>Extras & Wicket</Label>
-                        <div className="flex flex-wrap gap-4 items-center">
-                            {Object.keys(extras).map(extra => (
-                                <div key={extra} className="flex items-center space-x-2">
-                                    <Checkbox 
-                                        id={extra} 
-                                        checked={extras[extra as keyof ExtraOptions]}
-                                        onCheckedChange={(checked) => handleExtraChange(extra as keyof ExtraOptions, !!checked)}
-                                    />
-                                    <Label htmlFor={extra} className="font-normal capitalize">{extra === 'noball' ? 'NB' : extra}</Label>
-                                </div>
+                    
+                    <div className="space-y-2">
+                        <Label>Extras</Label>
+                        <div className="grid grid-cols-5 gap-2">
+                            {extraButtons.map(({key, label}) => (
+                                <Button
+                                    key={key}
+                                    variant={extras[key] ? 'secondary' : 'outline'}
+                                    onClick={() => handleExtraChange(key, !extras[key])}
+                                    className="h-12 font-bold"
+                                >
+                                    {label}
+                                </Button>
                             ))}
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-4 gap-2">
-                        {[0, 1, 2, 3, 4, 6].map(runs => (
-                            <Button key={runs} className="h-14 text-lg" variant="outline" onClick={() => handleDelivery(runs)}>
-                                {runs}
-                            </Button>
-                        ))}
-                        <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => swapStrikers(match)}>Swap Strikers</Button>
-                        <Button className="h-14 text-sm font-bold" variant="outline" onClick={() => undoDelivery(match)}>
-                            <Undo className="h-4 w-4" /> Undo
-                        </Button>
+                    <div className="space-y-2">
+                        <Label>Runs</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {[1, 2, 3, 4, 6, 0].map(runs => (
+                                <Button key={runs} className="h-16 text-2xl font-bold" variant={runs === 0 ? "outline" : "default"} onClick={() => handleDelivery(runs)}>
+                                    {runs}
+                                </Button>
+                            ))}
+                        </div>
                     </div>
-                    <div className="grid grid-cols-1 gap-2 border-t pt-4 mt-2">
-                        <Button variant="destructive" onClick={() => setIsRetireDialogOpen(true)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
-                        <Button variant="destructive" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match, teams, players)}>{endInningButtonText}</Button>
+                    
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                        <Button variant="outline" onClick={() => swapStrikers(match)}>Swap Strikers</Button>
+                        <Button variant="outline" onClick={() => undoDelivery(match)}><Undo className="mr-2 h-4 w-4" /> Undo</Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 border-t pt-4">
+                        <Button variant="destructive" size="sm" onClick={() => setIsRetireDialogOpen(true)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
+                        <Button variant="destructive" size="sm" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match, teams, players)}>{endInningButtonText}</Button>
                     </div>
                 </CardContent>
             </Card>

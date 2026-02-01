@@ -12,7 +12,6 @@ import { useEffect, useState, useMemo } from 'react';
 import { InningStartDialog } from '@/components/match/inning-start-dialog';
 import { FullScorecard } from '@/components/match/full-scorecard';
 import { Scoreboard } from '@/components/match/scoreboard';
-import { LivePlayerStats } from '@/components/match/live-player-stats';
 import { UmpireControls } from '@/components/match/umpire-controls';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -243,15 +242,14 @@ export default function MatchPage() {
                             {`Toss won by ${getTeamById(match.tossWinnerId)?.name}, chose to ${match.tossDecision}.`}
                         </CardDescription>
                     </CardHeader>
-                    {match.status === 'live' && (
+                    {match.status === 'live' && (!currentInning.strikerId || !currentInning.nonStrikerId) &&
                         <CardContent className="space-y-4">
                             <div className="flex flex-col md:flex-row gap-4">
                                 <PlayerSelector label="Striker" players={selectableBatsmen.filter(p => p.id !== currentInning.nonStrikerId)} selectedPlayerId={currentInning.strikerId} onSelect={(id) => setPlayerInMatch(match, 'striker', id)} disabled={!!currentInning.strikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
                                 <PlayerSelector label="Non-Striker" players={selectableBatsmen.filter(p => p.id !== currentInning.strikerId)} selectedPlayerId={currentInning.nonStrikerId} onSelect={(id) => setPlayerInMatch(match, 'nonStriker', id)} disabled={!!currentInning.nonStrikerId || currentInning.wickets >= allOutWickets || noPlayersLeftToBat} />
-                                { !isBowlerDialogOpen && <PlayerSelector label="Bowler" players={bowlingTeamPlayers} selectedPlayerId={currentInning.bowlerId} onSelect={(id) => setPlayerInMatch(match, 'bowler', id)} disabled={!!currentInning.bowlerId} /> }
                             </div>
                         </CardContent>
-                    )}
+                    }
                     {match.status === 'completed' && <CardFooter><p className="text-sm text-muted-foreground">Match completed on {new Date(match.date).toLocaleDateString()}</p></CardFooter>}
                 </Card>
 
@@ -281,25 +279,20 @@ export default function MatchPage() {
                     </Card>
                 )}
 
-                <Tabs defaultValue="scorecard" className="w-full">
+                {match.status === 'live' && (
+                    <div className="space-y-4">
+                        <Scoreboard match={match} teams={teams} />
+                        <UmpireControls match={match} teams={teams} players={players} striker={striker} nonStriker={nonStriker} bowler={bowler} />
+                    </div>
+                )}
+
+                <Tabs defaultValue={match.status === 'completed' ? "scorecard" : "squads"} className="w-full">
                     <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
+                        <TabsTrigger value="scorecard" disabled={match.status === 'live'}>Scorecard</TabsTrigger>
                         <TabsTrigger value="squads">Squads</TabsTrigger>
                         <TabsTrigger value="overs">Overs</TabsTrigger>
                     </TabsList>
                     <TabsContent value="scorecard" className="mt-4">
-                        {match.status === 'live' && (
-                            <div className="space-y-4">
-                                <Scoreboard match={match} teams={teams} />
-                                <LivePlayerStats
-                                    striker={striker}
-                                    nonStriker={nonStriker}
-                                    bowler={bowler}
-                                    inning={currentInning}
-                                />
-                                <UmpireControls match={match} teams={teams} players={players} />
-                            </div>
-                        )}
                         {match.status === 'completed' && (
                             <FullScorecard match={match} teams={teams} players={players} />
                         )}

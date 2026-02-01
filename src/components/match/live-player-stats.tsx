@@ -1,6 +1,5 @@
 'use client';
 
-import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { type Player, type Inning } from "@/lib/types";
 
@@ -33,7 +32,7 @@ const getBowlerStats = (playerId: string, inning: Inning) => {
         if (d.bowlerId === playerId) {
             acc.runs += d.runs;
             if (d.extra === 'wide' || d.extra === 'noball') acc.runs += 1;
-            if (d.isWicket) acc.wickets += 1;
+            if (d.isWicket && d.dismissal?.type !== 'Run out') acc.wickets += 1;
             if (d.extra !== 'wide' && d.extra !== 'noball') acc.balls += 1;
         }
         return acc;
@@ -56,63 +55,61 @@ export function LivePlayerStats({ striker, nonStriker, bowler, inning }: { strik
     const bowlerER = bowlerStats.balls > 0 ? (bowlerStats.runs / (bowlerStats.balls / 6)).toFixed(2) : '0.00';
 
     return (
-        <Card>
-            <CardContent className="p-0">
+        <div className="p-0">
+            <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
+                <TableHeader>
+                    <TableRow>
+                        <TableHead className="w-[120px]">Player</TableHead>
+                        <TableHead className="text-right">R</TableHead>
+                        <TableHead className="text-right">B</TableHead>
+                        <TableHead className="text-right">4s</TableHead>
+                        <TableHead className="text-right">6s</TableHead>
+                        <TableHead className="text-right">SR</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    <TableRow className="bg-muted/30">
+                        <TableCell className="font-semibold">{striker?.name || 'Select Striker'}{striker ? '*' : ''}</TableCell>
+                        <TableCell className="text-right font-mono">{strikerStats.runs}</TableCell>
+                        <TableCell className="text-right font-mono">{strikerStats.balls}</TableCell>
+                        <TableCell className="text-right font-mono">{strikerStats.fours}</TableCell>
+                        <TableCell className="text-right font-mono">{strikerStats.sixes}</TableCell>
+                        <TableCell className="text-right font-mono">{strikerSR}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                        <TableCell className="font-semibold">{nonStriker?.name || 'Select Non-striker'}</TableCell>
+                        <TableCell className="text-right font-mono">{nonStrikerStats.runs}</TableCell>
+                        <TableCell className="text-right font-mono">{nonStrikerStats.balls}</TableCell>
+                        <TableCell className="text-right font-mono">{nonStrikerStats.fours}</TableCell>
+                        <TableCell className="text-right font-mono">{nonStrikerStats.sixes}</TableCell>
+                        <TableCell className="text-right font-mono">{nonStrikerSR}</TableCell>
+                    </TableRow>
+                </TableBody>
+            </Table>
+            <div className="border-t">
                 <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
                     <TableHeader>
                         <TableRow>
-                            <TableHead className="w-[120px]">Player</TableHead>
+                            <TableHead className="w-[120px]">Bowler</TableHead>
+                            <TableHead className="text-right">O</TableHead>
+                            <TableHead className="text-right">M</TableHead>
                             <TableHead className="text-right">R</TableHead>
-                            <TableHead className="text-right">B</TableHead>
-                            <TableHead className="text-right">4s</TableHead>
-                            <TableHead className="text-right">6s</TableHead>
-                            <TableHead className="text-right">SR</TableHead>
+                            <TableHead className="text-right">W</TableHead>
+                            <TableHead className="text-right">ER</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow className="bg-muted/30">
-                            <TableCell className="font-semibold">{striker?.name || 'Select Striker'}{striker ? '*' : ''}</TableCell>
-                            <TableCell className="text-right font-mono">{strikerStats.runs}</TableCell>
-                            <TableCell className="text-right font-mono">{strikerStats.balls}</TableCell>
-                            <TableCell className="text-right font-mono">{strikerStats.fours}</TableCell>
-                            <TableCell className="text-right font-mono">{strikerStats.sixes}</TableCell>
-                            <TableCell className="text-right font-mono">{strikerSR}</TableCell>
-                        </TableRow>
-                        <TableRow>
-                            <TableCell className="font-semibold">{nonStriker?.name || 'Select Non-striker'}</TableCell>
-                            <TableCell className="text-right font-mono">{nonStrikerStats.runs}</TableCell>
-                            <TableCell className="text-right font-mono">{nonStrikerStats.balls}</TableCell>
-                            <TableCell className="text-right font-mono">{nonStrikerStats.fours}</TableCell>
-                            <TableCell className="text-right font-mono">{nonStrikerStats.sixes}</TableCell>
-                            <TableCell className="text-right font-mono">{nonStrikerSR}</TableCell>
+                         <TableRow>
+                            <TableCell className="font-semibold">{bowler?.name || 'Select Bowler'}</TableCell>
+                            <TableCell className="text-right font-mono">{bowlerOvers}</TableCell>
+                            <TableCell className="text-right font-mono">{bowlerStats.maidens}</TableCell>
+                            <TableCell className="text-right font-mono">{bowlerStats.runs}</TableCell>
+                            <TableCell className="text-right font-mono">{bowlerStats.wickets}</TableCell>
+                            <TableCell className="text-right font-mono">{bowlerER}</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
-                <div className="border-t">
-                    <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-[120px]">Bowler</TableHead>
-                                <TableHead className="text-right">O</TableHead>
-                                <TableHead className="text-right">M</TableHead>
-                                <TableHead className="text-right">R</TableHead>
-                                <TableHead className="text-right">W</TableHead>
-                                <TableHead className="text-right">ER</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                             <TableRow>
-                                <TableCell className="font-semibold">{bowler?.name || 'Select Bowler'}</TableCell>
-                                <TableCell className="text-right font-mono">{bowlerOvers}</TableCell>
-                                <TableCell className="text-right font-mono">{bowlerStats.maidens}</TableCell>
-                                <TableCell className="text-right font-mono">{bowlerStats.runs}</TableCell>
-                                <TableCell className="text-right font-mono">{bowlerStats.wickets}</TableCell>
-                                <TableCell className="text-right font-mono">{bowlerER}</TableCell>
-                            </TableRow>
-                        </TableBody>
-                    </Table>
-                </div>
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 }
