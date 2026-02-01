@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -57,24 +57,14 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
   
   const form = useForm<PlayerFormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: '',
-      role: 'Batsman',
-      battingStyle: '',
-      bowlingStyle: 'None',
-      isWicketKeeper: false,
-    },
   });
 
-
-  function onSubmit(values: PlayerFormData) {
-    onPlayerEdit(values);
-    setOpen(false);
-  }
-  
-  // When the dialog opens, reset the form to ensure it has the latest player data.
-  const handleOpenChange = (isOpen: boolean) => {
-    if (isOpen) {
+  // This effect synchronizes the form with the player data.
+  // It runs when the dialog opens or when the player being edited changes.
+  // Using `player.id` in the dependency array ensures this doesn't re-run
+  // on every parent component re-render, which was causing the bug.
+  useEffect(() => {
+    if (open) {
       form.reset({
         name: player.name,
         role: player.role,
@@ -83,11 +73,16 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
         isWicketKeeper: !!player.isWicketKeeper,
       });
     }
-    setOpen(isOpen);
-  };
+  }, [open, player, form]);
 
+
+  function onSubmit(values: PlayerFormData) {
+    onPlayerEdit(values);
+    setOpen(false);
+  }
+  
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
           Edit
