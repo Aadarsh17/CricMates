@@ -28,6 +28,7 @@ interface AppContextType {
   undoDelivery: (match: Match) => Promise<void>;
   retireStriker: (match: Match) => Promise<void>;
   forceEndInning: (match: Match, teams: Team[], players: Player[]) => Promise<void>;
+  addPlayerToMatch: (match: Match, teamId: string, playerData: PlayerData) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -186,8 +187,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await updateDoc(doc(db, 'players', playerId), dataToUpdate);
       toast({ title: "Player Updated", description: "Player details have been updated." });
     } catch (e: any) {
-      console.error("Failed to edit player:", e);
-      toast({ variant: "destructive", title: "Error Editing Player", description: "Could not update the player. Please try again." });
+        console.error("Failed to edit player:", e);
+        toast({ variant: "destructive", title: "Error Editing Player", description: "Could not update the player. Please try again." });
     }
   }, [db, toast]);
 
@@ -463,6 +464,46 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
     await updateMatch(match.id, updatedMatch);
   }, [handleInningEnd, updateMatch, toast]);
+  
+  const addPlayerToMatch = useCallback(async (match: Match, teamId: string, playerData: PlayerData) => {
+    if (!db) {
+        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
+        return;
+    }
+
+    const newPlayer: Omit<Player, 'id'> = {
+        name: playerData.name,
+        role: playerData.role,
+        battingStyle: playerData.battingStyle,
+        bowlingStyle: playerData.bowlingStyle === 'None' ? null : playerData.bowlingStyle,
+        isWicketKeeper: playerData.isWicketKeeper || false,
+        stats: { matches: 0, runs: 0, wickets: 0, highestScore: 0, bestBowling: 'N/A' },
+        isRetired: false,
+    };
+
+    try {
+        const playerDocRef = await addDoc(collection(db, 'players'), newPlayer);
+        const newPlayerId = playerDocRef.id;
+
+        const matchRef = doc(db, 'matches', match.id);
+        const updateData: { team1PlayerIds?: string[], team2PlayerIds?: string[] } = {};
+
+        if (match.team1Id === teamId) {
+            updateData.team1PlayerIds = [...(match.team1PlayerIds || []), newPlayerId];
+        } else if (match.team2Id === teamId) {
+            updateData.team2PlayerIds = [...(match.team2PlayerIds || []), newPlayerId];
+        }
+
+        if (Object.keys(updateData).length > 0) {
+            await updateDoc(matchRef, updateData as Partial<Match>);
+            toast({ title: "Player Added", description: `${playerData.name} has been added to the match.` });
+        }
+    } catch (e: any) {
+        console.error("Failed to add player to match:", e);
+        toast({ variant: "destructive", title: "Error Adding Player", description: "Could not add the player to the match. Please try again." });
+    }
+  }, [db, toast]);
+
 
   const value: AppContextType = useMemo(() => ({
       addTeam,
@@ -478,6 +519,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       undoDelivery,
       retireStriker,
       forceEndInning,
+      addPlayerToMatch,
   }), [
       addTeam,
       editTeam,
@@ -491,7 +533,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       swapStrikers,
       undoDelivery,
       retireStriker,
-      forceEndInning
+      forceEndInning,
+      addPlayerToMatch
   ]);
 
   return (

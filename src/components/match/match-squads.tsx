@@ -2,13 +2,16 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Shield, Star } from "lucide-react";
+import { Shield, Star, PlusCircle } from "lucide-react";
 import type { Player, Match, Team } from "@/lib/types";
 import { calculatePlayerCVP } from "@/lib/stats";
 import { Badge } from "../ui/badge";
 import { useMemo } from "react";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
 import { collection } from "firebase/firestore";
+import { useAppContext } from "@/context/AppContext";
+import { AddPlayerDialog } from "../players/add-player-dialog";
+import { Button } from "../ui/button";
 
 const PlayerListItem = ({ player, cvp, isCaptain }: { player: Player, cvp: number, isCaptain: boolean }) => (
     <div className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg -mx-2 transition-colors">
@@ -29,17 +32,43 @@ const PlayerListItem = ({ player, cvp, isCaptain }: { player: Player, cvp: numbe
     </div>
 );
 
+type PlayerFormData = {
+  name: string;
+  role: 'Batsman' | 'Bowler' | 'All-rounder';
+  isWicketKeeper?: boolean;
+  battingStyle?: string;
+  bowlingStyle?: string;
+}
+
 const TeamSquad = ({ teamId, playerIds, captainId, match, teams, players }: { teamId: string, playerIds: string[], captainId?: string, match: Match, teams: Team[], players: Player[] }) => {
+    const { addPlayerToMatch } = useAppContext();
     const getTeamById = useMemo(() => (id: string) => teams.find(t => t.id === id), [teams]);
     const team = getTeamById(teamId);
     const teamPlayers = players.filter(p => playerIds.includes(p.id));
 
     if (!team) return null;
 
+    const handleAddPlayer = (playerData: PlayerFormData) => {
+        if (match.status === 'live') {
+            addPlayerToMatch(match, team.id, playerData);
+        }
+    };
+
     return (
         <Card className="overflow-hidden">
-            <CardHeader className="bg-foreground text-background p-4">
+            <CardHeader className="bg-foreground text-background p-4 flex flex-row items-center justify-between">
                 <CardTitle className="text-lg">{team.name} Squad</CardTitle>
+                 {match.status === 'live' && (
+                    <AddPlayerDialog
+                        onPlayerAdd={handleAddPlayer}
+                        trigger={
+                            <Button variant="ghost" size="icon" className="text-background hover:bg-white/20 hover:text-background">
+                                <PlusCircle className="h-5 w-5" />
+                                <span className="sr-only">Add Player</span>
+                            </Button>
+                        }
+                    />
+                )}
             </CardHeader>
             <CardContent className="p-4 space-y-1">
                 {teamPlayers.length > 0 ? (
