@@ -56,18 +56,14 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
   const [open, setOpen] = useState(false);
   const form = useForm<PlayerFormData>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: player.name,
-      role: player.role,
-      battingStyle: player.battingStyle || 'Right-hand bat',
-      bowlingStyle: player.bowlingStyle || 'None',
-      isWicketKeeper: player.isWicketKeeper || false,
-    },
   });
 
+  const { reset } = form;
   useEffect(() => {
+    // This effect now correctly resets the form with the player's data
+    // every time the dialog is opened, ensuring fresh data is displayed.
     if (open) {
-      form.reset({
+      reset({
         name: player.name,
         role: player.role,
         battingStyle: player.battingStyle || 'Right-hand bat',
@@ -75,7 +71,7 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
         isWicketKeeper: player.isWicketKeeper || false,
       });
     }
-  }, [player, open, form]);
+  }, [player, open, reset]);
 
   function onSubmit(values: PlayerFormData) {
     onPlayerEdit(values);
