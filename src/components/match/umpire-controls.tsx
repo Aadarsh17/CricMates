@@ -11,7 +11,6 @@ import { RetirePlayerDialog } from './retire-player-dialog';
 import { WicketDialog } from './wicket-dialog';
 import { LivePlayerStats } from './live-player-stats';
 import { Label } from '../ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Scoreboard } from './scoreboard';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -211,68 +210,58 @@ export function UmpireControls({ match, teams, players, striker, nonStriker, bow
                 <CardHeader className="p-0 border-b">
                     <Scoreboard match={match} teams={teams} />
                 </CardHeader>
-                <Tabs defaultValue="controls" className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 rounded-none">
-                        <TabsTrigger value="controls">Umpire Controls</TabsTrigger>
-                        <TabsTrigger value="stats">Live Stats</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="controls" className="mt-0">
-                         <CardContent className="p-4 space-y-4">
-                            {showOpeningSetup ? (
-                                 <div className="space-y-4">
-                                     <h3 className="text-sm font-medium text-muted-foreground">Opening Setup</h3>
-                                     <PlayerSelector label="Striker" players={selectableBatsmen.filter(p => p.id !== nonStriker?.id)} selectedPlayerId={striker?.id || null} onSelect={(id) => setPlayerInMatch(match, 'striker', id)} disabled={!!striker || noPlayersLeftToBat} />
-                                     <PlayerSelector label="Non-Striker" players={selectableBatsmen.filter(p => p.id !== striker?.id)} selectedPlayerId={nonStriker?.id || null} onSelect={(id) => setPlayerInMatch(match, 'nonStriker', id)} disabled={!!nonStriker || noPlayersLeftToBat} />
-                                     <PlayerSelector label="Opening Bowler" players={bowlingTeamPlayers} selectedPlayerId={bowler?.id || null} onSelect={(id) => setPlayerInMatch(match, 'bowler', id)} disabled={!!bowler} />
-                                 </div>
-                            ) : (
-                                <>
-                                    <CurrentOver />
-                                    
-                                    <div className="space-y-2">
-                                        <Label>Extras</Label>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {extraButtons.map(({key, label}) => (
-                                                <Button
-                                                    key={key}
-                                                    variant={extras[key] ? 'secondary' : 'outline'}
-                                                    onClick={() => handleExtraChange(key, !extras[key])}
-                                                    className="h-12 font-bold"
-                                                >
-                                                    {label}
-                                                </Button>
-                                            ))}
-                                        </div>
-                                    </div>
+                <LivePlayerStats striker={striker} nonStriker={nonStriker} bowler={bowler} inning={currentInning} />
+                 <CardContent className="p-4 space-y-4 border-t">
+                    {showOpeningSetup ? (
+                         <div className="space-y-4">
+                             <h3 className="text-sm font-medium text-muted-foreground">Opening Setup</h3>
+                             <PlayerSelector label="Striker" players={selectableBatsmen.filter(p => p.id !== nonStriker?.id)} selectedPlayerId={striker?.id || null} onSelect={(id) => setPlayerInMatch(match, 'striker', id)} disabled={!!striker || noPlayersLeftToBat} />
+                             <PlayerSelector label="Non-Striker" players={selectableBatsmen.filter(p => p.id !== striker?.id)} selectedPlayerId={nonStriker?.id || null} onSelect={(id) => setPlayerInMatch(match, 'nonStriker', id)} disabled={!!nonStriker || noPlayersLeftToBat} />
+                             <PlayerSelector label="Opening Bowler" players={bowlingTeamPlayers} selectedPlayerId={bowler?.id || null} onSelect={(id) => setPlayerInMatch(match, 'bowler', id)} disabled={!!bowler} />
+                         </div>
+                    ) : (
+                        <>
+                            <CurrentOver />
+                            
+                            <div className="space-y-2">
+                                <Label>Extras</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {extraButtons.map(({key, label}) => (
+                                        <Button
+                                            key={key}
+                                            variant={extras[key] ? 'secondary' : 'outline'}
+                                            onClick={() => handleExtraChange(key, !extras[key])}
+                                            className="h-12 font-bold"
+                                        >
+                                            {label}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
 
-                                    <div className="space-y-2">
-                                        <Label>Runs</Label>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {[0, 1, 2, 3, 4, 6].map(runs => (
-                                                <Button key={runs} className="h-16 text-2xl font-bold" variant="default" onClick={() => handleDelivery(runs)}>
-                                                    {runs}
-                                                </Button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-2 pt-2">
-                                        <Button variant="outline" onClick={() => swapStrikers(match)}>Swap Strikers</Button>
-                                        <Button variant="outline" onClick={() => undoDelivery(match)}><Undo className="mr-2 h-4 w-4" /> Undo</Button>
-                                    </div>
+                            <div className="space-y-2">
+                                <Label>Runs</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[0, 1, 2, 3, 4, 6].map(runs => (
+                                        <Button key={runs} className="h-16 text-2xl font-bold" variant="default" onClick={() => handleDelivery(runs)}>
+                                            {runs}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2 pt-2">
+                                <Button variant="outline" onClick={() => swapStrikers(match)}>Swap Strikers</Button>
+                                <Button variant="outline" onClick={() => undoDelivery(match)}><Undo className="mr-2 h-4 w-4" /> Undo</Button>
+                            </div>
 
-                                    <div className="grid grid-cols-1 gap-2 border-t pt-4">
-                                        <Button variant="destructive" size="sm" onClick={() => setIsRetireDialogOpen(true)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
-                                        <Button variant="destructive" size="sm" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match, teams, players)}>{endInningButtonText}</Button>
-                                    </div>
-                                </>
-                            )}
-                        </CardContent>
-                    </TabsContent>
-                    <TabsContent value="stats" className="mt-0">
-                        <LivePlayerStats striker={striker} nonStriker={nonStriker} bowler={bowler} inning={currentInning} />
-                    </TabsContent>
-                </Tabs>
+                            <div className="grid grid-cols-1 gap-2 border-t pt-4">
+                                <Button variant="destructive" size="sm" onClick={() => setIsRetireDialogOpen(true)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
+                                <Button variant="destructive" size="sm" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match, teams, players)}>{endInningButtonText}</Button>
+                            </div>
+                        </>
+                    )}
+                </CardContent>
             </Card>
         </>
     );
