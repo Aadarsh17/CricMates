@@ -3,15 +3,19 @@
 import { useAppContext } from "@/context/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Shield, Users, BarChart, PlayCircle } from "lucide-react";
+import { PlusCircle, Shield, Users, BarChart, PlayCircle, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
-import { collection } from "firebase/firestore";
+import { collection, query, where } from "firebase/firestore";
 import type { Match, Team, Player } from "@/lib/types";
+import { useMemo } from "react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 export default function HomePage() {
   const { firestore: db } = useFirebase();
+  const { deleteMatch } = useAppContext();
 
   const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
   const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
@@ -20,14 +24,18 @@ export default function HomePage() {
   const playersCollection = useMemoFirebase(() => (db ? collection(db, 'players') : null), [db]);
   const { data: playersData, isLoading: playersLoading } = useCollection<Player>(playersCollection);
   const players = playersData || [];
+  
+  const liveMatchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'live')) : null, [db]);
+  const { data: liveMatchesData, isLoading: liveMatchesLoading } = useCollection<Match>(liveMatchesQuery);
+  const liveMatches = liveMatchesData || [];
 
-  const matchesCollection = useMemoFirebase(() => (db ? collection(db, 'matches') : null), [db]);
-  const { data: matchesData, isLoading: matchesLoading } = useCollection<Match>(matchesCollection);
-  const matches = matchesData || [];
+  const completedMatchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), where('status', '==', 'completed')) : null, [db]);
+  const { data: completedMatchesData, isLoading: completedMatchesLoading } = useCollection<Match>(completedMatchesQuery);
+  const completedMatches = completedMatchesData || [];
   
-  const getTeamById = (teamId: string) => teams.find(t => t.id === teamId);
+  const getTeamById = useMemo(() => (teamId: string) => teams.find(t => t.id === teamId), [teams]);
   
-  const loading = teamsLoading || playersLoading || matchesLoading;
+  const loading = teamsLoading || playersLoading || liveMatchesLoading || completedMatchesLoading;
 
   if (loading) {
     return (
@@ -78,9 +86,6 @@ export default function HomePage() {
       </div>
     );
   }
-
-  const liveMatches = matches.filter(m => m.status === 'live');
-  const completedMatches = matches.filter(m => m.status === 'completed');
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -162,11 +167,41 @@ export default function HomePage() {
                         const currentInning = match.innings[match.currentInning - 1];
                         return (
                             <Card key={match.id}>
-                                <CardHeader>
-                                    <CardTitle>{team1?.name || 'Team 1'} vs {team2?.name || 'Team 2'}</CardTitle>
-                                    <p className="text-sm text-muted-foreground">
-                                        {currentInning.score}/{currentInning.wickets} ({currentInning.overs.toFixed(1)} overs)
-                                    </p>
+                                <CardHeader className="flex flex-row items-start justify-between">
+                                    <div>
+                                        <CardTitle>{team1?.name || 'Team 1'} vs {team2?.name || 'Team 2'}</CardTitle>
+                                        <p className="text-sm text-muted-foreground pt-1">
+                                            {currentInning.score}/{currentInning.wickets} ({currentInning.overs.toFixed(1)} overs)
+                                        </p>
+                                    </div>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 -mt-2 -mr-2">
+                                                <MoreVertical className="h-4 w-4" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive focus:text-destructive-foreground focus:bg-destructive">
+                                                        Delete
+                                                    </DropdownMenuItem>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            This action cannot be undone. This will permanently delete this match.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                        <AlertDialogAction onClick={() => deleteMatch(match.id)}>Delete</AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </CardHeader>
                                 <CardContent>
                                     <Button asChild className="w-full">

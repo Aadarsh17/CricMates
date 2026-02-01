@@ -22,6 +22,7 @@ interface AppContextType {
   editPlayer: (playerId: string, playerData: PlayerData) => Promise<void>;
   deletePlayer: (playerId: string) => Promise<void>;
   addMatch: (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; team1PlayerIds: string[]; team2PlayerIds: string[]; team1CaptainId: string, team2CaptainId: string }) => Promise<string>;
+  deleteMatch: (matchId: string) => Promise<void>;
   recordDelivery: (match: Match, teams: Team[], players: Player[], outcome: { runs: number, isWicket: boolean, extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null, outcome: string, wicketDetails?: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; fielderId?: string; } }) => Promise<void>;
   setPlayerInMatch: (match: Match, role: 'striker' | 'nonStriker' | 'bowler', playerId: string) => Promise<void>;
   swapStrikers: (match: Match) => Promise<void>;
@@ -251,6 +252,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
         console.error("Failed to add match:", e);
         toast({ variant: "destructive", title: "Error Creating Match", description: "Could not create the match. Please try again." });
         return '';
+    }
+  }, [db, toast]);
+  
+  const deleteMatch = useCallback(async (matchId: string) => {
+    if (!db) {
+        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
+        return;
+    }
+    try {
+      await deleteDoc(doc(db, 'matches', matchId));
+      toast({ title: "Match Deleted", description: "The live match has been deleted." });
+    } catch(e: any) {
+      console.error("Failed to delete match:", e);
+      toast({ variant: "destructive", title: "Error Deleting Match", description: "Could not delete the match. Please try again." });
     }
   }, [db, toast]);
 
@@ -540,6 +555,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       editPlayer,
       deletePlayer,
       addMatch,
+      deleteMatch,
       recordDelivery,
       setPlayerInMatch,
       swapStrikers,
@@ -555,6 +571,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       editPlayer,
       deletePlayer,
       addMatch,
+      deleteMatch,
       recordDelivery,
       setPlayerInMatch,
       swapStrikers,
