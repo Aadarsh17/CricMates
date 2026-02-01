@@ -91,48 +91,72 @@ export default function NumberGamePage() {
   const [gameHistory, setGameHistory] = useState<GameState[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Load history from localStorage on initial render
+  // Load state from localStorage on initial render
   useEffect(() => {
     try {
+      const savedLiveGame = window.localStorage.getItem('numberGameLiveState');
       const savedHistory = window.localStorage.getItem('numberGameHistory');
+      
       if (savedHistory) {
+        setGameHistory(JSON.parse(savedHistory));
+      }
+
+      if (savedLiveGame) {
+        setGameState(JSON.parse(savedLiveGame));
+      } else if (savedHistory) {
         const parsedHistory: GameState[] = JSON.parse(savedHistory);
-         if (parsedHistory.length > 0) {
-            setGameHistory(parsedHistory);
-            // Restore the view to the last completed game
-            setGameState(parsedHistory[parsedHistory.length - 1]);
+        if (parsedHistory.length > 0) {
+            // Restore view to the setup of the last played game
+            const lastGame = parsedHistory[parsedHistory.length - 1];
+            const playerCount = lastGame.players.length;
+            const playerNames = lastGame.players.map(p => p.name);
+            setGameState({
+              status: 'setup',
+              players: initialPlayerState(playerCount, playerNames),
+              currentBatsmanIndex: 0,
+              currentBowlerIndex: playerCount - 1,
+              currentOver: { deliveries: [], legalBalls: 0 },
+              totalWickets: 0,
+              totalOvers: 0,
+              id: `game-${Date.now()}`
+            });
         }
       }
     } catch (error) {
-      console.error("Failed to load game history from localStorage", error);
+      console.error("Failed to load game state from localStorage", error);
     } finally {
         setIsLoading(false);
     }
   }, []);
 
-  // Save history to localStorage whenever it changes
+  // Save state to localStorage whenever it changes
   useEffect(() => {
     if (isLoading) return;
     try {
-      window.localStorage.setItem('numberGameHistory', JSON.stringify(gameHistory));
-    } catch (error) {
-      console.error("Failed to save game history to localStorage", error);
-    }
-  }, [gameHistory, isLoading]);
-  
-  useEffect(() => {
-    if (gameState.status === 'completed') {
-      // Check if the game is already in history to prevent duplicates
-      const isAlreadyInHistory = gameHistory.some(
-        (histGame) => histGame.id === gameState.id
-      );
+       if (gameState.status === 'live') {
+          window.localStorage.setItem('numberGameLiveState', JSON.stringify(gameState));
+       } else {
+           window.localStorage.removeItem('numberGameLiveState');
+       }
 
-      if (!isAlreadyInHistory) {
-        setGameHistory((prev) => [...prev, gameState]);
+      if (gameState.status === 'completed') {
+        // Use a function update for setGameHistory to avoid depending on gameHistory state
+        setGameHistory(prevHistory => {
+            const isAlreadyInHistory = prevHistory.some(
+              (histGame) => histGame.id === gameState.id
+            );
+            if (!isAlreadyInHistory) {
+                const newHistory = [...prevHistory, gameState];
+                window.localStorage.setItem('numberGameHistory', JSON.stringify(newHistory));
+                return newHistory;
+            }
+            return prevHistory;
+        });
       }
+    } catch (error) {
+      console.error("Failed to save game state to localStorage", error);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState.status, gameState.id]);
+  }, [gameState, isLoading]);
 
   const handleStartGame = (players: Player[]) => {
     setGameState({
@@ -166,6 +190,8 @@ export default function NumberGamePage() {
   const handleDeleteGame = (gameId: string) => {
     const updatedHistory = gameHistory.filter((game) => game.id !== gameId);
     setGameHistory(updatedHistory);
+    window.localStorage.setItem('numberGameHistory', JSON.stringify(updatedHistory));
+
 
     if(gameState.id === gameId) {
         resetGame();
