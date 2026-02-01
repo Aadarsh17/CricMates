@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { UserX, Undo } from "lucide-react";
 import { useAppContext } from "@/context/AppContext";
@@ -11,6 +11,8 @@ import { RetirePlayerDialog } from './retire-player-dialog';
 import { WicketDialog } from './wicket-dialog';
 import { LivePlayerStats } from './live-player-stats';
 import { Label } from '../ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Scoreboard } from './scoreboard';
 
 type ExtraOptions = {
     wicket: boolean;
@@ -196,47 +198,60 @@ export function UmpireControls({ match, teams, players, striker, nonStriker, bow
                 onConfirm={handleRetireConfirm}
             />
             <Card>
-                <LivePlayerStats striker={striker} nonStriker={nonStriker} bowler={bowler} inning={currentInning} />
-                <CardContent className="p-4 space-y-4 border-t">
-                    <CurrentOver />
-                    
-                    <div className="space-y-2">
-                        <Label>Extras</Label>
-                        <div className="grid grid-cols-5 gap-2">
-                            {extraButtons.map(({key, label}) => (
-                                <Button
-                                    key={key}
-                                    variant={extras[key] ? 'secondary' : 'outline'}
-                                    onClick={() => handleExtraChange(key, !extras[key])}
-                                    className="h-12 font-bold"
-                                >
-                                    {label}
-                                </Button>
-                            ))}
-                        </div>
-                    </div>
+                <CardHeader className="p-0 border-b">
+                    <Scoreboard match={match} teams={teams} />
+                </CardHeader>
+                <Tabs defaultValue="controls" className="w-full">
+                    <TabsList className="grid w-full grid-cols-2 rounded-none">
+                        <TabsTrigger value="controls">Umpire Controls</TabsTrigger>
+                        <TabsTrigger value="stats">Live Stats</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="controls" className="mt-0">
+                         <CardContent className="p-4 space-y-4">
+                            <CurrentOver />
+                            
+                            <div className="space-y-2">
+                                <Label>Extras</Label>
+                                <div className="grid grid-cols-5 gap-2">
+                                    {extraButtons.map(({key, label}) => (
+                                        <Button
+                                            key={key}
+                                            variant={extras[key] ? 'secondary' : 'outline'}
+                                            onClick={() => handleExtraChange(key, !extras[key])}
+                                            className="h-12 font-bold"
+                                        >
+                                            {label}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
 
-                    <div className="space-y-2">
-                        <Label>Runs</Label>
-                        <div className="grid grid-cols-3 gap-2">
-                            {[1, 2, 3, 4, 6, 0].map(runs => (
-                                <Button key={runs} className="h-16 text-2xl font-bold" variant={runs === 0 ? "outline" : "default"} onClick={() => handleDelivery(runs)}>
-                                    {runs}
-                                </Button>
-                            ))}
-                        </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-2 pt-2">
-                        <Button variant="outline" onClick={() => swapStrikers(match)}>Swap Strikers</Button>
-                        <Button variant="outline" onClick={() => undoDelivery(match)}><Undo className="mr-2 h-4 w-4" /> Undo</Button>
-                    </div>
+                            <div className="space-y-2">
+                                <Label>Runs</Label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {[1, 2, 3, 4, 6, 0].map(runs => (
+                                        <Button key={runs} className="h-16 text-2xl font-bold" variant={runs === 0 ? "outline" : "default"} onClick={() => handleDelivery(runs)}>
+                                            {runs}
+                                        </Button>
+                                    ))}
+                                </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2 pt-2">
+                                <Button variant="outline" onClick={() => swapStrikers(match)}>Swap Strikers</Button>
+                                <Button variant="outline" onClick={() => undoDelivery(match)}><Undo className="mr-2 h-4 w-4" /> Undo</Button>
+                            </div>
 
-                    <div className="grid grid-cols-1 gap-2 border-t pt-4">
-                        <Button variant="destructive" size="sm" onClick={() => setIsRetireDialogOpen(true)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
-                        <Button variant="destructive" size="sm" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match, teams, players)}>{endInningButtonText}</Button>
-                    </div>
-                </CardContent>
+                            <div className="grid grid-cols-1 gap-2 border-t pt-4">
+                                <Button variant="destructive" size="sm" onClick={() => setIsRetireDialogOpen(true)}><UserX className="mr-2 h-4 w-4" /> Retire Batsman</Button>
+                                <Button variant="destructive" size="sm" className="bg-red-700 hover:bg-red-800" onClick={() => forceEndInning(match, teams, players)}>{endInningButtonText}</Button>
+                            </div>
+                        </CardContent>
+                    </TabsContent>
+                    <TabsContent value="stats" className="mt-0">
+                        <LivePlayerStats striker={striker} nonStriker={nonStriker} bowler={bowler} inning={currentInning} />
+                    </TabsContent>
+                </Tabs>
             </Card>
         </>
     );

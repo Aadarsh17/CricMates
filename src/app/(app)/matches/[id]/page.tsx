@@ -11,7 +11,6 @@ import { SelectBowlerDialog } from '@/components/match/select-bowler-dialog';
 import { useEffect, useState, useMemo } from 'react';
 import { InningStartDialog } from '@/components/match/inning-start-dialog';
 import { FullScorecard } from '@/components/match/full-scorecard';
-import { Scoreboard } from '@/components/match/scoreboard';
 import { UmpireControls } from '@/components/match/umpire-controls';
 import { useToast } from '@/hooks/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -281,7 +280,6 @@ export default function MatchPage() {
 
                 {match.status === 'live' && (
                     <div className="space-y-4">
-                        <Scoreboard match={match} teams={teams} />
                         <UmpireControls match={match} teams={teams} players={players} striker={striker} nonStriker={nonStriker} bowler={bowler} />
                     </div>
                 )}
