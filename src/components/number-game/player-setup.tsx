@@ -29,7 +29,7 @@ export function PlayerSetup({ initialPlayers, onStartGame }: PlayerSetupProps) {
     }
     const newPlayer: Player = {
         id: `player-${Date.now()}`,
-        name: `Player ${players.length + 1}`,
+        name: '',
         runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false, oversBowled: 0, ballsBowled: 0, runsConceded: 0, wicketsTaken: 0, consecutiveDots: 0, duck: false, goldenDuck: false,
     };
     setPlayers([...players, newPlayer]);
@@ -46,6 +46,11 @@ export function PlayerSetup({ initialPlayers, onStartGame }: PlayerSetupProps) {
   const handleStartGame = () => {
     if (players.length < 5) {
         toast({ title: "Not enough players", description: "You need at least 5 players to start.", variant: "destructive" });
+        return;
+    }
+
+    if (players.some(p => p.name.trim() === '')) {
+        toast({ title: "Empty Player Names", description: "All players must have a name.", variant: "destructive" });
         return;
     }
     

@@ -38,7 +38,7 @@ const formSchema = z.object({
   name: z.string().min(2, {
     message: 'Player name must be at least 2 characters long.',
   }),
-  role: z.enum(['Batsman', 'Bowler', 'All-rounder']),
+  role: z.enum(['Batsman', 'Bowler', 'All-rounder'], { required_error: 'Please select a player role.'}),
   battingStyle: z.string().optional(),
   bowlingStyle: z.string().optional(),
   isWicketKeeper: z.boolean().default(false),
@@ -57,9 +57,9 @@ export function AddPlayerDialog({ onPlayerAdd, trigger }: AddPlayerDialogProps) 
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
-      role: 'Batsman',
-      battingStyle: 'Right-hand bat',
-      bowlingStyle: 'None',
+      role: undefined,
+      battingStyle: undefined,
+      bowlingStyle: undefined,
       isWicketKeeper: false,
     },
   });
@@ -108,7 +108,7 @@ export function AddPlayerDialog({ onPlayerAdd, trigger }: AddPlayerDialogProps) 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Role</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a role" />
@@ -130,7 +130,7 @@ export function AddPlayerDialog({ onPlayerAdd, trigger }: AddPlayerDialogProps) 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Batting Style</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a batting style" />
@@ -151,7 +151,7 @@ export function AddPlayerDialog({ onPlayerAdd, trigger }: AddPlayerDialogProps) 
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Bowling Style</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a bowling style" />

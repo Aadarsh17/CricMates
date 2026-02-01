@@ -61,7 +61,7 @@ export type GameState = {
 const initialPlayerState = (count: number, names: string[] = []) =>
   Array.from({ length: count }, (_, i) => ({
     id: `player-${Date.now()}-${i}`,
-    name: names[i] || `Player ${i + 1}`,
+    name: names[i] || '',
     runs: 0,
     balls: 0,
     fours: 0,

@@ -60,14 +60,12 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
 
   const { reset } = form;
   useEffect(() => {
-    // This effect now correctly resets the form with the player's data
-    // every time the dialog is opened, ensuring fresh data is displayed.
     if (open) {
       reset({
         name: player.name,
         role: player.role,
-        battingStyle: player.battingStyle || 'Right-hand bat',
-        bowlingStyle: player.bowlingStyle || 'None',
+        battingStyle: player.battingStyle || undefined,
+        bowlingStyle: player.bowlingStyle || undefined,
         isWicketKeeper: player.isWicketKeeper || false,
       });
     }
@@ -114,7 +112,7 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Role</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a role" />
@@ -136,7 +134,7 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Batting Style</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a batting style" />
@@ -157,7 +155,7 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Bowling Style</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || ''}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select a bowling style" />
