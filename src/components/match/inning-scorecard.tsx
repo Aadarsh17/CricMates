@@ -51,14 +51,18 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
     
     const getPlayerById = useMemo(() => (playerId: string) => players.find(p => p.id === playerId), [players]);
     const getTeamById = useMemo(() => (teamId: string) => teams.find(t => t.id === teamId), [teams]);
-    const getPlayersByTeamId = useMemo(() => (teamId: string) => players.filter(p => p.teamId === teamId), [players]);
 
     const battingTeam = getTeamById(inning.battingTeamId);
     const bowlingTeam = getTeamById(inning.bowlingTeamId);
 
     if (!battingTeam || !bowlingTeam) return null;
 
-    const battingTeamPlayers = getPlayersByTeamId(battingTeam.id);
+    const getPlayersFromIds = (playerIds: string[] = []): Player[] => {
+        return players.filter(p => playerIds.includes(p.id));
+    };
+
+    const battingTeamPlayerIds = inning.battingTeamId === match.team1Id ? match.team1PlayerIds : match.team2PlayerIds;
+    const battingTeamPlayers = getPlayersFromIds(battingTeamPlayerIds);
     
     const battingStats = new Map<string, BattingStats>();
     
@@ -211,11 +215,11 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                                     <p className="text-xs text-muted-foreground print:text-gray-600">{stats.dismissal}</p>
                                 </div>
                             </TableCell>
-                            <TableCell className="text-right font-mono font-semibold">{isYetToBat ? '0' : stats.runs}</TableCell>
-                            <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.balls}</TableCell>
-                            <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.fours}</TableCell>
-                            <TableCell className="text-right font-mono">{isYetToBat ? '0' : stats.sixes}</TableCell>
-                            <TableCell className="text-right font-mono">{isYetToBat ? '0.00' : (stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00')}</TableCell>
+                            <TableCell className="text-right font-mono font-semibold">{isYetToBat ? '' : stats.runs}</TableCell>
+                            <TableCell className="text-right font-mono">{isYetToBat ? '' : stats.balls}</TableCell>
+                            <TableCell className="text-right font-mono">{isYetToBat ? '' : stats.fours}</TableCell>
+                            <TableCell className="text-right font-mono">{isYetToBat ? '' : stats.sixes}</TableCell>
+                            <TableCell className="text-right font-mono">{isYetToBat ? '' : (stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00')}</TableCell>
                             <TableCell className="text-right font-mono font-semibold">{cvp > 0 ? cvp : ''}</TableCell>
                         </TableRow>
                     )})}
