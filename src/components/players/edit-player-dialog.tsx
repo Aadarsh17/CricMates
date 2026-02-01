@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -54,22 +54,20 @@ interface EditPlayerDialogProps {
 
 export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps) {
   const [open, setOpen] = useState(false);
+  
   const form = useForm<PlayerFormData>({
     resolver: zodResolver(formSchema),
+    // The `values` property ensures the form is controlled by the `player` prop.
+    // When the `player` prop changes, this hook re-runs, a new `values` object
+    // is created, and react-hook-form updates the form state accordingly.
+    values: {
+      name: player.name,
+      role: player.role,
+      battingStyle: player.battingStyle || '',
+      bowlingStyle: player.bowlingStyle || 'None',
+      isWicketKeeper: !!player.isWicketKeeper,
+    },
   });
-
-  const { reset } = form;
-  useEffect(() => {
-    if (open) {
-      reset({
-        name: player.name,
-        role: player.role,
-        battingStyle: player.battingStyle || undefined,
-        bowlingStyle: player.bowlingStyle || undefined,
-        isWicketKeeper: player.isWicketKeeper || false,
-      });
-    }
-  }, [player, open, reset]);
 
   function onSubmit(values: PlayerFormData) {
     onPlayerEdit(values);
