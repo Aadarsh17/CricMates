@@ -10,6 +10,7 @@ import { Label } from '../ui/label';
 import { Badge } from '../ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { WicketDialog } from './wicket-dialog';
+import { AddPlayerDialog } from './add-player-dialog';
 
 interface LiveGameProps {
   gameState: GameState;
@@ -209,6 +210,33 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
         setDeliveryForWicket(null);
     };
 
+    const handleAddPlayer = (name: string) => {
+        setGameState(prev => {
+            if (prev.players.length >= 10) {
+                toast({ title: "Maximum players reached", description: "You can have a maximum of 10 players.", variant: "destructive" });
+                return prev;
+            }
+
+            const playerNames = prev.players.map(p => p.name.trim().toLowerCase());
+            if (playerNames.includes(name.trim().toLowerCase())) {
+                toast({ title: "Duplicate player name", description: "Player names must be unique.", variant: "destructive" });
+                return prev;
+            }
+
+            const newPlayer: Player = {
+                id: `player-${Date.now()}`,
+                name: name,
+                runs: 0, balls: 0, fours: 0, sixes: 0, isOut: false, oversBowled: 0, ballsBowled: 0, runsConceded: 0, wicketsTaken: 0, consecutiveDots: 0, duck: false, goldenDuck: false,
+            };
+
+            const newState = JSON.parse(JSON.stringify(prev));
+            newState.players.push(newPlayer);
+
+            toast({ title: "Player Added", description: `${name} has been added to the game.` });
+            return newState;
+        });
+    };
+
     const handleRecordDelivery = (delivery: { runs: number, isWicket: boolean, isWide: boolean, isNoBall: boolean, wicketDetails?: { dismissalType: string, fielderId?: string } }) => {
         setGameState(prev => {
             const { runs, isWicket, isWide, isNoBall, wicketDetails } = delivery;
@@ -360,9 +388,12 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
         )}
       <div className="space-y-6">
           <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
                   <CardTitle>Live Match</CardTitle>
                   <CardDescription>Wickets: {gameState.totalWickets} | Overs: {totalOvers}.{currentOver.legalBalls}</CardDescription>
+                </div>
+                <AddPlayerDialog onAddPlayer={handleAddPlayer} disabled={players.length >= 10} />
               </CardHeader>
               <CardContent className="grid md:grid-cols-2 gap-4">
                 <div><span className="font-semibold">Batting:</span> {currentBatsman?.name} {currentBatsman && `(${currentBatsman.consecutiveDots || 0} dots)`}</div>
