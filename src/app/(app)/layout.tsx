@@ -38,13 +38,23 @@ import { ClientOnly } from "@/components/ClientOnly";
 
 
 const NavLink = ({ href, icon, label, isCollapsed }: { href: string, icon: React.ReactNode, label: string, isCollapsed: boolean }) => {
+  const pathname = usePathname();
+  let isActive = false;
+  if (href === '/home') {
+    isActive = pathname === href;
+  } else if (href === '/matches') {
+    isActive = pathname.startsWith('/matches') && !pathname.startsWith('/matches/new');
+  } else {
+    isActive = pathname.startsWith(href);
+  }
+
   return (
     <TooltipProvider delayDuration={0}>
         <Tooltip>
             <TooltipTrigger asChild>
                  <Link
                     href={href}
-                    className={`flex items-center gap-3 rounded-lg py-2 text-muted-foreground transition-all hover:text-primary ${isCollapsed ? 'h-10 w-10 justify-center' : 'px-3'}`}
+                    className={`flex items-center gap-3 rounded-lg py-2 transition-all ${isCollapsed ? 'h-10 w-10 justify-center' : 'px-3'} ${isActive ? 'bg-primary/10 text-primary font-semibold' : 'text-muted-foreground hover:text-primary'}`}
                   >
                     {icon}
                     <span className={isCollapsed ? 'sr-only' : ''}>{label}</span>
@@ -123,35 +133,35 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         </SheetTitle>
                       </SheetHeader>
                       <nav className="grid gap-2 text-lg font-medium">
-                          <Link href="/home" className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground">
+                          <Link href="/home" className={`mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 ${pathname === '/home' ? 'bg-muted text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'}`}>
                               <Home className="h-5 w-5" />
                               Home
                           </Link>
-                          <Link href="/teams" className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground">
+                          <Link href="/teams" className={`mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 ${pathname.startsWith('/teams') ? 'bg-muted text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'}`}>
                               <Users className="h-5 w-5" />
                               Teams
                           </Link>
-                          <Link href="/matches/new" className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground">
+                          <Link href="/matches/new" className={`mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 ${pathname === '/matches/new' ? 'bg-muted text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'}`}>
                               <PlusCircle className="h-5 w-5" />
                               New Match
                           </Link>
-                          <Link href="/matches" className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground">
+                          <Link href="/matches" className={`mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 ${pathname.startsWith('/matches') && !pathname.startsWith('/matches/new') ? 'bg-muted text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'}`}>
                               <BarChart className="h-5 w-5" />
                               Match History
                           </Link>
-                          <Link href="/points-table" className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground">
+                          <Link href="/points-table" className={`mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 ${pathname.startsWith('/points-table') ? 'bg-muted text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'}`}>
                               <Trophy className="h-5 w-5" />
                               Points Table
                           </Link>
-                          <Link href="/player-stats" className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground">
+                          <Link href="/player-stats" className={`mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 ${pathname.startsWith('/player-stats') ? 'bg-muted text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'}`}>
                               <Medal className="h-5 w-5" />
                               Player Stats
                           </Link>
-                          <Link href="/rankings" className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground">
+                          <Link href="/rankings" className={`mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 ${pathname.startsWith('/rankings') ? 'bg-muted text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'}`}>
                               <TrendingUp className="h-5 w-5" />
                               Rankings
                           </Link>
-                          <Link href="/number-game" className="mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground">
+                          <Link href="/number-game" className={`mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 ${pathname.startsWith('/number-game') ? 'bg-muted text-primary font-semibold' : 'text-muted-foreground hover:text-foreground'}`}>
                               <Sigma className="h-5 w-5" />
                               Number Game
                           </Link>
