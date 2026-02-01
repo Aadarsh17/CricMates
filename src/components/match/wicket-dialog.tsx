@@ -82,7 +82,7 @@ export function WicketDialog({ open, onClose, striker, nonStriker, availableBats
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Who is Out?</DialogTitle>
         </DialogHeader>
