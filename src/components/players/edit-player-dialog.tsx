@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -57,24 +57,30 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
   
   const form = useForm<PlayerFormData>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: player.name,
+      role: player.role,
+      battingStyle: player.battingStyle || '',
+      bowlingStyle: player.bowlingStyle || 'None',
+      isWicketKeeper: !!player.isWicketKeeper,
+    },
   });
 
-  // This effect synchronizes the form with the player data.
-  // It runs when the dialog opens or when the player being edited changes.
-  // Using `player.id` in the dependency array ensures this doesn't re-run
-  // on every parent component re-render, which was causing the bug.
-  useEffect(() => {
-    if (open) {
-      form.reset({
-        name: player.name,
-        role: player.role,
-        battingStyle: player.battingStyle || '',
-        bowlingStyle: player.bowlingStyle || 'None',
-        isWicketKeeper: !!player.isWicketKeeper,
-      });
-    }
-  }, [open, player, form]);
-
+  const handleOpenDialog = (e: Event) => {
+    e.preventDefault();
+    // When opening the dialog, explicitly reset the form with the current player's data.
+    // This ensures that if the user clicks "Edit" on a different player,
+    // the form will have the correct data. This fixes the bug where
+    // old data was preserved, preventing edits.
+    form.reset({
+      name: player.name,
+      role: player.role,
+      battingStyle: player.battingStyle || '',
+      bowlingStyle: player.bowlingStyle || 'None',
+      isWicketKeeper: !!player.isWicketKeeper,
+    });
+    setOpen(true);
+  };
 
   function onSubmit(values: PlayerFormData) {
     onPlayerEdit(values);
@@ -84,7 +90,7 @@ export function EditPlayerDialog({ player, onPlayerEdit }: EditPlayerDialogProps
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+        <DropdownMenuItem onSelect={handleOpenDialog}>
           Edit
         </DropdownMenuItem>
       </DialogTrigger>
