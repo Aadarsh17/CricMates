@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview AI Flow to generate a match summary for a completed cricket match.
@@ -6,7 +7,7 @@
  */
 
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 
 const MatchSummaryInputSchema = z.object({
   team1Name: z.string(),
