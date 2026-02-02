@@ -413,8 +413,8 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
           <UmpireControls onAttemptDelivery={handleAttemptDelivery} />
           <Scorecard players={players} />
           <BowlingScorecard players={players} />
-          <div className="text-center p-4 bg-muted rounded-lg">
-            <p className="text-sm text-muted-foreground">Note: Game state is not saved. Refreshing the page will restart the game setup.</p>
+          <div className="text-center p-4 bg-muted/50 rounded-lg">
+            <p className="text-xs text-muted-foreground italic">Your game progress is automatically saved to your browser's memory.</p>
           </div>
       </div>
     </>
