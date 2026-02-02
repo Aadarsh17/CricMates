@@ -17,6 +17,7 @@ export default function HomePage() {
   const { firestore: db } = useFirebase();
   const { deleteMatch } = useAppContext();
 
+  // Data fetching
   const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
   const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
   const teams = teamsData || [];
@@ -40,46 +41,11 @@ export default function HomePage() {
         const dateA = a.date ? new Date(a.date).getTime() : 0;
         const dateB = b.date ? new Date(b.date).getTime() : 0;
         return dateB - dateA;
-    }).slice(0, 4); // Show only the 4 most recent
+    }).slice(0, 4);
   }, [completedMatches]);
 
-  const loading = teamsLoading || playersLoading || liveMatchesLoading || completedMatchesLoading;
-
-
-  if (loading) {
-    return (
-      <div className="space-y-4 md:space-y-6">
-        <div className="flex flex-col items-center space-y-4">
-            <div className="flex flex-col items-center space-y-2">
-              <Skeleton className="h-8 w-48" />
-              <Skeleton className="h-4 w-64" />
-            </div>
-            <div className="flex gap-2">
-                 <Skeleton className="h-10 w-36" />
-                 <Skeleton className="h-10 w-36" />
-            </div>
-        </div>
-        <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <Card key={i}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-4 w-4" />
-                </CardHeader>
-                <CardContent>
-                    <Skeleton className="h-7 w-12" />
-                    <Skeleton className="h-3 w-24 mt-1" />
-                </CardContent>
-            </Card>
-          ))}
-        </div>
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col items-center text-center space-y-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight font-headline">
@@ -111,10 +77,8 @@ export default function HomePage() {
                       <Shield className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">{teams.length}</div>
-                      <p className="text-xs text-muted-foreground">
-                          {teams.length === 1 ? 'team in the league' : 'teams in the league'}
-                      </p>
+                      {teamsLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{teams.length}</div>}
+                      <p className="text-xs text-muted-foreground">League presence</p>
                   </CardContent>
               </Card>
           </Link>
@@ -125,30 +89,34 @@ export default function HomePage() {
                       <Users className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">{players.length}</div>
-                       <p className="text-xs text-muted-foreground">
-                          {players.length === 1 ? 'player registered' : 'players registered'}
-                      </p>
+                      {playersLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{players.length}</div>}
+                       <p className="text-xs text-muted-foreground">Registered athletes</p>
                   </CardContent>
               </Card>
           </Link>
           <Link href="/matches" className="block hover:no-underline">
                <Card className="hover:bg-muted/50 transition-colors h-full">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Matches Completed</CardTitle>
+                      <CardTitle className="text-sm font-medium">Completed</CardTitle>
                       <BarChart className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
-                      <div className="text-2xl font-bold">{completedMatches.length}</div>
-                       <p className="text-xs text-muted-foreground">
-                          {completedMatches.length === 1 ? 'game played' : 'games played'} so far
-                      </p>
+                      {completedMatchesLoading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-bold">{completedMatches.length}</div>}
+                       <p className="text-xs text-muted-foreground">Games played</p>
                   </CardContent>
               </Card>
           </Link>
       </div>
 
-      {liveMatches.length > 0 && (
+      {liveMatchesLoading ? (
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+        </div>
+      ) : liveMatches.length > 0 ? (
           <div>
               <h2 className="text-2xl font-bold tracking-tight font-headline mb-4 flex items-center gap-2">
                   <PlayCircle className="h-6 w-6 text-primary animate-pulse" /> Live Matches
@@ -187,12 +155,12 @@ export default function HomePage() {
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Delete live match?</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                This will permanently delete the current match state. This action cannot be undone.
+                                                This will permanently delete the current match state.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
                                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => deleteMatch(match.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                                            <AlertDialogAction onClick={() => deleteMatch(match.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
                                         </AlertDialogFooter>
                                     </AlertDialogContent>
                                   </AlertDialog>
@@ -215,9 +183,17 @@ export default function HomePage() {
                   })}
               </div>
           </div>
-      )}
+      ) : null}
       
-      {sortedCompletedMatches.length > 0 && (
+      {completedMatchesLoading ? (
+        <div className="space-y-4">
+          <Skeleton className="h-8 w-48" />
+          <div className="grid gap-4 md:grid-cols-2">
+            <Skeleton className="h-48 w-full" />
+            <Skeleton className="h-48 w-full" />
+          </div>
+        </div>
+      ) : sortedCompletedMatches.length > 0 ? (
           <div>
                <h2 className="text-2xl font-bold tracking-tight font-headline mb-4">Recent Results</h2>
                <div className="grid gap-4 md:gap-6 md:grid-cols-2">
@@ -255,7 +231,7 @@ export default function HomePage() {
                                         <AlertDialogHeader>
                                             <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                             <AlertDialogDescription>
-                                                This action cannot be undone. This will permanently delete this match record.
+                                                This record will be permanently deleted.
                                             </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
@@ -290,22 +266,22 @@ export default function HomePage() {
                   })}
                </div>
           </div>
-      )}
-      
-       {sortedCompletedMatches.length === 0 && liveMatches.length === 0 && (
-        <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm py-24">
-          <div className="flex flex-col items-center gap-2 text-center">
-            <h3 className="text-2xl font-bold tracking-tight">No Match History</h3>
-            <p className="text-sm text-muted-foreground">
-              Start a new match to see game summaries here.
-            </p>
-            <Button asChild className="mt-4">
-              <Link href="/matches/new">
-                <PlusCircle className="mr-2 h-4 w-4" /> Start New Match
-              </Link>
-            </Button>
+      ) : (
+        !liveMatchesLoading && liveMatches.length === 0 && (
+          <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm py-24">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <h3 className="text-2xl font-bold tracking-tight">No Match History</h3>
+              <p className="text-sm text-muted-foreground">
+                Start a new match to see game summaries here.
+              </p>
+              <Button asChild className="mt-4">
+                <Link href="/matches/new">
+                  <PlusCircle className="mr-2 h-4 w-4" /> Start New Match
+                </Link>
+              </Button>
+            </div>
           </div>
-        </div>
+        )
       )}
     </div>
   );

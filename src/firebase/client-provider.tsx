@@ -6,6 +6,7 @@ import { initializeFirebase } from '@/firebase';
 import { type FirebaseApp } from 'firebase/app';
 import { type Auth } from 'firebase/auth';
 import { type Firestore } from 'firebase/firestore';
+import { Loader2 } from 'lucide-react';
 
 interface FirebaseClientProviderProps {
   children: ReactNode;
@@ -21,15 +22,18 @@ export function FirebaseClientProvider({ children }: FirebaseClientProviderProps
   const [firebaseServices, setFirebaseServices] = useState<FirebaseServices | null>(null);
 
   useEffect(() => {
-    // Initialize Firebase on the client side to avoid SSR issues.
     setFirebaseServices(initializeFirebase());
   }, []);
 
   if (!firebaseServices) {
-    // Return null (or a loading skeleton) while Firebase is initializing on the client.
-    // This prevents components that depend on Firebase from rendering on the server
-    // or on the client before Firebase is ready, which was causing the Internal Server Error.
-    return null;
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm font-medium text-muted-foreground">Initializing CricMates...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
