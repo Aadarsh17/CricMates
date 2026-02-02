@@ -8,6 +8,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import { gemini15Flash } from '@genkit-ai/googleai';
 
 const MatchSummaryInputSchema = z.object({
   team1Name: z.string(),
@@ -28,6 +29,7 @@ export type MatchSummaryOutput = z.infer<typeof MatchSummaryOutputSchema>;
 
 const matchSummaryPrompt = ai.definePrompt({
   name: 'matchSummaryPrompt',
+  model: gemini15Flash,
   input: { schema: MatchSummaryInputSchema },
   output: { schema: MatchSummaryOutputSchema },
   prompt: `You are an expert cricket commentator and analyst. 
@@ -56,6 +58,5 @@ const summaryFlow = ai.defineFlow(
 );
 
 export async function generateMatchSummary(input: MatchSummaryInput): Promise<MatchSummaryOutput> {
-  // Always call the flow instance, never redefine it inside the action
   return summaryFlow(input);
 }
