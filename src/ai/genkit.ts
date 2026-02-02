@@ -1,10 +1,4 @@
-
-import { genkit } from 'genkit';
-import { googleAI } from '@genkit-ai/googleai';
-
 /**
- * Centralized Genkit instance initialized with the Google AI plugin.
+ * This file is deprecated and no longer uses Genkit.
  */
-export const ai = genkit({
-  plugins: [googleAI()],
-});
+export const ai: any = {};
