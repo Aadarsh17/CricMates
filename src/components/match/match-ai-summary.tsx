@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -6,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Sparkles, Loader2, Award, ListChecks } from 'lucide-react';
 import { generateMatchSummary, type MatchSummaryOutput } from '@/ai/flows/match-summary-flow';
 import type { Match, Team, Player } from '@/lib/types';
+import { useToast } from '@/hooks/use-toast';
 
 interface MatchAISummaryProps {
   match: Match;
@@ -16,9 +18,11 @@ interface MatchAISummaryProps {
 export function MatchAISummary({ match, teams, players }: MatchAISummaryProps) {
   const [summary, setSummary] = useState<MatchSummaryOutput | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
 
   const handleGenerate = async () => {
     setIsGenerating(true);
+    setSummary(null);
     try {
       const team1 = teams.find(t => t.id === match.team1Id)?.name || 'Team 1';
       const team2 = teams.find(t => t.id === match.team2Id)?.name || 'Team 2';
@@ -26,7 +30,8 @@ export function MatchAISummary({ match, teams, players }: MatchAISummaryProps) {
       // Prepare a string representation of the scorecard
       const scorecardData = match.innings.map((inning, idx) => {
         const battingTeam = teams.find(t => t.id === inning.battingTeamId)?.name;
-        const deliveries = inning.deliveryHistory.slice(0, 50).map(d => {
+        // Limit to most recent deliveries to keep context size manageable
+        const deliveries = inning.deliveryHistory.slice(-30).map(d => {
             const striker = players.find(p => p.id === d.strikerId)?.name;
             return `${striker}: ${d.outcome}`;
         }).join(', ');
@@ -42,6 +47,11 @@ export function MatchAISummary({ match, teams, players }: MatchAISummaryProps) {
       setSummary(result);
     } catch (error) {
       console.error('Error generating summary:', error);
+      toast({
+        variant: "destructive",
+        title: "Analysis Failed",
+        description: "The AI was unable to summarize the match. Please try again in a moment.",
+      });
     } finally {
       setIsGenerating(false);
     }

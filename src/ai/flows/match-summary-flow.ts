@@ -34,7 +34,7 @@ const matchSummaryPrompt = ai.definePrompt({
   Generate a professional match summary based on the following scorecard data.
   
   Teams: {{{team1Name}}} vs {{{team2Name}}}
-  Result: {{{result}}}
+  Result: {{#if result}}{{{result}}}{{else}}Match in progress or result not yet finalized.{{/if}}
   
   Scorecard Data:
   {{{scorecardData}}}
@@ -42,19 +42,20 @@ const matchSummaryPrompt = ai.definePrompt({
   Include insights on team strategies, individual brilliance, and how the match unfolded. Keep the tone engaging and professional.`,
 });
 
-export async function generateMatchSummary(input: MatchSummaryInput): Promise<MatchSummaryOutput> {
-  const summaryFlow = ai.defineFlow(
-    {
-      name: 'matchSummaryFlow',
-      inputSchema: MatchSummaryInputSchema,
-      outputSchema: MatchSummaryOutputSchema,
-    },
-    async (input) => {
-      const { output } = await matchSummaryPrompt(input);
-      if (!output) throw new Error('Failed to generate summary');
-      return output;
-    }
-  );
+const summaryFlow = ai.defineFlow(
+  {
+    name: 'matchSummaryFlow',
+    inputSchema: MatchSummaryInputSchema,
+    outputSchema: MatchSummaryOutputSchema,
+  },
+  async (input) => {
+    const { output } = await matchSummaryPrompt(input);
+    if (!output) throw new Error('Failed to generate summary');
+    return output;
+  }
+);
 
+export async function generateMatchSummary(input: MatchSummaryInput): Promise<MatchSummaryOutput> {
+  // Always call the flow instance, never redefine it inside the action
   return summaryFlow(input);
 }
