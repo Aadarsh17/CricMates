@@ -92,6 +92,21 @@ export default function PlayerProfilePage() {
         return calculatePlayerStats([player], teams, matches)[0];
     }, [player, teams, matches]);
 
+    const teamsPlayedFor = useMemo(() => {
+        if (!player || !matches || !teams) return [];
+        const teamIds = new Set<string>();
+        matches.forEach(match => {
+            if (match.team1PlayerIds?.includes(playerId)) {
+                teamIds.add(match.team1Id);
+            } else if (match.team2PlayerIds?.includes(playerId)) {
+                teamIds.add(match.team2Id);
+            }
+        });
+        return Array.from(teamIds)
+            .map(id => teams.find(t => t.id === id)?.name)
+            .filter(Boolean) as string[];
+    }, [player, matches, teams, playerId]);
+
     if (playerLoading || teamsLoading || matchesLoading) {
         return (
             <div className="space-y-6">
@@ -109,7 +124,7 @@ export default function PlayerProfilePage() {
     }
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 max-w-5xl mx-auto">
             <div>
                 <h1 className="text-4xl font-bold tracking-tight font-headline">{player.name}</h1>
             </div>
@@ -135,6 +150,19 @@ export default function PlayerProfilePage() {
                 <BattingSummary stats={playerStats} />
                 <BowlingSummary stats={playerStats} />
             </div>
+
+            {teamsPlayedFor.length > 0 && (
+                <div className="space-y-3">
+                    <h3 className="text-lg font-bold uppercase tracking-tight">Teams</h3>
+                    <Card className="bg-muted/30">
+                        <CardContent className="p-4">
+                            <p className="text-sm md:text-base text-foreground leading-relaxed">
+                                {teamsPlayedFor.join(', ')}
+                            </p>
+                        </CardContent>
+                    </Card>
+                </div>
+            )}
         </div>
     );
 }
