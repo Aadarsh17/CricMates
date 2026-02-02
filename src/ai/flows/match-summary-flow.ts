@@ -8,7 +8,6 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { gemini15Flash } from '@genkit-ai/googleai';
 
 const MatchSummaryInputSchema = z.object({
   team1Name: z.string(),
@@ -29,7 +28,7 @@ export type MatchSummaryOutput = z.infer<typeof MatchSummaryOutputSchema>;
 
 const matchSummaryPrompt = ai.definePrompt({
   name: 'matchSummaryPrompt',
-  model: gemini15Flash,
+  model: 'googleai/gemini-1.5-flash',
   input: { schema: MatchSummaryInputSchema },
   output: { schema: MatchSummaryOutputSchema },
   prompt: `You are an expert cricket commentator and analyst. 
@@ -51,12 +50,23 @@ const summaryFlow = ai.defineFlow(
     outputSchema: MatchSummaryOutputSchema,
   },
   async (input) => {
-    const { output } = await matchSummaryPrompt(input);
-    if (!output) throw new Error('Failed to generate summary');
-    return output;
+    // Calling the prompt and ensuring we extract the structured output correctly
+    const response = await matchSummaryPrompt(input);
+    if (!response || !response.output) {
+      throw new Error('AI failed to generate a valid summary output');
+    }
+    return response.output;
   }
 );
 
+/**
+ * Server action to trigger the match summary generation.
+ */
 export async function generateMatchSummary(input: MatchSummaryInput): Promise<MatchSummaryOutput> {
-  return summaryFlow(input);
+  try {
+    return await summaryFlow(input);
+  } catch (error) {
+    console.error('Genkit summaryFlow execution failed:', error);
+    throw error;
+  }
 }
