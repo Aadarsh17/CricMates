@@ -3,7 +3,7 @@
 import { useAppContext } from "@/context/AppContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Shield, Users, BarChart, PlayCircle, MoreVertical } from "lucide-react";
+import { PlusCircle, Shield, Users, BarChart, FileText, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
@@ -35,6 +35,14 @@ export default function HomePage() {
   
   const getTeamById = useMemo(() => (teamId: string) => teams.find(t => t.id === teamId), [teams]);
   
+  const sortedCompletedMatches = useMemo(() => {
+    return [...completedMatches].sort((a, b) => {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        return dateB - dateA;
+    }).slice(0, 4); // Show only the 4 most recent
+  }, [completedMatches]);
+
   const loading = teamsLoading || playersLoading || liveMatchesLoading || completedMatchesLoading;
 
 
@@ -103,12 +111,12 @@ export default function HomePage() {
               <div className="flex items-center gap-2">
                    <Button asChild variant="outline">
                       <Link href="/teams">
-                          <Users className="mr-2" /> Manage Teams
+                          <Users className="mr-2 h-4 w-4" /> Manage Teams
                       </Link>
                   </Button>
                    <Button asChild>
                       <Link href="/matches/new">
-                          <PlusCircle className="mr-2" /> New Match
+                          <PlusCircle className="mr-2 h-4 w-4" /> New Match
                       </Link>
                   </Button>
               </div>
@@ -159,21 +167,23 @@ export default function HomePage() {
               </Link>
           </div>
           
-          {liveMatches.length > 0 && (
+          {sortedCompletedMatches.length > 0 && (
               <div>
-                   <h2 className="text-2xl font-bold tracking-tight font-headline mb-4">Live Matches</h2>
+                   <h2 className="text-2xl font-bold tracking-tight font-headline mb-4">Recent Completed Matches</h2>
                    <div className="grid gap-4 md:gap-6 md:grid-cols-2">
-                      {liveMatches.map(match => {
+                      {sortedCompletedMatches.map(match => {
                           const team1 = getTeamById(match.team1Id);
                           const team2 = getTeamById(match.team2Id);
-                          const currentInning = match.innings[match.currentInning - 1];
+                          const firstInning = match.innings[0];
+                          const secondInning = match.innings[1];
+                          
                           return (
-                              <Card key={match.id}>
-                                  <CardHeader className="flex flex-row items-start justify-between">
+                              <Card key={match.id} className="overflow-hidden">
+                                  <CardHeader className="flex flex-row items-start justify-between pb-2">
                                       <div>
-                                          <CardTitle>{team1?.name || 'Team 1'} vs {team2?.name || 'Team 2'}</CardTitle>
-                                          <p className="text-sm text-muted-foreground pt-1">
-                                              {currentInning.score}/{currentInning.wickets} ({currentInning.overs.toFixed(1)} overs)
+                                          <CardTitle className="text-lg">{team1?.name || 'Team 1'} vs {team2?.name || 'Team 2'}</CardTitle>
+                                          <p className="text-xs text-muted-foreground pt-1">
+                                              {match.date ? new Date(match.date).toLocaleDateString() : 'N/A'}
                                           </p>
                                       </div>
                                       <AlertDialog>
@@ -195,7 +205,7 @@ export default function HomePage() {
                                             <AlertDialogHeader>
                                                 <AlertDialogTitle>Are you sure?</AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    This action cannot be undone. This will permanently delete this match.
+                                                    This action cannot be undone. This will permanently delete this match record.
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
@@ -205,10 +215,23 @@ export default function HomePage() {
                                         </AlertDialogContent>
                                       </AlertDialog>
                                   </CardHeader>
-                                  <CardContent>
-                                      <Button asChild className="w-full">
+                                  <CardContent className="space-y-2 pb-4">
+                                      <div className="flex justify-between items-center text-sm">
+                                          <span className="font-semibold">{getTeamById(firstInning.battingTeamId)?.name}</span>
+                                          <span className="font-mono">{firstInning.score}/{firstInning.wickets} ({firstInning.overs.toFixed(1)})</span>
+                                      </div>
+                                      {secondInning && (
+                                          <div className="flex justify-between items-center text-sm">
+                                              <span className="font-semibold">{getTeamById(secondInning.battingTeamId)?.name}</span>
+                                              <span className="font-mono">{secondInning.score}/{secondInning.wickets} ({secondInning.overs.toFixed(1)})</span>
+                                          </div>
+                                      )}
+                                      <div className="text-xs font-bold text-primary mt-2 uppercase tracking-wide">
+                                          {match.result || 'Match Result Pending'}
+                                      </div>
+                                      <Button asChild variant="secondary" size="sm" className="w-full mt-4">
                                           <Link href={`/matches/${match.id}`}>
-                                              <PlayCircle className="mr-2" /> Go to Match
+                                              <FileText className="mr-2 h-4 w-4" /> View Scorecard
                                           </Link>
                                       </Button>
                                   </CardContent>
@@ -219,16 +242,16 @@ export default function HomePage() {
               </div>
           )}
           
-           {liveMatches.length === 0 && (
+           {sortedCompletedMatches.length === 0 && (
             <div className="flex h-full flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm py-24">
               <div className="flex flex-col items-center gap-2 text-center">
-                <h3 className="text-2xl font-bold tracking-tight">No Live Matches</h3>
+                <h3 className="text-2xl font-bold tracking-tight">No Match History</h3>
                 <p className="text-sm text-muted-foreground">
-                  Start a new match to see live scoring here.
+                  Start a new match to see completed game summaries here.
                 </p>
                 <Button asChild className="mt-4">
                   <Link href="/matches/new">
-                    <PlusCircle className="mr-2" /> Start New Match
+                    <PlusCircle className="mr-2 h-4 w-4" /> Start New Match
                   </Link>
                 </Button>
               </div>
