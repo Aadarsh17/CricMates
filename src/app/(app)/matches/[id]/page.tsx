@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useParams, notFound } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trophy, Printer, Share2, Undo, Sparkles } from 'lucide-react';
+import { Trophy, Printer, Share2, Undo } from 'lucide-react';
 import type { Player, Match, Team } from '@/lib/types';
 import { SelectBowlerDialog } from '@/components/match/select-bowler-dialog';
 import { useEffect, useState, useMemo } from 'react';
@@ -15,10 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MatchSquads } from '@/components/match/match-squads';
 import { OverByOver } from '@/components/match/over-by-over';
 import { MatchAnalysis } from '@/components/match/match-analysis';
-import { MatchAISummary } from '@/components/match/match-ai-summary';
 import { useCollection, useDoc, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, doc } from 'firebase/firestore';
-import { Skeleton } from '@/components/ui/skeleton';
 import { useAppContext } from '@/context/AppContext';
 import { getPlayerOfTheMatch } from '@/lib/stats';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -241,9 +240,8 @@ export default function MatchPage() {
                 )}
 
                 <Tabs defaultValue={match.status === 'completed' ? "scorecard" : "squads"} className="w-full">
-                    <TabsList className="grid w-full grid-cols-5">
+                    <TabsList className="grid w-full grid-cols-4">
                         <TabsTrigger value="scorecard" disabled={match.status === 'live'}>Scorecard</TabsTrigger>
-                        <TabsTrigger value="summary">AI Summary</TabsTrigger>
                         <TabsTrigger value="analysis">Analysis</TabsTrigger>
                         <TabsTrigger value="squads">Squads</TabsTrigger>
                         <TabsTrigger value="overs">Overs</TabsTrigger>
@@ -252,9 +250,6 @@ export default function MatchPage() {
                         {match.status === 'completed' && (
                             <FullScorecard match={match} teams={teams} players={players} />
                         )}
-                    </TabsContent>
-                    <TabsContent value="summary" className="mt-4">
-                        <MatchAISummary match={match} teams={teams} players={players} />
                     </TabsContent>
                     <TabsContent value="analysis" className="mt-4">
                         <MatchAnalysis match={match} teams={teams} />
