@@ -49,9 +49,13 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
     let playerPoints = 0;
     const playerId = player.id;
     
-    const isPlayerInMatch = (match.team1PlayerIds?.includes(playerId)) || (match.team2PlayerIds?.includes(playerId));
+    // Robust check for participation
+    const isInSquad = (match.team1PlayerIds?.includes(playerId)) || (match.team2PlayerIds?.includes(playerId));
+    const isInHistory = match.innings.some(inning => 
+        inning.deliveryHistory.some(d => d.strikerId === playerId || d.nonStrikerId === playerId || d.bowlerId === playerId)
+    );
     
-    if (!isPlayerInMatch) return 0;
+    if (!isInSquad && !isInHistory) return 0;
 
     // ✅ Participation: +1 point
     playerPoints += 1;
@@ -61,6 +65,18 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
       playerTeamId = match.team1Id;
     } else if (match.team2PlayerIds?.includes(playerId)) {
       playerTeamId = match.team2Id;
+    } else {
+        // Fallback for old matches: find team from delivery history
+        for (const inning of match.innings) {
+            if (inning.deliveryHistory.some(d => d.strikerId === playerId || d.nonStrikerId === playerId)) {
+                playerTeamId = inning.battingTeamId;
+                break;
+            }
+            if (inning.deliveryHistory.some(d => d.bowlerId === playerId)) {
+                playerTeamId = inning.bowlingTeamId;
+                break;
+            }
+        }
     }
 
 
@@ -181,7 +197,16 @@ export const getPlayerOfTheMatch = (match: Match, allPlayers: Player[], allTeams
   if (match.status !== 'completed' || !match.result) return { player: null, cvp: 0 };
   
   const matchPlayerIds = [...(match.team1PlayerIds || []), ...(match.team2PlayerIds || [])];
-  const matchPlayers = allPlayers.filter(p => matchPlayerIds.includes(p.id));
+  // Robustly find all players who might be in delivery history too
+  const historyPlayerIds = new Set<string>();
+  match.innings.forEach(i => i.deliveryHistory.forEach(d => {
+      historyPlayerIds.add(d.strikerId);
+      if (d.nonStrikerId) historyPlayerIds.add(d.nonStrikerId);
+      historyPlayerIds.add(d.bowlerId);
+  }));
+
+  const allRelevantPlayerIds = Array.from(new Set([...matchPlayerIds, ...Array.from(historyPlayerIds)]));
+  const matchPlayers = allPlayers.filter(p => allRelevantPlayerIds.includes(p.id));
 
   if (matchPlayers.length === 0) return { player: null, cvp: 0 };
 
@@ -203,7 +228,13 @@ export const getPlayerOfTheMatch = (match: Match, allPlayers: Player[], allTeams
 
 export const calculatePlayerStats = (players: Player[], teams: Team[], matches: Match[]): AggregatedPlayerStats[] => {
     return players.map(player => {
-        const playerMatches = matches.filter(m => m.status === 'completed' && (m.team1PlayerIds?.includes(player.id) || m.team2PlayerIds?.includes(player.id)));
+        const playerMatches = matches.filter(m => {
+            if (m.status !== 'completed') return false;
+            const inSquad = (m.team1PlayerIds?.includes(player.id) || m.team2PlayerIds?.includes(player.id));
+            if (inSquad) return true;
+            // Scan delivery history for old matches
+            return m.innings.some(i => i.deliveryHistory.some(d => d.strikerId === player.id || d.nonStrikerId === player.id || d.bowlerId === player.id));
+        });
         
         let runsScored = 0, ballsFaced = 0, fours = 0, sixes = 0;
         let highestScore = 0, thirties = 0, fifties = 0, hundreds = 0, ducks = 0, goldenDucks = 0, diamondDucks = 0, notOuts = 0;
@@ -215,7 +246,23 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
         let bestBowlingWickets = 0, bestBowlingRuns = Infinity;
 
         playerMatches.forEach(match => {
-            const playerTeamId = match.team1PlayerIds?.includes(player.id) ? match.team1Id : match.team2Id;
+            let playerTeamId = match.team1PlayerIds?.includes(player.id) ? match.team1Id : match.team2Id;
+            
+            // Fallback detection for old matches
+            if (!playerTeamId) {
+                for (const inning of match.innings) {
+                    if (inning.deliveryHistory.some(d => d.strikerId === player.id || d.nonStrikerId === player.id)) {
+                        playerTeamId = inning.battingTeamId;
+                        break;
+                    }
+                    if (inning.deliveryHistory.some(d => d.bowlerId === player.id)) {
+                        playerTeamId = inning.bowlingTeamId;
+                        break;
+                    }
+                }
+            }
+
+            if (!playerTeamId) return;
 
             match.innings.forEach(inning => {
                 // Batting Stats
@@ -240,7 +287,7 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
                         }
                     });
 
-                    // Also check if they were out without facing balls (Diamond Duck)
+                    // Check for Diamond Duck (Out without facing a ball)
                     const wasOut = inning.deliveryHistory.some(d => d.isWicket && d.dismissal?.batsmanOutId === player.id);
                     if (!playerBatted && wasOut) playerBatted = true;
 

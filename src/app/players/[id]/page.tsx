@@ -41,12 +41,18 @@ export default function PlayerProfilePage() {
     const recentMatches = useMemo(() => {
         if (!matches || !player) return [];
         return matches
-            .filter(m => m.status === 'completed' && (m.team1PlayerIds?.includes(player.id) || m.team2PlayerIds?.includes(player.id)))
+            .filter(m => {
+                if (m.status !== 'completed') return false;
+                // Check squads
+                if (m.team1PlayerIds?.includes(player.id) || m.team2PlayerIds?.includes(player.id)) return true;
+                // Check history for old matches
+                return m.innings.some(i => i.deliveryHistory.some(d => d.strikerId === player.id || d.nonStrikerId === player.id || d.bowlerId === player.id));
+            })
             .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             .slice(0, 5);
     }, [matches, player]);
 
-    // Calculate all teams the player has played for
+    // Calculate all teams the player has played for (Robust scanning)
     const playedTeams = useMemo(() => {
         if (!matches || !player || !teams) return [];
         const teamIds = new Set<string>();
@@ -54,10 +60,29 @@ export default function PlayerProfilePage() {
         // Include current team
         if (player.teamId) teamIds.add(player.teamId);
 
-        // Scan match history for other teams
+        // Scan match history
         matches.forEach(m => {
-            if (m.team1PlayerIds?.includes(player.id)) teamIds.add(m.team1Id);
-            if (m.team2PlayerIds?.includes(player.id)) teamIds.add(m.team2Id);
+            let foundInInnings = false;
+            // 1. Check deliveries first (most accurate for historical participation)
+            m.innings.forEach(inning => {
+                const isPartofBatting = inning.deliveryHistory.some(d => d.strikerId === player.id || d.nonStrikerId === player.id);
+                if (isPartofBatting) {
+                    teamIds.add(inning.battingTeamId);
+                    foundInInnings = true;
+                }
+
+                const isPartofBowling = inning.deliveryHistory.some(d => d.bowlerId === player.id);
+                if (isPartofBowling) {
+                    teamIds.add(inning.bowlingTeamId);
+                    foundInInnings = true;
+                }
+            });
+
+            // 2. Fallback to squads if no deliveries found (e.g. player was in squad but didn't bat/bowl)
+            if (!foundInInnings) {
+                if (m.team1PlayerIds?.includes(player.id)) teamIds.add(m.team1Id);
+                if (m.team2PlayerIds?.includes(player.id)) teamIds.add(m.team2Id);
+            }
         });
 
         return Array.from(teamIds)
@@ -67,7 +92,15 @@ export default function PlayerProfilePage() {
 
     const recentForm = useMemo(() => {
         return recentMatches.map(m => {
-            const playerTeamId = m.team1PlayerIds?.includes(playerId) ? m.team1Id : m.team2Id;
+            // Find player's team in this match
+            let playerTeamId = m.team1PlayerIds?.includes(playerId) ? m.team1Id : m.team2Id;
+            if (!playerTeamId) {
+                for (const inn of m.innings) {
+                    if (inn.deliveryHistory.some(d => d.strikerId === playerId || d.nonStrikerId === playerId)) { playerTeamId = inn.battingTeamId; break; }
+                    if (inn.deliveryHistory.some(d => d.bowlerId === playerId)) { playerTeamId = inn.bowlingTeamId; break; }
+                }
+            }
+
             const team = teams?.find(t => t.id === playerTeamId);
             if (!team) return 'D';
             if (m.result?.startsWith(team.name)) return 'W';
