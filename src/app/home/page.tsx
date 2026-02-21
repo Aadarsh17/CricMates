@@ -48,7 +48,7 @@ export default function HomePage() {
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col items-center text-center space-y-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight font-headline">
+            <h1 className="text-3xl font-bold tracking-tight font-headline text-primary">
               Welcome, Mates!
             </h1>
             <p className="text-muted-foreground">
@@ -71,7 +71,7 @@ export default function HomePage() {
 
       <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Link href="/teams" className="block hover:no-underline">
-              <Card className="hover:bg-muted/50 transition-colors h-full">
+              <Card className="hover:bg-muted/50 transition-colors h-full border-primary/10">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">Total Teams</CardTitle>
                       <Shield className="h-4 w-4 text-muted-foreground" />
@@ -83,7 +83,7 @@ export default function HomePage() {
               </Card>
           </Link>
           <Link href="/player-stats" className="block hover:no-underline">
-               <Card className="hover:bg-muted/50 transition-colors h-full">
+               <Card className="hover:bg-muted/50 transition-colors h-full border-primary/10">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">Total Players</CardTitle>
                       <Users className="h-4 w-4 text-muted-foreground" />
@@ -95,7 +95,7 @@ export default function HomePage() {
               </Card>
           </Link>
           <Link href="/matches" className="block hover:no-underline">
-               <Card className="hover:bg-muted/50 transition-colors h-full">
+               <Card className="hover:bg-muted/50 transition-colors h-full border-primary/10">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                       <CardTitle className="text-sm font-medium">Completed</CardTitle>
                       <BarChart className="h-4 w-4 text-muted-foreground" />
@@ -204,7 +204,7 @@ export default function HomePage() {
                       const secondInning = match.innings[1];
                       
                       return (
-                          <Card key={match.id} className="overflow-hidden">
+                          <Card key={match.id} className="overflow-hidden border-primary/5">
                               <CardHeader className="flex flex-row items-start justify-between pb-2">
                                   <div>
                                       <CardTitle className="text-lg">{team1?.name || 'Team 1'} vs {team2?.name || 'Team 2'}</CardTitle>
