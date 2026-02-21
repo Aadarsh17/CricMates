@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Team": {
@@ -42,6 +43,10 @@
         "name": {
           "type": "string",
           "description": "Name of the player."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL or Data URI of the player's profile image."
         },
         "dateOfBirth": {
           "type": "string",

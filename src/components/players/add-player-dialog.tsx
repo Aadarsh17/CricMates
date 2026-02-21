@@ -1,3 +1,4 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -32,12 +33,14 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, User, Upload } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const formSchema = z.object({
   name: z.string().min(2, {
     message: 'Player name must be at least 2 characters long.',
   }),
+  imageUrl: z.string().optional(),
   role: z.enum(['Batsman', 'Bowler', 'All-rounder'], { required_error: 'Please select a player role.'}),
   battingStyle: z.string().optional(),
   bowlingStyle: z.string().optional(),
@@ -53,10 +56,13 @@ interface AddPlayerDialogProps {
 
 export function AddPlayerDialog({ onPlayerAdd, trigger }: AddPlayerDialogProps) {
   const [open, setOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
   const form = useForm<PlayerFormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
+      imageUrl: '',
       role: undefined,
       battingStyle: undefined,
       bowlingStyle: undefined,
@@ -64,9 +70,23 @@ export function AddPlayerDialog({ onPlayerAdd, trigger }: AddPlayerDialogProps) 
     },
   });
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setPreviewUrl(base64String);
+        form.setValue('imageUrl', base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   function onSubmit(values: PlayerFormData) {
     onPlayerAdd(values);
     form.reset();
+    setPreviewUrl(null);
     setOpen(false);
   }
 
@@ -89,6 +109,27 @@ export function AddPlayerDialog({ onPlayerAdd, trigger }: AddPlayerDialogProps) 
               </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
+              <div className="flex flex-col items-center justify-center gap-4 py-2">
+                <Avatar className="h-24 w-24 border-2">
+                  <AvatarImage src={previewUrl || ''} />
+                  <AvatarFallback className="bg-muted">
+                    <User className="h-12 w-12 text-muted-foreground" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('player-image-upload')?.click()}>
+                    <Upload className="mr-2 h-4 w-4" /> Upload Photo
+                  </Button>
+                  <input
+                    id="player-image-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                </div>
+              </div>
+
               <FormField
                 control={form.control}
                 name="name"
@@ -188,7 +229,7 @@ export function AddPlayerDialog({ onPlayerAdd, trigger }: AddPlayerDialogProps) 
                 />
             </div>
             <DialogFooter>
-              <Button type="submit">Save Player</Button>
+              <Button type="submit" className="w-full">Save Player</Button>
             </DialogFooter>
           </form>
         </Form>

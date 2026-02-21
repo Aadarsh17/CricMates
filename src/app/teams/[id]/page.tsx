@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -5,7 +6,7 @@ import { useDoc, useCollection, useFirebase, useMemoFirebase } from '@/firebase'
 import { doc, collection, query, where, orderBy } from 'firebase/firestore';
 import type { Team, Player, Match } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AddPlayerDialog } from "@/components/players/add-player-dialog";
 import { useAppContext } from "@/context/AppContext";
@@ -102,7 +103,10 @@ export default function TeamDetailPage() {
                                     <div key={player.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
                                         <div className="flex items-center gap-3">
                                             <Avatar>
-                                                <AvatarFallback>{player.name[0]}</AvatarFallback>
+                                                <AvatarImage src={player.imageUrl} className="object-cover" />
+                                                <AvatarFallback className="bg-muted">
+                                                    <User className="h-5 w-5 text-muted-foreground" />
+                                                </AvatarFallback>
                                             </Avatar>
                                             <div>
                                                 <Link href={`/players/${player.id}`} className="font-semibold text-sm hover:underline hover:text-primary">

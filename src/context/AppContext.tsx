@@ -1,3 +1,4 @@
+
 'use client';
 
 import { createContext, useContext, ReactNode, useMemo, useCallback } from 'react';
@@ -8,6 +9,7 @@ import { collection, doc, addDoc, updateDoc, deleteDoc, writeBatch, query, where
 
 type PlayerData = {
   name: string;
+  imageUrl?: string;
   role: 'Batsman' | 'Bowler' | 'All-rounder';
   isWicketKeeper?: boolean;
   battingStyle?: string;
@@ -140,6 +142,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!db) return;
     const newPlayer: any = {
       name: playerData.name,
+      imageUrl: playerData.imageUrl || null,
       role: playerData.role,
       battingStyle: playerData.battingStyle,
       bowlingStyle: playerData.bowlingStyle === 'None' ? null : playerData.bowlingStyle,

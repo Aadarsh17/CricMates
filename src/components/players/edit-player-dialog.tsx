@@ -1,9 +1,10 @@
+
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -32,11 +33,14 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { Player } from '@/lib/types';
+import { User, Upload } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const formSchema = z.object({
   name: z.string().min(2, {
     message: 'Player name must be at least 2 characters long.',
   }),
+  imageUrl: z.string().optional(),
   role: z.enum(['Batsman', 'Bowler', 'All-rounder']),
   battingStyle: z.string().optional(),
   bowlingStyle: z.string().optional(),
@@ -53,6 +57,8 @@ interface EditPlayerDialogProps {
 }
 
 export function EditPlayerDialog({ player, onPlayerEdit, open, onOpenChange }: EditPlayerDialogProps) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(player?.imageUrl || null);
+
   const form = useForm<PlayerFormData>({
     resolver: zodResolver(formSchema),
   });
@@ -61,13 +67,28 @@ export function EditPlayerDialog({ player, onPlayerEdit, open, onOpenChange }: E
     if (player) {
       form.reset({
         name: player.name,
+        imageUrl: player.imageUrl || '',
         role: player.role,
         battingStyle: player.battingStyle || '',
         bowlingStyle: player.bowlingStyle || 'None',
         isWicketKeeper: !!player.isWicketKeeper,
       });
+      setPreviewUrl(player.imageUrl || null);
     }
   }, [player, open, form]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setPreviewUrl(base64String);
+        form.setValue('imageUrl', base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   function onSubmit(values: PlayerFormData) {
     onPlayerEdit(values);
@@ -86,6 +107,27 @@ export function EditPlayerDialog({ player, onPlayerEdit, open, onOpenChange }: E
               </DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
+              <div className="flex flex-col items-center justify-center gap-4 py-2">
+                <Avatar className="h-24 w-24 border-2">
+                  <AvatarImage src={previewUrl || ''} />
+                  <AvatarFallback className="bg-muted">
+                    <User className="h-12 w-12 text-muted-foreground" />
+                  </AvatarFallback>
+                </Avatar>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => document.getElementById('player-edit-image-upload')?.click()}>
+                    <Upload className="mr-2 h-4 w-4" /> Change Photo
+                  </Button>
+                  <input
+                    id="player-edit-image-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageChange}
+                  />
+                </div>
+              </div>
+
               <FormField
                 control={form.control}
                 name="name"
@@ -185,7 +227,7 @@ export function EditPlayerDialog({ player, onPlayerEdit, open, onOpenChange }: E
                 />
             </div>
             <DialogFooter>
-              <Button type="submit">Save Changes</Button>
+              <Button type="submit" className="w-full">Save Changes</Button>
             </DialogFooter>
           </form>
         </Form>

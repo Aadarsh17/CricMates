@@ -1,3 +1,4 @@
+
 export type Team = {
   id: string;
   name: string;
@@ -12,6 +13,7 @@ export type Team = {
 export type Player = {
   id: string;
   name: string;
+  imageUrl?: string;
   role: 'Batsman' | 'Bowler' | 'All-rounder';
   stats: {
     matches: number;
@@ -24,6 +26,7 @@ export type Player = {
   isWicketKeeper?: boolean;
   battingStyle?: string;
   bowlingStyle?: string | null;
+  teamId?: string;
 };
 
 export type DeliveryRecord = {

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -5,7 +6,7 @@ import { useDoc, useCollection, useFirebase, useMemoFirebase } from '@/firebase'
 import { doc, collection } from 'firebase/firestore';
 import type { Player, Match, Team } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { calculatePlayerStats } from "@/lib/stats";
 import { useMemo } from 'react';
@@ -14,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
-import { Trophy, Target, Award, Calendar, Shield } from 'lucide-react';
+import { Trophy, Target, Award, Calendar, User } from 'lucide-react';
 
 export default function PlayerProfilePage() {
     const params = useParams();
@@ -99,7 +100,10 @@ export default function PlayerProfilePage() {
                 <CardContent className="pt-0 pb-6">
                     <div className="flex flex-col md:flex-row md:items-end gap-6 -mt-12 px-2">
                         <Avatar className="h-24 w-24 border-4 border-background bg-background shadow-lg">
-                            <AvatarFallback className="text-2xl font-bold">{player.name[0]}</AvatarFallback>
+                            <AvatarImage src={player.imageUrl} className="object-cover" />
+                            <AvatarFallback className="text-2xl font-bold bg-muted">
+                                <User className="h-10 w-10 text-muted-foreground" />
+                            </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 space-y-1">
                             <div className="flex items-center gap-2 flex-wrap">

@@ -1,8 +1,9 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Shield, Star, PlusCircle } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Shield, Star, PlusCircle, User } from "lucide-react";
 import type { Player, Match, Team } from "@/lib/types";
 import { calculatePlayerCVP } from "@/lib/stats";
 import { Badge } from "../ui/badge";
@@ -18,7 +19,10 @@ const PlayerListItem = ({ player, cvp, isCaptain }: { player: Player, cvp: numbe
     <div className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg -mx-2 transition-colors">
         <div className="flex items-center gap-3">
             <Avatar className="h-9 w-9">
-                <AvatarFallback>{player.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                <AvatarImage src={player.imageUrl} className="object-cover" />
+                <AvatarFallback className="bg-muted">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                </AvatarFallback>
             </Avatar>
             <div>
                 <Link href={`/players/${player.id}`} className="font-semibold text-sm hover:underline hover:text-primary">
@@ -37,6 +41,7 @@ const PlayerListItem = ({ player, cvp, isCaptain }: { player: Player, cvp: numbe
 
 type PlayerFormData = {
   name: string;
+  imageUrl?: string;
   role: 'Batsman' | 'Bowler' | 'All-rounder';
   isWicketKeeper?: boolean;
   battingStyle?: string;
