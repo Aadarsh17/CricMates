@@ -252,7 +252,6 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
       runsPerOver.push(currentOverRuns);
     }
 
-    // Fill the rest with the final score for the worm graph
     while (scores.length <= match.overs + 1) {
       scores.push(currentScore);
     }
@@ -273,7 +272,7 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
       <style>
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; padding: 20px; color: #1e293b; line-height: 1.5; background: #f8fafc; }
         .container { max-width: 900px; margin: 0 auto; background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-        .match-header { text-align: center; margin-bottom: 40px; border-bottom: 4px solid #2563eb; padding-bottom: 20px; }
+        .match-header { text-align: center; margin-bottom: 20px; border-bottom: 4px solid #2563eb; padding-bottom: 20px; }
         h1 { color: #0f172a; margin: 0; font-size: 32px; letter-spacing: -0.025em; }
         .match-info { color: #64748b; text-transform: uppercase; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; margin-top: 10px; }
         
@@ -287,12 +286,12 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
         .text-right { text-align: right; }
         .total-bar { padding: 15px 20px; background: #f0f9ff; font-size: 14px; display: flex; justify-content: space-between; border-top: 1px solid #bae6fd; font-weight: 500; }
         
-        .result-box { font-size: 24px; font-weight: 900; color: #059669; text-align: center; margin: 40px 0; padding: 25px; background: #ecfdf5; border-radius: 12px; border: 2px dashed #10b981; }
+        .result-box { font-size: 24px; font-weight: 900; color: #059669; text-align: center; margin: 20px 0; padding: 25px; background: #ecfdf5; border-radius: 12px; border: 2px dashed #10b981; }
         
         .chart-container { margin-bottom: 40px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; }
         .chart-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 20px; }
         
-        .potm-card { display: flex; align-items: center; justify-content: center; flex-direction: column; border: 2px solid #fbbf24; border-radius: 16px; padding: 30px; background: #fffbeb; margin-top: 30px; position: relative; }
+        .potm-card { display: flex; align-items: center; justify-content: center; flex-direction: column; border: 2px solid #fbbf24; border-radius: 16px; padding: 30px; background: #fffbeb; margin: 20px 0; position: relative; }
         .potm-badge { position: absolute; top: -12px; background: #fbbf24; color: #92400e; font-weight: 800; font-size: 10px; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; }
         .potm-name { font-size: 24px; font-weight: 800; color: #b45309; }
         
@@ -316,11 +315,27 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
           <div class="match-info">${new Date(match.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })} • ${match.overs} OVER MATCH</div>
         </div>
 
+        <!-- 1. Result -->
+        <div class="result-box">${match.result || 'Match in Progress'}</div>
+
+        <!-- 2. Player of the Match -->
+        ${potm.player ? `
+          <div class="potm-card">
+            <span class="potm-badge">Player of the Match</span>
+            <div class="potm-name">${potm.player.name}</div>
+            <div style="font-size: 14px; color: #92400e; margin-top: 10px; font-weight: 600;">Performance Points: ${potm.cvp} CVP</div>
+          </div>
+        ` : ''}
+
+        <!-- 3. Full Scorecard -->
         <div class="section-title">Scorecard</div>
         ${match.innings.map(renderInning).join('')}
 
-        <div class="result-box">${match.result || 'Match in Progress'}</div>
+        <!-- 4. Over by Over -->
+        <div class="section-title">Over by Over History</div>
+        ${match.innings.map(renderOversHistory).join('')}
 
+        <!-- 5. Match Analysis (Graphs) -->
         <div class="section-title">Match Analysis</div>
         <div class="chart-container">
           <h3 style="font-size: 14px; margin-bottom: 10px; color: #475569;">Score Progression (Worm Graph)</h3>
@@ -339,23 +354,12 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
           ` : ''}
         </div>
 
-        <div class="section-title">Over by Over</div>
-        ${match.innings.map(renderOversHistory).join('')}
-
-        <div class="section-title">Squads</div>
+        <!-- 6. Squads -->
+        <div class="section-title">Team Squads</div>
         <div style="display: flex; flex-wrap: wrap; gap: 40px;">
           ${renderSquadList(match.team1Id, match.team1PlayerIds || [])}
           ${renderSquadList(match.team2Id, match.team2PlayerIds || [])}
         </div>
-
-        ${potm.player ? `
-          <div class="section-title">Performance Highlights</div>
-          <div class="potm-card">
-            <span class="potm-badge">Player of the Match</span>
-            <div class="potm-name">${potm.player.name}</div>
-            <div style="font-size: 14px; color: #92400e; margin-top: 10px; font-weight: 600;">Performance Points: ${potm.cvp} CVP</div>
-          </div>
-        ` : ''}
 
         <div class="footer">
           Generated automatically by <strong>CricMates</strong> Digital Scoring System.
@@ -438,8 +442,8 @@ export function downloadScorecard(match: Match, teams: Team[], players: Player[]
   const blob = new Blob([html], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const team1 = getTeamName(match.team1Id, teams);
-  const team2 = getTeamName(match.team2Id, teams);
+  const team1 = getTeamNameFromList(match.team1Id, teams);
+  const team2 = getTeamNameFromList(match.team2Id, teams);
   a.href = url;
   a.download = `MatchReport_${team1}_vs_${team2}_${Date.now()}.html`;
   document.body.appendChild(a);
@@ -448,6 +452,6 @@ export function downloadScorecard(match: Match, teams: Team[], players: Player[]
   URL.revokeObjectURL(url);
 }
 
-function getTeamName(id: string, teams: Team[]) {
+function getTeamNameFromList(id: string, teams: Team[]) {
   return teams.find(t => t.id === id)?.name || 'Unknown';
 }
