@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -45,6 +46,17 @@ export default function PlayerProfilePage() {
             .slice(0, 5);
     }, [matches, player]);
 
+    const recentForm = useMemo(() => {
+        return recentMatches.map(m => {
+            const playerTeamId = m.team1PlayerIds?.includes(playerId) ? m.team1Id : m.team2Id;
+            const team = teams?.find(t => t.id === playerTeamId);
+            if (!team) return 'D';
+            if (m.result?.startsWith(team.name)) return 'W';
+            if (m.result === 'Match is a Tie.') return 'T';
+            return 'L';
+        });
+    }, [recentMatches, playerId, teams]);
+
     if (playerLoading || teamsLoading || matchesLoading) {
         return (
             <div className="space-y-6">
@@ -76,15 +88,32 @@ export default function PlayerProfilePage() {
                                 <Badge variant="secondary">{player.role}</Badge>
                                 {player.isWicketKeeper && <Badge variant="outline" className="border-yellow-500 text-yellow-600">Wicket-Keeper</Badge>}
                             </div>
-                            <p className="text-muted-foreground flex items-center gap-2">
-                                {playerTeam ? (
-                                    <Link href={`/teams/${playerTeam.id}`} className="hover:underline font-medium text-primary">
-                                        {playerTeam.name}
-                                    </Link>
-                                ) : 'Free Agent'}
-                                <span>•</span>
-                                <span>{player.battingStyle || 'Right-hand bat'}</span>
-                            </p>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                                <p className="text-muted-foreground text-sm">
+                                    {playerTeam ? (
+                                        <Link href={`/teams/${playerTeam.id}`} className="hover:underline font-medium text-primary">
+                                            {playerTeam.name}
+                                        </Link>
+                                    ) : 'Free Agent'}
+                                    <span className="mx-2">•</span>
+                                    <span>{player.battingStyle || 'Right-hand bat'}</span>
+                                </p>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] font-bold text-muted-foreground uppercase">Form:</span>
+                                    <div className="flex gap-1">
+                                        {recentForm.map((res, i) => (
+                                            <span 
+                                                key={i} 
+                                                className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${res === 'W' ? 'bg-green-500' : res === 'L' ? 'bg-red-500' : 'bg-gray-400'}`}
+                                                title={res === 'W' ? 'Win' : res === 'L' ? 'Loss' : 'Tie'}
+                                            >
+                                                {res}
+                                            </span>
+                                        ))}
+                                        {recentForm.length === 0 && <span className="text-xs text-muted-foreground italic">No recent matches</span>}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </CardContent>
