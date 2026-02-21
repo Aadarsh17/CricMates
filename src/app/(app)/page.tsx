@@ -1,4 +1,2 @@
-/** Removed default export to fix Vercel Parallel Route conflict. Dashboard logic moved to root src/app/home/page.tsx. */
-export function RedundantPage() {
-  return null;
-}
+// This file is neutralized to avoid route collision with src/app/page.tsx
+export function RedundantEntryPage() { return null; }

@@ -1,4 +1,2 @@
-/** Removed default export to fix Vercel Parallel Route conflict. Dashboard logic moved to root src/app/layout.tsx and MainLayoutWrapper. */
-export function RedundantLayout({ children }: { children: React.ReactNode }) {
-  return <>{children}</>;
-}
+// This file is neutralized to avoid route collision with src/app/layout.tsx
+export function RedundantRootLayout({ children }: { children: any }) { return <>{children}</>; }

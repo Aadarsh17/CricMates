@@ -201,7 +201,7 @@ export default function HomePage() {
                       const team1 = getTeamById(match.team1Id);
                       const team2 = getTeamById(match.team2Id);
                       const firstInning = match.innings[0];
-                      const secondInning = match.innings[1];
+                      const secondInning = match.innings.length > 1 ? match.innings[1] : null;
                       
                       return (
                           <Card key={match.id} className="overflow-hidden border-primary/5">
