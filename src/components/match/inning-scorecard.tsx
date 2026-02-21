@@ -12,7 +12,6 @@ import type { Inning, Match, Player, Team } from "@/lib/types";
 import { calculatePlayerCVP } from "@/lib/stats";
 import { useMemo } from "react";
 
-
 type BattingStats = {
   runs: number;
   balls: number;
@@ -48,7 +47,6 @@ const formatOvers = (balls: number) => {
 };
 
 export const InningScorecard = ({ inning, match, teams, players }: { inning: Inning; match: Match; teams: Team[], players: Player[] }) => {
-    
     const getPlayerById = useMemo(() => (playerId: string) => players.find(p => p.id === playerId), [players]);
     const getTeamById = useMemo(() => (teamId: string) => teams.find(t => t.id === teamId), [teams]);
 
@@ -57,15 +55,10 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
 
     if (!battingTeam || !bowlingTeam) return null;
 
-    const getPlayersFromIds = (playerIds: string[] = []): Player[] => {
-        return players.filter(p => playerIds.includes(p.id));
-    };
-
     const battingTeamPlayerIds = inning.battingTeamId === match.team1Id ? match.team1PlayerIds : match.team2PlayerIds;
-    const battingTeamPlayers = getPlayersFromIds(battingTeamPlayerIds);
+    const battingTeamPlayers = players.filter(p => battingTeamPlayerIds?.includes(p.id)) || [];
     
     const battingStats = new Map<string, BattingStats>();
-    
     battingTeamPlayers.forEach(p => {
         battingStats.set(p.id, { runs: 0, balls: 0, fours: 0, sixes: 0, strikeRate: 0, dismissal: '' });
     });
@@ -78,11 +71,9 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
             if (d.extra !== 'byes' && d.extra !== 'legbyes') {
                 strikerStat.runs += d.runs;
             }
-
             if (d.extra !== 'wide') {
                 strikerStat.balls += 1;
             }
-
             if (d.runs === 4 && (d.extra !== 'byes' && d.extra !== 'legbyes')) strikerStat.fours += 1;
             if (d.runs === 6 && (d.extra !== 'byes' && d.extra !== 'legbyes')) strikerStat.sixes += 1;
 
@@ -100,37 +91,21 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
         const stat = battingStats.get(p.id);
         if (stat) {
             stat.strikeRate = calculateStrikeRate(stat.runs, stat.balls);
-
             if (outPlayerIds.has(p.id)) {
                 const wicketDelivery = inning.deliveryHistory.find(d => d.isWicket && d.dismissal?.batsmanOutId === p.id);
                 if (wicketDelivery && wicketDelivery.dismissal) {
                     const bowler = getPlayerById(wicketDelivery.bowlerId);
                     const fielder = wicketDelivery.dismissal.fielderId ? getPlayerById(wicketDelivery.dismissal.fielderId) : null;
                     let dismissalString = '';
-
                     switch (wicketDelivery.dismissal.type) {
-                        case 'Catch out':
-                            dismissalString = `c ${fielder?.name || 'fielder'} b ${bowler?.name || 'bowler'}`;
-                            break;
-                        case 'Run out':
-                            dismissalString = `run out (${fielder?.name || 'fielder'})`;
-                            break;
-                        case 'Stumping':
-                            dismissalString = `st ${fielder?.name || 'keeper'} b ${bowler?.name || 'bowler'}`;
-                            break;
-                        case 'Bowled':
-                            dismissalString = `b ${bowler?.name || 'bowler'}`;
-                            break;
-                        case 'Hit wicket':
-                             dismissalString = `hit wicket b ${bowler?.name || 'bowler'}`;
-                             break;
-                        default:
-                            dismissalString = `b ${bowler?.name || 'bowler'}`;
-                            break;
+                        case 'Catch out': dismissalString = `c ${fielder?.name || 'fielder'} b ${bowler?.name || 'bowler'}`; break;
+                        case 'Run out': dismissalString = `run out (${fielder?.name || 'fielder'})`; break;
+                        case 'Stumping': dismissalString = `st ${fielder?.name || 'keeper'} b ${bowler?.name || 'bowler'}`; break;
+                        case 'Bowled': dismissalString = `b ${bowler?.name || 'bowler'}`; break;
+                        case 'Hit wicket': dismissalString = `hit wicket b ${bowler?.name || 'bowler'}`; break;
+                        default: dismissalString = `b ${bowler?.name || 'bowler'}`; break;
                     }
                     stat.dismissal = dismissalString;
-                } else {
-                    stat.dismissal = 'Out'; // Fallback
                 }
             } else if (battedPlayerIds.has(p.id)) {
                 stat.dismissal = 'Not Out';
@@ -152,15 +127,13 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
             if(d.extra === 'wide' || d.extra === 'noball') runsConceded += 1;
             if(d.extra !== 'wide' && d.extra !== 'noball') legalBalls +=1;
         });
-
         const wickets = wicketsTakenByBowler.get(bowlerId) || 0;
-
         bowlingStats.set(bowlerId, {
             runs: runsConceded,
             overs: formatOvers(legalBalls),
             wickets: wickets,
             economy: calculateEconomy(runsConceded, legalBalls),
-            maidens: 0, // Maiden calculation is complex, omitting for now
+            maidens: 0,
         })
     });
     
@@ -170,77 +143,55 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
         return acc;
     }, 0);
 
-    const sortedBattingPlayers = [...battingTeamPlayers].sort((a, b) => {
-        const aBatted = battedPlayerIds.has(a.id);
-        const bBatted = battedPlayerIds.has(b.id);
-        const aOut = outPlayerIds.has(a.id);
-        const bOut = outPlayerIds.has(b.id);
-
-        if (aBatted && !bBatted) return -1;
-        if (!aBatted && bBatted) return 1;
-
-        if (aBatted && bBatted) {
-            if (!aOut && bOut) return -1;
-            if(aOut && !bOut) return 1;
-        }
-
-        return 0; // keep original order for players in same category
-    });
-
-
     return (
-        <div>
-            <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4 print:text-xs print:[&_td]:py-1 print:[&_td]:px-2 print:[&_th]:py-1 print:[&_th]:px-2">
+        <div className="overflow-x-auto">
+            <Table className="whitespace-nowrap w-full">
                 <TableHeader>
-                    <TableRow className="bg-secondary hover:bg-secondary/90 print:bg-gray-700">
-                        <TableHead className="w-[45%] text-secondary-foreground print:text-white">Batsman</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white">R</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white">B</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white">4s</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white">6s</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white">SR</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white print:hidden">CVP</TableHead>
+                    <TableRow className="bg-muted/50">
+                        <TableHead className="min-w-[150px]">Batsman</TableHead>
+                        <TableHead className="text-right">R</TableHead>
+                        <TableHead className="text-right">B</TableHead>
+                        <TableHead className="text-right">4s</TableHead>
+                        <TableHead className="text-right">6s</TableHead>
+                        <TableHead className="text-right">SR</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {sortedBattingPlayers.map(p => {
-                        const stats = battingStats.get(p.id)!;
+                    {battingTeamPlayers.map(p => {
+                        const stats = battingStats.get(p.id);
+                        if (!stats) return null;
                         const isYetToBat = stats.dismissal === 'Yet to Bat';
-                        const cvp = match.status === 'completed' ? calculatePlayerCVP(p, match, players, teams) : 0;
                         return (
-                        <TableRow key={p.id}>
-                            <TableCell>
-                                <div>
-                                    <p className="font-medium">{p.name}</p>
-                                    <p className="text-xs text-muted-foreground print:text-gray-600">{stats.dismissal}</p>
-                                </div>
-                            </TableCell>
-                            <TableCell className="text-right font-mono font-semibold">{isYetToBat ? '' : stats.runs}</TableCell>
-                            <TableCell className="text-right font-mono">{isYetToBat ? '' : stats.balls}</TableCell>
-                            <TableCell className="text-right font-mono">{isYetToBat ? '' : stats.fours}</TableCell>
-                            <TableCell className="text-right font-mono">{isYetToBat ? '' : stats.sixes}</TableCell>
-                            <TableCell className="text-right font-mono">{isYetToBat ? '' : (stats.strikeRate > 0 ? stats.strikeRate.toFixed(2): '0.00')}</TableCell>
-                            <TableCell className="text-right font-mono font-semibold print:hidden">{cvp > 0 ? cvp : ''}</TableCell>
-                        </TableRow>
-                    )})}
+                            <TableRow key={p.id}>
+                                <TableCell>
+                                    <div className="flex flex-col">
+                                        <span className="font-semibold text-sm">{p.name}</span>
+                                        <span className="text-xs text-muted-foreground">{stats.dismissal}</span>
+                                    </div>
+                                </TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '-' : stats.runs}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '-' : stats.balls}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '-' : stats.fours}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '-' : stats.sixes}</TableCell>
+                                <TableCell className="text-right font-mono">{isYetToBat ? '-' : stats.strikeRate.toFixed(1)}</TableCell>
+                            </TableRow>
+                        );
+                    })}
                 </TableBody>
             </Table>
-
-            <div className="flex justify-between items-center px-4 py-2 bg-secondary/20 print:bg-gray-200 print:px-2 print:py-1 print:font-semibold">
-               <p className="text-sm print:text-xs">Extras: {extrasTotal}</p>
-               <p className="font-bold print:font-semibold">Total: {inning.score}/{inning.wickets} <span className="font-normal text-sm text-muted-foreground print:text-xs print:font-normal">({inning.overs.toFixed(1)} Overs)</span></p>
+            <div className="bg-muted/30 px-4 py-2 border-y flex justify-between text-sm">
+                <span>Extras: {extrasTotal}</span>
+                <span className="font-bold">Total: {inning.score}/{inning.wickets} ({inning.overs.toFixed(1)})</span>
             </div>
-
-            <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4 print:text-xs print:[&_td]:py-1 print:[&_td]:px-2 print:[&_th]:py-1 print:[&_th]:px-2">
-                 <TableHeader>
-                    <TableRow className="bg-secondary hover:bg-secondary/90 print:bg-gray-700">
-                        <TableHead className="w-[45%] text-secondary-foreground print:text-white">Bowler</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white">O</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white">M</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white">R</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white">W</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white">ER</TableHead>
-                        <TableHead className="text-right text-secondary-foreground print:text-white print:hidden">CVP</TableHead>
+            <Table className="whitespace-nowrap w-full">
+                <TableHeader>
+                    <TableRow className="bg-muted/50">
+                        <TableHead className="min-w-[150px]">Bowler</TableHead>
+                        <TableHead className="text-right">O</TableHead>
+                        <TableHead className="text-right">M</TableHead>
+                        <TableHead className="text-right">R</TableHead>
+                        <TableHead className="text-right">W</TableHead>
+                        <TableHead className="text-right">ER</TableHead>
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -248,25 +199,19 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                         const bowler = getPlayerById(bowlerId);
                         const stats = bowlingStats.get(bowlerId);
                         if (!bowler || !stats) return null;
-                        const cvp = match.status === 'completed' ? calculatePlayerCVP(bowler, match, players, teams) : 0;
                         return (
-                             <TableRow key={bowler.id}>
-                                <TableCell>
-                                  <div>
-                                      <p className="font-medium">{bowler.name}</p>
-                                  </div>
-                                </TableCell>
+                            <TableRow key={bowlerId}>
+                                <TableCell className="font-semibold text-sm">{bowler.name}</TableCell>
                                 <TableCell className="text-right font-mono">{stats.overs}</TableCell>
                                 <TableCell className="text-right font-mono">{stats.maidens}</TableCell>
                                 <TableCell className="text-right font-mono">{stats.runs}</TableCell>
-                                <TableCell className="text-right font-mono font-semibold">{stats.wickets}</TableCell>
-                                <TableCell className="text-right font-mono">{stats.economy > 0 ? stats.economy.toFixed(2): '0.00'}</TableCell>
-                                <TableCell className="text-right font-mono font-semibold print:hidden">{cvp > 0 ? cvp : ''}</TableCell>
+                                <TableCell className="text-right font-mono font-bold text-primary">{stats.wickets}</TableCell>
+                                <TableCell className="text-right font-mono">{stats.economy.toFixed(1)}</TableCell>
                             </TableRow>
-                        )
+                        );
                     })}
                 </TableBody>
             </Table>
         </div>
-    )
-}
+    );
+};

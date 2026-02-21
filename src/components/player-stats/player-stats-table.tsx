@@ -31,6 +31,7 @@ type PlayerFormData = {
   battingStyle?: string;
   bowlingStyle?: string;
 }
+
 interface PlayerStatsTableProps {
   players: Player[];
   teams: Team[];
@@ -39,155 +40,106 @@ interface PlayerStatsTableProps {
   onDeletePlayer: (playerId: string) => void;
 }
 
-
 export function PlayerStatsTable({ players, teams, matches, onEditPlayer, onDeletePlayer }: PlayerStatsTableProps) {
-
   const [searchQuery, setSearchQuery] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: keyof AggregatedPlayerStats; direction: 'ascending' | 'descending' } | null>({ key: 'runsScored', direction: 'descending' });
   const [playerToEdit, setPlayerToEdit] = useState<Player | null>(null);
 
   const allPlayerStats = useMemo(() => calculatePlayerStats(players, teams, matches), [players, teams, matches]);
 
-  const filteredPlayerStats = useMemo(() => {
-    if (!searchQuery) {
-      return allPlayerStats;
-    }
-    return allPlayerStats.filter(stat =>
-      stat.player.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [allPlayerStats, searchQuery]);
-
   const sortedPlayerStats = useMemo(() => {
-    let sortableItems = [...filteredPlayerStats];
-    if (sortConfig !== null) {
-      sortableItems.sort((a, b) => {
-        const aValue = a[sortConfig.key] ?? -1;
-        const bValue = b[sortConfig.key] ?? -1;
-
-        if (aValue < bValue) {
-          return sortConfig.direction === 'ascending' ? -1 : 1;
-        }
-        if (aValue > bValue) {
-          return sortConfig.direction === 'ascending' ? 1 : -1;
-        }
-        return 0;
+    let stats = [...allPlayerStats];
+    if (searchQuery) {
+        stats = stats.filter(s => s.player.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    if (sortConfig) {
+      stats.sort((a, b) => {
+        const aVal = a[sortConfig.key] ?? 0;
+        const bVal = b[sortConfig.key] ?? 0;
+        return sortConfig.direction === 'ascending' ? (aVal < bVal ? -1 : 1) : (aVal > bVal ? -1 : 1);
       });
     }
-    return sortableItems;
-  }, [filteredPlayerStats, sortConfig]);
+    return stats;
+  }, [allPlayerStats, searchQuery, sortConfig]);
 
   const requestSort = (key: keyof AggregatedPlayerStats) => {
     let direction: 'ascending' | 'descending' = 'descending';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'descending') {
-      direction = 'ascending';
-    }
+    if (sortConfig?.key === key && sortConfig.direction === 'descending') direction = 'ascending';
     setSortConfig({ key, direction });
   };
-  
-  const getSortIndicator = (name: keyof AggregatedPlayerStats) => {
-    if (!sortConfig || sortConfig.key !== name) {
-      return null;
-    }
-    return sortConfig.direction === 'descending' ? ' ▼' : ' ▲';
-  };
 
-  const statHeaders: { key: keyof AggregatedPlayerStats; label: string; tooltip: string, numeric: boolean }[] = [
-    { key: 'matches', label: 'MP', tooltip: 'Matches Played', numeric: true },
-    { key: 'runsScored', label: 'Runs', tooltip: 'Total Runs Scored', numeric: true },
-    { key: 'highestScore', label: 'HS', tooltip: 'Highest Score', numeric: true },
-    { key: 'battingAverage', label: 'Avg', tooltip: 'Batting Average', numeric: true },
-    { key: 'strikeRate', label: 'SR', tooltip: 'Strike Rate', numeric: true },
-    { key: 'ducks', label: 'Ducks', tooltip: 'Times Dismissed for 0 runs', numeric: true },
-    { key: 'goldenDucks', label: 'GD', tooltip: 'Golden Ducks (out for 0 on first ball)', numeric: true },
-    { key: 'wicketsTaken', label: 'Wkts', tooltip: 'Wickets Taken', numeric: true },
-    { key: 'economyRate', label: 'Econ', tooltip: 'Economy Rate', numeric: true },
+  const headers: { key: keyof AggregatedPlayerStats; label: string; tooltip: string }[] = [
+    { key: 'matches', label: 'M', tooltip: 'Matches' },
+    { key: 'runsScored', label: 'R', tooltip: 'Runs' },
+    { key: 'battingAverage', label: 'Avg', tooltip: 'Average' },
+    { key: 'strikeRate', label: 'SR', tooltip: 'Strike Rate' },
+    { key: 'wicketsTaken', label: 'W', tooltip: 'Wickets' },
+    { key: 'economyRate', label: 'Econ', tooltip: 'Economy' },
   ];
 
   if (players.length === 0) {
       return (
-         <div className="flex flex-1 items-center justify-center rounded-lg border-2 border-dashed shadow-sm py-24">
-            <div className="flex flex-col items-center gap-1 text-center">
-              <h3 className="text-2xl font-bold tracking-tight">No Players Found</h3>
-              <p className="text-sm text-muted-foreground">
-                Add players to see their stats.
-              </p>
-            </div>
+         <div className="flex h-64 items-center justify-center rounded-xl border-2 border-dashed bg-muted/20 p-6 text-center">
+            <p className="text-muted-foreground">No players found. Add players to teams to see stats.</p>
           </div>
       )
   }
 
   return (
-    <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+    <div className="space-y-4 animate-in fade-in duration-300">
+      <div className="relative max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
-          type="search"
-          placeholder="Search for a player..."
-          className="pl-8"
+          placeholder="Search players..."
+          className="pl-9 h-9"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
-      <TooltipProvider>
-        <div className="rounded-lg border">
-          <Table className="whitespace-nowrap [&_td]:py-2 [&_td]:px-2 sm:[&_td]:px-4 [&_th]:px-2 sm:[&_th]:px-4">
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <Table className="whitespace-nowrap w-full">
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-[200px] font-semibold">Player</TableHead>
-                {statHeaders.map(header => (
-                  <TableHead key={header.key} className="text-right font-semibold cursor-pointer" onClick={() => requestSort(header.key)}>
-                    <Tooltip>
-                      <TooltipTrigger className="cursor-help underline decoration-dashed">
-                        {header.label}{getSortIndicator(header.key)}
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>{header.tooltip}</p>
-                      </TooltipContent>
-                    </Tooltip>
+              <TableRow className="bg-muted/50">
+                <TableHead className="w-[180px] sticky left-0 bg-muted/50 z-10">Player</TableHead>
+                {headers.map(h => (
+                  <TableHead key={h.key} className="text-right cursor-pointer hover:text-primary transition-colors" onClick={() => requestSort(h.key)}>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger className="font-bold underline decoration-dotted underline-offset-4">{h.label}</TooltipTrigger>
+                        <TooltipContent>{h.tooltip}</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableHead>
                 ))}
-                <TableHead className="text-right font-semibold">
-                  <Tooltip>
-                      <TooltipTrigger className="cursor-help underline decoration-dashed">
-                        BBI
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Best Bowling in an Inning</p>
-                      </TooltipContent>
-                    </Tooltip>
-                </TableHead>
-                <TableHead><span className="sr-only">Actions</span></TableHead>
+                <TableHead className="w-10"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sortedPlayerStats.map((stats) => (
-                <TableRow key={stats.player.id}>
-                  <TableCell>
-                      <p className="font-bold">{stats.player.name}</p>
-                      <p className="text-xs font-semibold text-muted-foreground">{stats.player.role}</p>
+              {sortedPlayerStats.map((s) => (
+                <TableRow key={s.player.id} className="hover:bg-muted/30">
+                  <TableCell className="sticky left-0 bg-background/95 backdrop-blur-sm font-semibold text-sm">
+                    <div className="flex flex-col">
+                        <span>{s.player.name}</span>
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.player.role}</span>
+                    </div>
                   </TableCell>
-                  <TableCell className="text-right">{stats.matches}</TableCell>
-                  <TableCell className="text-right font-bold">{stats.runsScored}</TableCell>
-                  <TableCell className="text-right">{stats.highestScore}</TableCell>
-                  <TableCell className="text-right">{stats.battingAverage?.toFixed(2) ?? '-'}</TableCell>
-                  <TableCell className="text-right">{stats.strikeRate?.toFixed(2) ?? '-'}</TableCell>
-                  <TableCell className="text-right">{stats.ducks}</TableCell>
-                  <TableCell className="text-right">{stats.goldenDucks}</TableCell>
-                  <TableCell className="text-right font-bold">{stats.wicketsTaken}</TableCell>
-                  <TableCell className="text-right">{stats.economyRate?.toFixed(2) ?? '-'}</TableCell>
-                  <TableCell className="text-right">{stats.bestBowlingWickets > 0 ? `${stats.bestBowlingWickets}/${stats.bestBowlingRuns}` : '-'}</TableCell>
-                  <TableCell>
+                  <TableCell className="text-right font-mono text-sm">{s.matches}</TableCell>
+                  <TableCell className="text-right font-mono font-bold text-sm">{s.runsScored}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">{s.battingAverage?.toFixed(1) ?? '-'}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">{s.strikeRate?.toFixed(1) ?? '-'}</TableCell>
+                  <TableCell className="text-right font-mono font-bold text-sm text-primary">{s.wicketsTaken}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">{s.economyRate?.toFixed(1) ?? '-'}</TableCell>
+                  <TableCell className="text-right">
                       <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <Button variant="ghost" size="icon" className="h-7 w-7">
                                   <MoreVertical className="h-4 w-4" />
                               </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                              <DropdownMenuItem onSelect={() => setPlayerToEdit(stats.player)}>
-                                Edit
-                              </DropdownMenuItem>
-                              <DeletePlayerDialog onDelete={() => onDeletePlayer(stats.player.id)} />
+                          <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => setPlayerToEdit(s.player)}>Edit</DropdownMenuItem>
+                              <DeletePlayerDialog onDelete={() => onDeletePlayer(s.player.id)} />
                           </DropdownMenuContent>
                       </DropdownMenu>
                   </TableCell>
@@ -196,20 +148,13 @@ export function PlayerStatsTable({ players, teams, matches, onEditPlayer, onDele
             </TableBody>
           </Table>
         </div>
-      </TooltipProvider>
-
+      </div>
       {playerToEdit && (
         <EditPlayerDialog
           player={playerToEdit}
-          onPlayerEdit={(data) => {
-            onEditPlayer(playerToEdit.id, data);
-          }}
+          onPlayerEdit={(data) => onEditPlayer(playerToEdit.id, data)}
           open={!!playerToEdit}
-          onOpenChange={(isOpen) => {
-            if (!isOpen) {
-              setPlayerToEdit(null);
-            }
-          }}
+          onOpenChange={(open) => !open && setPlayerToEdit(null)}
         />
       )}
     </div>
