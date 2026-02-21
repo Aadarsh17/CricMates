@@ -80,10 +80,11 @@ export default function MatchHistoryPage() {
 
             return (
               <Card key={match.id} className="relative group hover:bg-muted/5 transition-colors overflow-hidden border-muted/60">
+                {/* Main Link Overlay - z-0 to stay behind interaction buttons but cover the card area */}
                 <Link href={`/matches/${match.id}`} className="absolute inset-0 z-0" />
                 
-                <CardContent className="p-4 sm:p-6 space-y-4 relative z-10">
-                  <div className="flex justify-between items-start">
+                <CardContent className="p-4 sm:p-6 space-y-4 relative z-10 pointer-events-none">
+                  <div className="flex justify-between items-start relative z-20 pointer-events-auto">
                     <div className="text-[11px] sm:text-xs text-muted-foreground font-medium uppercase tracking-tight flex items-center gap-2">
                       <Calendar className="h-3 w-3" />
                       {new Date(match.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -167,10 +168,10 @@ export default function MatchHistoryPage() {
                     )}
                   </div>
 
-                  <div className="pt-2 border-t flex items-center gap-4 text-xs font-semibold text-primary">
-                    <span className="hover:underline cursor-pointer">
+                  <div className="pt-2 border-t flex items-center gap-4 text-xs font-semibold text-primary relative z-20 pointer-events-auto">
+                    <Link href={`/matches/${match.id}`} className="hover:underline">
                       {match.status === 'live' ? 'Live Score' : 'Scorecard'}
-                    </span>
+                    </Link>
                     <span className="text-muted-foreground/30 font-normal">|</span>
                     <span className="hover:underline cursor-pointer" onClick={(e) => handleDownloadFile(e, match)}>
                       Download Report
