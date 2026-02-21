@@ -1,9 +1,10 @@
+
 'use client';
 
 import { useMemo } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Player, GameState } from "@/app/(app)/number-game/page";
+import type { Player, GameState } from "@/lib/number-game-types";
 
 type AggregatedPlayer = Omit<Player, 'isOut' | 'dismissal' | 'consecutiveDots' | 'duck' | 'goldenDuck'> & {
     gamesPlayed: number;
@@ -17,7 +18,6 @@ export function AggregatedStatsTable({ gameHistory }: { gameHistory: GameState[]
     const statsMap = new Map<string, AggregatedPlayer>();
 
     if (gameHistory.length > 0) {
-      // Initialize players from the first game to get their IDs and names
       gameHistory[0].players.forEach(p => {
         statsMap.set(p.id, {
           id: p.id,

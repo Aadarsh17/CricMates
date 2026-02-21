@@ -7,41 +7,7 @@ import { LiveGame } from '@/components/number-game/live-game';
 import { GameStatsTable } from '@/components/number-game/game-stats-table';
 import { Button } from '@/components/ui/button';
 import { RotateCcw } from 'lucide-react';
-
-export type Player = {
-    id: string;
-    name: string;
-    runs: number;
-    balls: number;
-    fours: number;
-    sixes: number;
-    isOut: boolean;
-    consecutiveDots: number;
-    dismissal?: {
-        type: string;
-        bowlerName: string;
-        fielderName?: string;
-    };
-    duck: boolean;
-    goldenDuck: boolean;
-    ballsBowled: number;
-    runsConceded: number;
-    wicketsTaken: number;
-    oversBowled: number;
-};
-
-export type GameState = {
-    status: 'setup' | 'live' | 'completed';
-    players: Player[];
-    currentBatsmanIndex: number;
-    currentBowlerIndex: number;
-    totalWickets: number;
-    totalOvers: number;
-    currentOver: {
-        deliveries: string[];
-        legalBalls: number;
-    };
-};
+import { type GameState, type Player } from '@/lib/number-game-types';
 
 export default function NumberGamePage() {
     const [gameState, setGameState] = useState<GameState>({

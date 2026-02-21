@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -6,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { X, Plus } from 'lucide-react';
-import type { Player } from '@/app/(app)/number-game/page';
+import type { Player } from '@/lib/number-game-types';
 import { useToast } from '@/hooks/use-toast';
 
 interface PlayerSetupProps {

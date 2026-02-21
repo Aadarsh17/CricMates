@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -18,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import type { Player } from '@/app/(app)/number-game/page';
+import type { Player } from '@/lib/number-game-types';
 
 interface WicketDialogProps {
   open: boolean;
@@ -49,7 +50,7 @@ export function WicketDialog({ open, onClose, batsman, allPlayers, bowler, onCon
 
   const handleConfirm = () => {
     if (!dismissalType) return;
-    if (showFielderSelect && !fielderId) return; // Require fielder if needed
+    if (showFielderSelect && !fielderId) return;
 
     onConfirm({
       dismissalType,
@@ -59,8 +60,6 @@ export function WicketDialog({ open, onClose, batsman, allPlayers, bowler, onCon
   };
 
   const showFielderSelect = ['Caught out', 'Run out', 'Stumping'].includes(dismissalType);
-  
-  // Fielders can be any player except the batsman and the bowler
   const fielderOptions = allPlayers.filter(p => p.id !== batsman?.id && p.id !== bowler?.id);
 
   return (

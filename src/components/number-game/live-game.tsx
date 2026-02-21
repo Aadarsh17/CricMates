@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import type { GameState, Player } from '@/app/(app)/number-game/page';
+import type { GameState, Player } from '@/lib/number-game-types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Button } from '../ui/button';
@@ -291,7 +292,6 @@ export function LiveGame({ gameState, setGameState }: LiveGameProps) {
                 bowler.ballsBowled++;
             }
             
-            // Check if bowler's turn to bat is next, and if the over is now complete
              if (newState.currentBatsmanIndex === newState.currentBowlerIndex && newState.currentOver.legalBalls > 0) {
                 newState.totalOvers++;
                 newState.currentOver = { deliveries: [], legalBalls: 0 };
