@@ -24,30 +24,20 @@ The app uses a proprietary **Cricket Value Points (CVP)** system to determine th
 
 ## 📤 How to Push to GitHub
 
-If you want to share your code or host it, follow these steps in your terminal:
+### First Time Setup:
+If you haven't linked your repo yet, follow these steps:
+1. **Initialize Git**: `git init`
+2. **Add Files**: `git add .`
+3. **Commit**: `git commit -m "Initial commit"`
+4. **Branch**: `git branch -M main`
+5. **Link Repo**: `git remote add origin <your-repository-url>`
+6. **Push**: `git push -u origin main`
 
-1. **Initialize Git**:
-   ```bash
-   git init
-   ```
-
-2. **Add Files**:
-   ```bash
-   git add .
-   ```
-
-3. **Commit**:
-   ```bash
-   git commit -m "Finalized CricMates prototype"
-   ```
-
-4. **Link to GitHub**:
-   Create a repo on GitHub, then run:
-   ```bash
-   git remote add origin <your-repository-url>
-   git branch -M main
-   git push -u origin main
-   ```
+### How to Update Changes:
+Whenever you make new changes and want to update GitHub:
+1. **Stage Changes**: `git add .`
+2. **Commit with Message**: `git commit -m "Describe your changes here"`
+3. **Push to GitHub**: `git push`
 
 ---
 *Generated with ❤️ by Firebase Studio*
