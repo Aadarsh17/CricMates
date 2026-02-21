@@ -315,6 +315,7 @@ export default function PlayerProfilePage() {
                         <Card className="border-muted/60 shadow-sm">
                             <CardHeader><CardTitle className="text-lg font-bold">Career Batting Summary</CardTitle></CardHeader>
                             <CardContent className="grid gap-4 sm:grid-cols-2">
+                                <StatDetailItem label="Matches" value={playerStats.matches} />
                                 <StatDetailItem label="Innings" value={playerStats.inningsBatted} />
                                 <StatDetailItem label="Not Outs" value={playerStats.notOuts} />
                                 <StatDetailItem label="Average" value={playerStats.battingAverage?.toFixed(2) || '0.00'} />
