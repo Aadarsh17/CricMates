@@ -1,13 +1,7 @@
-import { AppLayoutClient } from "@/components/layout/AppLayoutClient";
-
 /**
- * AppLayout is now a Server Component to improve build stability on Vercel
- * and prevent route group manifest generation errors.
+ * Route group layouts can cause manifest collisions on Vercel.
+ * Neutralized this file.
  */
-export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <AppLayoutClient>
-      {children}
-    </AppLayoutClient>
-  );
+export default function RedundantLayout({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
 }
