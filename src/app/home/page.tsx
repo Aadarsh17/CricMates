@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Shield, Users, BarChart, PlayCircle, Calendar, ArrowRight, Upload, Camera } from "lucide-react";
+import { PlusCircle, Shield, Users, BarChart, PlayCircle, Calendar, ArrowRight, Upload, Camera, Check } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
@@ -12,12 +12,18 @@ import { useMemo, useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider";
 
 export default function HomePage() {
   const { firestore: db } = useFirebase();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [customLogo, setCustomLogo] = useState<string | null>(null);
+  const [isAdjusting, setIsAdjusting] = useState(false);
+  const [tempImage, setTempImage] = useState<string | null>(null);
+  const [zoom, setZoom] = useState([100]); // Percentage
 
   // Load custom logo from localStorage on mount
   useEffect(() => {
@@ -63,16 +69,85 @@ export default function HomePage() {
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        setCustomLogo(base64String);
-        localStorage.setItem('cricmates_league_logo', base64String);
-        toast({ title: "Logo Updated", description: "Your custom league logo has been saved." });
+        setTempImage(base64String);
+        setIsAdjusting(true);
+        setZoom([100]);
       };
       reader.readAsDataURL(file);
     }
   };
 
+  const handleConfirmAdjustment = () => {
+    if (tempImage) {
+      // In a real app we might use canvas to crop, but for MVP we save the zoom effect style
+      // or just save the image and apply zoom in display. 
+      // To keep it simple and persistent, we'll store the final base64 if we had a cropper.
+      // Since we don't have a cropper library, we'll just save the image and zoom preference.
+      setCustomLogo(tempImage);
+      localStorage.setItem('cricmates_league_logo', tempImage);
+      localStorage.setItem('cricmates_league_logo_zoom', zoom[0].toString());
+      setIsAdjusting(false);
+      setTempImage(null);
+      toast({ title: "Logo Updated", description: "Your custom league logo has been saved." });
+    }
+  };
+
+  // Get saved zoom for display
+  const savedZoom = typeof window !== 'undefined' ? localStorage.getItem('cricmates_league_logo_zoom') : '100';
+  const displayZoom = customLogo ? (savedZoom || '100') : '100';
+
   return (
     <div className="space-y-8 md:space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-6xl mx-auto pb-10">
+      
+      {/* Logo Adjustment Dialog */}
+      <Dialog open={isAdjusting} onOpenChange={setIsAdjusting}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Adjust Logo</DialogTitle>
+            <DialogDescription>
+              Zoom and position your logo to fit perfectly in the circular space.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center justify-center py-10 space-y-8">
+            <div className="relative w-48 h-48 rounded-full border-4 border-primary/20 bg-background overflow-hidden flex items-center justify-center shadow-inner">
+              {tempImage && (
+                <div 
+                  className="relative w-full h-full transition-transform duration-75"
+                  style={{ transform: `scale(${zoom[0] / 100})` }}
+                >
+                  <Image 
+                    src={tempImage} 
+                    alt="Temp Logo" 
+                    fill 
+                    className="object-cover" 
+                  />
+                </div>
+              )}
+            </div>
+            <div className="w-full px-6 space-y-4">
+              <div className="flex justify-between text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                <span>Zoom</span>
+                <span>{zoom[0]}%</span>
+              </div>
+              <Slider 
+                value={zoom} 
+                onValueChange={setZoom} 
+                min={50} 
+                max={300} 
+                step={1}
+                className="cursor-pointer"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAdjusting(false)}>Cancel</Button>
+            <Button onClick={handleConfirmAdjustment}>
+              <Check className="mr-2 h-4 w-4" /> OK, Looks Good
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Hero / Welcome Section */}
       <div className="flex flex-col md:flex-row items-center justify-between gap-6 bg-primary/5 p-6 sm:p-8 rounded-3xl border border-primary/10">
           <div className="text-center md:text-left space-y-3 flex-1">
@@ -107,12 +182,17 @@ export default function HomePage() {
             />
             <div className={`relative w-40 h-40 sm:w-48 sm:h-48 rounded-full border-4 border-dashed border-primary/20 bg-background overflow-hidden flex items-center justify-center transition-all group-hover:border-primary/50 group-hover:shadow-xl`}>
               {customLogo ? (
-                <Image 
-                  src={customLogo} 
-                  alt="League Logo" 
-                  fill 
-                  className="object-cover transition-transform group-hover:scale-105" 
-                />
+                <div 
+                  className="relative w-full h-full"
+                  style={{ transform: `scale(${Number(displayZoom) / 100})` }}
+                >
+                  <Image 
+                    src={customLogo} 
+                    alt="League Logo" 
+                    fill 
+                    className="object-cover transition-transform" 
+                  />
+                </div>
               ) : (
                 <div className="text-center p-4">
                   <div className="bg-primary/10 rounded-full p-4 inline-block mb-2 group-hover:bg-primary/20 transition-colors">
@@ -197,7 +277,7 @@ export default function HomePage() {
 
                       return (
                           <Card key={match.id} className="relative overflow-hidden group hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 border-muted">
-                              <Link href="/matches" className="absolute inset-0 z-0" />
+                              <Link href={`/matches/${match.id}`} className="absolute inset-0 z-0" />
                               <CardContent className="p-0 relative z-10">
                                   {/* Card Header Info */}
                                   <div className="px-5 pt-5 pb-3 flex justify-between items-center border-b border-muted/50 bg-muted/5">
