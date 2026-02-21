@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -22,7 +21,7 @@ import {
 import { DeleteTeamDialog } from "./delete-team-dialog";
 import { EditTeamDialog } from "./edit-team-dialog";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
-import { collection, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, query, orderBy, limit } from "firebase/firestore";
 import { useMemo } from "react";
 
 interface TeamCardProps {
@@ -34,14 +33,13 @@ interface TeamCardProps {
 export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
   const { firestore: db } = useFirebase();
   
-  // Fetch recent matches for this team to show form
+  // Fetch some recent matches to calculate form
   const recentMatchesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
       collection(db, 'matches'),
-      where('status', '==', 'completed'),
       orderBy('date', 'desc'),
-      limit(5)
+      limit(20)
     );
   }, [db]);
 
@@ -50,7 +48,8 @@ export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
   const teamForm = useMemo(() => {
     if (!matches) return [];
     return matches
-      .filter(m => m.team1Id === team.id || m.team2Id === team.id)
+      .filter(m => m.status === 'completed' && (m.team1Id === team.id || m.team2Id === team.id))
+      .slice(0, 5)
       .map(m => {
         if (m.result?.startsWith(team.name)) return 'W';
         if (m.result === 'Match is a Tie.') return 'T';
@@ -59,10 +58,10 @@ export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
   }, [matches, team.id, team.name]);
 
   return (
-    <Card className="flex flex-col hover:shadow-lg transition-all duration-300 border-primary/10 overflow-hidden">
+    <Card className="flex flex-col hover:shadow-lg transition-all duration-300 border-primary/10 overflow-hidden h-full">
       <CardHeader className="flex flex-row items-start justify-between pb-2 bg-muted/20">
         <div className="space-y-1">
-            <CardTitle className="text-lg font-headline">{team.name}</CardTitle>
+            <CardTitle className="text-lg font-headline truncate max-w-[180px]">{team.name}</CardTitle>
             <div className="flex gap-1">
                 {teamForm.map((res, i) => (
                     <span 
@@ -89,20 +88,21 @@ export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
       </CardHeader>
       <CardContent className="flex-grow flex flex-col items-center justify-center gap-4 text-center py-6">
         <div className="relative">
-            <Image
-              src={team.logoUrl}
-              alt={`${team.name} logo`}
-              width={100}
-              height={100}
-              className="rounded-full border-4 border-background shadow-md"
-              data-ai-hint={team.imageHint}
-            />
+            <div className="h-24 w-24 relative rounded-full border-4 border-background bg-muted overflow-hidden shadow-md">
+                <Image
+                  src={team.logoUrl}
+                  alt={`${team.name} logo`}
+                  fill
+                  className="object-cover"
+                  data-ai-hint={team.imageHint}
+                />
+            </div>
             <div className="absolute -bottom-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full border-2 border-background">
                 {team.matchesWon}W - {team.matchesLost}L
             </div>
         </div>
       </CardContent>
-      <CardFooter className="bg-muted/10 pt-4">
+      <CardFooter className="bg-muted/10 p-4 mt-auto">
         <Button asChild className="w-full shadow-sm">
           <Link href={`/teams/${team.id}`}>Squad Details</Link>
         </Button>

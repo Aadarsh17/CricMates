@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
@@ -18,10 +17,10 @@ export default function TeamsPage() {
   const { data: teams, isLoading } = useCollection<Team>(teamsCollection);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight font-headline">Teams</h1>
+          <h1 className="text-3xl font-bold tracking-tight font-headline text-primary">Teams</h1>
           <p className="text-muted-foreground">Manage your cricket league teams here.</p>
         </div>
         <AddTeamDialog onTeamAdd={addTeam} />
@@ -29,7 +28,15 @@ export default function TeamsPage() {
 
       {isLoading ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-64 w-full rounded-lg" />)}
+          {[1, 2, 3].map(i => (
+            <div key={i} className="space-y-3">
+              <Skeleton className="h-48 w-full rounded-xl" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-[250px]" />
+                <Skeleton className="h-4 w-[200px]" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : teams && teams.length > 0 ? (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -43,10 +50,13 @@ export default function TeamsPage() {
           ))}
         </div>
       ) : (
-        <div className="flex h-96 flex-col items-center justify-center rounded-lg border-2 border-dashed text-center">
-          <Shield className="h-12 w-12 text-muted-foreground mb-4" />
+        <div className="flex h-96 flex-col items-center justify-center rounded-xl border-2 border-dashed bg-muted/10 text-center p-8">
+          <div className="bg-background p-4 rounded-full shadow-sm mb-4">
+            <Shield className="h-12 w-12 text-muted-foreground" />
+          </div>
           <h3 className="text-xl font-bold">No teams found</h3>
-          <p className="text-muted-foreground">Add your first team to get started.</p>
+          <p className="text-muted-foreground mb-6 max-w-xs">Add your first team to start tracking matches and player stats.</p>
+          <AddTeamDialog onTeamAdd={addTeam} />
         </div>
       )}
     </div>
