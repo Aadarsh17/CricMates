@@ -2,21 +2,30 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Shield, Users, BarChart, MoreVertical, PlayCircle, FileDown, Calendar, ArrowRight } from "lucide-react";
+import { PlusCircle, Shield, Users, BarChart, PlayCircle, Calendar, ArrowRight, Upload, Camera } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
 import { collection, query, where } from "firebase/firestore";
 import type { Match, Team, Player } from "@/lib/types";
-import { useMemo } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { downloadScorecard } from "@/lib/utils";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 
 export default function HomePage() {
   const { firestore: db } = useFirebase();
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [customLogo, setCustomLogo] = useState<string | null>(null);
+
+  // Load custom logo from localStorage on mount
+  useEffect(() => {
+    const savedLogo = localStorage.getItem('cricmates_league_logo');
+    if (savedLogo) {
+      setCustomLogo(savedLogo);
+    }
+  }, []);
 
   const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
   const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
@@ -44,6 +53,24 @@ export default function HomePage() {
     }).slice(0, 4);
   }, [completedMatches]);
 
+  const handleLogoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setCustomLogo(base64String);
+        localStorage.setItem('cricmates_league_logo', base64String);
+        toast({ title: "Logo Updated", description: "Your custom league logo has been saved." });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="space-y-8 md:space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-6xl mx-auto pb-10">
       {/* Hero / Welcome Section */}
@@ -68,8 +95,36 @@ export default function HomePage() {
               </Button>
             </div>
           </div>
-          <div className="hidden lg:block relative w-48 h-48 opacity-20">
-             <Image src="/logo.svg" alt="" fill className="object-contain grayscale contrast-200" />
+          
+          {/* Custom Logo Upload Area */}
+          <div className="relative group cursor-pointer" onClick={handleLogoClick}>
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              className="hidden" 
+              accept="image/*" 
+              onChange={handleFileChange}
+            />
+            <div className={`relative w-40 h-40 sm:w-48 sm:h-48 rounded-full border-4 border-dashed border-primary/20 bg-background overflow-hidden flex items-center justify-center transition-all group-hover:border-primary/50 group-hover:shadow-xl`}>
+              {customLogo ? (
+                <Image 
+                  src={customLogo} 
+                  alt="League Logo" 
+                  fill 
+                  className="object-cover transition-transform group-hover:scale-105" 
+                />
+              ) : (
+                <div className="text-center p-4">
+                  <div className="bg-primary/10 rounded-full p-4 inline-block mb-2 group-hover:bg-primary/20 transition-colors">
+                    <Camera className="h-8 w-8 text-primary/60" />
+                  </div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Upload Logo</p>
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors">
+                <Upload className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+              </div>
+            </div>
           </div>
       </div>
 
