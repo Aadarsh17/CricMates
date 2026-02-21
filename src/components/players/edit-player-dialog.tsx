@@ -1,4 +1,3 @@
-
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -109,7 +108,7 @@ export function EditPlayerDialog({ player, onPlayerEdit, open, onOpenChange }: E
             <div className="py-4 space-y-4">
               <div className="flex flex-col items-center justify-center gap-4 py-2">
                 <Avatar className="h-24 w-24 border-2">
-                  <AvatarImage src={previewUrl || ''} />
+                  <AvatarImage src={previewUrl || ''} className="object-cover" />
                   <AvatarFallback className="bg-muted">
                     <User className="h-12 w-12 text-muted-foreground" />
                   </AvatarFallback>
