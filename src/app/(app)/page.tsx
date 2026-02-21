@@ -1,9 +1,19 @@
-import { redirect } from 'next/navigation';
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 /**
- * This page is neutralized to resolve route collision with the main Welcome Page.
- * It performs a server-side redirect to ensure the build manifest is consistent.
+ * This page is converted to a Client Component to force manifest generation on Vercel.
+ * It resolves the route collision with src/app/page.tsx by immediately redirecting.
  */
 export default function AppPage() {
-  redirect('/');
+  const router = useRouter();
+
+  useEffect(() => {
+    // Redirect to root welcome page or home dashboard
+    router.replace('/');
+  }, [router]);
+
+  return null;
 }
