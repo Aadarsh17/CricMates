@@ -15,6 +15,7 @@ import { useAppContext } from "@/context/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { downloadScorecard } from "@/lib/utils";
 import Image from "next/image";
+import { Badge } from "@/components/ui/badge";
 
 export default function HomePage() {
   const { firestore: db } = useFirebase();
