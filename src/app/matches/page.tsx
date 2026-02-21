@@ -2,18 +2,18 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, FileText, Trash2, Trophy, Share2, MoreVertical } from "lucide-react";
+import { PlusCircle, FileText, Trash2, Trophy, FileDown, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
 import { collection, query, orderBy } from "firebase/firestore";
-import type { Match, Team } from "@/lib/types";
-import { useMemo } from "react";
+import type { Match, Team, Player } from "@/lib/types";
 import { useAppContext } from "@/context/AppContext";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { downloadScorecard } from "@/lib/utils";
 
 export default function MatchHistoryPage() {
   const { firestore: db } = useFirebase();
@@ -24,50 +24,25 @@ export default function MatchHistoryPage() {
   const { data: teamsData } = useCollection<Team>(teamsCollection);
   const teams = teamsData || [];
 
+  const playersCollection = useMemoFirebase(() => (db ? collection(db, 'players') : null), [db]);
+  const { data: playersData } = useCollection<Player>(playersCollection);
+  const players = playersData || [];
+
   const matchesQuery = useMemoFirebase(() => (db ? query(collection(db, 'matches'), orderBy('date', 'desc')) : null), [db]);
   const { data: matches, isLoading } = useCollection<Match>(matchesQuery);
 
   const getTeamName = (id: string) => teams.find(t => t.id === id)?.name || 'Unknown';
 
-  const handleShare = async (match: Match) => {
-    const team1Name = getTeamName(match.team1Id);
-    const team2Name = getTeamName(match.team2Id);
-    
-    let shareText = `🏏 *CricMates Score Update* 🏏\n\n*${team1Name} vs ${team2Name}*\n`;
-    
-    match.innings.forEach((inn) => {
-        const teamName = getTeamName(inn.battingTeamId);
-        shareText += `\n*${teamName}*: ${inn.score}/${inn.wickets} (${inn.overs.toFixed(1)} ov)`;
-    });
-
-    if (match.status === 'completed' && match.result) {
-        shareText += `\n\n🏆 *Result:* ${match.result}`;
-    } else {
-        shareText += `\n\n🔴 *Match is LIVE*`;
+  const handleDownloadFile = (match: Match) => {
+    if (!teams.length || !players.length) {
+        toast({ variant: "destructive", title: "Please wait", description: "Data is still loading." });
+        return;
     }
-
-    shareText += `\n\nShared via CricMates`;
-
-    if (navigator.share) {
-        try {
-            await navigator.share({
-                title: 'CricMates Score Update',
-                text: shareText,
-            });
-            toast({ title: "Shared successfully!" });
-        } catch (err) {
-            navigator.clipboard.writeText(shareText);
-            toast({
-                title: "Score Copied!",
-                description: "Summary copied to clipboard.",
-            });
-        }
-    } else {
-        navigator.clipboard.writeText(shareText);
-        toast({
-            title: "Score Copied!",
-            description: "Summary copied to clipboard.",
-        });
+    try {
+        downloadScorecard(match, teams, players);
+        toast({ title: "Scorecard Downloaded", description: "HTML file saved successfully." });
+    } catch (e) {
+        toast({ variant: "destructive", title: "Download Failed" });
     }
   };
 
@@ -109,8 +84,8 @@ export default function MatchHistoryPage() {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleShare(match)}>
-                                <Share2 className="mr-2 h-4 w-4" /> Share Scorecard
+                            <DropdownMenuItem onClick={() => handleDownloadFile(match)}>
+                                <FileDown className="mr-2 h-4 w-4" /> Download Scorecard
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <AlertDialogTrigger asChild>

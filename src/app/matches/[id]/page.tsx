@@ -15,8 +15,9 @@ import { useMemo, useState, useEffect } from 'react';
 import { InningStartDialog } from '@/components/match/inning-start-dialog';
 import { SelectBowlerDialog } from '@/components/match/select-bowler-dialog';
 import { Button } from '@/components/ui/button';
-import { Share2, Check } from 'lucide-react';
+import { Download, FileDown, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { downloadScorecard } from '@/lib/utils';
 
 export default function MatchDetailPage() {
     const params = useParams();
@@ -25,7 +26,7 @@ export default function MatchDetailPage() {
     const { toast } = useToast();
     const [isInningStartOpen, setIsInningStartOpen] = useState(false);
     const [isSelectBowlerOpen, setIsSelectBowlerOpen] = useState(false);
-    const [sharing, setSharing] = useState(false);
+    const [isDownloading, setIsDownloading] = useState(false);
 
     const matchRef = useMemoFirebase(() => db ? doc(db, 'matches', matchId) : null, [db, matchId]);
     const { data: match, isLoading: matchLoading } = useDoc<Match>(matchRef);
@@ -57,50 +58,17 @@ export default function MatchDetailPage() {
     const nonStriker = useMemo(() => players?.find(p => p.id === currentInning?.nonStrikerId), [players, currentInning?.nonStrikerId]);
     const bowler = useMemo(() => players?.find(p => p.id === currentInning?.bowlerId), [players, currentInning?.bowlerId]);
 
-    const handleShare = async () => {
-        if (!match || !teams) return;
-        setSharing(true);
-        
-        const team1 = teams.find(t => t.id === match.team1Id);
-        const team2 = teams.find(t => t.id === match.team2Id);
-        
-        let shareText = `🏏 *CricMates Score Update* 🏏\n\n*${team1?.name || 'Team 1'} vs ${team2?.name || 'Team 2'}*\n`;
-        
-        match.innings.forEach((inn) => {
-            const team = teams.find(t => t.id === inn.battingTeamId);
-            shareText += `\n*${team?.name || 'Batting Team'}*: ${inn.score}/${inn.wickets} (${inn.overs.toFixed(1)} ov)`;
-        });
-
-        if (match.status === 'completed' && match.result) {
-            shareText += `\n\n🏆 *Result:* ${match.result}`;
-        } else {
-            shareText += `\n\n🔴 *Match is LIVE*`;
+    const handleDownload = () => {
+        if (!match || !teams || !players) return;
+        setIsDownloading(true);
+        try {
+            downloadScorecard(match, teams, players);
+            toast({ title: "Success", description: "Scorecard HTML file downloaded." });
+        } catch (e) {
+            toast({ variant: "destructive", title: "Download Failed", description: "Could not generate file." });
+        } finally {
+            setIsDownloading(false);
         }
-
-        shareText += `\n\nShared via CricMates`;
-
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: 'CricMates Score Update',
-                    text: shareText,
-                });
-                toast({ title: "Shared successfully!" });
-            } catch (err) {
-                navigator.clipboard.writeText(shareText);
-                toast({
-                    title: "Score Copied!",
-                    description: "Match summary copied to clipboard.",
-                });
-            }
-        } else {
-            navigator.clipboard.writeText(shareText);
-            toast({
-                title: "Score Copied!",
-                description: "Match summary copied to clipboard.",
-            });
-        }
-        setSharing(false);
     };
 
     if (matchLoading || teamsLoading || playersLoading) {
@@ -141,9 +109,9 @@ export default function MatchDetailPage() {
                     </h1>
                     <p className="text-sm text-muted-foreground uppercase tracking-wider">{match.overs} Over Match • {new Date(match.date).toLocaleDateString()}</p>
                 </div>
-                <Button onClick={handleShare} variant="outline" className="shrink-0 w-full md:w-auto" disabled={sharing}>
-                    {sharing ? <Check className="mr-2 h-4 w-4" /> : <Share2 className="mr-2 h-4 w-4" />}
-                    Share Scorecard
+                <Button onClick={handleDownload} variant="default" className="shrink-0 w-full md:w-auto shadow-md" disabled={isDownloading}>
+                    {isDownloading ? <Check className="mr-2 h-4 w-4" /> : <FileDown className="mr-2 h-4 w-4" />}
+                    Download HTML Scorecard
                 </Button>
             </div>
 
