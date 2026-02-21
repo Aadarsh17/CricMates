@@ -1,9 +1,7 @@
-import { redirect } from 'next/navigation';
-
 /**
- * This page is redundant now that routes are flattened.
- * Redirecting to home.
+ * This file is redundant now that the app structure is flattened.
+ * Neutralized to prevent Vercel route collision.
  */
-export default function RedirectPage() {
-  redirect('/home');
+export default function RedundantPage() {
+  return null;
 }
