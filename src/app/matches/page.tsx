@@ -29,13 +29,42 @@ export default function MatchHistoryPage() {
 
   const getTeamName = (id: string) => teams.find(t => t.id === id)?.name || 'Unknown';
 
-  const handleShare = (matchId: string) => {
-    const shareUrl = `${window.location.origin}/share/match/${matchId}`;
-    navigator.clipboard.writeText(shareUrl);
-    toast({
-        title: "Link Copied!",
-        description: "Public scorecard link is ready to share.",
+  const handleShare = async (match: Match) => {
+    const team1Name = getTeamName(match.team1Id);
+    const team2Name = getTeamName(match.team2Id);
+    const shareUrl = `${window.location.origin}/share/match/${match.id}`;
+    
+    let shareText = `🏏 *CricMates Score Update* 🏏\n\n${team1Name} vs ${team2Name}\n`;
+    
+    match.innings.forEach((inn, idx) => {
+        const teamName = getTeamName(inn.battingTeamId);
+        shareText += `\n*${teamName}*: ${inn.score}/${inn.wickets} (${inn.overs.toFixed(1)})`;
     });
+
+    if (match.status === 'completed' && match.result) {
+        shareText += `\n\n🏆 *Result:* ${match.result}`;
+    } else {
+        shareText += `\n\n🔴 *Match is LIVE*`;
+    }
+
+    shareText += `\n\nFull details here: ${shareUrl}`;
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: 'CricMates Score Update',
+                text: shareText,
+            });
+        } catch (err) {
+            console.error('Share failed:', err);
+        }
+    } else {
+        navigator.clipboard.writeText(shareText);
+        toast({
+            title: "Score Copied!",
+            description: "Full scorecard summary copied to clipboard.",
+        });
+    }
   };
 
   return (
@@ -76,7 +105,7 @@ export default function MatchHistoryPage() {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleShare(match.id)}>
+                            <DropdownMenuItem onClick={() => handleShare(match)}>
                                 <Share2 className="mr-2 h-4 w-4" /> Share Scorecard
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />

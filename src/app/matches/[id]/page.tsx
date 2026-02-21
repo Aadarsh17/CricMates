@@ -15,7 +15,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { InningStartDialog } from '@/components/match/inning-start-dialog';
 import { SelectBowlerDialog } from '@/components/match/select-bowler-dialog';
 import { Button } from '@/components/ui/button';
-import { Share2, Copy, Check } from 'lucide-react';
+import { Share2, Check } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 export default function MatchDetailPage() {
@@ -25,7 +25,7 @@ export default function MatchDetailPage() {
     const { toast } = useToast();
     const [isInningStartOpen, setIsInningStartOpen] = useState(false);
     const [isSelectBowlerOpen, setIsSelectBowlerOpen] = useState(false);
-    const [copied, setCopied] = useState(false);
+    const [sharing, setSharing] = useState(false);
 
     const matchRef = useMemoFirebase(() => db ? doc(db, 'matches', matchId) : null, [db, matchId]);
     const { data: match, isLoading: matchLoading } = useDoc<Match>(matchRef);
@@ -57,15 +57,46 @@ export default function MatchDetailPage() {
     const nonStriker = useMemo(() => players?.find(p => p.id === currentInning?.nonStrikerId), [players, currentInning?.nonStrikerId]);
     const bowler = useMemo(() => players?.find(p => p.id === currentInning?.bowlerId), [players, currentInning?.bowlerId]);
 
-    const handleShare = () => {
+    const handleShare = async () => {
+        if (!match || !teams) return;
+        setSharing(true);
+        
+        const team1 = teams.find(t => t.id === match.team1Id);
+        const team2 = teams.find(t => t.id === match.team2Id);
         const shareUrl = `${window.location.origin}/share/match/${matchId}`;
-        navigator.clipboard.writeText(shareUrl);
-        setCopied(true);
-        toast({
-            title: "Link Copied!",
-            description: "Share this public scorecard link with your mates.",
+        
+        let shareText = `🏏 *CricMates Score Update* 🏏\n\n${team1?.name} vs ${team2?.name}\n`;
+        
+        match.innings.forEach((inn, idx) => {
+            const team = teams.find(t => t.id === inn.battingTeamId);
+            shareText += `\n*${team?.name}*: ${inn.score}/${inn.wickets} (${inn.overs.toFixed(1)})`;
         });
-        setTimeout(() => setCopied(false), 2000);
+
+        if (match.status === 'completed' && match.result) {
+            shareText += `\n\n🏆 *Result:* ${match.result}`;
+        } else {
+            shareText += `\n\n🔴 *Match is LIVE*`;
+        }
+
+        shareText += `\n\nFull scorecard here: ${shareUrl}`;
+
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'CricMates Score Update',
+                    text: shareText,
+                });
+            } catch (err) {
+                console.error('Share failed:', err);
+            }
+        } else {
+            navigator.clipboard.writeText(shareText);
+            toast({
+                title: "Score Summary Copied!",
+                description: "The formatted scorecard summary is ready to share.",
+            });
+        }
+        setSharing(false);
     };
 
     if (matchLoading || teamsLoading || playersLoading) {
@@ -106,9 +137,9 @@ export default function MatchDetailPage() {
                     </h1>
                     <p className="text-sm text-muted-foreground uppercase tracking-wider">{match.overs} Over Match • {new Date(match.date).toLocaleDateString()}</p>
                 </div>
-                <Button onClick={handleShare} variant="outline" className="shrink-0 w-full md:w-auto">
-                    {copied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Share2 className="mr-2 h-4 w-4" />}
-                    {copied ? 'Copied' : 'Share Scorecard'}
+                <Button onClick={handleShare} variant="outline" className="shrink-0 w-full md:w-auto" disabled={sharing}>
+                    {sharing ? <Check className="mr-2 h-4 w-4" /> : <Share2 className="mr-2 h-4 w-4" />}
+                    Share Scorecard
                 </Button>
             </div>
 

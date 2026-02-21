@@ -45,13 +45,42 @@ export default function HomePage() {
     }).slice(0, 4);
   }, [completedMatches]);
 
-  const handleShare = (matchId: string) => {
-    const shareUrl = `${window.location.origin}/share/match/${matchId}`;
-    navigator.clipboard.writeText(shareUrl);
-    toast({
-        title: "Link Copied!",
-        description: "Public scorecard link is ready to share.",
+  const handleShare = async (match: Match) => {
+    const team1 = getTeamById(match.team1Id);
+    const team2 = getTeamById(match.team2Id);
+    const shareUrl = `${window.location.origin}/share/match/${match.id}`;
+    
+    let shareText = `🏏 *CricMates Score Update* 🏏\n\n${team1?.name} vs ${team2?.name}\n`;
+    
+    match.innings.forEach((inn, idx) => {
+        const team = getTeamById(inn.battingTeamId);
+        shareText += `\n*${team?.name}*: ${inn.score}/${inn.wickets} (${inn.overs.toFixed(1)})`;
     });
+
+    if (match.status === 'completed' && match.result) {
+        shareText += `\n\n🏆 *Result:* ${match.result}`;
+    } else {
+        shareText += `\n\n🔴 *Match is LIVE*`;
+    }
+
+    shareText += `\n\nTrack live scorecard here: ${shareUrl}`;
+
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: 'CricMates Score Update',
+                text: shareText,
+            });
+        } catch (err) {
+            console.error('Share failed:', err);
+        }
+    } else {
+        navigator.clipboard.writeText(shareText);
+        toast({
+            title: "Score Copied!",
+            description: "Full scorecard summary copied to clipboard.",
+        });
+    }
   };
 
   return (
@@ -145,7 +174,7 @@ export default function HomePage() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
-                                          <DropdownMenuItem onClick={() => handleShare(match.id)}>
+                                          <DropdownMenuItem onClick={() => handleShare(match)}>
                                               <Share2 className="mr-2 h-4 w-4" /> Share Scorecard
                                           </DropdownMenuItem>
                                           <DropdownMenuSeparator />
@@ -202,7 +231,7 @@ export default function HomePage() {
                                       <CardTitle className="text-base">{team1?.name} vs {team2?.name}</CardTitle>
                                       <p className="text-[10px] md:text-xs text-muted-foreground">{new Date(match.date).toLocaleDateString()}</p>
                                   </div>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleShare(match.id)}>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleShare(match)}>
                                       <Share2 className="h-4 w-4" />
                                   </Button>
                               </CardHeader>
