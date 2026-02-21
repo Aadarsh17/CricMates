@@ -23,6 +23,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Button } from "../ui/button";
 import { EditPlayerDialog } from "../players/edit-player-dialog";
 import { DeletePlayerDialog } from "../players/delete-player-dialog";
+import Link from "next/link";
 
 type PlayerFormData = {
   name: string;
@@ -120,7 +121,9 @@ export function PlayerStatsTable({ players, teams, matches, onEditPlayer, onDele
                 <TableRow key={s.player.id} className="hover:bg-muted/30">
                   <TableCell className="sticky left-0 bg-background/95 backdrop-blur-sm font-semibold text-sm">
                     <div className="flex flex-col">
-                        <span>{s.player.name}</span>
+                        <Link href={`/players/${s.player.id}`} className="hover:underline hover:text-primary transition-colors">
+                            {s.player.name}
+                        </Link>
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">{s.player.role}</span>
                     </div>
                   </TableCell>

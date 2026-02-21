@@ -13,6 +13,7 @@ import Image from 'next/image';
 import { User, MoreVertical } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import Link from 'next/link';
 
 export default function TeamDetailPage() {
     const params = useParams();
@@ -75,7 +76,9 @@ export default function TeamDetailPage() {
                                                 <AvatarFallback>{player.name[0]}</AvatarFallback>
                                             </Avatar>
                                             <div>
-                                                <p className="font-semibold text-sm">{player.name}</p>
+                                                <Link href={`/players/${player.id}`} className="font-semibold text-sm hover:underline hover:text-primary">
+                                                    {player.name}
+                                                </Link>
                                                 <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{player.role}</p>
                                             </div>
                                         </div>

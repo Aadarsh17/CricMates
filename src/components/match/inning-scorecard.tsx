@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import type { Inning, Match, Player, Team } from "@/lib/types";
 import { useMemo } from "react";
+import Link from "next/link";
 
 type BattingStats = {
   runs: number;
@@ -192,7 +193,9 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                             <TableRow key={p.id}>
                                 <TableCell>
                                     <div className="flex flex-col">
-                                        <span className="font-semibold text-sm">{p.name}</span>
+                                        <Link href={`/players/${p.id}`} className="font-semibold text-sm hover:underline hover:text-primary">
+                                            {p.name}
+                                        </Link>
                                         <span className="text-xs text-muted-foreground">{stats.dismissal}</span>
                                     </div>
                                 </TableCell>
@@ -228,7 +231,11 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                         if (!bowler || !stats) return null;
                         return (
                             <TableRow key={bowlerId}>
-                                <TableCell className="font-semibold text-sm">{bowler.name}</TableCell>
+                                <TableCell>
+                                    <Link href={`/players/${bowler.id}`} className="font-semibold text-sm hover:underline hover:text-primary">
+                                        {bowler.name}
+                                    </Link>
+                                </TableCell>
                                 <TableCell className="text-right font-mono">{stats.overs}</TableCell>
                                 <TableCell className="text-right font-mono">{stats.maidens}</TableCell>
                                 <TableCell className="text-right font-mono">{stats.runs}</TableCell>

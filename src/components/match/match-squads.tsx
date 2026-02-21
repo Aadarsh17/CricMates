@@ -12,6 +12,7 @@ import { collection } from "firebase/firestore";
 import { useAppContext } from "@/context/AppContext";
 import { AddPlayerDialog } from "../players/add-player-dialog";
 import { Button } from "../ui/button";
+import Link from "next/link";
 
 const PlayerListItem = ({ player, cvp, isCaptain }: { player: Player, cvp: number, isCaptain: boolean }) => (
     <div className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg -mx-2 transition-colors">
@@ -20,7 +21,9 @@ const PlayerListItem = ({ player, cvp, isCaptain }: { player: Player, cvp: numbe
                 <AvatarFallback>{player.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
             </Avatar>
             <div>
-                <p className="font-semibold text-sm">{player.name}</p>
+                <Link href={`/players/${player.id}`} className="font-semibold text-sm hover:underline hover:text-primary">
+                    {player.name}
+                </Link>
                 <p className="text-xs text-muted-foreground">{player.role}</p>
             </div>
         </div>
