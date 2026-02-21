@@ -22,22 +22,26 @@ CricMates is a powerful, mobile-optimized cricket scoring and league management 
 ## 📈 Stats Calculation (CVP)
 The app uses a proprietary **Cricket Value Points (CVP)** system to determine the Player of the Match, rewarding consistency, strike rate, and fielding impact.
 
-## 📤 How to Push to GitHub
+## 📤 GitHub Guide
 
-### First Time Setup:
-If you haven't linked your repo yet, follow these steps:
-1. **Initialize Git**: `git init`
-2. **Add Files**: `git add .`
-3. **Commit**: `git commit -m "Initial commit"`
-4. **Branch**: `git branch -M main`
-5. **Link Repo**: `git remote add origin <your-repository-url>`
-6. **Push**: `git push -u origin main`
+### 1. First Time Setup (Pehli Baar)
+Agar aapne abhi tak repo connect nahi kiya hai:
+1. GitHub par naya repository banayein.
+2. Terminal mein ye commands chalayein:
+```bash
+git init
+git add .
+git commit -m "Initial commit - Final Version"
+git branch -M main
+git remote add origin <APKA_GITHUB_REPO_URL>
+git push -u origin main
+```
 
-### How to Update Changes:
-Whenever you make new changes and want to update GitHub:
-1. **Stage Changes**: `git add .`
-2. **Commit with Message**: `git commit -m "Describe your changes here"`
-3. **Push to GitHub**: `git push`
+### 2. How to Update Changes (Badlav Update Karein)
+Jab bhi aap app mein naya kaam karein aur GitHub par bhejna ho:
+1. **Stage**: `git add .`
+2. **Commit**: `git commit -m "Update ka message yahan likhein"`
+3. **Push**: `git push`
 
 ---
 *Generated with ❤️ by Firebase Studio*
