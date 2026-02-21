@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { Match, Team, Player, Inning, DeliveryRecord } from "./types"
-import { getPlayerOfTheMatch } from "./stats"
+import { getPlayerOfTheMatch, calculatePlayerCVP } from "./stats"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -20,11 +20,9 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
   const renderInning = (inning: Inning) => {
     const battingTeamName = getTeamName(inning.battingTeamId);
     
-    // Batting stats calculation
     const battingTeamPlayerIds = inning.battingTeamId === match.team1Id ? match.team1PlayerIds : match.team2PlayerIds;
     const battingTeamPlayers = players.filter(p => battingTeamPlayerIds?.includes(p.id));
 
-    // Determine appearance order
     const orderOfAppearance: string[] = [];
     inning.deliveryHistory.forEach(d => {
         if (d.strikerId && !orderOfAppearance.includes(d.strikerId)) orderOfAppearance.push(d.strikerId);
@@ -33,7 +31,6 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
     if (inning.strikerId && !orderOfAppearance.includes(inning.strikerId)) orderOfAppearance.push(inning.strikerId);
     if (inning.nonStrikerId && !orderOfAppearance.includes(inning.nonStrikerId)) orderOfAppearance.push(inning.nonStrikerId);
 
-    // Sort players by appearance order, putting 'Yet to Bat' at end
     const sortedBattingPlayers = [...battingTeamPlayers].sort((a, b) => {
         const idxA = orderOfAppearance.indexOf(a.id);
         const idxB = orderOfAppearance.indexOf(b.id);
@@ -67,7 +64,6 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
         dismissal = 'not out';
       }
 
-      // Hide players who didn't bat ONLY in completed matches to keep scorecard clean
       if (dismissal === 'Yet to Bat' && match.status === 'completed') return '';
 
       return `
@@ -85,7 +81,6 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
       `;
     }).join('');
 
-    // Bowling stats calculation
     const bowlersUsed = [...new Set(inning.deliveryHistory.map(d => d.bowlerId).filter(Boolean))];
     const bowlingRows = bowlersUsed.map(bowlerId => {
       const bowler = getPlayerById(bowlerId);
@@ -120,7 +115,7 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
 
     return `
       <div class="inning">
-        <h2>${battingTeamName} Innings</h2>
+        <h2 class="section-header">${battingTeamName} Innings</h2>
         <table>
           <thead>
             <tr>
@@ -155,52 +150,145 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
     `;
   };
 
+  const renderOversHistory = (inning: Inning) => {
+    const overs: DeliveryRecord[][] = [];
+    let currentOver: DeliveryRecord[] = [];
+    let legalBalls = 0;
+
+    inning.deliveryHistory.forEach(d => {
+      currentOver.push(d);
+      if (d.extra !== 'wide' && d.extra !== 'noball') {
+        legalBalls++;
+      }
+      if (legalBalls === 6) {
+        overs.push(currentOver);
+        currentOver = [];
+        legalBalls = 0;
+      }
+    });
+    if (currentOver.length > 0) overs.push(currentOver);
+
+    const overRows = overs.map((overDeliveries, idx) => {
+      const outcomeHtml = overDeliveries.map(d => {
+        let color = '#64748b';
+        if (d.isWicket) color = '#ef4444';
+        else if (d.runs === 4 || d.runs === 6) color = '#2563eb';
+        return `<span style="background: ${color}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-right: 4px; font-weight: bold;">${d.outcome}</span>`;
+      }).join('');
+
+      const bowler = getPlayerById(overDeliveries[0].bowlerId);
+      return `
+        <tr>
+          <td style="width: 60px;">Over ${idx + 1}</td>
+          <td style="width: 120px; font-weight: 600;">${bowler?.name || 'N/A'}</td>
+          <td>${outcomeHtml}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="overs-section">
+        <h3 style="font-size: 14px; margin: 15px 0 10px 0; color: #475569;">${getTeamName(inning.battingTeamId)} Over History</h3>
+        <table>
+          <tbody>${overRows || '<tr><td colspan="3">No deliveries recorded</td></tr>'}</tbody>
+        </table>
+      </div>
+    `;
+  };
+
+  const renderSquadList = (teamId: string, playerIds: string[]) => {
+    const team = teams.find(t => t.id === teamId);
+    const teamPlayers = players.filter(p => playerIds.includes(p.id));
+    const playerRows = teamPlayers.map(p => `
+      <tr>
+        <td style="font-weight: 600;">${p.name}</td>
+        <td style="color: #64748b; font-size: 12px;">${p.role}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div style="flex: 1; min-width: 250px; margin-bottom: 20px;">
+        <h3 style="font-size: 14px; margin-bottom: 10px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 5px;">${team?.name}</h3>
+        <table style="background: transparent;">
+          <tbody>${playerRows}</tbody>
+        </table>
+      </div>
+    `;
+  };
+
   const potm = getPlayerOfTheMatch(match, players, teams);
 
   return `
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
       <meta charset="UTF-8">
-      <title>Scorecard - ${getTeamName(match.team1Id)} vs ${getTeamName(match.team2Id)}</title>
+      <title>Match Report - ${getTeamName(match.team1Id)} vs ${getTeamName(match.team2Id)}</title>
       <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; color: #1e293b; line-height: 1.5; background: #f8fafc; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-        h1 { color: #2563eb; margin-bottom: 5px; font-size: 24px; }
-        .match-info { margin-bottom: 25px; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; }
-        .match-info p { margin: 0; color: #64748b; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
-        .inning { margin-bottom: 40px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-        .inning h2 { background: #f1f5f9; margin: 0; padding: 12px 15px; border-bottom: 1px solid #e2e8f0; font-size: 16px; color: #0f172a; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        th, td { text-align: left; padding: 10px 15px; border-bottom: 1px solid #f1f5f9; }
-        th { background: #f8fafc; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600; }
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; padding: 20px; color: #1e293b; line-height: 1.5; background: #f8fafc; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        .match-header { text-align: center; margin-bottom: 40px; border-bottom: 4px solid #2563eb; padding-bottom: 20px; }
+        h1 { color: #0f172a; margin: 0; font-size: 32px; letter-spacing: -0.025em; }
+        .match-info { color: #64748b; text-transform: uppercase; font-size: 12px; font-weight: 700; letter-spacing: 0.1em; margin-top: 10px; }
+        
+        .section-title { font-size: 20px; font-weight: 800; color: #1e293b; margin: 40px 0 20px 0; display: flex; align-items: center; gap: 10px; border-left: 4px solid #2563eb; padding-left: 15px; }
+        .inning { margin-bottom: 30px; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fff; }
+        .section-header { background: #f1f5f9; margin: 0; padding: 15px 20px; border-bottom: 1px solid #e2e8f0; font-size: 16px; font-weight: 700; color: #0f172a; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { text-align: left; padding: 12px 20px; border-bottom: 1px solid #f1f5f9; }
+        th { background: #f8fafc; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; }
         .text-right { text-align: right; }
-        .total-bar { padding: 12px 15px; background: #eff6ff; font-size: 14px; display: flex; justify-content: space-between; border-top: 1px solid #dbeafe; }
-        .result { font-size: 20px; font-weight: bold; color: #059669; text-align: center; margin: 30px 0; padding: 15px; background: #ecfdf5; border-radius: 8px; }
-        .potm { text-align: center; border: 2px solid #fbbf24; border-radius: 8px; padding: 15px; background: #fffbeb; margin-top: 20px; }
-        .potm-title { font-size: 12px; text-transform: uppercase; color: #92400e; font-weight: bold; margin-bottom: 5px; }
-        .potm-name { font-size: 18px; font-weight: bold; color: #b45309; }
-        footer { margin-top: 40px; text-align: center; color: #94a3b8; font-size: 12px; }
+        .total-bar { padding: 15px 20px; background: #f0f9ff; font-size: 14px; display: flex; justify-content: space-between; border-top: 1px solid #bae6fd; font-weight: 500; }
+        
+        .result-box { font-size: 24px; font-weight: 900; color: #059669; text-align: center; margin: 40px 0; padding: 25px; background: #ecfdf5; border-radius: 12px; border: 2px dashed #10b981; }
+        
+        .potm-card { display: flex; align-items: center; justify-content: center; flex-direction: column; border: 2px solid #fbbf24; border-radius: 16px; padding: 30px; background: #fffbeb; margin-top: 30px; position: relative; }
+        .potm-badge { position: absolute; top: -12px; background: #fbbf24; color: #92400e; font-weight: 800; font-size: 10px; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; }
+        .potm-name { font-size: 24px; font-weight: 800; color: #b45309; }
+        
+        .footer { margin-top: 60px; text-align: center; color: #94a3b8; font-size: 11px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+        
+        @media print {
+          body { background: white; padding: 0; }
+          .container { box-shadow: none; border: none; padding: 20px; }
+          .inning { break-inside: avoid; }
+        }
       </style>
     </head>
     <body>
       <div class="container">
-        <div class="match-info">
+        <div class="match-header">
           <h1>${getTeamName(match.team1Id)} vs ${getTeamName(match.team2Id)}</h1>
-          <p>${new Date(match.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })} • ${match.overs} Over Match</p>
+          <div class="match-info">${new Date(match.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })} • ${match.overs} OVER MATCH</div>
         </div>
+
+        <div class="section-title">Scorecard</div>
         ${match.innings.map(renderInning).join('')}
-        <div class="result">${match.result || 'Match in Progress'}</div>
+
+        <div class="result-box">${match.result || 'Match in Progress'}</div>
+
+        <div class="section-title">Over by Over</div>
+        ${match.innings.map(renderOversHistory).join('')}
+
+        <div class="section-title">Squads</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 40px;">
+          ${renderSquadList(match.team1Id, match.team1PlayerIds || [])}
+          ${renderSquadList(match.team2Id, match.team2PlayerIds || [])}
+        </div>
+
         ${potm.player ? `
-          <div class="potm">
-            <div class="potm-title">Player of the Match</div>
+          <div class="section-title">Performance Analysis</div>
+          <div class="potm-card">
+            <span class="potm-badge">Player of the Match</span>
             <div class="potm-name">${potm.player.name}</div>
-            <div style="font-size: 12px; color: #b45309;">Performance Points: ${potm.cvp} CVP</div>
+            <div style="font-size: 14px; color: #92400e; margin-top: 10px; font-weight: 600;">Performance Points: ${potm.cvp} CVP</div>
           </div>
         ` : ''}
-        <footer>
-          Generated by <strong>CricMates</strong> - Effortless Cricket Scoring
-        </footer>
+
+        <div class="footer">
+          Generated automatically by <strong>CricMates</strong> Digital Scoring System.
+        </div>
       </div>
     </body>
     </html>
@@ -212,8 +300,10 @@ export function downloadScorecard(match: Match, teams: Team[], players: Player[]
   const blob = new Blob([html], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
+  const team1 = getTeamName(match.team1Id, teams);
+  const team2 = getTeamName(match.team2Id, teams);
   a.href = url;
-  a.download = `Scorecard_${getTeamName(match.team1Id, teams)}_vs_${getTeamName(match.team2Id, teams)}_${Date.now()}.html`;
+  a.download = `MatchReport_${team1}_vs_${team2}_${Date.now()}.html`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
