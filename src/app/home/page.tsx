@@ -145,7 +145,7 @@ export default function HomePage() {
 
                       return (
                           <Card key={match.id} className="relative group hover:bg-muted/5 transition-colors overflow-hidden border-muted/60">
-                              <Link href={`/matches/${match.id}`} className="absolute inset-0 z-0" />
+                              <Link href="/matches" className="absolute inset-0 z-0" />
                               <CardContent className="p-5 space-y-4 relative z-10">
                                   <div className="flex justify-between items-center">
                                     <div className="text-[10px] text-muted-foreground font-semibold uppercase flex items-center gap-1.5">
