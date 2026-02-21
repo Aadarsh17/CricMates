@@ -24,12 +24,17 @@ export default function HomePage() {
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [tempImage, setTempImage] = useState<string | null>(null);
   const [zoom, setZoom] = useState([100]); // Percentage
+  const [persistedZoom, setPersistedZoom] = useState(100);
 
-  // Load custom logo from localStorage on mount
+  // Load custom logo and zoom from localStorage on mount
   useEffect(() => {
     const savedLogo = localStorage.getItem('cricmates_league_logo');
+    const savedZoom = localStorage.getItem('cricmates_league_logo_zoom');
     if (savedLogo) {
       setCustomLogo(savedLogo);
+    }
+    if (savedZoom) {
+      setPersistedZoom(Number(savedZoom));
     }
   }, []);
 
@@ -71,7 +76,7 @@ export default function HomePage() {
         const base64String = reader.result as string;
         setTempImage(base64String);
         setIsAdjusting(true);
-        setZoom([100]);
+        setZoom([100]); // Reset zoom for new image selection
       };
       reader.readAsDataURL(file);
     }
@@ -79,11 +84,8 @@ export default function HomePage() {
 
   const handleConfirmAdjustment = () => {
     if (tempImage) {
-      // In a real app we might use canvas to crop, but for MVP we save the zoom effect style
-      // or just save the image and apply zoom in display. 
-      // To keep it simple and persistent, we'll store the final base64 if we had a cropper.
-      // Since we don't have a cropper library, we'll just save the image and zoom preference.
       setCustomLogo(tempImage);
+      setPersistedZoom(zoom[0]);
       localStorage.setItem('cricmates_league_logo', tempImage);
       localStorage.setItem('cricmates_league_logo_zoom', zoom[0].toString());
       setIsAdjusting(false);
@@ -91,10 +93,6 @@ export default function HomePage() {
       toast({ title: "Logo Updated", description: "Your custom league logo has been saved." });
     }
   };
-
-  // Get saved zoom for display
-  const savedZoom = typeof window !== 'undefined' ? localStorage.getItem('cricmates_league_logo_zoom') : '100';
-  const displayZoom = customLogo ? (savedZoom || '100') : '100';
 
   return (
     <div className="space-y-8 md:space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-6xl mx-auto pb-10">
@@ -184,13 +182,13 @@ export default function HomePage() {
               {customLogo ? (
                 <div 
                   className="relative w-full h-full"
-                  style={{ transform: `scale(${Number(displayZoom) / 100})` }}
+                  style={{ transform: `scale(${persistedZoom / 100})` }}
                 >
                   <Image 
                     src={customLogo} 
                     alt="League Logo" 
                     fill 
-                    className="object-cover transition-transform" 
+                    className="object-cover" 
                   />
                 </div>
               ) : (
@@ -201,7 +199,7 @@ export default function HomePage() {
                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Upload Logo</p>
                 </div>
               )}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors">
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors rounded-full">
                 <Upload className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
               </div>
             </div>
