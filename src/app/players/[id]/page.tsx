@@ -329,6 +329,7 @@ export default function PlayerProfilePage() {
                         <Card className="border-muted/60 shadow-sm">
                             <CardHeader><CardTitle className="text-lg font-bold">Career Bowling Summary</CardTitle></CardHeader>
                             <CardContent className="grid gap-4 sm:grid-cols-2">
+                                <StatDetailItem label="Matches" value={playerStats.matches} />
                                 <StatDetailItem label="Innings" value={playerStats.inningsBowled} />
                                 <StatDetailItem label="Overs" value={playerStats.oversBowled} />
                                 <StatDetailItem label="Runs Conceded" value={playerStats.runsConceded} />
