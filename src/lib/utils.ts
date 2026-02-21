@@ -113,6 +113,35 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
       return acc;
     }, 0);
 
+    // Partnership & FoW Logic
+    const fows: string[] = [];
+    const pships: string[] = [];
+    let score = 0;
+    let balls = 0;
+    let wickets = 0;
+    let pRuns = 0;
+    let pBalls = 0;
+
+    inning.deliveryHistory.forEach(d => {
+        let dRuns = d.runs;
+        if (d.extra === 'wide' || d.extra === 'noball') dRuns += 1;
+        score += dRuns;
+        pRuns += dRuns;
+        
+        if (d.extra !== 'wide') {
+            balls++;
+            pBalls++;
+        }
+
+        if (d.isWicket) {
+            wickets++;
+            fows.push(`<li><strong>${wickets}-${score}</strong> (${getPlayerById(d.dismissal?.batsmanOutId || '')?.name}, ${formatOvers(balls)} ov)</li>`);
+            pships.push(`<li><strong>Wkt ${wickets}</strong>: ${pRuns} runs (${pBalls} balls) - ${getPlayerById(d.strikerId)?.name} & ${getPlayerById(d.nonStrikerId || '')?.name}</li>`);
+            pRuns = 0;
+            pBalls = 0;
+        }
+    });
+
     return `
       <div class="inning">
         <h2 class="section-header">${battingTeamName} Innings</h2>
@@ -133,6 +162,18 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
           <span>Extras: ${extras}</span>
           <span>Total: <strong>${inning.score}/${inning.wickets}</strong> (${inning.overs.toFixed(1)} Overs)</span>
         </div>
+        
+        <div style="padding: 15px 20px; display: flex; gap: 20px; border-bottom: 1px solid #e2e8f0; font-size: 12px;">
+            <div style="flex: 1;">
+                <h4 style="margin: 0 0 10px 0; text-transform: uppercase; color: #64748b;">Fall of Wickets</h4>
+                <ul style="list-style: none; padding: 0; margin: 0; color: #1e293b;">${fows.join('') || 'None'}</ul>
+            </div>
+            <div style="flex: 1;">
+                <h4 style="margin: 0 0 10px 0; text-transform: uppercase; color: #64748b;">Partnerships</h4>
+                <ul style="list-style: none; padding: 0; margin: 0; color: #1e293b;">${pships.join('') || 'None'}</ul>
+            </div>
+        </div>
+
         <table style="margin-top: 10px;">
           <thead>
             <tr>

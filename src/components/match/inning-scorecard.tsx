@@ -1,4 +1,3 @@
-
 'use client';
 
 import {
@@ -30,6 +29,14 @@ type BowlingStats = {
   wickets: number;
   economy: number;
 };
+
+type Partnership = {
+    batsman1: string;
+    batsman2: string;
+    runs: number;
+    balls: number;
+    wicketNumber: number;
+}
 
 const calculateStrikeRate = (runs: number, balls: number) => {
   if (balls === 0) return 0;
@@ -85,24 +92,36 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
 
     const wicketsTakenByBowler = new Map<string, number>();
     const fallOfWickets: { score: number, wicket: number, over: string, player: string }[] = [];
+    const partnerships: Partnership[] = [];
+    
     let currentTotalScore = 0;
     let currentLegalBalls = 0;
     let currentWicketsCount = 0;
+    
+    let currentPartnershipRuns = 0;
+    let currentPartnershipBalls = 0;
 
     inning.deliveryHistory.forEach(d => {
         const strikerStat = battingStats.get(d.strikerId);
         if (strikerStat) {
+            let deliveryRuns = 0;
             if (d.extra !== 'byes' && d.extra !== 'legbyes') {
                 strikerStat.runs += d.runs;
-                currentTotalScore += d.runs;
+                deliveryRuns += d.runs;
             }
             if (d.extra === 'wide' || d.extra === 'noball') {
-                currentTotalScore += 1;
+                deliveryRuns += 1;
             }
+            
+            currentTotalScore += deliveryRuns;
+            currentPartnershipRuns += deliveryRuns;
+
             if (d.extra !== 'wide') {
                 strikerStat.balls += 1;
                 currentLegalBalls += 1;
+                currentPartnershipBalls += 1;
             }
+            
             if (d.runs === 4 && (d.extra !== 'byes' && d.extra !== 'legbyes')) strikerStat.fours += 1;
             if (d.runs === 6 && (d.extra !== 'byes' && d.extra !== 'legbyes')) strikerStat.sixes += 1;
 
@@ -116,6 +135,19 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                     player: playerOut?.name || 'Unknown'
                 });
 
+                // Record Partnership
+                partnerships.push({
+                    batsman1: getPlayerById(d.strikerId)?.name || 'Unknown',
+                    batsman2: getPlayerById(d.nonStrikerId || '')?.name || 'Unknown',
+                    runs: currentPartnershipRuns,
+                    balls: currentPartnershipBalls,
+                    wicketNumber: currentWicketsCount
+                });
+                
+                // Reset partnership counters
+                currentPartnershipRuns = 0;
+                currentPartnershipBalls = 0;
+
                 if (d.dismissal.type !== 'Run out') {
                     const currentWickets = wicketsTakenByBowler.get(d.bowlerId) || 0;
                     wicketsTakenByBowler.set(d.bowlerId, currentWickets + 1);
@@ -123,6 +155,17 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
             }
         }
     });
+
+    // Add current ongoing partnership if match is live
+    if (inning.strikerId && inning.nonStrikerId && (currentPartnershipRuns > 0 || currentPartnershipBalls > 0)) {
+        partnerships.push({
+            batsman1: getPlayerById(inning.strikerId)?.name || 'Unknown',
+            batsman2: getPlayerById(inning.nonStrikerId)?.name || 'Unknown',
+            runs: currentPartnershipRuns,
+            balls: currentPartnershipBalls,
+            wicketNumber: currentWicketsCount + 1
+        });
+    }
 
     const outPlayerIds = new Set(inning.deliveryHistory.filter(d => d.isWicket && d.dismissal).map(d => d.dismissal!.batsmanOutId));
     const battedPlayerIds = new Set(orderOfAppearance);
@@ -234,19 +277,33 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                 </div>
             </div>
 
-            {fallOfWickets.length > 0 && (
-                <div className="px-4 py-3 bg-muted/10 border rounded-lg">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Fall of Wickets</h4>
-                    <p className="text-xs leading-relaxed">
-                        {fallOfWickets.map((fw, i) => (
-                            <span key={i}>
-                                <span className="font-semibold">{fw.score}-{fw.wicket}</span> ({fw.player}, {fw.over} ov)
-                                {i < fallOfWickets.length - 1 ? ', ' : ''}
-                            </span>
-                        ))}
-                    </p>
-                </div>
-            )}
+            <div className="grid gap-4 md:grid-cols-2">
+                {fallOfWickets.length > 0 && (
+                    <div className="px-4 py-3 bg-muted/10 border rounded-lg">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Fall of Wickets</h4>
+                        <div className="space-y-1">
+                            {fallOfWickets.map((fw, i) => (
+                                <p key={i} className="text-xs leading-relaxed">
+                                    <span className="font-bold text-primary">{fw.wicket}-{fw.score}</span> ({fw.player}, {fw.over} ov)
+                                </p>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {partnerships.length > 0 && (
+                    <div className="px-4 py-3 bg-muted/10 border rounded-lg">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">Partnerships</h4>
+                        <div className="space-y-1">
+                            {partnerships.map((p, i) => (
+                                <p key={i} className="text-xs leading-relaxed">
+                                    <span className="font-bold text-primary">{p.wicketNumber}{p.wicketNumber === partnerships.length && match.status === 'live' ? ' (cur)' : ''}</span>: {p.runs} runs ({p.balls} balls) - {p.batsman1} & {p.batsman2}
+                                </p>
+                            ))}
+                        </div>
+                    </div>
+                )}
+            </div>
 
             <div className="overflow-x-auto">
                 <Table className="whitespace-nowrap w-full">
