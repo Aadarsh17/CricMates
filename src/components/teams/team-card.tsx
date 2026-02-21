@@ -21,7 +21,7 @@ import {
 import { DeleteTeamDialog } from "./delete-team-dialog";
 import { EditTeamDialog } from "./edit-team-dialog";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
-import { collection, query, orderBy, limit } from "firebase/firestore";
+import { collection, query, orderBy } from "firebase/firestore";
 import { useMemo } from "react";
 
 interface TeamCardProps {
@@ -33,28 +33,38 @@ interface TeamCardProps {
 export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
   const { firestore: db } = useFirebase();
   
-  // Fetch some recent matches to calculate form
-  const recentMatchesQuery = useMemoFirebase(() => {
+  // Fetch matches to calculate real wins/losses
+  const matchesQuery = useMemoFirebase(() => {
     if (!db) return null;
     return query(
       collection(db, 'matches'),
-      orderBy('date', 'desc'),
-      limit(20)
+      orderBy('date', 'desc')
     );
   }, [db]);
 
-  const { data: matches } = useCollection<Match>(recentMatchesQuery);
+  const { data: matches } = useCollection<Match>(matchesQuery);
 
-  const teamForm = useMemo(() => {
-    if (!matches) return [];
-    return matches
-      .filter(m => m.status === 'completed' && (m.team1Id === team.id || m.team2Id === team.id))
-      .slice(0, 5)
-      .map(m => {
-        if (m.result?.startsWith(team.name)) return 'W';
-        if (m.result === 'Match is a Tie.') return 'T';
-        return 'L';
-      });
+  const stats = useMemo(() => {
+    if (!matches) return { wins: 0, losses: 0, form: [] as string[] };
+    
+    const teamMatches = matches.filter(m => 
+      m.status === 'completed' && (m.team1Id === team.id || m.team2Id === team.id)
+    );
+
+    const form = teamMatches.slice(0, 5).map(m => {
+      if (m.result?.startsWith(team.name)) return 'W';
+      if (m.result === 'Match is a Tie.') return 'T';
+      return 'L';
+    });
+
+    let wins = 0;
+    let losses = 0;
+    teamMatches.forEach(m => {
+      if (m.result?.startsWith(team.name)) wins++;
+      else if (m.result && m.result !== 'Match is a Tie.') losses++;
+    });
+
+    return { wins, losses, form };
   }, [matches, team.id, team.name]);
 
   return (
@@ -63,7 +73,7 @@ export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
         <div className="space-y-1">
             <CardTitle className="text-lg font-headline truncate max-w-[180px]">{team.name}</CardTitle>
             <div className="flex gap-1">
-                {teamForm.map((res, i) => (
+                {stats.form.map((res, i) => (
                     <span 
                         key={i} 
                         className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold text-white ${res === 'W' ? 'bg-green-500' : res === 'L' ? 'bg-red-500' : 'bg-gray-400'}`}
@@ -71,7 +81,7 @@ export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
                         {res}
                     </span>
                 ))}
-                {teamForm.length === 0 && <span className="text-[10px] text-muted-foreground uppercase font-semibold">New Entry</span>}
+                {stats.form.length === 0 && <span className="text-[10px] text-muted-foreground uppercase font-semibold">New Entry</span>}
             </div>
         </div>
         <DropdownMenu>
@@ -98,7 +108,7 @@ export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
                 />
             </div>
             <div className="absolute -bottom-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full border-2 border-background">
-                {team.matchesWon}W - {team.matchesLost}L
+                {stats.wins}W - {stats.losses}L
             </div>
         </div>
       </CardContent>

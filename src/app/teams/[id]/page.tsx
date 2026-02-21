@@ -2,8 +2,8 @@
 
 import { useParams } from 'next/navigation';
 import { useDoc, useCollection, useFirebase, useMemoFirebase } from '@/firebase';
-import { doc, collection, query, where } from 'firebase/firestore';
-import type { Team, Player } from '@/lib/types';
+import { doc, collection, query, where, orderBy } from 'firebase/firestore';
+import type { Team, Player, Match } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,6 +14,7 @@ import { User, MoreVertical } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import Link from 'next/link';
+import { useMemo } from 'react';
 
 export default function TeamDetailPage() {
     const params = useParams();
@@ -26,6 +27,34 @@ export default function TeamDetailPage() {
 
     const playersQuery = useMemoFirebase(() => db ? query(collection(db, 'players'), where('teamId', '==', teamId)) : null, [db, teamId]);
     const { data: players, isLoading: playersLoading } = useCollection<Player>(playersQuery);
+
+    const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), orderBy('date', 'desc')) : null, [db]);
+    const { data: matches } = useCollection<Match>(matchesQuery);
+
+    const stats = useMemo(() => {
+        if (!matches || !team) return { played: 0, wins: 0, losses: 0, ties: 0 };
+        
+        const teamMatches = matches.filter(m => 
+            m.status === 'completed' && (m.team1Id === team.id || m.team2Id === team.id)
+        );
+
+        let wins = 0;
+        let losses = 0;
+        let ties = 0;
+
+        teamMatches.forEach(m => {
+            if (m.result?.startsWith(team.name)) wins++;
+            else if (m.result === 'Match is a Tie.') ties++;
+            else if (m.result) losses++;
+        });
+
+        return {
+            played: teamMatches.length,
+            wins,
+            losses,
+            ties
+        };
+    }, [matches, team]);
 
     if (teamLoading) return <Skeleton className="h-[400px] w-full" />;
     if (!team) return <div className="p-8 text-center text-muted-foreground">Team not found.</div>;
@@ -112,15 +141,19 @@ export default function TeamDetailPage() {
                         <CardContent className="space-y-4">
                             <div className="flex justify-between items-center border-b pb-2">
                                 <span className="text-sm text-muted-foreground">Played</span>
-                                <span className="font-bold">{team.matchesPlayed}</span>
+                                <span className="font-bold">{stats.played}</span>
                             </div>
                             <div className="flex justify-between items-center border-b pb-2">
                                 <span className="text-sm text-muted-foreground">Wins</span>
-                                <span className="font-bold text-primary">{team.matchesWon}</span>
+                                <span className="font-bold text-primary">{stats.wins}</span>
+                            </div>
+                            <div className="flex justify-between items-center border-b pb-2">
+                                <span className="text-sm text-muted-foreground">Losses</span>
+                                <span className="font-bold">{stats.losses}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-sm text-muted-foreground">Losses</span>
-                                <span className="font-bold">{team.matchesLost}</span>
+                                <span className="text-sm text-muted-foreground">Tied/NR</span>
+                                <span className="font-bold">{stats.ties}</span>
                             </div>
                         </CardContent>
                     </Card>
