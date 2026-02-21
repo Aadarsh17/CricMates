@@ -2,11 +2,22 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // WARNING: These rules are permissive and allow any user to read and write data.
-    // This is for initial development and should be secured before production.
     
-    // Default allow all reads and writes to all collections
+    // Explicit rules for core collections to ensure "list" and "get" operations are permitted
+    
+    match /teams/{teamId} {
+      allow read, write: if true;
+    }
+    
+    match /players/{playerId} {
+      allow read, write: if true;
+    }
+    
+    match /matches/{matchId} {
+      allow read, write: if true;
+    }
+
+    // Default fallback rule for any other potential collections or sub-collections
     match /{document=**} {
       allow read, write: if true;
     }
