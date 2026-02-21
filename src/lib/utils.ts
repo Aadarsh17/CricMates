@@ -24,7 +24,25 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
     const battingTeamPlayerIds = inning.battingTeamId === match.team1Id ? match.team1PlayerIds : match.team2PlayerIds;
     const battingTeamPlayers = players.filter(p => battingTeamPlayerIds?.includes(p.id));
 
-    const battingRows = battingTeamPlayers.map(p => {
+    // Determine appearance order
+    const orderOfAppearance: string[] = [];
+    inning.deliveryHistory.forEach(d => {
+        if (d.strikerId && !orderOfAppearance.includes(d.strikerId)) orderOfAppearance.push(d.strikerId);
+        if (d.nonStrikerId && !orderOfAppearance.includes(d.nonStrikerId)) orderOfAppearance.push(d.nonStrikerId);
+    });
+    if (inning.strikerId && !orderOfAppearance.includes(inning.strikerId)) orderOfAppearance.push(inning.strikerId);
+    if (inning.nonStrikerId && !orderOfAppearance.includes(inning.nonStrikerId)) orderOfAppearance.push(inning.nonStrikerId);
+
+    // Sort players by appearance order, putting 'Yet to Bat' at end
+    const sortedBattingPlayers = [...battingTeamPlayers].sort((a, b) => {
+        const idxA = orderOfAppearance.indexOf(a.id);
+        const idxB = orderOfAppearance.indexOf(b.id);
+        const orderA = idxA === -1 ? 999 : idxA;
+        const orderB = idxB === -1 ? 999 : idxB;
+        return orderA - orderB;
+    });
+
+    const battingRows = sortedBattingPlayers.map(p => {
       const deliveries = inning.deliveryHistory.filter(d => d.strikerId === p.id);
       const runs = deliveries.reduce((acc, d) => acc + (d.extra !== 'byes' && d.extra !== 'legbyes' ? d.runs : 0), 0);
       const balls = deliveries.filter(d => d.extra !== 'wide').length;
@@ -45,11 +63,11 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
           case 'Hit wicket': dismissal = `hit wicket b ${bowler?.name || 'bowler'}`; break;
           default: dismissal = `b ${bowler?.name || 'bowler'}`; break;
         }
-      } else if (inning.deliveryHistory.some(d => d.strikerId === p.id || d.nonStrikerId === p.id)) {
+      } else if (orderOfAppearance.includes(p.id)) {
         dismissal = 'not out';
       }
 
-      // Skip players who didn't bat if match is over
+      // Hide players who didn't bat ONLY in completed matches to keep scorecard clean
       if (dismissal === 'Yet to Bat' && match.status === 'completed') return '';
 
       return `

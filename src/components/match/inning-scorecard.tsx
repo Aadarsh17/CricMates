@@ -9,7 +9,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { Inning, Match, Player, Team } from "@/lib/types";
-import { calculatePlayerCVP } from "@/lib/stats";
 import { useMemo } from "react";
 
 type BattingStats = {
@@ -19,6 +18,7 @@ type BattingStats = {
   sixes: number;
   strikeRate: number;
   dismissal: string;
+  order: number; // To track appearance order
 };
 
 type BowlingStats = {
@@ -58,9 +58,29 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
     const battingTeamPlayerIds = inning.battingTeamId === match.team1Id ? match.team1PlayerIds : match.team2PlayerIds;
     const battingTeamPlayers = players.filter(p => battingTeamPlayerIds?.includes(p.id)) || [];
     
+    // Determine batting order from delivery history
+    const orderOfAppearance: string[] = [];
+    inning.deliveryHistory.forEach(d => {
+        if (d.strikerId && !orderOfAppearance.includes(d.strikerId)) orderOfAppearance.push(d.strikerId);
+        if (d.nonStrikerId && !orderOfAppearance.includes(d.nonStrikerId)) orderOfAppearance.push(d.nonStrikerId);
+    });
+
+    // Also include current live players if not in history yet
+    if (inning.strikerId && !orderOfAppearance.includes(inning.strikerId)) orderOfAppearance.push(inning.strikerId);
+    if (inning.nonStrikerId && !orderOfAppearance.includes(inning.nonStrikerId)) orderOfAppearance.push(inning.nonStrikerId);
+
     const battingStats = new Map<string, BattingStats>();
     battingTeamPlayers.forEach(p => {
-        battingStats.set(p.id, { runs: 0, balls: 0, fours: 0, sixes: 0, strikeRate: 0, dismissal: '' });
+        const appearanceIdx = orderOfAppearance.indexOf(p.id);
+        battingStats.set(p.id, { 
+            runs: 0, 
+            balls: 0, 
+            fours: 0, 
+            sixes: 0, 
+            strikeRate: 0, 
+            dismissal: '', 
+            order: appearanceIdx === -1 ? 999 : appearanceIdx 
+        });
     });
 
     const wicketsTakenByBowler = new Map<string, number>();
@@ -85,7 +105,7 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
     });
 
     const outPlayerIds = new Set(inning.deliveryHistory.filter(d => d.isWicket && d.dismissal).map(d => d.dismissal!.batsmanOutId));
-    const battedPlayerIds = new Set(inning.deliveryHistory.flatMap(d => [d.strikerId, d.nonStrikerId].filter(Boolean) as string[]));
+    const battedPlayerIds = new Set(orderOfAppearance);
 
     battingTeamPlayers.forEach(p => {
         const stat = battingStats.get(p.id);
@@ -113,6 +133,13 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                 stat.dismissal = 'Yet to Bat';
             }
         }
+    });
+
+    // Sort players: Batted first (by appearance order), then Yet to Bat
+    const sortedBattingPlayers = [...battingTeamPlayers].sort((a, b) => {
+        const statA = battingStats.get(a.id)!;
+        const statB = battingStats.get(b.id)!;
+        return statA.order - statB.order;
     });
 
     const bowlingStats = new Map<string, BowlingStats>();
@@ -157,7 +184,7 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {battingTeamPlayers.map(p => {
+                    {sortedBattingPlayers.map(p => {
                         const stats = battingStats.get(p.id);
                         if (!stats) return null;
                         const isYetToBat = stats.dismissal === 'Yet to Bat';
