@@ -12,6 +12,7 @@ type PlayerData = {
   isWicketKeeper?: boolean;
   battingStyle?: string;
   bowlingStyle?: string;
+  teamId?: string;
 }
 
 interface AppContextType {
@@ -96,12 +97,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return updatedMatch;
   }, []);
 
-
   const addTeam = useCallback(async (name: string) => {
-    if (!db) {
-        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
-        return;
-    }
+    if (!db) return;
     const newTeam: Omit<Team, 'id'> = {
       name,
       logoUrl: `https://picsum.photos/seed/${Math.random().toString(36).substring(7)}/128/128`,
@@ -115,105 +112,76 @@ export function AppProvider({ children }: { children: ReactNode }) {
       await addDoc(collection(db, 'teams'), newTeam);
       toast({ title: "Team Added", description: `${name} has been added successfully.` });
     } catch(e: any) {
-        console.error("Failed to add team:", e);
-        toast({ variant: "destructive", title: "Error Adding Team", description: "Could not add the team. Please check your connection and try again." });
+        console.error(e);
     }
   }, [db, toast]);
 
   const editTeam = useCallback(async (teamId: string, name: string) => {
-    if (!db) {
-        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
-        return;
-    }
+    if (!db) return;
     try {
       await updateDoc(doc(db, 'teams', teamId), { name });
-      toast({ title: "Team Updated", description: "Team name has been updated." });
+      toast({ title: "Team Updated" });
     } catch (e: any) {
-        console.error("Failed to edit team:", e);
-        toast({ variant: "destructive", title: "Error Editing Team", description: "Could not update the team. Please try again." });
+        console.error(e);
     }
   }, [db, toast]);
 
   const deleteTeam = useCallback(async (teamId: string) => {
-    if (!db) {
-        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
-        return;
-    }
+    if (!db) return;
     try {
       await deleteDoc(doc(db, 'teams', teamId));
-      toast({ title: "Team Deleted", description: "The team has been deleted." });
+      toast({ title: "Team Deleted" });
     } catch (e: any) {
-        console.error("Failed to delete team:", e);
-        toast({ variant: "destructive", title: "Error Deleting Team", description: "Could not delete the team. Please try again." });
+        console.error(e);
     }
   }, [db, toast]);
   
   const addPlayer = useCallback(async (playerData: PlayerData) => {
-    if (!db) {
-        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
-        return;
-    }
-
-    const newPlayer: Omit<Player, 'id'> = {
+    if (!db) return;
+    const newPlayer: any = {
       name: playerData.name,
       role: playerData.role,
       battingStyle: playerData.battingStyle,
       bowlingStyle: playerData.bowlingStyle === 'None' ? null : playerData.bowlingStyle,
       isWicketKeeper: playerData.isWicketKeeper || false,
+      teamId: playerData.teamId || null,
       stats: { matches: 0, runs: 0, wickets: 0, highestScore: 0, bestBowling: 'N/A' },
       isRetired: false,
     };
-    
     try {
       await addDoc(collection(db, 'players'), newPlayer);
-      toast({ title: "Player Added", description: `${playerData.name} has been added.` });
+      toast({ title: "Player Added" });
     } catch (e: any) {
-        console.error("Failed to add player:", e);
-        toast({ variant: "destructive", title: "Error Adding Player", description: "Could not add the player. Please try again." });
+        console.error(e);
     }
   }, [db, toast]);
 
   const editPlayer = useCallback(async (playerId: string, playerData: PlayerData) => {
-    if (!db) {
-        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
-        return;
-    }
-
-    const dataToUpdate = {
+    if (!db) return;
+    try {
+      await updateDoc(doc(db, 'players', playerId), {
         ...playerData,
         bowlingStyle: playerData.bowlingStyle === 'None' ? null : playerData.bowlingStyle,
-    };
-    
-    try {
-      await updateDoc(doc(db, 'players', playerId), dataToUpdate);
-      toast({ title: "Player Updated", description: "Player details have been updated." });
+      });
+      toast({ title: "Player Updated" });
     } catch (e: any) {
-        console.error("Failed to edit player:", e);
-        toast({ variant: "destructive", title: "Error Editing Player", description: "Could not update the player. Please try again." });
+        console.error(e);
     }
   }, [db, toast]);
 
   const deletePlayer = useCallback(async (playerId: string) => {
-    if (!db) {
-        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
-        return;
-    }
+    if (!db) return;
     try {
       await deleteDoc(doc(db, 'players', playerId));
-      toast({ title: "Player Deleted", description: "The player has been deleted." });
+      toast({ title: "Player Deleted" });
     } catch(e: any) {
-      console.error("Failed to delete player:", e);
-      toast({ variant: "destructive", title: "Error Deleting Player", description: "Could not delete the player. Please try again." });
+      console.error(e);
     }
   }, [db, toast]);
 
-  const addMatch = useCallback(async (matchConfig: { team1Id: string; team2Id: string; overs: number; tossWinnerId: string; tossDecision: 'bat' | 'bowl'; team1PlayerIds: string[]; team2PlayerIds: string[]; team1CaptainId: string, team2CaptainId: string }) => {
-    if (!db) {
-        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
-        return '';
-    }
+  const addMatch = useCallback(async (matchConfig: any) => {
+    if (!db) return '';
     const { team1Id, team2Id, overs, tossWinnerId, tossDecision, team1PlayerIds, team2PlayerIds, team1CaptainId, team2CaptainId } = matchConfig;
-    
     const otherTeamId = tossWinnerId === team1Id ? team2Id : team1Id;
     const battingTeamId = tossDecision === 'bat' ? tossWinnerId : otherTeamId;
     const bowlingTeamId = tossDecision === 'bowl' ? tossWinnerId : otherTeamId;
@@ -246,41 +214,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
     
     try {
       const docRef = await addDoc(collection(db, 'matches'), newMatch);
-      toast({ title: "Match Started!", description: "The match has been created successfully." });
+      toast({ title: "Match Started!" });
       return docRef.id;
     } catch (e: any) {
-        console.error("Failed to add match:", e);
-        toast({ variant: "destructive", title: "Error Creating Match", description: "Could not create the match. Please try again." });
+        console.error(e);
         return '';
     }
   }, [db, toast]);
   
   const deleteMatch = useCallback(async (matchId: string) => {
-    if (!db) {
-        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
-        return;
-    }
+    if (!db) return;
     try {
       await deleteDoc(doc(db, 'matches', matchId));
-      toast({ title: "Match Deleted", description: "The live match has been deleted." });
+      toast({ title: "Match Deleted" });
     } catch(e: any) {
-      console.error("Failed to delete match:", e);
-      toast({ variant: "destructive", title: "Error Deleting Match", description: "Could not delete the match. Please try again." });
+      console.error(e);
     }
   }, [db, toast]);
 
   const updateMatch = useCallback(async (matchId: string, updatedMatchData: Partial<Match>) => {
-      if (!db) {
-        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again." });
-        return;
-      }
+      if (!db) return;
       try {
           await updateDoc(doc(db, 'matches', matchId), updatedMatchData);
       } catch (e: any) {
-          console.error("Failed to update match:", e);
-          toast({ variant: "destructive", title: "Error Updating Match", description: "Could not save match progress. Please try again." });
+          console.error(e);
       }
-  }, [db, toast]);
+  }, [db]);
 
   const swapStrikers = useCallback(async (match: Match) => {
     if (!match) return;
@@ -296,124 +255,56 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!match) return;
     const updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
-
-    if ((role === 'striker' || role === 'nonStriker') && inning.retiredHurtPlayerIds?.includes(playerId)) {
-      inning.retiredHurtPlayerIds = inning.retiredHurtPlayerIds.filter((id: string) => id !== playerId);
-      toast({ title: "Player Resuming", description: "The retired batsman is returning to bat." });
-    }
-
     if (role === 'striker') inning.strikerId = playerId;
     if (role === 'nonStriker') inning.nonStrikerId = playerId;
     if (role === 'bowler') inning.bowlerId = playerId;
     await updateMatch(match.id, updatedMatch);
-  }, [updateMatch, toast]);
+  }, [updateMatch]);
   
   const retireStriker = useCallback(async (match: Match) => {
     if (!match || match.status !== 'live') return;
-    
     let updatedMatch = JSON.parse(JSON.stringify(match));
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
-    
-    if (!inning.strikerId) {
-        toast({ variant: "destructive", title: "Striker not selected!"});
-        return;
+    if (!inning.retiredHurtPlayerIds) inning.retiredHurtPlayerIds = [];
+    if (inning.strikerId) {
+        inning.retiredHurtPlayerIds.push(inning.strikerId);
+        inning.strikerId = null;
+        await updateMatch(match.id, updatedMatch);
+        toast({ title: "Player Retired Hurt" });
     }
-    
-    if (!inning.retiredHurtPlayerIds) {
-      inning.retiredHurtPlayerIds = [];
-    }
-    if (!inning.retiredHurtPlayerIds.includes(inning.strikerId)) {
-      inning.retiredHurtPlayerIds.push(inning.strikerId);
-    }
-    
-    inning.strikerId = null;
-    
-    toast({ title: "Player Retired Hurt", description: "The batsman can return to bat later." });
-    await updateMatch(match.id, updatedMatch);
   }, [updateMatch, toast]);
 
   const undoDelivery = useCallback(async (match: Match) => {
     if (!match) return;
-
     let updatedMatch = JSON.parse(JSON.stringify(match));
-    
-    // Find the last delivery across all innings
-    let lastDelivery: DeliveryRecord | undefined;
-    let inningWithLastDelivery = updatedMatch.innings.length - 1;
-    
-    while(inningWithLastDelivery >= 0) {
-        if (updatedMatch.innings[inningWithLastDelivery].deliveryHistory.length > 0) {
-            lastDelivery = updatedMatch.innings[inningWithLastDelivery].deliveryHistory.pop();
-            break;
-        }
-        // If current inning has no history, maybe we need to delete the inning itself and go to prev
-        if(updatedMatch.innings.length > 1 && updatedMatch.innings[inningWithLastDelivery].deliveryHistory.length === 0) {
-            updatedMatch.innings.pop();
-            updatedMatch.currentInning -= 1;
-            inningWithLastDelivery -=1;
-        } else {
-            inningWithLastDelivery -= 1;
-        }
+    const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
+    if (inning.deliveryHistory.length > 0) {
+        inning.deliveryHistory.pop();
+        // Recalculate basic stats
+        let newScore = 0;
+        let newWickets = 0;
+        let balls = 0;
+        inning.deliveryHistory.forEach((d: any) => {
+            newScore += d.runs;
+            if (d.extra === 'wide' || d.extra === 'noball') newScore += 1;
+            if (d.isWicket) newWickets += 1;
+            if (d.extra !== 'wide' && d.extra !== 'noball') balls++;
+        });
+        inning.score = newScore;
+        inning.wickets = newWickets;
+        inning.overs = parseFloat((Math.floor(balls / 6) + (balls % 6) / 10).toFixed(1));
+        await updateMatch(match.id, updatedMatch);
+        toast({ title: "Last Delivery Undone" });
     }
-
-    if (!lastDelivery) {
-        toast({ variant: 'destructive', title: 'No deliveries to undo.'});
-        return;
-    }
-    
-    // Now we have the inning and the last delivery, let's revert state
-    const inning = updatedMatch.innings[inningWithLastDelivery];
-
-    // Recalculate score, wickets, overs for THIS inning based on its new history
-    let newScore = 0;
-    let newWickets = 0;
-    let newOvers = 0;
-    
-    inning.deliveryHistory.forEach((delivery: DeliveryRecord) => {
-       newScore += delivery.runs;
-        if (delivery.extra === 'wide' || delivery.extra === 'noball') {
-          newScore += 1;
-        }
-        if (delivery.isWicket) newWickets += 1;
-
-        const isLegalDelivery = delivery.extra !== 'wide' && delivery.extra !== 'noball';
-        if (isLegalDelivery) {
-            const currentOverInt = Math.floor(newOvers);
-            const currentBalls = Math.round((newOvers % 1) * 10);
-            if (currentBalls === 5) {
-                newOvers = currentOverInt + 1;
-            } else {
-                newOvers = parseFloat((currentOverInt + (currentBalls + 1) / 10).toFixed(1));
-            }
-        }
-    });
-
-    inning.score = newScore;
-    inning.wickets = newWickets;
-    inning.overs = newOvers;
-
-    // Restore players from the undone delivery
-    inning.strikerId = lastDelivery.strikerId;
-    inning.nonStrikerId = lastDelivery.nonStrikerId;
-    inning.bowlerId = lastDelivery.bowlerId;
-    
-    // If we undid a delivery from a completed match, it is now live again
-    if (updatedMatch.status === 'completed') {
-        updatedMatch.status = 'live';
-        delete updatedMatch.result;
-    }
-
-    await updateMatch(match.id, updatedMatch);
   }, [updateMatch, toast]);
 
-  const recordDelivery = useCallback(async (match: Match, teams: Team[], players: Player[], outcome: { runs: number; isWicket: boolean; extra: 'wide' | 'noball' | 'byes' | 'legbyes' | null; outcome: string; wicketDetails?: { batsmanOutId: string; dismissalType: string; newBatsmanId?: string; fielderId?: string; }}) => {
+  const recordDelivery = useCallback(async (match: Match, teams: Team[], players: Player[], outcome: any) => {
     if (!match || match.status !== 'live') return;
-
     let updatedMatch = JSON.parse(JSON.stringify(match)); 
     const inning = updatedMatch.innings[updatedMatch.currentInning - 1];
     
     if (!inning.strikerId || !inning.nonStrikerId || !inning.bowlerId) {
-        toast({ variant: "destructive", title: "Players not set!", description: "Please select a striker, non-striker, and bowler."});
+        toast({ variant: "destructive", title: "Setup Incomplete", description: "Striker, Non-striker, and Bowler must be set." });
         return;
     }
 
@@ -424,7 +315,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       runs: outcome.runs,
       isWicket: outcome.isWicket,
       extra: outcome.extra,
-      outcome: outcome.isWicket ? outcome.wicketDetails!.dismissalType : outcome.outcome,
+      outcome: outcome.outcome,
       dismissal: outcome.isWicket ? {
           type: outcome.wicketDetails!.dismissalType,
           batsmanOutId: outcome.wicketDetails!.batsmanOutId,
@@ -433,42 +324,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       timestamp: Date.now() 
     };
     inning.deliveryHistory.push(deliveryRecord);
-
     inning.score += outcome.runs;
-    if(outcome.extra === 'wide' || outcome.extra === 'noball'){
-        inning.score += 1;
-    }
+    if(outcome.extra === 'wide' || outcome.extra === 'noball') inning.score += 1;
     
-    const isLegalDelivery = outcome.extra !== 'wide' && outcome.extra !== 'noball';
-
-    if (isLegalDelivery) {
-        const currentOverInt = Math.floor(inning.overs);
-        const currentBalls = Math.round((inning.overs % 1) * 10);
-        
+    if (outcome.extra !== 'wide' && outcome.extra !== 'noball') {
+        const currentBalls = Math.round((inning.overs * 10) % 10);
         if (currentBalls === 5) {
-            inning.overs = currentOverInt + 1;
+            inning.overs = Math.floor(inning.overs) + 1;
             const temp = inning.strikerId;
             inning.strikerId = inning.nonStrikerId;
             inning.nonStrikerId = temp;
-            inning.bowlerId = null;
+            inning.bowlerId = null; // Next bowler must be selected
         } else {
-            inning.overs = parseFloat((currentOverInt + (currentBalls + 1) / 10).toFixed(1));
+            inning.overs = parseFloat((inning.overs + 0.1).toFixed(1));
         }
     }
     
     if (outcome.isWicket) {
         inning.wickets += 1;
         const { batsmanOutId, newBatsmanId } = outcome.wicketDetails!;
-        
-        if (inning.strikerId === batsmanOutId) {
-            inning.strikerId = newBatsmanId || null;
-        } else if (inning.nonStrikerId === batsmanOutId) {
-            inning.nonStrikerId = newBatsmanId || null;
-        }
+        if (inning.strikerId === batsmanOutId) inning.strikerId = newBatsmanId || null;
+        else if (inning.nonStrikerId === batsmanOutId) inning.nonStrikerId = newBatsmanId || null;
     }
 
-    const runsConsideredForStrikerSwap = (outcome.extra === 'byes' || outcome.extra === 'legbyes') ? 0 : outcome.runs;
-    if (isLegalDelivery && (runsConsideredForStrikerSwap % 2 !== 0) && !outcome.isWicket) {
+    if (outcome.extra !== 'wide' && outcome.extra !== 'noball' && outcome.runs % 2 !== 0 && !outcome.isWicket) {
         const temp = inning.strikerId;
         inning.strikerId = inning.nonStrikerId;
         inning.nonStrikerId = temp;
@@ -480,118 +359,53 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const forceEndInning = useCallback(async (match: Match, teams: Team[], players: Player[]) => {
     if (!match || match.status !== 'live') return;
-
     let updatedMatch = JSON.parse(JSON.stringify(match));
-
     if (updatedMatch.currentInning === 1) {
         const currentInning = updatedMatch.innings[0];
         const nextBattingTeamId = updatedMatch.team1Id === currentInning.battingTeamId ? updatedMatch.team2Id : updatedMatch.team1Id;
-        const nextBowlingTeamId = currentInning.battingTeamId;
         updatedMatch.innings.push({
             battingTeamId: nextBattingTeamId,
-            bowlingTeamId: nextBowlingTeamId,
-            score: 0,
-            wickets: 0,
-            overs: 0,
-            strikerId: null,
-            nonStrikerId: null,
-            bowlerId: null,
-            deliveryHistory: [],
+            bowlingTeamId: currentInning.battingTeamId,
+            score: 0, wickets: 0, overs: 0, strikerId: null, nonStrikerId: null, bowlerId: null, deliveryHistory: [],
         });
         updatedMatch.currentInning = 2;
-        toast({ title: "Inning Ended Manually", description: "The first inning has been concluded. Starting second inning." });
     } else { 
-        updatedMatch = handleInningEnd({...updatedMatch, status: 'completed'}, teams, players); // Force completion check
-        toast({ title: "Match Ended", description: `Match has been manually concluded. ${updatedMatch.result}` });
+        updatedMatch.status = 'completed';
+        updatedMatch = handleInningEnd(updatedMatch, teams, players);
     }
     await updateMatch(match.id, updatedMatch);
-  }, [handleInningEnd, updateMatch, toast]);
+  }, [handleInningEnd, updateMatch]);
   
   const addPlayerToMatch = useCallback(async (match: Match, teamId: string, playerData: PlayerData) => {
-    if (!db) {
-        toast({ variant: "destructive", title: "Database Error", description: "Database not available. Please try again later." });
-        return;
-    }
-
-    const newPlayer: Omit<Player, 'id'> = {
-        name: playerData.name,
-        role: playerData.role,
-        battingStyle: playerData.battingStyle,
-        bowlingStyle: playerData.bowlingStyle === 'None' ? null : playerData.bowlingStyle,
-        isWicketKeeper: playerData.isWicketKeeper || false,
-        stats: { matches: 0, runs: 0, wickets: 0, highestScore: 0, bestBowling: 'N/A' },
-        isRetired: false,
-    };
-
+    if (!db) return;
     try {
-        const playerDocRef = await addDoc(collection(db, 'players'), newPlayer);
-        const newPlayerId = playerDocRef.id;
-
+        const playerDocRef = await addDoc(collection(db, 'players'), {
+            ...playerData,
+            teamId,
+            stats: { matches: 0, runs: 0, wickets: 0, highestScore: 0, bestBowling: 'N/A' },
+            isRetired: false,
+        });
         const matchRef = doc(db, 'matches', match.id);
-        const updateData: { team1PlayerIds?: string[], team2PlayerIds?: string[] } = {};
-
         if (match.team1Id === teamId) {
-            updateData.team1PlayerIds = [...(match.team1PlayerIds || []), newPlayerId];
-        } else if (match.team2Id === teamId) {
-            updateData.team2PlayerIds = [...(match.team2PlayerIds || []), newPlayerId];
+            await updateDoc(matchRef, { team1PlayerIds: [...(match.team1PlayerIds || []), playerDocRef.id] });
+        } else {
+            await updateDoc(matchRef, { team2PlayerIds: [...(match.team2PlayerIds || []), playerDocRef.id] });
         }
-
-        if (Object.keys(updateData).length > 0) {
-            await updateDoc(matchRef, updateData as Partial<Match>);
-            toast({ title: "Player Added", description: `${playerData.name} has been added to the match.` });
-        }
+        toast({ title: "Player Added to Match" });
     } catch (e: any) {
-        console.error("Failed to add player to match:", e);
-        toast({ variant: "destructive", title: "Error Adding Player", description: "Could not add the player to the match. Please try again." });
+        console.error(e);
     }
   }, [db, toast]);
 
-
   const value: AppContextType = useMemo(() => ({
-      addTeam,
-      editTeam,
-      deleteTeam,
-      addPlayer,
-      editPlayer,
-      deletePlayer,
-      addMatch,
-      deleteMatch,
-      recordDelivery,
-      setPlayerInMatch,
-      swapStrikers,
-      undoDelivery,
-      retireStriker,
-      forceEndInning,
-      addPlayerToMatch,
-  }), [
-      addTeam,
-      editTeam,
-      deleteTeam,
-      addPlayer,
-      editPlayer,
-      deletePlayer,
-      addMatch,
-      deleteMatch,
-      recordDelivery,
-      setPlayerInMatch,
-      swapStrikers,
-      undoDelivery,
-      retireStriker,
-      forceEndInning,
-      addPlayerToMatch
-  ]);
+      addTeam, editTeam, deleteTeam, addPlayer, editPlayer, deletePlayer, addMatch, deleteMatch, recordDelivery, setPlayerInMatch, swapStrikers, undoDelivery, retireStriker, forceEndInning, addPlayerToMatch,
+  }), [addTeam, editTeam, deleteTeam, addPlayer, editPlayer, deletePlayer, addMatch, deleteMatch, recordDelivery, setPlayerInMatch, swapStrikers, undoDelivery, retireStriker, forceEndInning, addPlayerToMatch]);
 
-  return (
-    <AppContext.Provider value={value}>
-      {children}
-    </AppContext.Provider>
-  );
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 
 export function useAppContext() {
   const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useAppContext must be used within an AppProvider');
-  }
+  if (context === undefined) throw new Error('useAppContext must be used within an AppProvider');
   return context;
 }
