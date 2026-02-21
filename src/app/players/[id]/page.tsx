@@ -335,9 +335,12 @@ export default function PlayerProfilePage() {
                                 <StatDetailItem label="Matches" value={playerStats.matches} />
                                 <StatDetailItem label="Innings" value={playerStats.inningsBowled} />
                                 <StatDetailItem label="Overs" value={playerStats.oversBowled} />
+                                <StatDetailItem label="Maidens" value={playerStats.maidens} />
                                 <StatDetailItem label="Runs Conceded" value={playerStats.runsConceded} />
-                                <StatDetailItem label="Economy" value={playerStats.economyRate?.toFixed(2) || '0.00'} />
+                                <StatDetailItem label="Wickets" value={playerStats.wicketsTaken} />
                                 <StatDetailItem label="Average" value={playerStats.bowlingAverage?.toFixed(2) || '0.00'} />
+                                <StatDetailItem label="Economy" value={playerStats.economyRate?.toFixed(2) || '0.00'} />
+                                <StatDetailItem label="Strike Rate" value={playerStats.bowlingStrikeRate?.toFixed(2) || '0.00'} />
                                 <StatDetailItem label="Best Figures" value={`${playerStats.bestBowlingWickets}/${playerStats.bestBowlingRuns}`} />
                                 <StatDetailItem label="2W / 3W / 4W / 5W+" value={`${playerStats.twoWickets} / ${playerStats.threeWickets} / ${playerStats.fourWickets} / ${playerStats.fiveWickets}`} />
                             </CardContent>
