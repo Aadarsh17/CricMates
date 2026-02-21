@@ -129,7 +129,7 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                     stat.dismissal = dismissalString;
                 }
             } else if (battedPlayerIds.has(p.id)) {
-                stat.dismissal = 'Not Out';
+                stat.dismissal = 'not out';
             } else {
                 stat.dismissal = 'Yet to Bat';
             }
@@ -193,7 +193,7 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                             <TableRow key={p.id}>
                                 <TableCell>
                                     <div className="flex flex-col">
-                                        <Link href={`/players/${p.id}`} className="font-semibold text-sm hover:underline hover:text-primary">
+                                        <Link href={`/players/${p.id}`} className="font-semibold text-sm hover:underline hover:text-primary transition-colors">
                                             {p.name}
                                         </Link>
                                         <span className="text-xs text-muted-foreground">{stats.dismissal}</span>
@@ -232,7 +232,7 @@ export const InningScorecard = ({ inning, match, teams, players }: { inning: Inn
                         return (
                             <TableRow key={bowlerId}>
                                 <TableCell>
-                                    <Link href={`/players/${bowler.id}`} className="font-semibold text-sm hover:underline hover:text-primary">
+                                    <Link href={`/players/${bowler.id}`} className="font-semibold text-sm hover:underline hover:text-primary transition-colors">
                                         {bowler.name}
                                     </Link>
                                 </TableCell>

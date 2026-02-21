@@ -1,4 +1,3 @@
-
 'use client';
 
 import { PointsTable } from "@/components/points-table/points-table";
@@ -20,14 +19,17 @@ export default function PointsTablePage() {
   const { data: players, isLoading: playersLoading } = useCollection<Player>(playersCollection);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <div>
         <h1 className="text-3xl font-bold tracking-tight font-headline">Points Table</h1>
         <p className="text-muted-foreground">Current standings of all teams in the tournament.</p>
       </div>
 
       {teamsLoading || matchesLoading || playersLoading ? (
-        <Skeleton className="h-[400px] w-full rounded-lg" />
+        <div className="space-y-4">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-[400px] w-full rounded-lg" />
+        </div>
       ) : (
         <PointsTable 
           teams={teams || []} 
