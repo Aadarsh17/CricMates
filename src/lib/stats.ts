@@ -12,12 +12,14 @@ export type AggregatedPlayerStats = {
   highestScore: number;
   battingAverage: number | null;
   strikeRate: number | null;
+  thirties: number;
   fifties: number;
   hundreds: number;
   fours: number;
   sixes: number;
   ducks: number;
   goldenDucks: number;
+  diamondDucks: number;
 
   // Bowling
   inningsBowled: number;
@@ -204,7 +206,7 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
         const playerMatches = matches.filter(m => m.status === 'completed' && (m.team1PlayerIds?.includes(player.id) || m.team2PlayerIds?.includes(player.id)));
         
         let runsScored = 0, ballsFaced = 0, fours = 0, sixes = 0;
-        let highestScore = 0, fifties = 0, hundreds = 0, ducks = 0, goldenDucks = 0, notOuts = 0;
+        let highestScore = 0, thirties = 0, fifties = 0, hundreds = 0, ducks = 0, goldenDucks = 0, diamondDucks = 0, notOuts = 0;
         let inningsBatted = 0;
         
         let ballsBowled = 0, runsConceded = 0, wicketsTaken = 0;
@@ -238,18 +240,24 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
                         }
                     });
 
+                    // Also check if they were out without facing balls (Diamond Duck)
+                    const wasOut = inning.deliveryHistory.some(d => d.isWicket && d.dismissal?.batsmanOutId === player.id);
+                    if (!playerBatted && wasOut) playerBatted = true;
+
                     if (playerBatted) {
                         inningsBatted++;
+                        if (runsThisInning >= 30 && runsThisInning < 50) thirties++;
                         if (runsThisInning >= 50 && runsThisInning < 100) fifties++;
                         if (runsThisInning >= 100) hundreds++;
                         if (runsThisInning > highestScore) highestScore = runsThisInning;
                         
-                        const wasOut = inning.deliveryHistory.some(d => d.isWicket && d.dismissal?.batsmanOutId === player.id);
                         if (wasOut) {
                            if (runsThisInning === 0) {
                                ducks++;
                                if (ballsFacedThisInning === 1) {
                                    goldenDucks++;
+                               } else if (ballsFacedThisInning === 0) {
+                                   diamondDucks++;
                                }
                            }
                         } else {
@@ -305,12 +313,14 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
             highestScore,
             battingAverage: outs > 0 ? runsScored / outs : null,
             strikeRate: ballsFaced > 0 ? (runsScored / ballsFaced) * 100 : null,
+            thirties,
             fifties,
             hundreds,
             fours,
             sixes,
             ducks,
             goldenDucks,
+            diamondDucks,
             inningsBowled,
             oversBowled: formatOvers(ballsBowled),
             ballsBowled,

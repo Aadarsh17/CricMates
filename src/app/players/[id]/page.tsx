@@ -195,7 +195,8 @@ export default function PlayerProfilePage() {
                             <StatItem label="Not Outs" value={playerStats.notOuts} />
                             <StatItem label="Average" value={playerStats.battingAverage?.toFixed(2) || '0.00'} />
                             <StatItem label="Strike Rate" value={playerStats.strikeRate?.toFixed(2) || '0.00'} />
-                            <StatItem label="50s / 100s" value={`${playerStats.fifties} / ${playerStats.hundreds}`} />
+                            <StatItem label="30s / 50s / 100s" value={`${playerStats.thirties} / ${playerStats.fifties} / ${playerStats.hundreds}`} />
+                            <StatItem label="Ducks / Golden / Diamond" value={`${playerStats.ducks} / ${playerStats.goldenDucks} / ${playerStats.diamondDucks}`} />
                             <StatItem label="4s / 6s" value={`${playerStats.fours} / ${playerStats.sixes}`} />
                         </CardContent>
                     </Card>
