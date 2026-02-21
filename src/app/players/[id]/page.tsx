@@ -12,6 +12,7 @@ import { useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Button } from "@/components/ui/button";
 import Link from 'next/link';
 import { Trophy, Target, Award, Calendar, Shield } from 'lucide-react';
 
