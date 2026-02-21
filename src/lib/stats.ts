@@ -33,6 +33,8 @@ export type AggregatedPlayerStats = {
   bowlingAverage: number | null;
   economyRate: number | null;
   bowlingStrikeRate: number | null;
+  twoWickets: number;
+  threeWickets: number;
   fourWickets: number;
   fiveWickets: number;
 };
@@ -57,7 +59,7 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
     
     if (!isInSquad && !isInHistory) return 0;
 
-    // ✅ Participation: +1 point
+    // Participation: +1 point
     playerPoints += 1;
 
     let playerTeamId: string | undefined;
@@ -66,7 +68,6 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
     } else if (match.team2PlayerIds?.includes(playerId)) {
       playerTeamId = match.team2Id;
     } else {
-        // Fallback for old matches: find team from delivery history
         for (const inning of match.innings) {
             if (inning.deliveryHistory.some(d => d.strikerId === playerId || d.nonStrikerId === playerId)) {
                 playerTeamId = inning.battingTeamId;
@@ -81,7 +82,6 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
 
 
     match.innings.forEach(inning => {
-        // --- Batting, Fielding, Wicket points ---
         const playerDeliveriesAsStriker = inning.deliveryHistory.filter(d => d.strikerId === playerId);
         const playerDeliveriesAsBowler = inning.deliveryHistory.filter(d => d.bowlerId === playerId);
         
@@ -89,21 +89,19 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
         let ballsFacedThisInning = 0;
         let wasOut = inning.deliveryHistory.some(d => d.isWicket && d.dismissal?.batsmanOutId === playerId);
 
-        // Process Batting Points only if the player actually batted
         if (playerDeliveriesAsStriker.length > 0) {
             playerDeliveriesAsStriker.forEach(d => {
                  if (d.extra !== 'byes' && d.extra !== 'legbyes') {
-                    playerPoints += d.runs; // +1 per run
+                    playerPoints += d.runs; 
                     runsThisInning += d.runs;
-                    if (d.runs === 4) playerPoints += 1; // +1 for a four
-                    if (d.runs === 6) playerPoints += 2; // +2 for a six
+                    if (d.runs === 4) playerPoints += 1; 
+                    if (d.runs === 6) playerPoints += 2; 
                 }
                 if (d.extra !== 'wide') {
                     ballsFacedThisInning++;
                 }
             });
 
-            // Strike Rate Bonuses/Penalties (min 6 balls)
             if (ballsFacedThisInning >= 6) {
                 const strikeRate = (runsThisInning / ballsFacedThisInning) * 100;
                 if (strikeRate >= 220) playerPoints += 5;
@@ -113,23 +111,19 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
                 else if (strikeRate < 60) playerPoints -= 5;
             }
             
-            // % of Team Total Bonus
             if (inning.score > 0 && (runsThisInning / inning.score) * 100 >= 30) {
                 playerPoints += 5;
             }
 
-            // Not Out Bonus
             if (!wasOut && runsThisInning >= 10) {
                 playerPoints += 3;
             }
 
-            // Golden Duck Penalty
             if (wasOut && runsThisInning === 0 && (ballsFacedThisInning === 1 || ballsFacedThisInning === 2)) {
                 playerPoints -= 2;
             }
         }
         
-        // Process Bowling Points
         if (playerDeliveriesAsBowler.length > 0) {
             const oversBowled = new Map<number, { runs: number; wickets: number; dots: number; }>();
 
@@ -147,20 +141,19 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
 
                 if (d.isWicket && d.dismissal?.type !== 'Run out') {
                     overStats.wickets++;
-                    playerPoints += 12; // +12 per wicket
+                    playerPoints += 12; 
                 }
 
                 if (d.runs === 0 && !d.isWicket && d.extra !== 'wide' && d.extra !== 'noball') {
                     overStats.dots++;
-                    playerPoints += 1; // +1 per dot ball
+                    playerPoints += 1; 
                 }
             });
 
             oversBowled.forEach(overStats => {
-                if(overStats.wickets >= 2) playerPoints += 6; // 2 wickets in an over bonus
-                if(overStats.runs <= 1) playerPoints += 5; // 0-1 run in over bonus
+                if(overStats.wickets >= 2) playerPoints += 6; 
+                if(overStats.runs <= 1) playerPoints += 5; 
 
-                // Negative points only if no wicket was taken in the over
                 if (overStats.wickets === 0) {
                     if (overStats.runs >= 18) playerPoints -= 8;
                     else if (overStats.runs >= 15) playerPoints -= 5;
@@ -169,17 +162,15 @@ export const calculatePlayerCVP = (player: Player, match: Match, allPlayers: Pla
             });
         }
 
-        // Process Fielding points from all deliveries in the inning
         inning.deliveryHistory.forEach(delivery => {
             if (delivery.isWicket && delivery.dismissal?.fielderId === playerId) {
                 if (delivery.dismissal.type === 'Catch out') playerPoints += 6;
                 if (delivery.dismissal.type === 'Stumping') playerPoints += 6;
-                if (delivery.dismissal.type === 'Run out') playerPoints += 5; // Assisted run-out
+                if (delivery.dismissal.type === 'Run out') playerPoints += 5; 
             }
         });
     });
 
-    // --- 4. Team Bonus ---
     const team1 = allTeams.find(t => t.id === match.team1Id);
     const team2 = allTeams.find(t => t.id === match.team2Id);
     if (team1 && team2 && playerTeamId) {
@@ -197,7 +188,6 @@ export const getPlayerOfTheMatch = (match: Match, allPlayers: Player[], allTeams
   if (match.status !== 'completed' || !match.result) return { player: null, cvp: 0 };
   
   const matchPlayerIds = [...(match.team1PlayerIds || []), ...(match.team2PlayerIds || [])];
-  // Robustly find all players who might be in delivery history too
   const historyPlayerIds = new Set<string>();
   match.innings.forEach(i => i.deliveryHistory.forEach(d => {
       historyPlayerIds.add(d.strikerId);
@@ -232,7 +222,6 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
             if (m.status !== 'completed') return false;
             const inSquad = (m.team1PlayerIds?.includes(player.id) || m.team2PlayerIds?.includes(player.id));
             if (inSquad) return true;
-            // Scan delivery history for old matches
             return m.innings.some(i => i.deliveryHistory.some(d => d.strikerId === player.id || d.nonStrikerId === player.id || d.bowlerId === player.id));
         });
         
@@ -241,14 +230,13 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
         let inningsBatted = 0;
         
         let ballsBowled = 0, runsConceded = 0, wicketsTaken = 0;
-        let fourWickets = 0, fiveWickets = 0;
+        let twoWickets = 0, threeWickets = 0, fourWickets = 0, fiveWickets = 0;
         let inningsBowled = 0;
         let bestBowlingWickets = 0, bestBowlingRuns = Infinity;
 
         playerMatches.forEach(match => {
             let playerTeamId = match.team1PlayerIds?.includes(player.id) ? match.team1Id : match.team2Id;
             
-            // Fallback detection for old matches
             if (!playerTeamId) {
                 for (const inning of match.innings) {
                     if (inning.deliveryHistory.some(d => d.strikerId === player.id || d.nonStrikerId === player.id)) {
@@ -287,7 +275,6 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
                         }
                     });
 
-                    // Check for Diamond Duck (Out without facing a ball)
                     const wasOut = inning.deliveryHistory.some(d => d.isWicket && d.dismissal?.batsmanOutId === player.id);
                     if (!playerBatted && wasOut) playerBatted = true;
 
@@ -334,7 +321,9 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
                             }
                         });
 
-                        if (wicketsThisInning >= 4) fourWickets++;
+                        if (wicketsThisInning === 2) twoWickets++;
+                        if (wicketsThisInning === 3) threeWickets++;
+                        if (wicketsThisInning === 4) fourWickets++;
                         if (wicketsThisInning >= 5) fiveWickets++;
 
                         if (wicketsThisInning > bestBowlingWickets) {
@@ -373,12 +362,14 @@ export const calculatePlayerStats = (players: Player[], teams: Team[], matches: 
             ballsBowled,
             runsConceded,
             wicketsTaken,
-            maidens: 0, // Placeholder
+            maidens: 0,
             bestBowlingWickets,
             bestBowlingRuns: bestBowlingRuns === Infinity ? 0 : bestBowlingRuns,
             bowlingAverage: wicketsTaken > 0 ? runsConceded / wicketsTaken : null,
             economyRate: ballsBowled > 0 ? runsConceded / (ballsBowled / 6) : null,
             bowlingStrikeRate: wicketsTaken > 0 ? ballsBowled / wicketsTaken : null,
+            twoWickets,
+            threeWickets,
             fourWickets,
             fiveWickets,
         };

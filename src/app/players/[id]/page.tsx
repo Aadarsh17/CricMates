@@ -39,7 +39,6 @@ export default function PlayerProfilePage() {
 
     const playerTeam = useMemo(() => teams?.find(t => t.id === player?.teamId), [teams, player?.teamId]);
 
-    // Compute Form Data (Match-by-match performance)
     const formLogs = useMemo(() => {
         if (!matches || !playerId || !teams) return { batting: [], bowling: [] };
 
@@ -58,7 +57,6 @@ export default function PlayerProfilePage() {
             const date = new Date(match.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
 
             match.innings.forEach(inning => {
-                // Check Batting
                 if (inning.battingTeamId === player?.teamId || inning.deliveryHistory.some(d => d.strikerId === playerId)) {
                     let runs = 0, balls = 0, isOut = false;
                     let playerBatted = false;
@@ -86,7 +84,6 @@ export default function PlayerProfilePage() {
                     }
                 }
 
-                // Check Bowling
                 if (inning.bowlingTeamId === player?.teamId || inning.deliveryHistory.some(d => d.bowlerId === playerId)) {
                     let wicks = 0, rConceded = 0;
                     let playerBowled = false;
@@ -214,7 +211,6 @@ export default function PlayerProfilePage() {
                 </TabsList>
 
                 <TabsContent value="overview" className="space-y-6">
-                    {/* Performance Form Tables (Requested Design) */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {/* Batting Form */}
                         <Card className="shadow-sm border-muted/60 overflow-hidden">
@@ -317,7 +313,7 @@ export default function PlayerProfilePage() {
                 <TabsContent value="stats" className="space-y-6">
                     <div className="grid gap-6 md:grid-cols-2">
                         <Card className="border-muted/60 shadow-sm">
-                            <CardHeader><CardTitle className="text-lg font-bold">Career Batting</CardTitle></CardHeader>
+                            <CardHeader><CardTitle className="text-lg font-bold">Career Batting Summary</CardTitle></CardHeader>
                             <CardContent className="grid gap-4 sm:grid-cols-2">
                                 <StatDetailItem label="Innings" value={playerStats.inningsBatted} />
                                 <StatDetailItem label="Not Outs" value={playerStats.notOuts} />
@@ -325,12 +321,12 @@ export default function PlayerProfilePage() {
                                 <StatDetailItem label="Strike Rate" value={playerStats.strikeRate?.toFixed(2) || '0.00'} />
                                 <StatDetailItem label="30s / 50s / 100s" value={`${playerStats.thirties} / ${playerStats.fifties} / ${playerStats.hundreds}`} />
                                 <StatDetailItem label="4s / 6s" value={`${playerStats.fours} / ${playerStats.sixes}`} />
-                                <StatDetailItem label="Ducks (G/D)" value={`${playerStats.ducks} (${playerStats.goldenDucks}/${playerStats.diamondDucks})`} />
+                                <StatDetailItem label="Ducks (Reg/Gld/Dia)" value={`${playerStats.ducks - (playerStats.goldenDucks + playerStats.diamondDucks)} / ${playerStats.goldenDucks} / ${playerStats.diamondDucks}`} />
                             </CardContent>
                         </Card>
 
                         <Card className="border-muted/60 shadow-sm">
-                            <CardHeader><CardTitle className="text-lg font-bold">Career Bowling</CardTitle></CardHeader>
+                            <CardHeader><CardTitle className="text-lg font-bold">Career Bowling Summary</CardTitle></CardHeader>
                             <CardContent className="grid gap-4 sm:grid-cols-2">
                                 <StatDetailItem label="Innings" value={playerStats.inningsBowled} />
                                 <StatDetailItem label="Overs" value={playerStats.oversBowled} />
@@ -338,6 +334,7 @@ export default function PlayerProfilePage() {
                                 <StatDetailItem label="Economy" value={playerStats.economyRate?.toFixed(2) || '0.00'} />
                                 <StatDetailItem label="Average" value={playerStats.bowlingAverage?.toFixed(2) || '0.00'} />
                                 <StatDetailItem label="Best Figures" value={`${playerStats.bestBowlingWickets}/${playerStats.bestBowlingRuns}`} />
+                                <StatDetailItem label="2W / 3W / 4W / 5W+" value={`${playerStats.twoWickets} / ${playerStats.threeWickets} / ${playerStats.fourWickets} / ${playerStats.fiveWickets}`} />
                             </CardContent>
                         </Card>
                     </div>
