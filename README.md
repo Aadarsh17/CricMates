@@ -22,5 +22,32 @@ CricMates is a powerful, mobile-optimized cricket scoring and league management 
 ## 📈 Stats Calculation (CVP)
 The app uses a proprietary **Cricket Value Points (CVP)** system to determine the Player of the Match, rewarding consistency, strike rate, and fielding impact.
 
+## 📤 How to Push to GitHub
+
+If you want to share your code or host it, follow these steps in your terminal:
+
+1. **Initialize Git**:
+   ```bash
+   git init
+   ```
+
+2. **Add Files**:
+   ```bash
+   git add .
+   ```
+
+3. **Commit**:
+   ```bash
+   git commit -m "Finalized CricMates prototype"
+   ```
+
+4. **Link to GitHub**:
+   Create a repo on GitHub, then run:
+   ```bash
+   git remote add origin <your-repository-url>
+   git branch -M main
+   git push -u origin main
+   ```
+
 ---
 *Generated with ❤️ by Firebase Studio*
