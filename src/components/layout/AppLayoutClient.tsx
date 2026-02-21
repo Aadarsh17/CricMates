@@ -37,10 +37,12 @@ import { ClientOnly } from "@/components/ClientOnly";
 const NavLink = ({ href, icon, label, isCollapsed }: { href: string, icon: React.ReactNode, label: string, isCollapsed: boolean }) => {
   const pathname = usePathname();
   let isActive = false;
+  
   if (href === '/home') {
     isActive = pathname === href;
   } else if (href === '/matches') {
-    isActive = pathname.startsWith('/matches') && !pathname.startsWith('/matches/new');
+    // Exact match or sub-routes like /matches/[id] but not /matches/new
+    isActive = (pathname === '/matches' || (pathname.startsWith('/matches/') && !pathname.startsWith('/matches/new')));
   } else {
     isActive = pathname.startsWith(href);
   }
@@ -125,7 +127,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
                       <Link href="/matches/new" className={`flex items-center gap-4 rounded-lg px-3 py-2 ${pathname === '/matches/new' ? 'bg-primary/10 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}>
                           <PlusCircle className="h-5 w-5" /> New Match
                       </Link>
-                      <Link href="/matches" className={`flex items-center gap-4 rounded-lg px-3 py-2 ${pathname.startsWith('/matches') && !pathname.startsWith('/matches/new') ? 'bg-primary/10 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}>
+                      <Link href="/matches" className={`flex items-center gap-4 rounded-lg px-3 py-2 ${(pathname === '/matches' || (pathname.startsWith('/matches/') && !pathname.startsWith('/matches/new'))) ? 'bg-primary/10 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}>
                           <BarChart className="h-5 w-5" /> Match History
                       </Link>
                       <Link href="/points-table" className={`flex items-center gap-4 rounded-lg px-3 py-2 ${pathname.startsWith('/points-table') ? 'bg-primary/10 text-primary font-bold' : 'text-muted-foreground hover:bg-muted'}`}>

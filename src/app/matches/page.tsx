@@ -47,7 +47,7 @@ export default function MatchHistoryPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight font-headline">Match History</h1>
@@ -109,7 +109,7 @@ export default function MatchHistoryPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center text-sm md:text-base">
                   <div className="space-y-1">
                     <p className="text-lg font-bold">
                       {getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)}
@@ -118,7 +118,7 @@ export default function MatchHistoryPage() {
                       {match.result || 'In Progress'}
                     </p>
                   </div>
-                  <Button asChild variant="outline">
+                  <Button asChild variant="outline" size="sm" className="shrink-0">
                     <Link href={`/matches/${match.id}`}>
                       <FileText className="mr-2 h-4 w-4" /> {match.status === 'live' ? 'Scoring' : 'Scorecard'}
                     </Link>
