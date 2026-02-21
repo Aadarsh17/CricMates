@@ -1,9 +1,11 @@
 
+import { redirect } from 'next/navigation';
+
 /**
- * This file is intentionally left blank to avoid route conflict with the 
- * main welcome page at src/app/page.tsx.
- * Route Groups like (app) do not affect the URL path in Next.js.
+ * This page is a child of the (app) route group.
+ * To avoid conflict with the main Welcome Page at /src/app/page.tsx,
+ * we redirect any accidental hits here to the dashboard.
  */
-export default function AppRootPlaceholder() {
-  return null;
+export default function AppRootRedirect() {
+  redirect('/home');
 }

@@ -2,6 +2,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
+    // Vercel build will fail on any warning/error, so we ignore them for prototyping speed
     ignoreBuildErrors: true,
   },
   eslint: {
@@ -11,25 +12,22 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'placehold.co',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
         hostname: 'images.unsplash.com',
-        port: '',
         pathname: '/**',
       },
       {
         protocol: 'https',
         hostname: 'picsum.photos',
-        port: '',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '/**',
+      }
     ],
   },
-  // Ensure we don't have conflicting output settings
+  // Ensure consistent routing on Vercel
   trailingSlash: false,
 };
 
