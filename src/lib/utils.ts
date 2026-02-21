@@ -216,6 +216,51 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
     `;
   };
 
+  // Chart Data Preparation
+  const wormData: any[] = [];
+  const manhattanData: any[][] = [];
+  const labels: number[] = [];
+  for (let i = 0; i <= match.overs; i++) labels.push(i);
+
+  match.innings.forEach((inning, idx) => {
+    const scores: number[] = [0];
+    const runsPerOver: number[] = [];
+    let currentScore = 0;
+    let currentOverRuns = 0;
+    let legalBallsInOver = 0;
+
+    inning.deliveryHistory.forEach(d => {
+      let runs = d.runs;
+      if (d.extra === 'wide' || d.extra === 'noball') runs += 1;
+      currentScore += runs;
+      currentOverRuns += runs;
+
+      if (d.extra !== 'wide' && d.extra !== 'noball') {
+        legalBallsInOver++;
+      }
+
+      if (legalBallsInOver === 6) {
+        scores.push(currentScore);
+        runsPerOver.push(currentOverRuns);
+        currentOverRuns = 0;
+        legalBallsInOver = 0;
+      }
+    });
+
+    if (legalBallsInOver > 0) {
+      scores.push(currentScore);
+      runsPerOver.push(currentOverRuns);
+    }
+
+    // Fill the rest with the final score for the worm graph
+    while (scores.length <= match.overs + 1) {
+      scores.push(currentScore);
+    }
+
+    wormData.push(scores);
+    manhattanData.push(runsPerOver);
+  });
+
   const potm = getPlayerOfTheMatch(match, players, teams);
 
   return `
@@ -224,6 +269,7 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
     <head>
       <meta charset="UTF-8">
       <title>Match Report - ${getTeamName(match.team1Id)} vs ${getTeamName(match.team2Id)}</title>
+      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
       <style>
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; padding: 20px; color: #1e293b; line-height: 1.5; background: #f8fafc; }
         .container { max-width: 900px; margin: 0 auto; background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
@@ -243,16 +289,23 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
         
         .result-box { font-size: 24px; font-weight: 900; color: #059669; text-align: center; margin: 40px 0; padding: 25px; background: #ecfdf5; border-radius: 12px; border: 2px dashed #10b981; }
         
+        .chart-container { margin-bottom: 40px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; }
+        .chart-grid { display: grid; grid-template-cols: 1fr 1fr; gap: 20px; }
+        
         .potm-card { display: flex; align-items: center; justify-content: center; flex-direction: column; border: 2px solid #fbbf24; border-radius: 16px; padding: 30px; background: #fffbeb; margin-top: 30px; position: relative; }
         .potm-badge { position: absolute; top: -12px; background: #fbbf24; color: #92400e; font-weight: 800; font-size: 10px; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; }
         .potm-name { font-size: 24px; font-weight: 800; color: #b45309; }
         
         .footer { margin-top: 60px; text-align: center; color: #94a3b8; font-size: 11px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
         
+        @media (max-width: 768px) {
+          .chart-grid { grid-template-cols: 1fr; }
+        }
         @media print {
           body { background: white; padding: 0; }
           .container { box-shadow: none; border: none; padding: 20px; }
           .inning { break-inside: avoid; }
+          .chart-container { break-inside: avoid; }
         }
       </style>
     </head>
@@ -268,6 +321,24 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
 
         <div class="result-box">${match.result || 'Match in Progress'}</div>
 
+        <div class="section-title">Match Analysis</div>
+        <div class="chart-container">
+          <h3 style="font-size: 14px; margin-bottom: 10px; color: #475569;">Score Progression (Worm Graph)</h3>
+          <canvas id="wormChart" height="100"></canvas>
+        </div>
+        <div class="chart-grid">
+          <div class="chart-container">
+            <h3 style="font-size: 14px; margin-bottom: 10px; color: #475569;">Runs per Over: ${getTeamName(match.innings[0]?.battingTeamId)}</h3>
+            <canvas id="manhattan1" height="150"></canvas>
+          </div>
+          ${match.innings[1] ? `
+            <div class="chart-container">
+              <h3 style="font-size: 14px; margin-bottom: 10px; color: #475569;">Runs per Over: ${getTeamName(match.innings[1]?.battingTeamId)}</h3>
+              <canvas id="manhattan2" height="150"></canvas>
+            </div>
+          ` : ''}
+        </div>
+
         <div class="section-title">Over by Over</div>
         ${match.innings.map(renderOversHistory).join('')}
 
@@ -278,7 +349,7 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
         </div>
 
         ${potm.player ? `
-          <div class="section-title">Performance Analysis</div>
+          <div class="section-title">Performance Highlights</div>
           <div class="potm-card">
             <span class="potm-badge">Player of the Match</span>
             <div class="potm-name">${potm.player.name}</div>
@@ -290,6 +361,73 @@ export function generateScorecardHTML(match: Match, teams: Team[], players: Play
           Generated automatically by <strong>CricMates</strong> Digital Scoring System.
         </div>
       </div>
+
+      <script>
+        // Worm Chart
+        new Chart(document.getElementById('wormChart'), {
+          type: 'line',
+          data: {
+            labels: ${JSON.stringify(labels)},
+            datasets: [
+              {
+                label: '${getTeamName(match.innings[0]?.battingTeamId)}',
+                data: ${JSON.stringify(wormData[0])},
+                borderColor: '#2563eb',
+                tension: 0.1,
+                fill: false,
+                borderWidth: 3
+              },
+              ${match.innings[1] ? `
+              {
+                label: '${getTeamName(match.innings[1]?.battingTeamId)}',
+                data: ${JSON.stringify(wormData[1])},
+                borderColor: '#10b981',
+                tension: 0.1,
+                fill: false,
+                borderWidth: 3
+              }` : ''}
+            ]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'top' } },
+            scales: {
+              y: { beginAtZero: true, title: { display: true, text: 'Runs' } },
+              x: { title: { display: true, text: 'Overs' } }
+            }
+          }
+        });
+
+        // Manhattan 1
+        new Chart(document.getElementById('manhattan1'), {
+          type: 'bar',
+          data: {
+            labels: Array.from({length: ${manhattanData[0].length}}, (_, i) => i + 1),
+            datasets: [{
+              label: 'Runs',
+              data: ${JSON.stringify(manhattanData[0])},
+              backgroundColor: '#2563eb'
+            }]
+          },
+          options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+
+        // Manhattan 2
+        ${match.innings[1] ? `
+        new Chart(document.getElementById('manhattan2'), {
+          type: 'bar',
+          data: {
+            labels: Array.from({length: ${manhattanData[1].length}}, (_, i) => i + 1),
+            datasets: [{
+              label: 'Runs',
+              data: ${JSON.stringify(manhattanData[1])},
+              backgroundColor: '#10b981'
+            }]
+          },
+          options: { responsive: true, scales: { y: { beginAtZero: true } } }
+        });
+        ` : ''}
+      </script>
     </body>
     </html>
   `;
