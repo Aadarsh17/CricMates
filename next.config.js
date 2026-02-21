@@ -1,8 +1,6 @@
-
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   typescript: {
-    // Vercel build will fail on any warning/error, so we ignore them for prototyping speed
     ignoreBuildErrors: true,
   },
   eslint: {
@@ -27,7 +25,6 @@ const nextConfig = {
       }
     ],
   },
-  // Ensure consistent routing on Vercel
   trailingSlash: false,
 };
 
