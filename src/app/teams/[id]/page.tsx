@@ -25,17 +25,49 @@ export default function TeamDetailPage() {
     const teamRef = useMemoFirebase(() => db ? doc(db, 'teams', teamId) : null, [db, teamId]);
     const { data: team, isLoading: teamLoading } = useDoc<Team>(teamRef);
 
-    // Fetch all players and filter in memory for better reliability
     const playersCollection = useMemoFirebase(() => db ? collection(db, 'players') : null, [db]);
     const { data: allPlayers, isLoading: playersLoading } = useCollection<Player>(playersCollection);
 
-    const players = useMemo(() => {
-        if (!allPlayers || !teamId) return [];
-        return allPlayers.filter(p => p.teamId === teamId);
-    }, [allPlayers, teamId]);
-
     const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), orderBy('date', 'desc')) : null, [db]);
-    const { data: matches } = useCollection<Match>(matchesQuery);
+    const { data: matches, isLoading: matchesLoading } = useCollection<Match>(matchesQuery);
+
+    // Robust Player Detection: Find players by teamId OR by participation in matches
+    const players = useMemo(() => {
+        if (!allPlayers || !teamId || !matches) return [];
+        
+        const participantIds = new Set<string>();
+        
+        // 1. Add players who have this teamId explicitly
+        allPlayers.forEach(p => {
+            if (p.teamId === teamId) participantIds.add(p.id);
+        });
+
+        // 2. Scan match history for this team
+        matches.forEach(m => {
+            if (m.team1Id === teamId || m.team2Id === teamId) {
+                // Check squads
+                if (m.team1Id === teamId) m.team1PlayerIds?.forEach(id => participantIds.add(id));
+                if (m.team2Id === teamId) m.team2PlayerIds?.forEach(id => participantIds.add(id));
+                
+                // Check delivery history (for edge cases)
+                m.innings.forEach(inn => {
+                    if (inn.battingTeamId === teamId) {
+                        inn.deliveryHistory.forEach(d => {
+                            participantIds.add(d.strikerId);
+                            if (d.nonStrikerId) participantIds.add(d.nonStrikerId);
+                        });
+                    }
+                    if (inn.bowlingTeamId === teamId) {
+                        inn.deliveryHistory.forEach(d => {
+                            participantIds.add(d.bowlerId);
+                        });
+                    }
+                });
+            }
+        });
+
+        return allPlayers.filter(p => participantIds.has(p.id));
+    }, [allPlayers, teamId, matches]);
 
     const stats = useMemo(() => {
         if (!matches || !team) return { played: 0, wins: 0, losses: 0, ties: 0 };
@@ -100,13 +132,13 @@ export default function TeamDetailPage() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <CardTitle className="text-lg font-bold">Squad Members</CardTitle>
-                                <CardDescription className="text-xs font-medium">Total registered: {players.length}</CardDescription>
+                                <CardDescription className="text-xs font-medium">Total registered & participants: {players.length}</CardDescription>
                             </div>
                             <User className="h-5 w-5 text-muted-foreground/50" />
                         </div>
                     </CardHeader>
                     <CardContent className="pt-6">
-                        {playersLoading ? (
+                        {playersLoading || matchesLoading ? (
                             <div className="grid gap-4 sm:grid-cols-2">
                                 <Skeleton className="h-16 w-full" />
                                 <Skeleton className="h-16 w-full" />
