@@ -1,7 +1,9 @@
+import { redirect } from 'next/navigation';
+
 /**
- * This file is empty to prevent route conflicts with the main Welcome Page.
- * Next.js will use src/app/page.tsx for the root URL (/).
+ * This page is neutralized to resolve route collision with the main Welcome Page.
+ * It performs a server-side redirect to ensure the build manifest is consistent.
  */
-export default function EmptyPage() {
-  return null;
+export default function AppPage() {
+  redirect('/');
 }
