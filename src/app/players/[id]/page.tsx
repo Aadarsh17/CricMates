@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useDoc, useCollection, useFirebase, useMemoFirebase } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { doc, collection, query, orderBy } from 'firebase/firestore';
 import type { Player, Match, Team, DeliveryRecord } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -55,7 +55,7 @@ export default function PlayerProfilePage() {
             const opponent = teams.find(t => t.id === opponentId);
             const oppName = opponent?.name.slice(0, 3).toUpperCase() || 'UNK';
             const format = match.overs <= 10 ? 'T10' : match.overs <= 20 ? 'T20' : 'ODI';
-            const date = new Date(match.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2y' });
+            const date = new Date(match.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
 
             match.innings.forEach(inning => {
                 // Check Batting
