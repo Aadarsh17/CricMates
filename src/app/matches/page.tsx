@@ -32,13 +32,12 @@ export default function MatchHistoryPage() {
   const handleShare = async (match: Match) => {
     const team1Name = getTeamName(match.team1Id);
     const team2Name = getTeamName(match.team2Id);
-    const shareUrl = `${window.location.origin}/share/match/${match.id}`;
     
-    let shareText = `🏏 *CricMates Score Update* 🏏\n\n${team1Name} vs ${team2Name}\n`;
+    let shareText = `🏏 *CricMates Score Update* 🏏\n\n*${team1Name} vs ${team2Name}*\n`;
     
-    match.innings.forEach((inn, idx) => {
+    match.innings.forEach((inn) => {
         const teamName = getTeamName(inn.battingTeamId);
-        shareText += `\n*${teamName}*: ${inn.score}/${inn.wickets} (${inn.overs.toFixed(1)})`;
+        shareText += `\n*${teamName}*: ${inn.score}/${inn.wickets} (${inn.overs.toFixed(1)} ov)`;
     });
 
     if (match.status === 'completed' && match.result) {
@@ -47,7 +46,7 @@ export default function MatchHistoryPage() {
         shareText += `\n\n🔴 *Match is LIVE*`;
     }
 
-    shareText += `\n\nFull details here: ${shareUrl}`;
+    shareText += `\n\nShared via CricMates`;
 
     if (navigator.share) {
         try {
@@ -55,14 +54,19 @@ export default function MatchHistoryPage() {
                 title: 'CricMates Score Update',
                 text: shareText,
             });
+            toast({ title: "Shared successfully!" });
         } catch (err) {
-            console.error('Share failed:', err);
+            navigator.clipboard.writeText(shareText);
+            toast({
+                title: "Score Copied!",
+                description: "Summary copied to clipboard.",
+            });
         }
     } else {
         navigator.clipboard.writeText(shareText);
         toast({
             title: "Score Copied!",
-            description: "Full scorecard summary copied to clipboard.",
+            description: "Summary copied to clipboard.",
         });
     }
   };

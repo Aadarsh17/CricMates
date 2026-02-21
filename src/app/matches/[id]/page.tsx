@@ -63,13 +63,12 @@ export default function MatchDetailPage() {
         
         const team1 = teams.find(t => t.id === match.team1Id);
         const team2 = teams.find(t => t.id === match.team2Id);
-        const shareUrl = `${window.location.origin}/share/match/${matchId}`;
         
-        let shareText = `🏏 *CricMates Score Update* 🏏\n\n${team1?.name} vs ${team2?.name}\n`;
+        let shareText = `🏏 *CricMates Score Update* 🏏\n\n*${team1?.name || 'Team 1'} vs ${team2?.name || 'Team 2'}*\n`;
         
-        match.innings.forEach((inn, idx) => {
+        match.innings.forEach((inn) => {
             const team = teams.find(t => t.id === inn.battingTeamId);
-            shareText += `\n*${team?.name}*: ${inn.score}/${inn.wickets} (${inn.overs.toFixed(1)})`;
+            shareText += `\n*${team?.name || 'Batting Team'}*: ${inn.score}/${inn.wickets} (${inn.overs.toFixed(1)} ov)`;
         });
 
         if (match.status === 'completed' && match.result) {
@@ -78,7 +77,7 @@ export default function MatchDetailPage() {
             shareText += `\n\n🔴 *Match is LIVE*`;
         }
 
-        shareText += `\n\nFull scorecard here: ${shareUrl}`;
+        shareText += `\n\nShared via CricMates`;
 
         if (navigator.share) {
             try {
@@ -86,14 +85,19 @@ export default function MatchDetailPage() {
                     title: 'CricMates Score Update',
                     text: shareText,
                 });
+                toast({ title: "Shared successfully!" });
             } catch (err) {
-                console.error('Share failed:', err);
+                navigator.clipboard.writeText(shareText);
+                toast({
+                    title: "Score Copied!",
+                    description: "Match summary copied to clipboard.",
+                });
             }
         } else {
             navigator.clipboard.writeText(shareText);
             toast({
-                title: "Score Summary Copied!",
-                description: "The formatted scorecard summary is ready to share.",
+                title: "Score Copied!",
+                description: "Match summary copied to clipboard.",
             });
         }
         setSharing(false);
