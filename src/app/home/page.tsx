@@ -1,14 +1,15 @@
+
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Shield, Users, BarChart, PlayCircle, Calendar, ArrowRight, Upload, Camera, Check } from "lucide-react";
+import { PlusCircle, Shield, Users, BarChart, PlayCircle, Calendar, ArrowRight, Upload, Camera, Check, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
-import { collection, query, where } from "firebase/firestore";
+import { useCollection, useDoc, useFirebase, useMemoFirebase } from "@/firebase";
+import { collection, query, where, doc, setDoc } from "firebase/firestore";
 import type { Match, Team, Player } from "@/lib/types";
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
@@ -20,23 +21,13 @@ export default function HomePage() {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [customLogo, setCustomLogo] = useState<string | null>(null);
+  // Fetch league settings from Firestore
+  const leagueSettingsRef = useMemoFirebase(() => (db ? doc(db, 'settings', 'league') : null), [db]);
+  const { data: leagueSettings, isLoading: settingsLoading } = useDoc<any>(leagueSettingsRef);
+
   const [isAdjusting, setIsAdjusting] = useState(false);
   const [tempImage, setTempImage] = useState<string | null>(null);
   const [zoom, setZoom] = useState([100]); // Percentage
-  const [persistedZoom, setPersistedZoom] = useState(100);
-
-  // Load custom logo and zoom from localStorage on mount
-  useEffect(() => {
-    const savedLogo = localStorage.getItem('cricmates_league_logo');
-    const savedZoom = localStorage.getItem('cricmates_league_logo_zoom');
-    if (savedLogo) {
-      setCustomLogo(savedLogo);
-    }
-    if (savedZoom) {
-      setPersistedZoom(Number(savedZoom));
-    }
-  }, []);
 
   const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
   const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
@@ -76,23 +67,32 @@ export default function HomePage() {
         const base64String = reader.result as string;
         setTempImage(base64String);
         setIsAdjusting(true);
-        setZoom([100]); // Reset zoom for new image selection
+        setZoom([leagueSettings?.logoZoom || 100]);
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleConfirmAdjustment = () => {
-    if (tempImage) {
-      setCustomLogo(tempImage);
-      setPersistedZoom(zoom[0]);
-      localStorage.setItem('cricmates_league_logo', tempImage);
-      localStorage.setItem('cricmates_league_logo_zoom', zoom[0].toString());
-      setIsAdjusting(false);
-      setTempImage(null);
-      toast({ title: "Logo Updated", description: "Your custom league logo has been saved." });
+  const handleConfirmAdjustment = async () => {
+    if (tempImage && db) {
+      try {
+        await setDoc(doc(db, 'settings', 'league'), {
+          logoUrl: tempImage,
+          logoZoom: zoom[0],
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        
+        setIsAdjusting(false);
+        setTempImage(null);
+        toast({ title: "Logo Updated", description: "League logo synced across all devices." });
+      } catch (e) {
+        toast({ variant: "destructive", title: "Update Failed", description: "Could not sync logo to cloud." });
+      }
     }
   };
+
+  const currentLogo = leagueSettings?.logoUrl || null;
+  const currentZoom = leagueSettings?.logoZoom || 100;
 
   return (
     <div className="space-y-8 md:space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 max-w-6xl mx-auto pb-10">
@@ -103,7 +103,7 @@ export default function HomePage() {
           <DialogHeader>
             <DialogTitle>Adjust Logo</DialogTitle>
             <DialogDescription>
-              Zoom and position your logo to fit perfectly in the circular space.
+              Zoom and position your logo to fit perfectly.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col items-center justify-center py-10 space-y-8">
@@ -140,7 +140,7 @@ export default function HomePage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAdjusting(false)}>Cancel</Button>
             <Button onClick={handleConfirmAdjustment}>
-              <Check className="mr-2 h-4 w-4" /> OK, Looks Good
+              <Check className="mr-2 h-4 w-4" /> Save & Sync
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -179,13 +179,15 @@ export default function HomePage() {
               onChange={handleFileChange}
             />
             <div className={`relative w-40 h-40 sm:w-48 sm:h-48 rounded-full border-4 border-dashed border-primary/20 bg-background overflow-hidden flex items-center justify-center transition-all group-hover:border-primary/50 group-hover:shadow-xl`}>
-              {customLogo ? (
+              {settingsLoading ? (
+                <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
+              ) : currentLogo ? (
                 <div 
                   className="relative w-full h-full"
-                  style={{ transform: `scale(${persistedZoom / 100})` }}
+                  style={{ transform: `scale(${currentZoom / 100})` }}
                 >
                   <Image 
-                    src={customLogo} 
+                    src={currentLogo} 
                     alt="League Logo" 
                     fill 
                     className="object-cover" 
