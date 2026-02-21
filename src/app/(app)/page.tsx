@@ -1,19 +1,10 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
 /**
- * This page is converted to a Client Component to force manifest generation on Vercel.
- * It resolves the route collision with src/app/page.tsx by immediately redirecting.
+ * This file is neutralized to prevent route collision with src/app/page.tsx.
+ * By making this a pure Server Component (no 'use client'), we prevent 
+ * Vercel from looking for a client-reference-manifest file during build.
  */
 export default function AppPage() {
-  const router = useRouter();
-
-  useEffect(() => {
-    // Redirect to root welcome page or home dashboard
-    router.replace('/');
-  }, [router]);
-
-  return null;
+  redirect('/');
 }
