@@ -1,4 +1,3 @@
-
 'use client';
 
 import { Button } from "@/components/ui/button";
@@ -184,7 +183,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
           </header>
 
         <main className="flex-1 overflow-x-hidden bg-background/50">
-          <div className="max-w-[1400px] mx-auto p-4 sm:p-6 lg:p-10 space-y-8">
+          <div className="max-w-[1400px] mx-auto p-4 sm:p-6 lg:p-10 space-y-8 page-transition">
             {children}
           </div>
         </main>
