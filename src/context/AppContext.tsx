@@ -1,4 +1,3 @@
-
 'use client';
 
 import { createContext, useContext, ReactNode, useMemo, useCallback } from 'react';
@@ -18,8 +17,8 @@ type PlayerData = {
 }
 
 interface AppContextType {
-  addTeam: (name: string) => Promise<void>;
-  editTeam: (teamId: string, name: string) => Promise<void>;
+  addTeam: (name: string, logoUrl?: string) => Promise<void>;
+  editTeam: (teamId: string, name: string, logoUrl?: string) => Promise<void>;
   deleteTeam: (teamId: string) => Promise<void>;
   addPlayer: (playerData: PlayerData) => Promise<void>;
   editPlayer: (playerId: string, playerData: PlayerData) => Promise<void>;
@@ -99,11 +98,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return updatedMatch;
   }, []);
 
-  const addTeam = useCallback(async (name: string) => {
+  const addTeam = useCallback(async (name: string, logoUrl?: string) => {
     if (!db) return;
     const newTeam: Omit<Team, 'id'> = {
       name,
-      logoUrl: `https://picsum.photos/seed/${Math.random().toString(36).substring(7)}/128/128`,
+      logoUrl: logoUrl || `https://picsum.photos/seed/${Math.random().toString(36).substring(7)}/128/128`,
       imageHint: 'logo abstract',
       matchesPlayed: 0,
       matchesWon: 0,
@@ -118,10 +117,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [db, toast]);
 
-  const editTeam = useCallback(async (teamId: string, name: string) => {
+  const editTeam = useCallback(async (teamId: string, name: string, logoUrl?: string) => {
     if (!db) return;
+    const updates: any = { name };
+    if (logoUrl) updates.logoUrl = logoUrl;
+    
     try {
-      await updateDoc(doc(db, 'teams', teamId), { name });
+      await updateDoc(doc(db, 'teams', teamId), updates);
       toast({ title: "Team Updated" });
     } catch (e: any) {
         console.error(e);

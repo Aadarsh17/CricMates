@@ -26,7 +26,7 @@ import { useMemo } from "react";
 
 interface TeamCardProps {
   team: Team;
-  onEdit: (name: string) => void;
+  onEdit: (name: string, logoUrl?: string) => void;
   onDelete: () => void;
 }
 
@@ -68,10 +68,10 @@ export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
   }, [matches, team.id, team.name]);
 
   return (
-    <Card className="flex flex-col hover:shadow-lg transition-all duration-300 border-primary/10 overflow-hidden h-full">
-      <CardHeader className="flex flex-row items-start justify-between pb-2 bg-muted/20">
+    <Card className="flex flex-col hover:shadow-xl transition-all duration-500 border-primary/10 overflow-hidden h-full rounded-3xl group">
+      <CardHeader className="flex flex-row items-start justify-between pb-2 bg-muted/10">
         <div className="space-y-1">
-            <CardTitle className="text-lg font-headline truncate max-w-[180px]">{team.name}</CardTitle>
+            <CardTitle className="text-lg font-black tracking-tight truncate max-w-[180px]">{team.name}</CardTitle>
             <div className="flex gap-1">
                 {stats.form.map((res, i) => (
                     <span 
@@ -81,24 +81,24 @@ export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
                         {res}
                     </span>
                 ))}
-                {stats.form.length === 0 && <span className="text-[10px] text-muted-foreground uppercase font-semibold">New Entry</span>}
+                {stats.form.length === 0 && <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-50">New Team</span>}
             </div>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
+            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-background">
               <MoreVertical className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="rounded-xl">
             <EditTeamDialog team={team} onTeamEdit={onEdit} />
             <DeleteTeamDialog onDelete={onDelete} />
           </DropdownMenuContent>
         </DropdownMenu>
       </CardHeader>
-      <CardContent className="flex-grow flex flex-col items-center justify-center gap-4 text-center py-6">
+      <CardContent className="flex-grow flex flex-col items-center justify-center gap-4 text-center py-8">
         <div className="relative">
-            <div className="h-24 w-24 relative rounded-full border-4 border-background bg-muted overflow-hidden shadow-md">
+            <div className="h-32 w-32 relative rounded-3xl border-4 border-background bg-muted overflow-hidden shadow-xl transition-transform group-hover:scale-105 duration-500">
                 <Image
                   src={team.logoUrl}
                   alt={`${team.name} logo`}
@@ -107,14 +107,14 @@ export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
                   data-ai-hint={team.imageHint}
                 />
             </div>
-            <div className="absolute -bottom-2 -right-2 bg-primary text-primary-foreground text-[10px] font-bold px-2 py-0.5 rounded-full border-2 border-background">
+            <div className="absolute -bottom-3 -right-3 bg-primary text-primary-foreground text-xs font-black px-3 py-1 rounded-full border-4 border-background shadow-lg">
                 {stats.wins}W - {stats.losses}L
             </div>
         </div>
       </CardContent>
-      <CardFooter className="bg-muted/10 p-4 mt-auto">
-        <Button asChild className="w-full shadow-sm">
-          <Link href={`/teams/${team.id}`}>Squad Details</Link>
+      <CardFooter className="bg-muted/5 p-4 mt-auto">
+        <Button asChild className="w-full shadow-lg shadow-primary/10 rounded-2xl h-11 font-bold">
+          <Link href={`/teams/${team.id}`}>View Squad Details</Link>
         </Button>
       </CardFooter>
     </Card>
