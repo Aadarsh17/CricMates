@@ -2,7 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import { useDoc, useCollection, useFirebase, useMemoFirebase } from '@/firebase';
-import { doc, collection, query, where, orderBy } from 'firebase/firestore';
+import { doc, collection, query, orderBy } from 'firebase/firestore';
 import type { Team, Player, Match } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,8 +25,14 @@ export default function TeamDetailPage() {
     const teamRef = useMemoFirebase(() => db ? doc(db, 'teams', teamId) : null, [db, teamId]);
     const { data: team, isLoading: teamLoading } = useDoc<Team>(teamRef);
 
-    const playersQuery = useMemoFirebase(() => db ? query(collection(db, 'players'), where('teamId', '==', teamId)) : null, [db, teamId]);
-    const { data: players, isLoading: playersLoading } = useCollection<Player>(playersQuery);
+    // Fetch all players and filter in memory for better reliability
+    const playersCollection = useMemoFirebase(() => db ? collection(db, 'players') : null, [db]);
+    const { data: allPlayers, isLoading: playersLoading } = useCollection<Player>(playersCollection);
+
+    const players = useMemo(() => {
+        if (!allPlayers || !teamId) return [];
+        return allPlayers.filter(p => p.teamId === teamId);
+    }, [allPlayers, teamId]);
 
     const matchesQuery = useMemoFirebase(() => db ? query(collection(db, 'matches'), orderBy('date', 'desc')) : null, [db]);
     const { data: matches } = useCollection<Match>(matchesQuery);
@@ -56,29 +62,30 @@ export default function TeamDetailPage() {
         };
     }, [matches, team]);
 
-    if (teamLoading) return <Skeleton className="h-[400px] w-full" />;
-    if (!team) return <div className="p-8 text-center text-muted-foreground">Team not found.</div>;
+    if (teamLoading) return <Skeleton className="h-[400px] w-full rounded-2xl" />;
+    if (!team) return <div className="p-12 text-center text-muted-foreground bg-muted/10 rounded-2xl border-2 border-dashed">Team not found.</div>;
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            <Card className="overflow-hidden border-primary/20">
-                <div className="h-32 bg-primary/10 relative">
+        <div className="space-y-6 animate-in fade-in duration-500 max-w-6xl mx-auto pb-10">
+            <Card className="overflow-hidden border-none shadow-md">
+                <div className="h-32 bg-gradient-to-r from-primary/20 to-primary/5 relative">
                     <div className="absolute -bottom-12 left-6">
-                        <Image 
-                            src={team.logoUrl} 
-                            alt={team.name} 
-                            width={100} 
-                            height={100} 
-                            className="rounded-full border-4 border-background bg-background shadow-md"
-                            data-ai-hint={team.imageHint}
-                        />
+                        <div className="h-24 w-24 relative rounded-full border-4 border-background bg-background shadow-lg overflow-hidden">
+                            <Image 
+                                src={team.logoUrl} 
+                                alt={team.name} 
+                                fill
+                                className="object-cover"
+                                data-ai-hint={team.imageHint}
+                            />
+                        </div>
                     </div>
                 </div>
-                <CardContent className="pt-16 pb-6">
+                <CardContent className="pt-16 pb-6 px-6">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div>
-                            <h1 className="text-3xl font-bold font-headline">{team.name}</h1>
-                            <p className="text-muted-foreground">Registered League Member</p>
+                            <h1 className="text-3xl font-black tracking-tight font-headline">{team.name}</h1>
+                            <p className="text-sm text-muted-foreground font-medium">Registered League Member</p>
                         </div>
                         <div className="flex gap-2">
                              <AddPlayerDialog onPlayerAdd={(data) => addPlayer({ ...data, teamId })} />
@@ -88,75 +95,89 @@ export default function TeamDetailPage() {
             </Card>
 
             <div className="grid gap-6 md:grid-cols-3">
-                <Card className="md:col-span-2">
-                    <CardHeader>
-                        <CardTitle>Squad Members</CardTitle>
-                        <CardDescription>All players registered to {team.name}.</CardDescription>
+                <Card className="md:col-span-2 border-muted/60 shadow-sm rounded-2xl">
+                    <CardHeader className="pb-3 border-b border-muted/50 bg-muted/5">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <CardTitle className="text-lg font-bold">Squad Members</CardTitle>
+                                <CardDescription className="text-xs font-medium">Total registered: {players.length}</CardDescription>
+                            </div>
+                            <User className="h-5 w-5 text-muted-foreground/50" />
+                        </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="pt-6">
                         {playersLoading ? (
-                            <Skeleton className="h-64 w-full" />
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <Skeleton className="h-16 w-full" />
+                                <Skeleton className="h-16 w-full" />
+                            </div>
                         ) : players && players.length > 0 ? (
                             <div className="grid gap-4 sm:grid-cols-2">
                                 {players.map(player => (
-                                    <div key={player.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                                    <div key={player.id} className="flex items-center justify-between p-3 border border-muted/60 rounded-xl hover:bg-muted/30 hover:border-primary/20 transition-all group">
                                         <div className="flex items-center gap-3">
-                                            <Avatar>
+                                            <Avatar className="h-10 w-10 border group-hover:border-primary/20 transition-colors">
                                                 <AvatarImage src={player.imageUrl} className="object-cover" />
                                                 <AvatarFallback className="bg-muted">
                                                     <User className="h-5 w-5 text-muted-foreground" />
                                                 </AvatarFallback>
                                             </Avatar>
-                                            <div>
-                                                <Link href={`/players/${player.id}`} className="font-semibold text-sm hover:underline hover:text-primary">
+                                            <div className="min-w-0">
+                                                <Link href={`/players/${player.id}`} className="font-bold text-sm hover:text-primary truncate block">
                                                     {player.name}
                                                 </Link>
-                                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">{player.role}</p>
+                                                <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{player.role}</p>
                                             </div>
                                         </div>
                                         <DropdownMenu>
                                             <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
                                                     <MoreVertical className="h-4 w-4" />
                                                 </Button>
                                             </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onSelect={() => deletePlayer(player.id)} className="text-destructive">Remove Player</DropdownMenuItem>
+                                            <DropdownMenuContent align="end" className="rounded-xl">
+                                                <DropdownMenuItem asChild>
+                                                    <Link href={`/players/${player.id}`}>View Profile</Link>
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem onSelect={() => deletePlayer(player.id)} className="text-destructive font-semibold">Remove Player</DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                                <User className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                                <p className="text-sm text-muted-foreground">No players in this squad yet.</p>
+                            <div className="text-center py-16 border-2 border-dashed rounded-2xl bg-muted/5">
+                                <div className="h-12 w-12 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <User className="h-6 w-6 text-muted-foreground" />
+                                </div>
+                                <p className="text-sm font-bold">No players in this squad yet.</p>
+                                <p className="text-xs text-muted-foreground mt-1">Start by adding players to represent {team.name}.</p>
                             </div>
                         )}
                     </CardContent>
                 </Card>
 
                 <div className="space-y-6">
-                    <Card className="border-primary/10">
-                        <CardHeader>
-                            <CardTitle className="text-lg">Team Records</CardTitle>
+                    <Card className="border-primary/10 shadow-sm rounded-2xl overflow-hidden">
+                        <CardHeader className="bg-primary/5 pb-4 border-b border-primary/10">
+                            <CardTitle className="text-base font-black uppercase tracking-tight">Team Records</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="flex justify-between items-center border-b pb-2">
-                                <span className="text-sm text-muted-foreground">Played</span>
-                                <span className="font-bold">{stats.played}</span>
+                        <CardContent className="pt-6 space-y-4">
+                            <div className="flex justify-between items-center border-b border-muted/50 pb-3">
+                                <span className="text-sm font-medium text-muted-foreground">Matches Played</span>
+                                <span className="font-black text-lg">{stats.played}</span>
                             </div>
-                            <div className="flex justify-between items-center border-b pb-2">
-                                <span className="text-sm text-muted-foreground">Wins</span>
-                                <span className="font-bold text-primary">{stats.wins}</span>
+                            <div className="flex justify-between items-center border-b border-muted/50 pb-3">
+                                <span className="text-sm font-medium text-muted-foreground">Matches Won</span>
+                                <span className="font-black text-lg text-primary">{stats.wins}</span>
                             </div>
-                            <div className="flex justify-between items-center border-b pb-2">
-                                <span className="text-sm text-muted-foreground">Losses</span>
-                                <span className="font-bold">{stats.losses}</span>
+                            <div className="flex justify-between items-center border-b border-muted/50 pb-3">
+                                <span className="text-sm font-medium text-muted-foreground">Matches Lost</span>
+                                <span className="font-black text-lg text-destructive">{stats.losses}</span>
                             </div>
                             <div className="flex justify-between items-center">
-                                <span className="text-sm text-muted-foreground">Tied/NR</span>
-                                <span className="font-bold">{stats.ties}</span>
+                                <span className="text-sm font-medium text-muted-foreground">Tied / No Result</span>
+                                <span className="font-black text-lg">{stats.ties}</span>
                             </div>
                         </CardContent>
                     </Card>
