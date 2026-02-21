@@ -53,7 +53,9 @@ export default function PlayerProfilePage() {
             const opponentId = match.team1Id === player?.teamId ? match.team2Id : match.team1Id;
             const opponent = teams.find(t => t.id === opponentId);
             const oppName = opponent?.name.slice(0, 3).toUpperCase() || 'UNK';
-            const format = match.overs <= 10 ? 'T10' : match.overs <= 20 ? 'T20' : 'ODI';
+            
+            // Dynamic format naming: T4, T5, T6, etc.
+            const format = match.overs <= 20 ? `T${match.overs}` : 'ODI';
             const date = new Date(match.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
 
             match.innings.forEach(inning => {
