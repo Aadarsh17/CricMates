@@ -25,6 +25,9 @@ import {
   TrendingUp,
   PanelLeftClose,
   PanelRightOpen,
+  LogIn,
+  ShieldAlert,
+  User as UserIcon
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -33,6 +36,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useState, useEffect, useMemo } from "react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ClientOnly } from "@/components/ClientOnly";
+import { useFirebase } from "@/firebase";
+import { signOut } from "firebase/auth";
 
 const NavLink = ({ href, icon, label, isCollapsed, onClick }: { href: string, icon: React.ReactNode, label: string, isCollapsed: boolean, onClick?: () => void }) => {
   const pathname = usePathname();
@@ -65,10 +70,12 @@ const NavLink = ({ href, icon, label, isCollapsed, onClick }: { href: string, ic
 export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { user, auth } = useFirebase();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Simplified screen size handling
+  const isAdmin = useMemo(() => user && !user.isAnonymous, [user]);
+
   useEffect(() => {
     const checkSize = () => {
       if (window.innerWidth >= 768 && window.innerWidth < 1280) {
@@ -85,7 +92,7 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/home", icon: <Home className="h-5 w-5" />, label: "Home" },
     { href: "/teams", icon: <Users className="h-5 w-5" />, label: "Teams" },
-    { href: "/matches/new", icon: <PlusCircle className="h-5 w-5" />, label: "New Match" },
+    ...(isAdmin ? [{ href: "/matches/new", icon: <PlusCircle className="h-5 w-5" />, label: "New Match" }] : []),
     { href: "/matches", icon: <BarChart className="h-5 w-5" />, label: "Match History" },
     { href: "/points-table", icon: <Trophy className="h-5 w-5" />, label: "Points Table" },
     { href: "/player-stats", icon: <Medal className="h-5 w-5" />, label: "Player Stats" },
@@ -93,9 +100,15 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
     { href: "/number-game", icon: <Sigma className="h-5 w-5" />, label: "Number Game" },
   ];
 
+  const handleSignOut = async () => {
+    if (auth) {
+      await signOut(auth);
+      router.push('/home');
+    }
+  };
+
   return (
     <div className="flex min-h-screen w-full bg-background selection:bg-primary/10">
-      {/* Sidebar - Optimized Desktop */}
       <aside className={`hidden md:flex flex-col border-r bg-muted/10 print:hidden sticky top-0 h-screen transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-[76px]' : 'w-[260px] lg:w-[280px]'}`}>
         <div className="flex h-full flex-col">
           <div className={`flex h-16 items-center border-b px-6 ${isSidebarCollapsed ? 'justify-center px-2' : ''}`}>
@@ -121,7 +134,6 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="flex flex-col flex-1 min-w-0">
-          {/* Optimized Header */}
           <header className="flex h-16 items-center gap-4 border-b bg-background/80 px-4 lg:px-8 print:hidden sticky top-0 z-30 backdrop-blur-xl">
             <ClientOnly fallback={<Skeleton className="h-10 w-10 shrink-0 md:hidden rounded-lg" />}>
               <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
@@ -159,27 +171,53 @@ export function AppLayoutClient({ children }: { children: React.ReactNode }) {
                 </span>
             </div>
 
-            <ClientOnly fallback={<Skeleton className="h-10 w-10 rounded-full" />}>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/30 hover:bg-muted transition-all active:scale-95 overflow-hidden">
-                    <div className="h-full w-full bg-primary/10 flex items-center justify-center">
-                        <MoreVertical className="h-5 w-5 text-primary" />
-                    </div>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56 mt-2 rounded-2xl shadow-2xl border-muted/50 p-2">
-                  <DropdownMenuLabel className="px-3">My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem className="rounded-xl px-3 py-2 cursor-pointer">Settings</DropdownMenuItem>
-                  <DropdownMenuItem className="rounded-xl px-3 py-2 cursor-pointer">Feedback</DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem className="text-destructive font-bold rounded-xl px-3 py-2 cursor-pointer">
-                    <LogOutIcon className="mr-2 h-4 w-4" /> Sign Out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </ClientOnly>
+            <div className="flex items-center gap-3">
+              {!isAdmin && (
+                <Button asChild variant="outline" size="sm" className="hidden sm:flex rounded-full px-4 border-primary/30 hover:bg-primary/5 text-primary font-bold">
+                  <Link href="/login">
+                    <LogIn className="mr-2 h-4 w-4" /> Umpire Login
+                  </Link>
+                </Button>
+              )}
+              
+              <ClientOnly fallback={<Skeleton className="h-10 w-10 rounded-full" />}>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="rounded-full h-10 w-10 bg-muted/30 hover:bg-muted transition-all active:scale-95 overflow-hidden">
+                      <div className="h-full w-full bg-primary/10 flex items-center justify-center">
+                          {isAdmin ? <UserIcon className="h-5 w-5 text-primary" /> : <MoreVertical className="h-5 w-5 text-primary" />}
+                      </div>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 mt-2 rounded-2xl shadow-2xl border-muted/50 p-2">
+                    <DropdownMenuLabel className="px-3">
+                      {isAdmin ? user?.displayName || 'Umpire' : 'Guest Account'}
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {isAdmin ? (
+                      <>
+                        <DropdownMenuItem className="rounded-xl px-3 py-2 cursor-pointer">
+                          <ShieldAlert className="mr-2 h-4 w-4" /> Umpire Panel
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem 
+                          className="text-destructive font-bold rounded-xl px-3 py-2 cursor-pointer"
+                          onClick={handleSignOut}
+                        >
+                          <LogOutIcon className="mr-2 h-4 w-4" /> Sign Out
+                        </DropdownMenuItem>
+                      </>
+                    ) : (
+                      <DropdownMenuItem asChild className="rounded-xl px-3 py-2 cursor-pointer">
+                        <Link href="/login">
+                          <LogIn className="mr-2 h-4 w-4" /> Umpire Login
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </ClientOnly>
+            </div>
           </header>
 
         <main className="flex-1 overflow-x-hidden bg-background/50">

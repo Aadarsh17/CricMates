@@ -1,9 +1,8 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Shield, Users, BarChart, PlayCircle, Calendar, ArrowRight, Upload, Camera, Check, Loader2 } from "lucide-react";
+import { PlusCircle, Shield, Users, BarChart, PlayCircle, Calendar, ArrowRight, Upload, Camera, Check, Loader2, LogIn } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollection, useDoc, useFirebase, useMemoFirebase } from "@/firebase";
@@ -17,10 +16,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Slider } from "@/components/ui/slider";
 
 export default function HomePage() {
-  const { firestore: db } = useFirebase();
+  const { firestore: db, user } = useFirebase();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const isAdmin = useMemo(() => user && !user.isAnonymous, [user]);
+
   // Fetch league settings from Firestore
   const leagueSettingsRef = useMemoFirebase(() => (db ? doc(db, 'settings', 'league') : null), [db]);
   const { data: leagueSettings, isLoading: settingsLoading } = useDoc<any>(leagueSettingsRef);
@@ -56,6 +57,7 @@ export default function HomePage() {
   }, [completedMatches]);
 
   const handleLogoClick = () => {
+    if (!isAdmin) return;
     fileInputRef.current?.click();
   };
 
@@ -156,29 +158,48 @@ export default function HomePage() {
               Your ultimate cricket companion. Effortless scoring, powerful stats, and team management all in one place.
             </p>
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
-               <Button asChild variant="default" className="w-full sm:w-auto shadow-lg shadow-primary/20 rounded-full px-6">
-                  <Link href="/matches/new">
-                      <PlusCircle className="mr-2 h-4 w-4" /> Start New Match
-                  </Link>
-              </Button>
-               <Button asChild variant="outline" className="w-full sm:w-auto rounded-full px-6">
-                  <Link href="/teams">
-                      <Users className="mr-2 h-4 w-4" /> Manage Teams
-                  </Link>
-              </Button>
+               {isAdmin ? (
+                 <>
+                  <Button asChild variant="default" className="w-full sm:w-auto shadow-lg shadow-primary/20 rounded-full px-6">
+                      <Link href="/matches/new">
+                          <PlusCircle className="mr-2 h-4 w-4" /> Start New Match
+                      </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="w-full sm:w-auto rounded-full px-6">
+                      <Link href="/teams">
+                          <Users className="mr-2 h-4 w-4" /> Manage Teams
+                      </Link>
+                  </Button>
+                 </>
+               ) : (
+                 <>
+                  <Button asChild variant="default" className="w-full sm:w-auto shadow-lg shadow-primary/20 rounded-full px-6">
+                      <Link href="/matches">
+                          <BarChart className="mr-2 h-4 w-4" /> View History
+                      </Link>
+                  </Button>
+                  <Button asChild variant="outline" className="w-full sm:w-auto rounded-full px-6 border-primary/30 text-primary">
+                      <Link href="/login">
+                          <LogIn className="mr-2 h-4 w-4" /> Umpire Login
+                      </Link>
+                  </Button>
+                 </>
+               )}
             </div>
           </div>
           
           {/* Custom Logo Upload Area */}
-          <div className="relative group cursor-pointer" onClick={handleLogoClick}>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              accept="image/*" 
-              onChange={handleFileChange}
-            />
-            <div className={`relative w-40 h-40 sm:w-48 sm:h-48 rounded-full border-4 border-dashed border-primary/20 bg-background overflow-hidden flex items-center justify-center transition-all group-hover:border-primary/50 group-hover:shadow-xl`}>
+          <div className={`relative group ${isAdmin ? 'cursor-pointer' : ''}`} onClick={handleLogoClick}>
+            {isAdmin && (
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="image/*" 
+                onChange={handleFileChange}
+              />
+            )}
+            <div className={`relative w-40 h-40 sm:w-48 sm:h-48 rounded-full border-4 border-dashed border-primary/20 bg-background overflow-hidden flex items-center justify-center transition-all ${isAdmin ? 'group-hover:border-primary/50 group-hover:shadow-xl' : ''}`}>
               {settingsLoading ? (
                 <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
               ) : currentLogo ? (
@@ -198,12 +219,14 @@ export default function HomePage() {
                   <div className="bg-primary/10 rounded-full p-4 inline-block mb-2 group-hover:bg-primary/20 transition-colors">
                     <Camera className="h-8 w-8 text-primary/60" />
                   </div>
-                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Upload Logo</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{isAdmin ? 'Upload Logo' : 'CricMates'}</p>
                 </div>
               )}
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors rounded-full">
-                <Upload className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
+              {isAdmin && (
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-colors rounded-full">
+                  <Upload className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              )}
             </div>
           </div>
       </div>
@@ -353,11 +376,15 @@ export default function HomePage() {
             <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4">
                 <PlayCircle className="h-8 w-8 text-muted-foreground" />
             </div>
-            <h3 className="text-xl font-bold">Ready to Play?</h3>
-            <p className="text-sm text-muted-foreground mt-2 max-w-xs leading-relaxed">Start a new match to track scores and build your tournament history.</p>
-            <Button asChild className="mt-6 shadow-xl shadow-primary/20 rounded-full px-8 h-12">
-              <Link href="/matches/new"><PlusCircle className="mr-2 h-5 w-5" /> Start Match</Link>
-            </Button>
+            <h3 className="text-xl font-bold">{isAdmin ? 'Ready to Play?' : 'No matches found'}</h3>
+            <p className="text-sm text-muted-foreground mt-2 max-w-xs leading-relaxed">
+              {isAdmin ? 'Start a new match to track scores and build your tournament history.' : 'Check back later for live scores and match history.'}
+            </p>
+            {isAdmin && (
+              <Button asChild className="mt-6 shadow-xl shadow-primary/20 rounded-full px-8 h-12">
+                <Link href="/matches/new"><PlusCircle className="mr-2 h-5 w-5" /> Start Match</Link>
+              </Button>
+            )}
           </div>
       )}
     </div>

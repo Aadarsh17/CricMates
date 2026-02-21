@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useParams } from 'next/navigation';
@@ -22,11 +23,13 @@ import { downloadScorecard } from '@/lib/utils';
 export default function MatchDetailPage() {
     const params = useParams();
     const matchId = params.id as string;
-    const { firestore: db } = useFirebase();
+    const { firestore: db, user } = useFirebase();
     const { toast } = useToast();
     const [isInningStartOpen, setIsInningStartOpen] = useState(false);
     const [isSelectBowlerOpen, setIsSelectBowlerOpen] = useState(false);
     const [isDownloading, setIsDownloading] = useState(false);
+
+    const isAdmin = useMemo(() => user && !user.isAnonymous, [user]);
 
     const matchRef = useMemoFirebase(() => db ? doc(db, 'matches', matchId) : null, [db, matchId]);
     const { data: match, isLoading: matchLoading } = useDoc<Match>(matchRef);
@@ -40,19 +43,19 @@ export default function MatchDetailPage() {
     const currentInning = match?.innings[match.currentInning - 1];
     
     useEffect(() => {
-        if (match?.status === 'live' && currentInning && currentInning.deliveryHistory.length === 0 && !currentInning.strikerId) {
+        if (isAdmin && match?.status === 'live' && currentInning && currentInning.deliveryHistory.length === 0 && !currentInning.strikerId) {
             setIsInningStartOpen(true);
         }
-    }, [match?.status, match?.currentInning, currentInning?.deliveryHistory.length, currentInning?.strikerId]);
+    }, [isAdmin, match?.status, match?.currentInning, currentInning?.deliveryHistory.length, currentInning?.strikerId]);
 
     useEffect(() => {
-        if (match?.status === 'live' && currentInning && currentInning.overs > 0 && currentInning.overs % 1 === 0 && !currentInning.bowlerId) {
+        if (isAdmin && match?.status === 'live' && currentInning && currentInning.overs > 0 && currentInning.overs % 1 === 0 && !currentInning.bowlerId) {
              const lastDelivery = currentInning.deliveryHistory.at(-1);
              if (lastDelivery && lastDelivery.extra !== 'wide' && lastDelivery.extra !== 'noball') {
                 setIsSelectBowlerOpen(true);
              }
         }
-    }, [match?.status, currentInning?.overs, currentInning?.bowlerId, currentInning?.deliveryHistory]);
+    }, [isAdmin, match?.status, currentInning?.overs, currentInning?.bowlerId, currentInning?.deliveryHistory]);
 
     const striker = useMemo(() => players?.find(p => p.id === currentInning?.strikerId), [players, currentInning?.strikerId]);
     const nonStriker = useMemo(() => players?.find(p => p.id === currentInning?.nonStrikerId), [players, currentInning?.nonStrikerId]);
@@ -85,21 +88,27 @@ export default function MatchDetailPage() {
     const team1 = teams?.find(t => t.id === match.team1Id);
     const team2 = teams?.find(t => t.id === match.team2Id);
 
+    const defaultTab = isAdmin && match.status === 'live' ? 'scoring' : 'scorecard';
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            <InningStartDialog 
-                open={isInningStartOpen} 
-                onClose={() => setIsInningStartOpen(false)} 
-                inningNumber={match.currentInning}
-                battingTeamName={teams?.find(t => t.id === currentInning?.battingTeamId)?.name}
-            />
-            {currentInning && (
-                <SelectBowlerDialog 
-                    open={isSelectBowlerOpen} 
-                    onClose={() => setIsSelectBowlerOpen(false)} 
-                    match={match} 
-                    players={players || []} 
-                />
+            {isAdmin && (
+                <>
+                    <InningStartDialog 
+                        open={isInningStartOpen} 
+                        onClose={() => setIsInningStartOpen(false)} 
+                        inningNumber={match.currentInning}
+                        battingTeamName={teams?.find(t => t.id === currentInning?.battingTeamId)?.name}
+                    />
+                    {currentInning && (
+                        <SelectBowlerDialog 
+                            open={isSelectBowlerOpen} 
+                            onClose={() => setIsSelectBowlerOpen(false)} 
+                            match={match} 
+                            players={players || []} 
+                        />
+                    )}
+                </>
             )}
 
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -109,22 +118,24 @@ export default function MatchDetailPage() {
                     </h1>
                     <p className="text-sm text-muted-foreground uppercase tracking-wider">{match.overs} Over Match • {new Date(match.date).toLocaleDateString()}</p>
                 </div>
-                <Button onClick={handleDownload} variant="default" className="shrink-0 w-full md:w-auto shadow-md" disabled={isDownloading}>
-                    {isDownloading ? <Check className="mr-2 h-4 w-4" /> : <FileDown className="mr-2 h-4 w-4" />}
-                    Download HTML Scorecard
-                </Button>
+                {isAdmin && (
+                    <Button onClick={handleDownload} variant="default" className="shrink-0 w-full md:w-auto shadow-md" disabled={isDownloading}>
+                        {isDownloading ? <Check className="mr-2 h-4 w-4" /> : <FileDown className="mr-2 h-4 w-4" />}
+                        Download HTML Scorecard
+                    </Button>
+                )}
             </div>
 
-            <Tabs defaultValue={match.status === 'live' ? 'scoring' : 'scorecard'} className="space-y-4">
+            <Tabs defaultValue={defaultTab} className="space-y-4">
                 <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-flex bg-muted p-1">
-                    {match.status === 'live' && <TabsTrigger value="scoring">Scorer</TabsTrigger>}
+                    {isAdmin && match.status === 'live' && <TabsTrigger value="scoring">Scorer</TabsTrigger>}
                     <TabsTrigger value="scorecard">Scorecard</TabsTrigger>
                     <TabsTrigger value="overs">Overs</TabsTrigger>
                     <TabsTrigger value="squads">Squads</TabsTrigger>
                     <TabsTrigger value="analysis">Stats</TabsTrigger>
                 </TabsList>
 
-                {match.status === 'live' && (
+                {isAdmin && match.status === 'live' && (
                     <TabsContent value="scoring">
                         <UmpireControls 
                             match={match} 

@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -26,13 +27,15 @@ import { useMemo } from "react";
 
 interface TeamCardProps {
   team: Team;
-  onEdit: (name: string, logoUrl?: string) => void;
-  onDelete: () => void;
+  onEdit?: (name: string, logoUrl?: string) => void;
+  onDelete?: () => void;
 }
 
 export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
-  const { firestore: db } = useFirebase();
+  const { firestore: db, user } = useFirebase();
   
+  const isAdmin = useMemo(() => user && !user.isAnonymous, [user]);
+
   // Fetch matches to calculate real wins/losses
   const matchesQuery = useMemoFirebase(() => {
     if (!db) return null;
@@ -84,17 +87,19 @@ export default function TeamCard({ team, onEdit, onDelete }: TeamCardProps) {
                 {stats.form.length === 0 && <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest opacity-50">New Team</span>}
             </div>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-background">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="rounded-xl">
-            <EditTeamDialog team={team} onTeamEdit={onEdit} />
-            <DeleteTeamDialog onDelete={onDelete} />
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {isAdmin && onEdit && onDelete && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-background">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="rounded-xl">
+              <EditTeamDialog team={team} onTeamEdit={onEdit} />
+              <DeleteTeamDialog onDelete={onDelete} />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </CardHeader>
       <CardContent className="flex-grow flex flex-col items-center justify-center gap-4 text-center py-8">
         <div className="relative">

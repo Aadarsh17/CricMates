@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
@@ -8,10 +9,13 @@ import { AddTeamDialog } from "@/components/teams/add-team-dialog";
 import { useAppContext } from "@/context/AppContext";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Shield } from "lucide-react";
+import { useMemo } from "react";
 
 export default function TeamsPage() {
-  const { firestore: db } = useFirebase();
+  const { firestore: db, user } = useFirebase();
   const { addTeam, editTeam, deleteTeam } = useAppContext();
+
+  const isAdmin = useMemo(() => user && !user.isAnonymous, [user]);
 
   const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
   const { data: teams, isLoading } = useCollection<Team>(teamsCollection);
@@ -23,7 +27,7 @@ export default function TeamsPage() {
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight font-headline">Teams</h1>
           <p className="text-sm sm:text-base text-muted-foreground font-medium">Manage and monitor league participants.</p>
         </div>
-        <AddTeamDialog onTeamAdd={addTeam} />
+        {isAdmin && <AddTeamDialog onTeamAdd={addTeam} />}
       </div>
 
       {isLoading ? (
@@ -44,8 +48,8 @@ export default function TeamsPage() {
             <TeamCard 
               key={team.id} 
               team={team} 
-              onEdit={(name) => editTeam(team.id, name)} 
-              onDelete={() => deleteTeam(team.id)} 
+              onEdit={isAdmin ? (name) => editTeam(team.id, name) : undefined} 
+              onDelete={isAdmin ? () => deleteTeam(team.id) : undefined} 
             />
           ))}
         </div>
@@ -55,8 +59,10 @@ export default function TeamsPage() {
             <Shield className="h-12 w-12 text-primary/60" />
           </div>
           <h3 className="text-2xl font-bold">No teams found</h3>
-          <p className="text-sm text-muted-foreground mb-8 max-w-xs mx-auto">Create your first team to start recording matches and player statistics.</p>
-          <AddTeamDialog onTeamAdd={addTeam} />
+          <p className="text-sm text-muted-foreground mb-8 max-w-xs mx-auto">
+            {isAdmin ? 'Create your first team to start recording matches and player statistics.' : 'No teams have been registered in the league yet.'}
+          </p>
+          {isAdmin && <AddTeamDialog onTeamAdd={addTeam} />}
         </div>
       )}
     </div>
