@@ -1,4 +1,5 @@
+
 /**
- * This file is deprecated and no longer uses Genkit.
+ * AI features are currently disabled.
  */
 export const ai: any = {};

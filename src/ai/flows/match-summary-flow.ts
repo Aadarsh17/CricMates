@@ -1,5 +1,6 @@
+
 /**
- * This file is deprecated and no longer performs AI generation.
+ * AI features are currently disabled.
  */
 export async function generateMatchSummary(input: any): Promise<any> {
   return {
