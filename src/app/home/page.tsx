@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Shield, Users, BarChart, MoreVertical, PlayCircle, FileDown } from "lucide-react";
+import { PlusCircle, Shield, Users, BarChart, MoreVertical, PlayCircle, FileDown, Calendar } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useAppContext } from "@/context/AppContext";
 import { useToast } from "@/hooks/use-toast";
 import { downloadScorecard } from "@/lib/utils";
+import Image from "next/image";
 
 export default function HomePage() {
   const { firestore: db } = useFirebase();
@@ -36,7 +37,7 @@ export default function HomePage() {
   const { data: completedMatchesData, isLoading: completedMatchesLoading } = useCollection<Match>(completedMatchesQuery);
   const completedMatches = completedMatchesData || [];
   
-  const getTeamById = useMemo(() => (teamId: string) => teams.find(t => t.id === teamId), [teams]);
+  const getTeam = (id: string) => teams.find(t => t.id === id);
   
   const sortedCompletedMatches = useMemo(() => {
     return [...completedMatches].sort((a, b) => {
@@ -57,7 +58,7 @@ export default function HomePage() {
   };
 
   return (
-    <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-5xl mx-auto">
       <div className="flex flex-col items-center text-center space-y-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight font-headline text-primary">
@@ -120,65 +121,77 @@ export default function HomePage() {
           </Link>
       </div>
 
-      {liveMatches.length > 0 && (
-          <div className="space-y-4">
-              <h2 className="text-xl md:text-2xl font-bold tracking-tight font-headline flex items-center gap-2">
-                  <PlayCircle className="h-5 w-5 md:h-6 md:w-6 text-primary animate-pulse" /> Live Matches
-              </h2>
+      {(liveMatches.length > 0 || sortedCompletedMatches.length > 0) && (
+          <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl md:text-2xl font-bold tracking-tight font-headline flex items-center gap-2">
+                    <PlayCircle className="h-5 w-5 md:h-6 md:w-6 text-primary" /> Recent & Live Matches
+                </h2>
+                <Button asChild variant="ghost" size="sm" className="text-primary font-bold">
+                  <Link href="/matches">View All</Link>
+                </Button>
+              </div>
+              
               <div className="grid gap-4 md:grid-cols-2">
-                  {liveMatches.map(match => {
-                      const team1 = getTeamById(match.team1Id);
-                      const team2 = getTeamById(match.team2Id);
+                  {[...liveMatches, ...sortedCompletedMatches].map(match => {
+                      const team1 = getTeam(match.team1Id);
+                      const team2 = getTeam(match.team2Id);
+                      const inning1 = match.innings[0];
+                      const inning2 = match.innings[1];
                       const currentInning = match.innings[match.currentInning - 1];
+                      const isWinner1 = match.result?.startsWith(team1?.name || '');
+                      const isWinner2 = match.result?.startsWith(team2?.name || '');
+
                       return (
-                          <Card key={match.id} className="overflow-hidden border-primary/20 bg-primary/5 shadow-md">
-                              <CardHeader className="flex flex-row items-start justify-between pb-2">
-                                  <div>
-                                      <CardTitle className="text-base md:text-lg">{team1?.name} vs {team2?.name}</CardTitle>
-                                      <p className="text-xs text-muted-foreground pt-1">
-                                          Inning {match.currentInning} • {match.overs} Overs
-                                      </p>
-                                  </div>
-                                  <AlertDialog>
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 -mt-2 -mr-2">
-                                                <MoreVertical className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                          <DropdownMenuItem onClick={() => handleDownloadFile(match)}>
-                                              <FileDown className="mr-2 h-4 w-4" /> Download Scorecard
-                                          </DropdownMenuItem>
-                                          <DropdownMenuSeparator />
-                                          <AlertDialogTrigger asChild>
-                                            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
-                                                Delete Match
-                                            </DropdownMenuItem>
-                                          </AlertDialogTrigger>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                    <AlertDialogContent>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>Delete match?</AlertDialogTitle>
-                                            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                            <AlertDialogAction onClick={() => deleteMatch(match.id)} className="bg-destructive">Delete</AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                              </CardHeader>
-                              <CardContent className="pb-4 space-y-4">
+                          <Card key={match.id} className="relative group hover:bg-muted/5 transition-colors overflow-hidden border-muted/60">
+                              <Link href={`/matches/${match.id}`} className="absolute inset-0 z-0" />
+                              <CardContent className="p-5 space-y-4 relative z-10">
                                   <div className="flex justify-between items-center">
-                                      <div className="space-y-1">
-                                          <p className="text-sm font-semibold text-primary">{getTeamById(currentInning.battingTeamId)?.name}</p>
-                                          <p className="text-2xl font-bold font-mono">{currentInning.score}/{currentInning.wickets} <span className="text-sm font-normal text-muted-foreground">({currentInning.overs.toFixed(1)})</span></p>
+                                    <div className="text-[10px] text-muted-foreground font-semibold uppercase flex items-center gap-1.5">
+                                      <Calendar className="h-3 w-3" />
+                                      {new Date(match.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                      <span>•</span>
+                                      <span>{match.overs} Overs</span>
+                                    </div>
+                                    <Badge variant={match.status === 'live' ? 'destructive' : 'secondary'} className="text-[9px] h-4">
+                                      {match.status.toUpperCase()}
+                                    </Badge>
+                                  </div>
+
+                                  <div className="space-y-2.5">
+                                    <div className={`flex items-center justify-between ${isWinner1 ? 'font-bold' : ''}`}>
+                                      <div className="flex items-center gap-2.5">
+                                        <div className="h-5 w-5 relative rounded-sm border bg-muted shrink-0 overflow-hidden">
+                                          {team1 && <Image src={team1.logoUrl} alt="" fill className="object-cover" />}
+                                        </div>
+                                        <span className="text-sm sm:text-base">{team1?.name}</span>
                                       </div>
-                                      <Button asChild size="sm">
-                                          <Link href={`/matches/${match.id}`}>Score Now</Link>
-                                      </Button>
+                                      <div className="text-sm sm:text-base font-mono">
+                                        {inning1 ? `${inning1.score}-${inning1.wickets} (${inning1.overs.toFixed(1)})` : '-'}
+                                      </div>
+                                    </div>
+
+                                    <div className={`flex items-center justify-between ${isWinner2 ? 'font-bold' : ''}`}>
+                                      <div className="flex items-center gap-2.5">
+                                        <div className="h-5 w-5 relative rounded-sm border bg-muted shrink-0 overflow-hidden">
+                                          {team2 && <Image src={team2.logoUrl} alt="" fill className="object-cover" />}
+                                        </div>
+                                        <span className="text-sm sm:text-base">{team2?.name}</span>
+                                      </div>
+                                      <div className="text-sm sm:text-base font-mono">
+                                        {inning2 ? `${inning2.score}-${inning2.wickets} (${inning2.overs.toFixed(1)})` : '-'}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="pt-1">
+                                    {match.result ? (
+                                      <p className="text-xs font-semibold text-primary">{match.result}</p>
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground italic flex items-center gap-1">
+                                        Currently Batting: {getTeam(currentInning.battingTeamId)?.name}
+                                      </p>
+                                    )}
                                   </div>
                               </CardContent>
                           </Card>
@@ -188,49 +201,6 @@ export default function HomePage() {
           </div>
       )}
       
-      {sortedCompletedMatches.length > 0 && (
-          <div className="space-y-4">
-               <h2 className="text-xl md:text-2xl font-bold tracking-tight font-headline">Recent Results</h2>
-               <div className="grid gap-4 sm:grid-cols-2">
-                  {sortedCompletedMatches.map(match => {
-                      const team1 = getTeamById(match.team1Id);
-                      const team2 = getTeamById(match.team2Id);
-                      const firstInning = match.innings[0];
-                      const secondInning = match.innings.length > 1 ? match.innings[1] : null;
-                      return (
-                          <Card key={match.id} className="hover:shadow-sm transition-shadow">
-                              <CardHeader className="flex flex-row items-start justify-between pb-2">
-                                  <div>
-                                      <CardTitle className="text-base">{team1?.name} vs {team2?.name}</CardTitle>
-                                      <p className="text-[10px] md:text-xs text-muted-foreground">{new Date(match.date).toLocaleDateString()}</p>
-                                  </div>
-                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleDownloadFile(match)}>
-                                      <FileDown className="h-4 w-4" />
-                                  </Button>
-                              </CardHeader>
-                              <CardContent className="space-y-2 pb-4">
-                                  <div className="flex justify-between items-center text-xs">
-                                      <span>{getTeamById(firstInning.battingTeamId)?.name}</span>
-                                      <span className="font-mono font-medium">{firstInning.score}/{firstInning.wickets} ({firstInning.overs.toFixed(1)})</span>
-                                  </div>
-                                  {secondInning && (
-                                      <div className="flex justify-between items-center text-xs">
-                                          <span>{getTeamById(secondInning.battingTeamId)?.name}</span>
-                                          <span className="font-mono font-medium">{secondInning.score}/{secondInning.wickets} ({secondInning.overs.toFixed(1)})</span>
-                                      </div>
-                                  )}
-                                  <p className="text-[10px] font-bold text-primary mt-2 uppercase tracking-tight">{match.result}</p>
-                                  <Button asChild variant="outline" size="sm" className="w-full mt-2 h-8 text-xs">
-                                      <Link href={`/matches/${match.id}`}>View Details</Link>
-                                  </Button>
-                              </CardContent>
-                          </Card>
-                      )
-                  })}
-               </div>
-          </div>
-      )}
-
       {!liveMatchesLoading && liveMatches.length === 0 && sortedCompletedMatches.length === 0 && (
           <div className="flex h-64 flex-col items-center justify-center rounded-xl border-2 border-dashed bg-muted/20 p-6 text-center">
             <h3 className="text-lg font-bold">Ready to Play?</h3>
