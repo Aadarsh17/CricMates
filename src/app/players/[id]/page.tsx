@@ -317,6 +317,9 @@ export default function PlayerProfilePage() {
                             <CardContent className="grid gap-4 sm:grid-cols-2">
                                 <StatDetailItem label="Matches" value={playerStats.matches} />
                                 <StatDetailItem label="Innings" value={playerStats.inningsBatted} />
+                                <StatDetailItem label="Runs" value={playerStats.runsScored} />
+                                <StatDetailItem label="Balls" value={playerStats.ballsFaced} />
+                                <StatDetailItem label="Highest Score" value={`${playerStats.highestScore}${playerStats.notOuts > 0 ? '*' : ''}`} />
                                 <StatDetailItem label="Not Outs" value={playerStats.notOuts} />
                                 <StatDetailItem label="Average" value={playerStats.battingAverage?.toFixed(2) || '0.00'} />
                                 <StatDetailItem label="Strike Rate" value={playerStats.strikeRate?.toFixed(2) || '0.00'} />
