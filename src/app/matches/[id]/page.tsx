@@ -14,13 +14,18 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useMemo, useState, useEffect } from 'react';
 import { InningStartDialog } from '@/components/match/inning-start-dialog';
 import { SelectBowlerDialog } from '@/components/match/select-bowler-dialog';
+import { Button } from '@/components/ui/button';
+import { Share2, Copy, Check } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 
 export default function MatchDetailPage() {
     const params = useParams();
     const matchId = params.id as string;
     const { firestore: db } = useFirebase();
+    const { toast } = useToast();
     const [isInningStartOpen, setIsInningStartOpen] = useState(false);
     const [isSelectBowlerOpen, setIsSelectBowlerOpen] = useState(false);
+    const [copied, setCopied] = useState(false);
 
     const matchRef = useMemoFirebase(() => db ? doc(db, 'matches', matchId) : null, [db, matchId]);
     const { data: match, isLoading: matchLoading } = useDoc<Match>(matchRef);
@@ -51,6 +56,17 @@ export default function MatchDetailPage() {
     const striker = useMemo(() => players?.find(p => p.id === currentInning?.strikerId), [players, currentInning?.strikerId]);
     const nonStriker = useMemo(() => players?.find(p => p.id === currentInning?.nonStrikerId), [players, currentInning?.nonStrikerId]);
     const bowler = useMemo(() => players?.find(p => p.id === currentInning?.bowlerId), [players, currentInning?.bowlerId]);
+
+    const handleShare = () => {
+        const shareUrl = `${window.location.origin}/share/match/${matchId}`;
+        navigator.clipboard.writeText(shareUrl);
+        setCopied(true);
+        toast({
+            title: "Link Copied!",
+            description: "Share this public scorecard link with your mates.",
+        });
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     if (matchLoading || teamsLoading || playersLoading) {
         return (
@@ -83,11 +99,17 @@ export default function MatchDetailPage() {
                 />
             )}
 
-            <div className="flex flex-col gap-2">
-                <h1 className="text-2xl md:text-3xl font-bold font-headline">
-                    {team1?.name} vs {team2?.name}
-                </h1>
-                <p className="text-sm text-muted-foreground uppercase tracking-wider">{match.overs} Over Match • {new Date(match.date).toLocaleDateString()}</p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                    <h1 className="text-2xl md:text-3xl font-bold font-headline">
+                        {team1?.name} vs {team2?.name}
+                    </h1>
+                    <p className="text-sm text-muted-foreground uppercase tracking-wider">{match.overs} Over Match • {new Date(match.date).toLocaleDateString()}</p>
+                </div>
+                <Button onClick={handleShare} variant="outline" className="shrink-0 w-full md:w-auto">
+                    {copied ? <Check className="mr-2 h-4 w-4 text-green-500" /> : <Share2 className="mr-2 h-4 w-4" />}
+                    {copied ? 'Copied' : 'Share Scorecard'}
+                </Button>
             </div>
 
             <Tabs defaultValue={match.status === 'live' ? 'scoring' : 'scorecard'} className="space-y-4">

@@ -2,20 +2,22 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Shield, Users, BarChart, FileText, MoreVertical, PlayCircle } from "lucide-react";
+import { PlusCircle, Shield, Users, BarChart, MoreVertical, PlayCircle, Share2 } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
 import { collection, query, where } from "firebase/firestore";
 import type { Match, Team, Player } from "@/lib/types";
 import { useMemo } from "react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAppContext } from "@/context/AppContext";
+import { useToast } from "@/hooks/use-toast";
 
 export default function HomePage() {
   const { firestore: db } = useFirebase();
   const { deleteMatch } = useAppContext();
+  const { toast } = useToast();
 
   const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
   const { data: teamsData, isLoading: teamsLoading } = useCollection<Team>(teamsCollection);
@@ -42,6 +44,15 @@ export default function HomePage() {
         return dateB - dateA;
     }).slice(0, 4);
   }, [completedMatches]);
+
+  const handleShare = (matchId: string) => {
+    const shareUrl = `${window.location.origin}/share/match/${matchId}`;
+    navigator.clipboard.writeText(shareUrl);
+    toast({
+        title: "Link Copied!",
+        description: "Public scorecard link is ready to share.",
+    });
+  };
 
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -134,6 +145,10 @@ export default function HomePage() {
                                             </Button>
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
+                                          <DropdownMenuItem onClick={() => handleShare(match.id)}>
+                                              <Share2 className="mr-2 h-4 w-4" /> Share Scorecard
+                                          </DropdownMenuItem>
+                                          <DropdownMenuSeparator />
                                           <AlertDialogTrigger asChild>
                                             <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
                                                 Delete Match
@@ -187,6 +202,9 @@ export default function HomePage() {
                                       <CardTitle className="text-base">{team1?.name} vs {team2?.name}</CardTitle>
                                       <p className="text-[10px] md:text-xs text-muted-foreground">{new Date(match.date).toLocaleDateString()}</p>
                                   </div>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleShare(match.id)}>
+                                      <Share2 className="h-4 w-4" />
+                                  </Button>
                               </CardHeader>
                               <CardContent className="space-y-2 pb-4">
                                   <div className="flex justify-between items-center text-xs">

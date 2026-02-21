@@ -1,9 +1,8 @@
-
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, FileText, Trash2, Trophy } from "lucide-react";
+import { PlusCircle, FileText, Trash2, Trophy, Share2, MoreVertical } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCollection, useFirebase, useMemoFirebase } from "@/firebase";
@@ -12,10 +11,14 @@ import type { Match, Team } from "@/lib/types";
 import { useMemo } from "react";
 import { useAppContext } from "@/context/AppContext";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
 
 export default function MatchHistoryPage() {
   const { firestore: db } = useFirebase();
   const { deleteMatch } = useAppContext();
+  const { toast } = useToast();
 
   const teamsCollection = useMemoFirebase(() => (db ? collection(db, 'teams') : null), [db]);
   const { data: teamsData } = useCollection<Team>(teamsCollection);
@@ -25,6 +28,15 @@ export default function MatchHistoryPage() {
   const { data: matches, isLoading } = useCollection<Match>(matchesQuery);
 
   const getTeamName = (id: string) => teams.find(t => t.id === id)?.name || 'Unknown';
+
+  const handleShare = (matchId: string) => {
+    const shareUrl = `${window.location.origin}/share/match/${matchId}`;
+    navigator.clipboard.writeText(shareUrl);
+    toast({
+        title: "Link Copied!",
+        description: "Public scorecard link is ready to share.",
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -57,11 +69,24 @@ export default function MatchHistoryPage() {
                     {match.status.toUpperCase()}
                   </Badge>
                   <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreVertical className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleShare(match.id)}>
+                                <Share2 className="mr-2 h-4 w-4" /> Share Scorecard
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <AlertDialogTrigger asChild>
+                                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete Match
+                                </DropdownMenuItem>
+                            </AlertDialogTrigger>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>Delete match record?</AlertDialogTitle>
@@ -69,7 +94,7 @@ export default function MatchHistoryPage() {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => deleteMatch(match.id)}>Delete</AlertDialogAction>
+                        <AlertDialogAction onClick={() => deleteMatch(match.id)} className="bg-destructive">Delete</AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
@@ -105,5 +130,3 @@ export default function MatchHistoryPage() {
     </div>
   );
 }
-
-import { Badge } from "@/components/ui/badge";
