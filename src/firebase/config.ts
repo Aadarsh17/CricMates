@@ -1,8 +1,10 @@
-export const firebaseConfig = {
-  projectId: "studio-377718821-28e23",
-  appId: "1:729093055321:web:19d6b0552f4235d8a92248",
+const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
   authDomain: "studio-377718821-28e23.firebaseapp.com",
-  measurementId: "",
-  messagingSenderId: "729093055321"
+  projectId: "studio-377718821-28e23",
+  messagingSenderId: "729093055321",
+  appId: "1:729093055321:web:19d6b0552f4235d8a92248",
+  measurementId: ""
 };
+
+const geminiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
