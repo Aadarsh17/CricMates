@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Team": {
@@ -37,6 +38,18 @@
         "totalRunsScored": {
           "type": "number",
           "description": "Aggregate total runs scored by the team across all its matches."
+        },
+        "totalRunsConceded": {
+          "type": "number",
+          "description": "Aggregate total runs conceded by the team across all its matches."
+        },
+        "totalOversFaced": {
+          "type": "number",
+          "description": "Total decimal overs faced by the team across all its matches."
+        },
+        "totalOversBowled": {
+          "type": "number",
+          "description": "Total decimal overs bowled by the team across all its matches."
         },
         "totalWicketsTaken": {
           "type": "number",

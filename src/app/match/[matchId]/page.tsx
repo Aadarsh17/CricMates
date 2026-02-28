@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { UserCircle, Info, Users, Flag, ChevronDown, Star } from 'lucide-react';
+import { UserCircle, Info, Users, Flag, ChevronDown, Star, CheckCircle2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -17,6 +17,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -24,6 +25,7 @@ export default function MatchScoreboardPage() {
   const db = useFirestore();
   const { user } = useUser();
   const { isUmpire } = useApp();
+  const router = useRouter();
 
   const matchRef = useMemoFirebase(() => doc(db, 'matches', matchId), [db, matchId]);
   const { data: match, isLoading: isMatchLoading } = useDoc(matchRef);
@@ -103,7 +105,6 @@ export default function MatchScoreboardPage() {
     let runningScore = 0;
     let runningWickets = 0;
     
-    // Detailed partnership state
     let p1 = { id: '', runs: 0, balls: 0 };
     let p2 = { id: '', runs: 0, balls: 0 };
     let partTotalRuns = 0;
@@ -120,13 +121,9 @@ export default function MatchScoreboardPage() {
         }
       }
 
-      // Initialize partners if needed
       if (!p1.id && d.strikerPlayerId !== 'none') p1.id = d.strikerPlayerId;
-      // We assume the first non-striker encountered is p2
-      // In a real pro app we'd track this more precisely from start, but for MVP:
       if (d.strikerPlayerId !== p1.id && !p2.id && d.strikerPlayerId !== 'none') p2.id = d.strikerPlayerId;
 
-      // Track partnership stats
       partTotalRuns += d.totalRunsOnDelivery;
       if (d.extraType === 'none') partTotalBalls += 1;
 
@@ -136,7 +133,6 @@ export default function MatchScoreboardPage() {
         }
         battingMap[d.strikerPlayerId].runs += d.runsScored;
         
-        // Track individual contribution to partnership
         if (d.strikerPlayerId === p1.id) {
           p1.runs += d.runsScored;
           if (d.extraType === 'none') p1.balls += 1;
@@ -196,7 +192,6 @@ export default function MatchScoreboardPage() {
           over: `${d.overNumber}.${d.ballNumberInOver}`
         });
 
-        // Close current partnership
         partnerships.push({
           p1: { ...p1 },
           p2: { ...p2 },
@@ -205,10 +200,9 @@ export default function MatchScoreboardPage() {
           wicket: runningWickets
         });
 
-        // Start new partnership
         const survivorId = d.batsmanOutPlayerId === p1.id ? p2.id : p1.id;
         p1 = { id: survivorId, runs: 0, balls: 0 };
-        p2 = { id: '', runs: 0, balls: 0 }; // p2 will be set on next delivery striker
+        p2 = { id: '', runs: 0, balls: 0 };
         partTotalRuns = 0;
         partTotalBalls = 0;
       }
@@ -390,6 +384,81 @@ export default function MatchScoreboardPage() {
     }
     if (extra === 'noball') setIsNoBallModalOpen(false);
     if (isOverEnd && !isCurrentInningsOver) setIsBowlerModalOpen(true);
+  };
+
+  const handleEndMatch = () => {
+    if (!match || !inn1 || !inn2 || !isUmpire) return;
+
+    let resultDesc = "Match Drawn";
+    let winnerId = "";
+    
+    if (inn2.score > inn1.score) {
+      winnerId = inn2.battingTeamId;
+      resultDesc = `${getTeamName(inn2.battingTeamId)} won by ${10 - inn2.wickets} wickets`;
+    } else if (inn1.score > inn2.score) {
+      winnerId = inn1.battingTeamId;
+      resultDesc = `${getTeamName(inn1.battingTeamId)} won by ${inn1.score - inn2.score} runs`;
+    }
+
+    updateDocumentNonBlocking(matchRef, {
+      status: 'completed',
+      resultDescription: resultDesc
+    });
+
+    const calculateNRRStats = (battingTeamId: string, bowlingTeamId: string, batInning: any, bowlInning: any) => {
+      const batTeam = allTeams?.find(t => t.id === battingTeamId);
+      const bowlTeam = allTeams?.find(t => t.id === bowlingTeamId);
+      if (!batTeam || !bowlTeam) return;
+
+      const decimalOvers = (inn: any) => {
+        if (inn.wickets >= 10) return match.totalOvers;
+        return inn.oversCompleted + (inn.ballsInCurrentOver / 6);
+      };
+
+      const batOvers = decimalOvers(batInning);
+      const bowlOvers = decimalOvers(bowlInning);
+
+      const newBatRunsScored = (batTeam.totalRunsScored || 0) + batInning.score;
+      const newBatRunsConceded = (batTeam.totalRunsConceded || 0) + bowlInning.score;
+      const newBatOversFaced = (batTeam.totalOversFaced || 0) + batOvers;
+      const newBatOversBowled = (batTeam.totalOversBowled || 0) + bowlOvers;
+
+      const batNRR = (newBatRunsScored / newBatOversFaced) - (newBatRunsConceded / newBatOversBowled);
+
+      const newBowlRunsScored = (bowlTeam.totalRunsScored || 0) + bowlInning.score;
+      const newBowlRunsConceded = (bowlTeam.totalRunsConceded || 0) + batInning.score;
+      const newBowlOversFaced = (bowlTeam.totalOversFaced || 0) + bowlOvers;
+      const newBowlOversBowled = (bowlTeam.totalOversBowled || 0) + batOvers;
+
+      const bowlNRR = (newBowlRunsScored / newBowlOversFaced) - (newBowlRunsConceded / newBowlOversBowled);
+
+      updateDocumentNonBlocking(doc(db, 'teams', battingTeamId), {
+        totalRunsScored: newBatRunsScored,
+        totalRunsConceded: newBatRunsConceded,
+        totalOversFaced: newBatOversFaced,
+        totalOversBowled: newBatOversBowled,
+        matchesWon: batTeam.matchesWon + (winnerId === battingTeamId ? 1 : 0),
+        matchesLost: batTeam.matchesLost + (winnerId && winnerId !== battingTeamId ? 1 : 0),
+        matchesDrawn: batTeam.matchesDrawn + (!winnerId ? 1 : 0),
+        netRunRate: isFinite(batNRR) ? batNRR : 0
+      });
+
+      updateDocumentNonBlocking(doc(db, 'teams', bowlingTeamId), {
+        totalRunsScored: newBowlRunsScored,
+        totalRunsConceded: newBowlRunsConceded,
+        totalOversFaced: newBowlOversFaced,
+        totalOversBowled: newBowlOversBowled,
+        matchesWon: bowlTeam.matchesWon + (winnerId === bowlingTeamId ? 1 : 0),
+        matchesLost: bowlTeam.matchesLost + (winnerId && winnerId !== bowlingTeamId ? 1 : 0),
+        matchesDrawn: bowlTeam.matchesDrawn + (!winnerId ? 1 : 0),
+        netRunRate: isFinite(bowlNRR) ? bowlNRR : 0
+      });
+    };
+
+    calculateNRRStats(inn1.battingTeamId, inn1.bowlingTeamId, inn1, inn2);
+
+    toast({ title: "Match Finalized", description: resultDesc });
+    router.push('/matches');
   };
 
   const handleUndo = () => {
@@ -577,6 +646,7 @@ export default function MatchScoreboardPage() {
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => setIsBowlerModalOpen(true)} className="h-7 text-[10px] font-bold">New Bowler</Button>
                     <Button variant="outline" size="sm" onClick={handleUndo} className="h-7 text-[10px] font-bold">Undo</Button>
+                    <Button variant="destructive" size="sm" onClick={handleEndMatch} className="h-7 text-[10px] font-bold">End Match</Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
@@ -733,7 +803,6 @@ export default function MatchScoreboardPage() {
                 </Table>
               </div>
 
-              {/* Fall of Wickets Table (Matching Requested Layout) */}
               <div className="space-y-2">
                 <div className="bg-slate-100 p-2 font-black text-[10px] uppercase text-slate-600 flex justify-between">
                   <span className="flex-1">Fall of Wickets</span>
@@ -757,7 +826,6 @@ export default function MatchScoreboardPage() {
                 </div>
               </div>
 
-              {/* Partnerships Table (Matching Requested Layout) */}
               <div className="space-y-2">
                 <div className="bg-slate-100 p-2 font-black text-[10px] uppercase text-slate-600">
                   Partnerships
@@ -925,7 +993,6 @@ export default function MatchScoreboardPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Modals */}
       <Dialog open={isOpeningPairSetupOpen} onOpenChange={setIsOpeningPairSetupOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Set Openers</DialogTitle></DialogHeader>
