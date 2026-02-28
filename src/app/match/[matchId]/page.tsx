@@ -29,11 +29,9 @@ export default function MatchScoreboardPage() {
   const matchRef = useMemoFirebase(() => doc(db, 'matches', matchId), [db, matchId]);
   const { data: match, isLoading: isMatchLoading } = useDoc(matchRef);
 
-  // Teams
-  const team1Ref = useMemoFirebase(() => match ? doc(db, 'teams', match.team1Id) : null, [db, match]);
-  const { data: team1 } = useDoc(team1Ref);
-  const team2Ref = useMemoFirebase(() => match ? doc(db, 'teams', match.team2Id) : null, [db, match]);
-  const { data: team2 } = useDoc(team2Ref);
+  // Teams lookup
+  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
+  const { data: allTeams } = useCollection(allTeamsQuery);
 
   // Umpire view selection (Inning 1 or 2)
   const [activeInningView, setActiveInningView] = useState<number>(1);
@@ -73,6 +71,10 @@ export default function MatchScoreboardPage() {
 
   const getPlayerName = (pid: string) => {
     return allPlayers?.find(p => p.id === pid)?.name || 'Unknown Player';
+  };
+
+  const getTeamName = (tid: string) => {
+    return allTeams?.find(t => t.id === tid)?.name || 'Unknown Team';
   };
 
   const handleBall = (runs: number, isWicket = false, extra: 'none' | 'wide' | 'noball' = 'none') => {
@@ -223,9 +225,9 @@ export default function MatchScoreboardPage() {
     // Determine Result
     let result = "Match Drawn";
     if (inn2.score > inn1.score) {
-      result = `${getPlayerName(inn2.battingTeamId)} won by ${10 - inn2.wickets} wickets`;
+      result = `${getTeamName(inn2.battingTeamId)} won by ${10 - inn2.wickets} wickets`;
     } else if (inn1.score > inn2.score) {
-      result = `${getPlayerName(inn1.battingTeamId)} won by ${inn1.score - inn2.score} runs`;
+      result = `${getTeamName(inn1.battingTeamId)} won by ${inn1.score - inn2.score} runs`;
     }
 
     batch.update(matchRef!, { status: 'completed', resultDescription: result });
@@ -254,8 +256,8 @@ export default function MatchScoreboardPage() {
             <Badge className="bg-white/20 text-white mb-2">
               {activeInningView === 1 ? '1st INNINGS' : '2nd INNINGS'}
             </Badge>
-            <h1 className="text-4xl font-black">{activeInningData ? getPlayerName(activeInningData.battingTeamId) : '---'}</h1>
-            <p className="text-xs opacity-70 mt-1">Bowling: {activeInningData ? getPlayerName(activeInningData.bowlingTeamId) : '---'}</p>
+            <h1 className="text-4xl font-black">{activeInningData ? getTeamName(activeInningData.battingTeamId) : '---'}</h1>
+            <p className="text-xs opacity-70 mt-1">Bowling: {activeInningData ? getTeamName(activeInningData.bowlingTeamId) : '---'}</p>
           </div>
           
           <div className="text-center px-10 border-x border-white/10">
@@ -458,4 +460,3 @@ export default function MatchScoreboardPage() {
     </div>
   );
 }
-
