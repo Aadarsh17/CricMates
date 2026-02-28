@@ -1,7 +1,6 @@
-
 "use client"
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { collection, query, where, doc, setDoc, deleteDoc } from 'firebase/firestore';
@@ -9,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +23,11 @@ export default function TeamDetailsPage() {
   const db = useFirestore();
   const { user } = useUser();
   const router = useRouter();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const teamRef = useMemoFirebase(() => doc(db, 'teams', teamId), [db, teamId]);
   const { data: team, isLoading: isTeamLoading } = useDoc(teamRef);
@@ -73,6 +77,13 @@ export default function TeamDetailsPage() {
   if (isTeamLoading) return <div className="p-8 text-center">Loading team details...</div>;
   if (!team) return <div className="p-8 text-center">Team not found.</div>;
 
+  const stats = [
+    { label: 'Played', value: team.matchesWon + team.matchesLost + team.matchesDrawn, icon: HistoryIcon },
+    { label: 'Won', value: team.matchesWon, icon: Trophy, color: 'text-secondary' },
+    { label: 'Lost', value: team.matchesLost, icon: Activity, color: 'text-destructive' },
+    { label: 'NRR', value: team.netRunRate.toFixed(3), icon: Activity },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -90,12 +101,7 @@ export default function TeamDetailsPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label: 'Played', value: team.matchesWon + team.matchesLost + team.matchesDrawn, icon: History },
-          { label: 'Won', value: team.matchesWon, icon: Trophy, color: 'text-secondary' },
-          { label: 'Lost', value: team.matchesLost, icon: Activity, color: 'text-destructive' },
-          { label: 'NRR', value: team.netRunRate.toFixed(3), icon: Activity },
-        ].map((stat) => (
+        {stats.map((stat) => (
           <Card key={stat.label}>
             <CardContent className="p-4 flex items-center gap-4">
               <div className="p-2 bg-muted rounded-lg">

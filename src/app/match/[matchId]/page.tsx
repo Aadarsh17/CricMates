@@ -1,15 +1,14 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { useDoc, useCollection, useMemoFirebase, useFirestore, useUser } from '@/firebase';
+import { useDoc, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { doc, collection, query, orderBy, limit, setDoc, updateDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Activity, Trophy, History, Undo2, Users } from 'lucide-react';
+import { Activity, Trophy, History as HistoryIcon, Undo2, Users } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { toast } from '@/hooks/use-toast';
@@ -20,6 +19,11 @@ export default function MatchScoreboardPage() {
   const db = useFirestore();
   const { user } = useUser();
   const { isUmpire } = useApp();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const matchRef = useMemoFirebase(() => doc(db, 'matches', matchId), [db, matchId]);
   const { data: match, isLoading: isMatchLoading } = useDoc(matchRef);
@@ -94,6 +98,11 @@ export default function MatchScoreboardPage() {
     if (!isUmpire) return;
     updateDocumentNonBlocking(matchRef, { status: 'completed', resultDescription: 'Match finished' });
     toast({ title: "Match Completed", description: "The stats have been archived." });
+  };
+
+  const formatDateTime = (dateString: string) => {
+    if (!isMounted) return '';
+    return new Date(dateString).toLocaleString();
   };
 
   if (isMatchLoading) return <div className="p-20 text-center">Loading live data...</div>;
@@ -189,7 +198,7 @@ export default function MatchScoreboardPage() {
               <div className="space-y-4">
                 <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
                   <p className="font-bold">Date & Time</p>
-                  <p className="text-sm">{new Date(match.matchDate).toLocaleString()}</p>
+                  <p className="text-sm">{formatDateTime(match.matchDate)}</p>
                 </div>
                 <div className="p-4 bg-muted rounded-lg flex justify-between items-center">
                   <p className="font-bold">Format</p>

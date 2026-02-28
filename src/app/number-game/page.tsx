@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { History, RotateCcw, Play, Circle, Skull, Hash } from 'lucide-react';
+import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 export default function NumberGame() {
@@ -104,7 +104,7 @@ export default function NumberGame() {
       <Card>
         <CardHeader className="py-4">
           <CardTitle className="text-sm flex items-center">
-            <History className="w-4 h-4 mr-2 text-muted-foreground" />
+            <HistoryIcon className="w-4 h-4 mr-2 text-muted-foreground" />
             Recent Balls
           </CardTitle>
         </CardHeader>

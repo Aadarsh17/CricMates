@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
@@ -7,19 +6,30 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, Trophy, History, ArrowRight } from 'lucide-react';
+import { Calendar, PlayCircle, Trophy, History as HistoryIcon, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
+import { useEffect, useState } from 'react';
 
 export default function MatchesPage() {
   const { isUmpire } = useApp();
   const db = useFirestore();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
   const { data: matches, isLoading } = useCollection(matchesQuery);
 
   const liveMatches = matches?.filter(m => m.status === 'live') || [];
   const pastMatches = matches?.filter(m => m.status === 'completed') || [];
+
+  const formatDate = (dateString: string) => {
+    if (!isMounted) return '';
+    return new Date(dateString).toLocaleDateString();
+  };
 
   return (
     <div className="space-y-6">
@@ -55,7 +65,7 @@ export default function MatchesPage() {
                   <CardHeader>
                     <div className="flex justify-between items-center mb-4">
                        <p className="text-xs text-muted-foreground flex items-center">
-                        <Calendar className="w-3 h-3 mr-1" /> {new Date(match.matchDate).toLocaleDateString()}
+                        <Calendar className="w-3 h-3 mr-1" /> {formatDate(match.matchDate)}
                       </p>
                       <Badge variant="destructive" className="animate-pulse uppercase text-[10px]">Live</Badge>
                     </div>
@@ -114,7 +124,7 @@ export default function MatchesPage() {
               ))
             ) : (
               <div className="py-20 text-center border-2 border-dashed rounded-2xl">
-                <History className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                <HistoryIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
                 <p className="text-muted-foreground">No past matches found in the archive.</p>
               </div>
             )}

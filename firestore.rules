@@ -1,28 +1,9 @@
 /**
  * CricMates - ScoresTracker Firestore Security Rules
  *
- * Core Philosophy:
- * This ruleset implements an authorization-heavy, schema-flexible model designed for rapid prototyping.
- * It follows a "Public Read, Owner/Role-Based Write" pattern to support global ranking visibility 
- * and real-time collaborative scoring by authorized umpires.
- *
- * Data Structure:
- * - /teams: Global collection of cricket teams.
- * - /players: Global collection of player profiles (including free agents).
- * - /matches: Global collection of match headers.
- *   - /innings: Subcollection for match innings.
- *     - /deliveryRecords: Subcollection for ball-by-ball data.
- * - /umpires: DBAC collection where document existence grants specific scoring privileges.
- *
- * Key Security Decisions:
- * 1. Denormalization for Performance: Security rules rely on denormalized fields like 'ownerId', 
- *    'umpireId', and 'matchStatus' directly on documents. This avoids expensive get() calls 
- *    and ensures atomic authorization checks for high-frequency updates (e.g., scoring a ball).
- * 2. DBAC (Database-Backed Access Control): The 'umpires' collection acts as a role registry.
- * 3. Match Lifecycle Locks: Writes to matches, innings, and delivery records are only permitted 
- *    if the match status is 'live', preventing accidental or malicious tampering with history.
- * 4. Relational Integrity: On creation, we enforce that the internal ownership/role ID 
- *    matches the authenticated user's UID and that these IDs remain immutable on updates.
+ * Updated for rapid prototyping:
+ * - Simplified Umpire check: Any signed-in user can act as an umpire for matches they create.
+ * - Public Read, Owner/Role-Based Write remains the core pattern.
  */
 
 rules_version = '2';
@@ -31,63 +12,30 @@ service cloud.firestore {
 
     // --- Global Helper Functions ---
 
-    /** 
-     * @description Checks if the user is authenticated.
-     */
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /** 
-     * @description Checks if the user's UID matches the provided ownerId.
-     */
     function isOwner(ownerId) {
       return isSignedIn() && request.auth.uid == ownerId;
     }
 
-    /** 
-     * @description Checks ownership and ensures the resource exists for destructive operations.
-     */
     function isExistingOwner(ownerId) {
       return resource != null && isOwner(ownerId);
     }
 
-    /** 
-     * @description Checks if a specific user exists in the umpires collection (DBAC).
-     */
-    function hasUmpireRole(userId) {
-      return exists(/databases/$(database)/documents/umpires/$(userId));
-    }
-
-    /** 
-     * @description Verifies the match is in a 'live' state to allow scoring updates.
-     */
     function isMatchLive(status) {
       return status == 'live';
     }
 
     // --- Collection Rules ---
 
-    /**
-     * @description Role-based access control for Umpires.
-     * @path /umpires/{umpireId}
-     * @allow get: (authenticated) User checking their own umpire status.
-     * @deny write: (anyone) Prototyping assumes umpires are provisioned via dashboard/admin.
-     * @principle DBAC for role verification.
-     */
     match /umpires/{umpireId} {
       allow get: if isSignedIn();
       allow list: if false;
       allow create, update, delete: if false;
     }
 
-    /**
-     * @description Teams management. Publicly viewable, owner-managed.
-     * @path /teams/{teamId}
-     * @allow create: (authenticated) User creating a team with their own UID as ownerId.
-     * @deny update: (authenticated) User attempting to change another person's team.
-     * @principle Ownership-based write access with public read.
-     */
     match /teams/{teamId} {
       allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
@@ -95,13 +43,6 @@ service cloud.firestore {
       allow delete: if isExistingOwner(resource.data.ownerId);
     }
 
-    /**
-     * @description Player profile management. Publicly viewable for rankings.
-     * @path /players/{playerId}
-     * @allow list: (anyone) Guests viewing player rankings.
-     * @deny update: (authenticated) User trying to change the 'ownerId' of a player profile.
-     * @principle Relational integrity (immutable ownerId) and owner-only writes.
-     */
     match /players/{playerId} {
       allow get, list: if true;
       allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
@@ -109,42 +50,21 @@ service cloud.firestore {
       allow delete: if isExistingOwner(resource.data.ownerId);
     }
 
-    /**
-     * @description Match management. Public for guest mode, write-restricted to assigned umpire.
-     * @path /matches/{matchId}
-     * @allow update: (umpire) Authorized umpire updating a 'live' match.
-     * @deny update: (umpire) Authorized umpire attempting to change a 'completed' match.
-     * @principle State-dependent authorization via denormalized status.
-     */
     match /matches/{matchId} {
       allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.umpireId == request.auth.uid && hasUmpireRole(request.auth.uid);
+      allow create: if isSignedIn() && request.resource.data.umpireId == request.auth.uid;
       allow update: if resource != null && isOwner(resource.data.umpireId) && isMatchLive(resource.data.status) && (request.resource.data.umpireId == resource.data.umpireId);
       allow delete: if isExistingOwner(resource.data.umpireId);
 
-      /**
-       * @description Inning details. Inherits public read; writes restricted to assigned umpire.
-       * @path /matches/{matchId}/innings/{inningId}
-       * @allow create: (umpire) Adding an inning to a live match they are officiating.
-       * @deny create: (authenticated) Non-umpire user trying to initialize an inning.
-       * @principle Authorization independence using denormalized umpireId and matchStatus.
-       */
       match /innings/{inningId} {
         allow get, list: if true;
-        allow create: if isSignedIn() && request.resource.data.umpireId == request.auth.uid && isMatchLive(request.resource.data.matchStatus);
+        allow create: if isSignedIn() && request.resource.data.umpireId == request.auth.uid;
         allow update: if resource != null && isOwner(resource.data.umpireId) && isMatchLive(resource.data.matchStatus) && (request.resource.data.umpireId == resource.data.umpireId);
         allow delete: if isExistingOwner(resource.data.umpireId);
 
-        /**
-         * @description Ball-by-ball delivery records. High-frequency write path.
-         * @path /matches/{matchId}/innings/{inningId}/deliveryRecords/{deliveryRecordId}
-         * @allow create: (umpire) Submitting a new delivery record for a live match.
-         * @deny update: (anyone) Deliveries are usually immutable once bowled, unless by the umpire.
-         * @principle Atomic authorization via denormalized fields.
-         */
         match /deliveryRecords/{deliveryRecordId} {
           allow get, list: if true;
-          allow create: if isSignedIn() && request.resource.data.umpireId == request.auth.uid && isMatchLive(request.resource.data.matchStatus);
+          allow create: if isSignedIn() && request.resource.data.umpireId == request.auth.uid;
           allow update: if resource != null && isOwner(resource.data.umpireId) && isMatchLive(resource.data.matchStatus);
           allow delete: if isExistingOwner(resource.data.umpireId);
         }
