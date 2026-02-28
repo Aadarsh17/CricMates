@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCollection, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { PlayCircle, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { PlayCircle, ShieldCheck, CheckCircle2, RotateCcw } from 'lucide-react';
 
 export default function NewMatchPage() {
   const db = useFirestore();
@@ -44,6 +44,11 @@ export default function NewMatchPage() {
 
   const team1Players = allPlayers?.filter(p => p.teamId === setup.team1Id || !p.teamId);
   const team2Players = allPlayers?.filter(p => p.teamId === setup.team2Id || !p.teamId);
+
+  // Clear opening pair if squad changes
+  useEffect(() => {
+    setSetup(prev => ({ ...prev, strikerId: '', nonStrikerId: '', bowlerId: '' }));
+  }, [setup.team1Squad, setup.team2Squad, setup.tossWinner, setup.tossDecision]);
 
   const handleStartMatch = () => {
     if (!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId) {
@@ -179,7 +184,7 @@ export default function NewMatchPage() {
         <Card className="shadow-lg border-t-4 border-primary">
           <CardHeader>
             <CardTitle>2. Squad Selection</CardTitle>
-            <CardDescription>Select at least 2 players for each team.</CardDescription>
+            <CardDescription>Select players for each team.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -226,7 +231,7 @@ export default function NewMatchPage() {
             </div>
             <div className="flex gap-4">
               <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>Back</Button>
-              <Button className="flex-1" disabled={setup.team1Squad.length < 2 || setup.team2Squad.length < 2} onClick={() => setStep(3)}>Next: Toss</Button>
+              <Button className="flex-1" onClick={() => setStep(3)}>Next: Toss</Button>
             </div>
           </CardContent>
         </Card>
@@ -272,7 +277,7 @@ export default function NewMatchPage() {
         <Card className="shadow-lg border-t-4 border-primary">
           <CardHeader>
             <CardTitle>4. Opening Pair</CardTitle>
-            <CardDescription>Select the starting batsmen and bowler.</CardDescription>
+            <CardDescription>Select the starting batsmen and bowler. Striker and Non-Striker must be different.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-4">
@@ -314,7 +319,7 @@ export default function NewMatchPage() {
             </div>
             <div className="flex gap-4">
               <Button variant="outline" className="flex-1" onClick={() => setStep(3)}>Back</Button>
-              <Button className="flex-1 bg-secondary hover:bg-secondary/90 h-12 font-bold" onClick={handleStartMatch}>
+              <Button className="flex-1 bg-secondary hover:bg-secondary/90 h-12 font-bold" onClick={handleStartMatch} disabled={!setup.strikerId || !setup.nonStrikerId || setup.strikerId === setup.nonStrikerId}>
                 START MATCH <CheckCircle2 className="ml-2 w-4 h-4" />
               </Button>
             </div>

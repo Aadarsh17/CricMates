@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Activity, Trophy, Undo2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Activity, Trophy, Undo2, CheckCircle2, AlertCircle, RotateCcw, Shuffle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -91,6 +91,13 @@ export default function MatchScoreboardPage() {
     let newStriker = currentInning.strikerPlayerId;
     let newNonStriker = currentInning.nonStrikerPlayerId;
 
+    // Safety: ensure they aren't the same
+    if (newStriker === newNonStriker) {
+      toast({ title: "Striker Conflict", description: "Striker and Non-Striker cannot be the same. Please Swap first.", variant: "destructive" });
+      return;
+    }
+
+    // Strike rotation for runs
     if (runs % 2 !== 0) {
       const temp = newStriker;
       newStriker = newNonStriker;
@@ -106,6 +113,7 @@ export default function MatchScoreboardPage() {
         isOverEnd = true;
         newOvers += 1;
         newBalls = 0;
+        // Strike rotation for over end
         const temp = newStriker;
         newStriker = newNonStriker;
         newNonStriker = temp;
@@ -137,16 +145,49 @@ export default function MatchScoreboardPage() {
 
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', deliveryId), deliveryData, { merge: true });
     
+    // If wicket falls and over ends, the NEW batter goes to the non-striker end for the next over
+    // and the original non-striker faces the next over.
+    let finalStriker = isWicket ? wicketDetails.newStrikerId : newStriker;
+    let finalNonStriker = newNonStriker;
+
+    // Correct rotation if wicket falls on last ball
+    if (isWicket && isOverEnd) {
+      // Wicket falls -> new batter in (finalStriker).
+      // Then Over ends -> ends switch.
+      // So finalNonStriker becomes the striker for next over.
+      const temp = finalStriker;
+      finalStriker = finalNonStriker;
+      finalNonStriker = temp;
+    }
+
     updateDocumentNonBlocking(activeInningRef, {
       score: currentInning.score + runsForThisBall,
       wickets: isWicket ? currentInning.wickets + 1 : currentInning.wickets,
       oversCompleted: newOvers,
       ballsInCurrentOver: newBalls,
-      strikerPlayerId: isWicket ? wicketDetails.newStrikerId : newStriker || '',
-      nonStrikerPlayerId: newNonStriker || ''
+      strikerPlayerId: finalStriker || '',
+      nonStrikerPlayerId: finalNonStriker || ''
     });
 
-    if (isWicket) setIsWicketModalOpen(false);
+    if (isWicket) {
+      setIsWicketModalOpen(false);
+      setWicketDetails({ type: 'bowled', newStrikerId: '' });
+    }
+  };
+
+  const handleSwap = () => {
+    if (!isUmpire || !activeInningRef || !activeInningData) return;
+    updateDocumentNonBlocking(activeInningRef, {
+      strikerPlayerId: activeInningData.nonStrikerPlayerId,
+      nonStrikerPlayerId: activeInningData.strikerPlayerId
+    });
+    toast({ title: "Strike Swapped", description: "Batsmen have swapped ends." });
+  };
+
+  const handleMainUndo = () => {
+    if (confirm("This will reset the match setup and take you back to the initialization page. Are you sure?")) {
+      router.push('/match/new');
+    }
   };
 
   const handleUndo = () => {
@@ -265,7 +306,7 @@ export default function MatchScoreboardPage() {
       </div>
 
       <Tabs value={activeInningView.toString()} onValueChange={(v) => setActiveInningView(parseInt(v))} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-sm mx-auto bg-muted">
+        <TabsList className="grid w-full grid-cols-2 max-w-[200px] mx-auto bg-muted">
           <TabsTrigger value="1">Innings 1</TabsTrigger>
           <TabsTrigger value="2" disabled={!inn2 && match.currentInningNumber === 1}>Innings 2</TabsTrigger>
         </TabsList>
@@ -342,8 +383,13 @@ export default function MatchScoreboardPage() {
               </Card>
 
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Innings Logic</CardTitle>
+                <CardHeader className="pb-2">
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg">Innings Logic</CardTitle>
+                    <Button variant="ghost" size="sm" onClick={handleMainUndo} title="Reset Match Setup">
+                      <RotateCcw className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="p-4 bg-muted/50 rounded-lg space-y-3">
@@ -359,6 +405,12 @@ export default function MatchScoreboardPage() {
                       <span className="text-xs font-bold text-muted-foreground uppercase">Bowling</span>
                       <span className="text-sm font-bold text-secondary truncate max-w-[120px]">{activeInningData ? getPlayerName(activeInningData.currentBowlerPlayerId) : '---'}</span>
                     </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1" onClick={handleSwap}>
+                      <Shuffle className="w-4 h-4 mr-1" /> Swap
+                    </Button>
                   </div>
 
                   {match.currentInningNumber === 1 ? (
