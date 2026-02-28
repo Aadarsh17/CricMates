@@ -89,7 +89,6 @@ export default function MatchScoreboardPage() {
     return t ? t.name : 'Unknown Team';
   };
 
-  // Last Man Standing rule: triggered when 9 wickets are down, so the 10th wicket is the second-to-last player.
   const isLastManPossible = activeInningData?.wickets === 9;
   
   const isCurrentInningsOver = !!(activeInningData && match && (
@@ -107,6 +106,24 @@ export default function MatchScoreboardPage() {
   const isStartingInnings = activeInningData && activeInningData.oversCompleted === 0 && activeInningData.ballsInCurrentOver === 0 && activeInningData.wickets === 0;
   const needsOpeningPair = isStartingInnings && (!activeInningData?.strikerPlayerId || !activeInningData?.currentBowlerPlayerId);
   const needsNextBatter = activeInningData && !activeInningData.strikerPlayerId && !isCurrentInningsOver && !isStartingInnings;
+
+  const handleAssignNextBatter = (playerId: string) => {
+    if (!activeInningRef || !playerId) return;
+    
+    if (playerId === 'none') {
+      updateDocumentNonBlocking(activeInningRef, { wickets: 10 });
+      toast({ title: "Innings Ended", description: "All out or no more batsmen available." });
+      return;
+    }
+
+    const updateData: any = { strikerPlayerId: playerId };
+    if (playerId === activeInningData?.nonStrikerPlayerId) {
+      updateData.nonStrikerPlayerId = '';
+    }
+
+    updateDocumentNonBlocking(activeInningRef, updateData);
+    toast({ title: "Batter Ready", description: `${getPlayerName(playerId)} is now on strike.` });
+  };
 
   const handleBall = (runs: number, isWicket = false, extra: 'none' | 'wide' | 'noball' = 'none') => {
     if (!isUmpire || match?.status !== 'live' || !activeInningData || !activeInningRef || isCurrentInningsOver) {
@@ -179,7 +196,6 @@ export default function MatchScoreboardPage() {
 
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', deliveryId), deliveryData, { merge: true });
     
-    // Determine new field positions after wicket
     let finalStriker = isWicket ? (wicketDetails.newStrikerId === 'none' ? '' : wicketDetails.newStrikerId) : newStriker;
     let finalNonStriker = newNonStriker;
     
@@ -187,7 +203,6 @@ export default function MatchScoreboardPage() {
       if (wicketDetails.newStrikerId === 'none') {
         finalNonStriker = '';
       } else if (wicketDetails.newStrikerId === currentInning.nonStrikerPlayerId) {
-        // Last Man Standing: Non-striker is now the only player on field
         finalNonStriker = '';
       }
     }
@@ -409,9 +424,27 @@ export default function MatchScoreboardPage() {
                     </div>
                   ) : needsNextBatter ? (
                     <div className="p-12 text-center bg-muted/50 rounded-2xl border-2 border-dashed border-destructive/20">
-                      <h3 className="text-lg font-bold mb-2">Batsman Required</h3>
+                      <h3 className="text-lg font-bold mb-2">Striker Required</h3>
                       <p className="text-sm text-muted-foreground mb-6">Select the next player to join {getPlayerName(activeInningData?.nonStrikerPlayerId || '')} on field.</p>
-                      <Button onClick={() => setIsWicketModalOpen(true)} className="h-12 px-10 font-bold bg-secondary hover:bg-secondary/90">Select Next Batter</Button>
+                      <div className="max-w-xs mx-auto">
+                        <Select onValueChange={handleAssignNextBatter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select Next Batter" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">End Innings</SelectItem>
+                            {battingSquadIds
+                              .filter(pid => pid !== activeInningData?.nonStrikerPlayerId && !dismissedPlayerIds.includes(pid))
+                              .map(pid => (
+                                <SelectItem key={pid} value={pid}>{getPlayerName(pid)}</SelectItem>
+                              ))
+                            }
+                            {isLastManPossible && activeInningData?.nonStrikerPlayerId && (
+                               <SelectItem value={activeInningData.nonStrikerPlayerId}>Last Man Standing: {getPlayerName(activeInningData.nonStrikerPlayerId)}</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   ) : needsNewBowler ? (
                     <div className="p-8 text-center bg-muted/50 rounded-2xl border-2 border-dashed border-primary/20">
