@@ -91,13 +91,11 @@ export default function MatchScoreboardPage() {
     let newStriker = currentInning.strikerPlayerId;
     let newNonStriker = currentInning.nonStrikerPlayerId;
 
-    // Safety: ensure they aren't the same
     if (newStriker === newNonStriker) {
       toast({ title: "Striker Conflict", description: "Striker and Non-Striker cannot be the same. Please Swap first.", variant: "destructive" });
       return;
     }
 
-    // Strike rotation for runs
     if (runs % 2 !== 0) {
       const temp = newStriker;
       newStriker = newNonStriker;
@@ -113,7 +111,6 @@ export default function MatchScoreboardPage() {
         isOverEnd = true;
         newOvers += 1;
         newBalls = 0;
-        // Strike rotation for over end
         const temp = newStriker;
         newStriker = newNonStriker;
         newNonStriker = temp;
@@ -145,16 +142,10 @@ export default function MatchScoreboardPage() {
 
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', deliveryId), deliveryData, { merge: true });
     
-    // If wicket falls and over ends, the NEW batter goes to the non-striker end for the next over
-    // and the original non-striker faces the next over.
     let finalStriker = isWicket ? wicketDetails.newStrikerId : newStriker;
     let finalNonStriker = newNonStriker;
 
-    // Correct rotation if wicket falls on last ball
     if (isWicket && isOverEnd) {
-      // Wicket falls -> new batter in (finalStriker).
-      // Then Over ends -> ends switch.
-      // So finalNonStriker becomes the striker for next over.
       const temp = finalStriker;
       finalStriker = finalNonStriker;
       finalNonStriker = temp;
@@ -193,7 +184,6 @@ export default function MatchScoreboardPage() {
   const handleUndo = () => {
     if (!deliveries || deliveries.length === 0 || !activeInningRef || !activeInningData) return;
     const lastBall = deliveries[0];
-    
     const wasOverEnd = lastBall.ballNumberInOver === 6 && lastBall.extraType === 'none';
 
     updateDocumentNonBlocking(activeInningRef, {
@@ -210,7 +200,6 @@ export default function MatchScoreboardPage() {
 
   const startSecondInnings = () => {
     if (!isUmpire || !match || !inn1) return;
-    
     const battingTeamId = inn1.battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
     const bowlingTeamId = inn1.battingTeamId === match.team1Id ? match.team1Id : match.team2Id;
 
@@ -238,7 +227,6 @@ export default function MatchScoreboardPage() {
     if (!isUmpire || !match || !inn1 || !inn2) return;
 
     const batch = writeBatch(db);
-    
     let result = "Match Drawn";
     if (inn2.score > inn1.score) {
       result = `${getTeamName(inn2.battingTeamId)} won by ${10 - inn2.wickets} wickets`;
@@ -384,10 +372,17 @@ export default function MatchScoreboardPage() {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg">Innings Logic</CardTitle>
-                    <Button variant="ghost" size="sm" onClick={handleMainUndo} title="Reset Match Setup">
-                      <RotateCcw className="w-4 h-4" />
+                  <div className="flex flex-col gap-4">
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="text-lg">Innings Logic</CardTitle>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleMainUndo} 
+                      className="w-full text-destructive border-destructive hover:bg-destructive/10 font-bold"
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" /> Main Undo (Reset)
                     </Button>
                   </div>
                 </CardHeader>
