@@ -1,14 +1,15 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection } from '@/firebase';
-import { doc, collection, query, orderBy } from 'firebase/firestore';
+import { doc, collection, query, orderBy, where, getDocs, writeBatch } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Info, Users, Undo2, PlayCircle, Sparkles, Trophy, MessageSquare, Loader2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Info, Users, Undo2, PlayCircle, Sparkles, Trophy, MessageSquare, Loader2, History, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -86,11 +87,26 @@ export default function MatchScoreboardPage() {
 
   const getAbbr = (name: string) => (name || 'UNK').substring(0, 3).toUpperCase();
 
+  const groupedOvers = useMemo(() => {
+    const deliveries = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
+    if (!deliveries) return [];
+    
+    const overs: Record<number, any[]> = {};
+    deliveries.forEach(d => {
+      if (!overs[d.overNumber]) overs[d.overNumber] = [];
+      overs[d.overNumber].push(d);
+    });
+    
+    return Object.entries(overs).map(([num, balls]) => ({
+      overNumber: parseInt(num),
+      balls: balls.sort((a,b) => a.timestamp - b.timestamp)
+    })).sort((a,b) => b.overNumber - a.overNumber);
+  }, [activeInningView, inn1Deliveries, inn2Deliveries]);
+
   const handleGenerateAiReport = async () => {
     if (!match || !inn1 || !allPlayers) return;
     setIsAiLoading(true);
     try {
-      // 1. Process stats for all players involved
       const playerStats: Record<string, any> = {};
       const allDeliveries = [...(inn1Deliveries || []), ...(inn2Deliveries || [])];
 
@@ -115,8 +131,7 @@ export default function MatchScoreboardPage() {
         }
       });
 
-      // 2. Calculate CVPs for top 5 performers
-      const playersToCalculate = Object.keys(playerStats).sort((a,b) => (playerStats[b].runs + playerStats[b].wickets * 20) - (playerStats[a].runs + playerStats[a].wickets * 20)).slice(0, 5);
+      const playersToCalculate = Object.keys(playerStats).sort((a,b) => (playerStats[b].runs + playerStats[b].wickets * 15) - (playerStats[a].runs + playerStats[a].wickets * 15)).slice(0, 5);
       
       const performers = await Promise.all(playersToCalculate.map(async pid => {
         const stats = playerStats[pid];
@@ -134,7 +149,6 @@ export default function MatchScoreboardPage() {
 
       setTopPerformers(performers.sort((a,b) => b.cvp - a.cvp));
 
-      // 3. Generate Summary
       const summary = await generateMatchSummary({
         matchId,
         matchOverall: {
@@ -179,6 +193,91 @@ export default function MatchScoreboardPage() {
     } finally {
       setIsAiLoading(false);
     }
+  };
+
+  const handleEndMatch = async () => {
+    if (!match || !inn1) return;
+    
+    const team1Id = match.team1Id;
+    const team2Id = match.team2Id;
+    
+    const i1Score = inn1.score;
+    const i1Wickets = inn1.wickets;
+    const i1Balls = (inn1.oversCompleted * 6) + (inn1.ballsInCurrentOver || 0);
+    
+    const i2Score = inn2?.score || 0;
+    const i2Wickets = inn2?.wickets || 0;
+    const i2Balls = inn2 ? (inn2.oversCompleted * 6) + (inn2.ballsInCurrentOver || 0) : 0;
+
+    let result = '';
+    let winnerId = '';
+    let loserId = '';
+
+    if (i1Score > i2Score) {
+      result = `${getTeamName(team1Id)} won by ${i1Score - i2Score} runs`;
+      winnerId = team1Id;
+      loserId = team2Id;
+    } else if (i2Score > i1Score) {
+      result = `${getTeamName(team2Id)} won by ${10 - i2Wickets} wickets`;
+      winnerId = team2Id;
+      loserId = team1Id;
+    } else {
+      result = "Match Drawn";
+    }
+
+    const batch = writeBatch(db);
+
+    // Update Match
+    batch.update(doc(db, 'matches', matchId), {
+      status: 'completed',
+      resultDescription: result
+    });
+
+    // Update Team Stats
+    const t1Ref = doc(db, 'teams', team1Id);
+    const t2Ref = doc(db, 'teams', team2Id);
+    
+    const t1 = allTeams?.find(t => t.id === team1Id);
+    const t2 = allTeams?.find(t => t.id === team2Id);
+
+    if (t1 && t2) {
+      const newT1RunsScored = (t1.totalRunsScored || 0) + i1Score;
+      const newT1RunsConceded = (t1.totalRunsConceded || 0) + i2Score;
+      const newT1BallsFaced = (t1.totalBallsFaced || 0) + i1Balls;
+      const newT1BallsBowled = (t1.totalBallsBowled || 0) + i2Balls;
+
+      const newT2RunsScored = (t2.totalRunsScored || 0) + i2Score;
+      const newT2RunsConceded = (t2.totalRunsConceded || 0) + i1Score;
+      const newT2BallsFaced = (t2.totalBallsFaced || 0) + i2Balls;
+      const newT2BallsBowled = (t2.totalBallsBowled || 0) + i1Balls;
+
+      // NRR = (Runs * 6 / Balls Faced) - (Runs * 6 / Balls Bowled)
+      const t1NRR = (newT1RunsScored * 6 / (newT1BallsFaced || 1)) - (newT1RunsConceded * 6 / (newT1BallsBowled || 1));
+      const t2NRR = (newT2RunsScored * 6 / (newT2BallsFaced || 1)) - (newT2RunsConceded * 6 / (newT2BallsBowled || 1));
+
+      batch.update(t1Ref, {
+        matchesWon: (t1.matchesWon || 0) + (winnerId === team1Id ? 1 : 0),
+        matchesLost: (t1.matchesLost || 0) + (loserId === team1Id ? 1 : 0),
+        totalRunsScored: newT1RunsScored,
+        totalRunsConceded: newT1RunsConceded,
+        totalBallsFaced: newT1BallsFaced,
+        totalBallsBowled: newT1BallsBowled,
+        netRunRate: t1NRR
+      });
+
+      batch.update(t2Ref, {
+        matchesWon: (t2.matchesWon || 0) + (winnerId === team2Id ? 1 : 0),
+        matchesLost: (t2.matchesLost || 0) + (loserId === team2Id ? 1 : 0),
+        totalRunsScored: newT2RunsScored,
+        totalRunsConceded: newT2RunsConceded,
+        totalBallsFaced: newT2BallsFaced,
+        totalBallsBowled: newT2BallsBowled,
+        netRunRate: t2NRR
+      });
+    }
+
+    await batch.commit();
+    toast({ title: "Match Concluded", description: result });
   };
 
   const scorecard = useMemo(() => {
@@ -295,6 +394,7 @@ export default function MatchScoreboardPage() {
     <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
       <div className="border-b bg-white p-4 rounded-lg shadow-sm text-center">
         <h1 className="text-lg md:text-2xl font-black text-slate-900 tracking-tight">{getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)}</h1>
+        <p className="text-[10px] font-black uppercase text-slate-400 mt-1 tracking-widest">{match.status === 'completed' ? match.resultDescription : 'Match In Progress'}</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -396,14 +496,17 @@ export default function MatchScoreboardPage() {
           )}
         </TabsContent>
 
-        {/* Other tabs remain same... */}
         <TabsContent value="live" className="mt-4 space-y-6">
           <div className="bg-white p-4 md:p-6 rounded-lg border shadow-sm space-y-4 text-center">
-            <div className="text-blue-600 font-bold text-sm uppercase tracking-widest">{match.resultDescription}</div>
-            <div className="space-y-3">
+             <div className="space-y-3">
               {inn1 && <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg"><span className="font-black text-lg md:text-2xl text-slate-800">{getAbbr(getTeamName(match.team1Id))} {inn1.score}/{inn1.wickets} <span className="text-slate-400 font-bold text-xs">({inn1.oversCompleted}.{inn1.ballsInCurrentOver})</span></span>{match.currentInningNumber === 1 && match.status === 'live' && <Badge variant="secondary" className="animate-pulse">Active</Badge>}</div>}
               {inn2 && <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg"><span className="font-black text-lg md:text-2xl text-slate-800">{getAbbr(getTeamName(match.team2Id))} {inn2.score}/{inn2.wickets} <span className="text-slate-400 font-bold text-xs">({inn2.oversCompleted}.{inn2.ballsInCurrentOver})</span></span>{match.currentInningNumber === 2 && match.status === 'live' && <Badge variant="secondary" className="animate-pulse">Active</Badge>}</div>}
             </div>
+            {isUmpire && match.status === 'live' && (
+              <Button onClick={handleEndMatch} variant="destructive" className="w-full font-black uppercase text-xs h-12 tracking-widest mt-4">
+                <CheckCircle2 className="w-4 h-4 mr-2" /> End Match
+              </Button>
+            )}
           </div>
         </TabsContent>
 
@@ -490,7 +593,42 @@ export default function MatchScoreboardPage() {
         </TabsContent>
 
         <TabsContent value="overs" className="mt-4 space-y-6">
-          <div className="text-center py-10 text-slate-400 font-bold uppercase text-xs">Ball-by-ball history coming soon.</div>
+          {groupedOvers.length > 0 ? (
+            <div className="space-y-4">
+              {groupedOvers.map((over) => (
+                <Card key={over.overNumber} className="border shadow-none overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-2 border-b flex justify-between items-center">
+                    <span className="font-black text-[10px] uppercase tracking-widest text-slate-400">Over {over.overNumber}</span>
+                  </div>
+                  <div className="divide-y">
+                    {over.balls.map((ball, idx) => (
+                      <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center font-black text-xs border",
+                            ball.isWicket ? "bg-destructive text-white border-destructive" : 
+                            ball.runsScored >= 4 ? "bg-primary text-white border-primary" : "bg-white text-slate-900"
+                          )}>
+                            {ball.isWicket ? 'W' : ball.totalRunsOnDelivery}
+                          </div>
+                          <div className="space-y-0.5">
+                            <p className="text-[10px] font-bold text-slate-900">{getPlayerName(ball.bowlerPlayerId)} to {getPlayerName(ball.strikerPlayerId)}</p>
+                            <p className="text-[9px] text-slate-500 font-medium">{ball.outcomeDescription}</p>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="text-[8px] h-4 font-bold">{ball.overNumber}.{ball.ballNumberInOver}</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-20 border-2 border-dashed rounded-xl space-y-3">
+              <History className="w-10 h-10 text-slate-200 mx-auto" />
+              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No deliveries recorded yet</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

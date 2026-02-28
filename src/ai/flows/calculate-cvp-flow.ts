@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview A Genkit flow for calculating Cricket Value Points (CVP) for a player based on their match performance.
@@ -79,7 +80,7 @@ Bowling:
     - Econ 5-6: +4 points.
     - Econ 10-11: -2 points.
     - Econ > 12: -4 points.
-    - Econ = (Runs Conceded / Overs Bowled).
+    - Econ = (Runs Conceded / (Overs Bowled || 1)).
 
 Fielding:
 - Dismissal (Catch/Stumping/Run-out): 4 points per event.
