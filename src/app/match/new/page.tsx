@@ -14,7 +14,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { PlayCircle, Trophy, ShieldCheck, Users, Info } from 'lucide-react';
+import { PlayCircle, Trophy, ShieldCheck, Users, Info, Settings2, UserPlus } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 
 export default function NewMatchPage() {
   const db = useFirestore();
@@ -30,6 +32,8 @@ export default function NewMatchPage() {
     team2Squad: [] as string[],
     team1CaptainId: '',
     team2CaptainId: '',
+    commonPlayerId: '',
+    isStreetMode: false,
     totalOvers: '20',
     tossWinner: '',
     tossDecision: 'bat'
@@ -38,22 +42,20 @@ export default function NewMatchPage() {
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams'), orderBy('name', 'asc')), [db]);
   const { data: teams } = useCollection(teamsQuery);
 
+  const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
+  const { data: allPlayers } = useCollection(allPlayersQuery);
+
   const team1PlayersQuery = useMemoFirebase(() => 
-    setup.team1Id ? query(collection(db, 'players'), where('teamId', '==', setup.team1Id)) : null, 
-  [db, setup.team1Id]);
+    setup.isStreetMode ? allPlayersQuery : (setup.team1Id ? query(collection(db, 'players'), where('teamId', '==', setup.team1Id)) : null), 
+  [db, setup.team1Id, setup.isStreetMode, allPlayersQuery]);
   const { data: team1Players } = useCollection(team1PlayersQuery);
 
   const team2PlayersQuery = useMemoFirebase(() => 
-    setup.team2Id ? query(collection(db, 'players'), where('teamId', '==', setup.team2Id)) : null, 
-  [db, setup.team2Id]);
+    setup.isStreetMode ? allPlayersQuery : (setup.team2Id ? query(collection(db, 'players'), where('teamId', '==', setup.team2Id)) : null), 
+  [db, setup.team2Id, setup.isStreetMode, allPlayersQuery]);
   const { data: team2Players } = useCollection(team2PlayersQuery);
 
   const handleStartMatch = () => {
-    if (!setup.team1CaptainId || !setup.team2CaptainId) {
-      toast({ title: "Configuration Error", description: "Please select captains for both teams.", variant: "destructive" });
-      return;
-    }
-
     const matchId = doc(collection(db, 'matches')).id;
     const matchData = {
       id: matchId,
@@ -61,20 +63,21 @@ export default function NewMatchPage() {
       team2Id: setup.team2Id,
       team1SquadPlayerIds: setup.team1Squad,
       team2SquadPlayerIds: setup.team2Squad,
-      team1CaptainId: setup.team1CaptainId,
-      team2CaptainId: setup.team2CaptainId,
+      team1CaptainId: setup.team1CaptainId || (setup.team1Squad[0] || ''),
+      team2CaptainId: setup.team2CaptainId || (setup.team2Squad[0] || ''),
+      commonPlayerId: setup.commonPlayerId,
       totalOvers: parseInt(setup.totalOvers),
       status: 'live',
       tossWinnerTeamId: setup.tossWinner,
       tossDecision: setup.tossDecision,
       currentInningNumber: 1,
       matchDate: new Date().toISOString(),
-      umpireId: user?.uid || 'anonymous'
+      umpireId: user?.uid || 'anonymous',
+      isStreetMode: setup.isStreetMode
     };
 
     setDocumentNonBlocking(doc(db, 'matches', matchId), matchData, { merge: true });
     
-    // Initialize first inning
     const inningId = 'inning_1';
     const battingTeamId = setup.tossWinner === setup.team1Id 
       ? (setup.tossDecision === 'bat' ? setup.team1Id : setup.team2Id)
@@ -98,7 +101,7 @@ export default function NewMatchPage() {
 
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), inningData, { merge: true });
     
-    toast({ title: "Match Started!", description: "Play Ball!" });
+    toast({ title: "Match Started!", description: "Flexible squads engaged. Play Ball!" });
     router.push(`/match/${matchId}`);
   };
 
@@ -126,10 +129,21 @@ export default function NewMatchPage() {
       {step === 1 && (
         <Card className="border-t-4 border-t-primary shadow-lg">
           <CardHeader>
-            <CardTitle>1. Team Selection</CardTitle>
-            <CardDescription>Choose the franchises for this match.</CardDescription>
+            <CardTitle>1. Format & Teams</CardTitle>
+            <CardDescription>Configure match rules and choose teams.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            <div className="bg-muted/30 p-4 rounded-xl flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label className="text-base font-bold">Street Mode (Flexible Pool)</Label>
+                <p className="text-xs text-muted-foreground">Select any player regardless of their registered team.</p>
+              </div>
+              <Switch 
+                checked={setup.isStreetMode} 
+                onCheckedChange={(v) => setSetup({...setup, isStreetMode: v})} 
+              />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label>Team A (Home)</Label>
@@ -150,10 +164,24 @@ export default function NewMatchPage() {
                 </Select>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label>Match Format (Overs)</Label>
-              <Input type="number" value={setup.totalOvers} onChange={(e) => setSetup({...setup, totalOvers: e.target.value})} />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label>Match Format (Overs)</Label>
+                <Input type="number" value={setup.totalOvers} onChange={(e) => setSetup({...setup, totalOvers: e.target.value})} />
+              </div>
+              <div className="space-y-2">
+                <Label>Common Player (Optional)</Label>
+                <Select value={setup.commonPlayerId} onValueChange={(v) => setSetup({...setup, commonPlayerId: v})}>
+                  <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {allPlayers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
             <Button className="w-full" disabled={!setup.team1Id || !setup.team2Id || setup.team1Id === setup.team2Id} onClick={() => setStep(2)}>
               Next: Squad Selection
             </Button>
@@ -164,13 +192,16 @@ export default function NewMatchPage() {
       {step === 2 && (
         <Card className="border-t-4 border-t-primary shadow-lg">
           <CardHeader>
-            <CardTitle>2. Squad & Captains</CardTitle>
-            <CardDescription>Select the playing XI and their leaders.</CardDescription>
+            <CardTitle>2. Squad Selection</CardTitle>
+            <CardDescription>Uneven squads allowed. Select any number of players for each side.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-4">
-                <h3 className="font-bold border-b pb-2">Team A Squad</h3>
+                <div className="flex justify-between items-center border-b pb-2">
+                  <h3 className="font-bold">Team A Squad</h3>
+                  <Badge variant="secondary">{setup.team1Squad.length} Players</Badge>
+                </div>
                 <div className="max-h-60 overflow-y-auto space-y-2 p-2 bg-muted/30 rounded-lg">
                   {team1Players?.map(p => (
                     <div key={p.id} className="flex items-center space-x-2">
@@ -189,7 +220,7 @@ export default function NewMatchPage() {
                   ))}
                 </div>
                 <Select value={setup.team1CaptainId} onValueChange={(v) => setSetup({...setup, team1CaptainId: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Captain" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select Captain (Optional)" /></SelectTrigger>
                   <SelectContent>
                     {team1Players?.filter(p => setup.team1Squad.includes(p.id)).map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
@@ -199,7 +230,10 @@ export default function NewMatchPage() {
               </div>
 
               <div className="space-y-4">
-                <h3 className="font-bold border-b pb-2">Team B Squad</h3>
+                <div className="flex justify-between items-center border-b pb-2">
+                  <h3 className="font-bold">Team B Squad</h3>
+                  <Badge variant="secondary">{setup.team2Squad.length} Players</Badge>
+                </div>
                 <div className="max-h-60 overflow-y-auto space-y-2 p-2 bg-muted/30 rounded-lg">
                   {team2Players?.map(p => (
                     <div key={p.id} className="flex items-center space-x-2">
@@ -218,7 +252,7 @@ export default function NewMatchPage() {
                   ))}
                 </div>
                 <Select value={setup.team2CaptainId} onValueChange={(v) => setSetup({...setup, team2CaptainId: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Captain" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select Captain (Optional)" /></SelectTrigger>
                   <SelectContent>
                     {team2Players?.filter(p => setup.team2Squad.includes(p.id)).map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
@@ -270,6 +304,7 @@ export default function NewMatchPage() {
                 <p className="font-bold">Match Summary Preview</p>
                 <p className="text-muted-foreground italic">
                   Team {setup.tossWinner === setup.team1Id ? 'A' : 'B'} won the toss and elected to {setup.tossDecision} first in a {setup.totalOvers} over match.
+                  {setup.commonPlayerId && setup.commonPlayerId !== 'none' && " Common player enabled."}
                 </p>
               </div>
             </div>
