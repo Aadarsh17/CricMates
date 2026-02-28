@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
@@ -23,12 +24,20 @@ export default function MatchesPage() {
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
   const { data: matches, isLoading } = useCollection(matchesQuery);
 
+  const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
+  const { data: teams } = useCollection(teamsQuery);
+
   const liveMatches = matches?.filter(m => m.status === 'live') || [];
   const pastMatches = matches?.filter(m => m.status === 'completed') || [];
 
   const formatDate = (dateString: string) => {
     if (!isMounted) return '';
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const getTeamName = (teamId: string) => {
+    const team = teams?.find(t => t.id === teamId);
+    return team ? team.name : 'Unknown Team';
   };
 
   return (
@@ -71,7 +80,7 @@ export default function MatchesPage() {
                     </div>
                     <div className="text-center py-4 bg-muted/50 rounded-xl">
                       <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Competing Teams</p>
-                      <p className="font-black text-xl text-primary">Match # {match.id.slice(-4).toUpperCase()}</p>
+                      <p className="font-black text-xl text-primary">{getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)}</p>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -103,14 +112,14 @@ export default function MatchesPage() {
                         <p className="font-bold">{match.resultDescription || 'Result Pending'}</p>
                       </div>
                       <div className="flex-1 p-6 flex items-center justify-between">
-                        <div className="flex flex-col items-center flex-1 text-center px-4">
-                          <p className="font-bold text-lg">Team 1</p>
-                          <p className="text-xs text-muted-foreground">ID: {match.team1Id.slice(0, 5)}</p>
+                        <div className="flex flex-col items-center flex-1 text-center px-4 min-w-0">
+                          <p className="font-bold text-lg truncate w-full">{getTeamName(match.team1Id)}</p>
+                          <p className="text-[10px] text-muted-foreground uppercase">Home Team</p>
                         </div>
                         <div className="text-muted-foreground font-black px-4">VS</div>
-                        <div className="flex flex-col items-center flex-1 text-center px-4">
-                          <p className="font-bold text-lg">Team 2</p>
-                          <p className="text-xs text-muted-foreground">ID: {match.team2Id.slice(0, 5)}</p>
+                        <div className="flex flex-col items-center flex-1 text-center px-4 min-w-0">
+                          <p className="font-bold text-lg truncate w-full">{getTeamName(match.team2Id)}</p>
+                          <p className="text-[10px] text-muted-foreground uppercase">Away Team</p>
                         </div>
                         <div className="ml-4 hidden md:block">
                           <Button variant="ghost" asChild>

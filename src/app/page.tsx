@@ -23,6 +23,14 @@ export default function Home() {
   [db]);
   const { data: topPlayers } = useCollection(topPlayersQuery);
 
+  const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
+  const { data: teams } = useCollection(teamsQuery);
+
+  const getTeamName = (teamId: string) => {
+    const team = teams?.find(t => t.id === teamId);
+    return team ? team.name : 'Unknown Team';
+  };
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <section className="relative rounded-2xl overflow-hidden h-[400px] flex items-center justify-center text-center">
@@ -60,14 +68,14 @@ export default function Home() {
             {liveMatch ? (
               <div className="p-6 bg-muted/50 rounded-xl border border-border/50">
                 <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
-                  <div className="flex-1 text-center">
-                    <p className="font-bold text-xl mb-1">Team 1</p>
-                    <p className="text-3xl font-black text-primary">Score Loading...</p>
+                  <div className="flex-1 text-center min-w-0">
+                    <p className="font-bold text-xl mb-1 truncate">{getTeamName(liveMatch.team1Id)}</p>
+                    <p className="text-sm text-muted-foreground uppercase font-bold tracking-widest">Home</p>
                   </div>
                   <div className="px-6 font-black text-muted-foreground">VS</div>
-                  <div className="flex-1 text-center">
-                    <p className="font-bold text-xl mb-1">Team 2</p>
-                    <p className="text-lg text-muted-foreground font-semibold">Yet to Bat</p>
+                  <div className="flex-1 text-center min-w-0">
+                    <p className="font-bold text-xl mb-1 truncate">{getTeamName(liveMatch.team2Id)}</p>
+                    <p className="text-sm text-muted-foreground uppercase font-bold tracking-widest">Away</p>
                   </div>
                 </div>
                 <div className="mt-6 flex justify-center">
