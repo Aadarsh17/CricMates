@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Undo2, Shuffle, ArrowLeft, UserPlus, RefreshCw, AlertCircle, PlayCircle } from 'lucide-react';
+import { Trophy, Undo2, Shuffle, ArrowLeft, UserPlus, RefreshCw, PlayCircle, UserCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -60,6 +60,7 @@ export default function MatchScoreboardPage() {
   const [isBowlerModalOpen, setIsBowlerModalOpen] = useState(false);
   const [isNoBallModalOpen, setIsNoBallModalOpen] = useState(false);
   const [isSecondInningsSetupOpen, setIsSecondInningsSetupOpen] = useState(false);
+  const [isOpeningPairSetupOpen, setIsOpeningPairSetupOpen] = useState(false);
   
   const [wicketDetails, setWicketDetails] = useState({
     type: 'bowled',
@@ -68,7 +69,7 @@ export default function MatchScoreboardPage() {
   });
   const [selectedNextBowlerId, setSelectedNextBowlerId] = useState('');
   
-  const [secondInningsSetup, setSecondInningsSetup] = useState({
+  const [setupPair, setSetupPair] = useState({
     strikerId: '',
     nonStrikerId: '',
     bowlerId: ''
@@ -97,6 +98,8 @@ export default function MatchScoreboardPage() {
                          activeInningData?.oversCompleted < (match?.totalOvers || 0) &&
                          !activeInningData?.currentBowlerPlayerId;
 
+  const needsOpeningPair = activeInningData && (!activeInningData.strikerPlayerId || !activeInningData.nonStrikerPlayerId || !activeInningData.currentBowlerPlayerId);
+
   const handleBall = (runs: number, isWicket = false, extra: 'none' | 'wide' | 'noball' = 'none') => {
     if (!isUmpire || match?.status !== 'live' || !activeInningData || !activeInningRef || isCurrentInningsOver) {
       return;
@@ -115,7 +118,7 @@ export default function MatchScoreboardPage() {
     let newNonStriker = currentInning.nonStrikerPlayerId;
 
     if (!newStriker || !newNonStriker) {
-      toast({ title: "Batsmen Missing", description: "Ensure both batsmen are set.", variant: "destructive" });
+      setIsOpeningPairSetupOpen(true);
       return;
     }
 
@@ -194,13 +197,24 @@ export default function MatchScoreboardPage() {
 
   const handleNextBowlerSelect = () => {
     if (!selectedNextBowlerId || !activeInningRef || selectedNextBowlerId === 'none') return;
-    
-    updateDocumentNonBlocking(activeInningRef, {
-      currentBowlerPlayerId: selectedNextBowlerId
-    });
-    
+    updateDocumentNonBlocking(activeInningRef, { currentBowlerPlayerId: selectedNextBowlerId });
     setIsBowlerModalOpen(false);
     setSelectedNextBowlerId('');
+  };
+
+  const handleOpeningPairConfirm = () => {
+    if (!setupPair.strikerId || !setupPair.nonStrikerId || !setupPair.bowlerId || !activeInningRef) {
+      toast({ title: "Validation Error", description: "All positions required.", variant: "destructive" });
+      return;
+    }
+    updateDocumentNonBlocking(activeInningRef, {
+      strikerPlayerId: setupPair.strikerId,
+      nonStrikerPlayerId: setupPair.nonStrikerId,
+      currentBowlerPlayerId: setupPair.bowlerId
+    });
+    setIsOpeningPairSetupOpen(false);
+    setIsSecondInningsSetupOpen(false);
+    setSetupPair({ strikerId: '', nonStrikerId: '', bowlerId: '' });
   };
 
   const handleUndo = () => {
@@ -221,39 +235,6 @@ export default function MatchScoreboardPage() {
     toast({ title: "Ball Undone", description: "Score reverted." });
   };
 
-  const startSecondInnings = () => {
-    if (!inn1 || !match || !secondInningsSetup.strikerId || !secondInningsSetup.nonStrikerId || !secondInningsSetup.bowlerId) {
-      toast({ title: "Missing Players", description: "Please select all starting players.", variant: "destructive" });
-      return;
-    }
-
-    const battingTeamId = inn1.battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
-    const bowlingTeamId = inn1.battingTeamId === match.team1Id ? match.team1Id : match.team2Id;
-
-    const inningData = {
-      id: 'inning_2',
-      matchId: matchId,
-      inningNumber: 2,
-      battingTeamId,
-      bowlingTeamId,
-      score: 0,
-      wickets: 0,
-      oversCompleted: 0,
-      ballsInCurrentOver: 0,
-      strikerPlayerId: secondInningsSetup.strikerId,
-      nonStrikerPlayerId: secondInningsSetup.nonStrikerId,
-      currentBowlerPlayerId: secondInningsSetup.bowlerId,
-      umpireId: user?.uid || 'anonymous',
-      matchStatus: 'live'
-    };
-
-    setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), inningData, { merge: true });
-    updateDocumentNonBlocking(matchRef!, { currentInningNumber: 2 });
-    setIsSecondInningsSetupOpen(false);
-    setActiveInningView(2);
-    toast({ title: "Innings 2 Started", description: "Good luck to the chasing team!" });
-  };
-
   const finalizeMatch = async () => {
     if (!isUmpire || !match || !inn1 || !inn2) return;
 
@@ -263,24 +244,21 @@ export default function MatchScoreboardPage() {
     const allDels = [...d1.docs.map(d => d.data()), ...d2.docs.map(d => d.data())];
 
     const playerStats: Record<string, { runs: number, wickets: number, matches: number }> = {};
-    
     allDels.forEach(d => {
       if (d.strikerPlayerId && d.strikerPlayerId !== 'none') {
         if (!playerStats[d.strikerPlayerId]) playerStats[d.strikerPlayerId] = { runs: 0, wickets: 0, matches: 1 };
         playerStats[d.strikerPlayerId].runs += d.runsScored;
       }
-      
       if (d.bowlerPlayerId && d.bowlerPlayerId !== 'none') {
         if (!playerStats[d.bowlerPlayerId]) playerStats[d.bowlerPlayerId] = { runs: 0, wickets: 0, matches: 1 };
-        if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'hit wicket') {
+        if (d.isWicket && !['runout', 'hit wicket'].includes(d.dismissalType)) {
           playerStats[d.bowlerPlayerId].wickets += 1;
         }
       }
     });
 
     for (const pid in playerStats) {
-      const pRef = doc(db, 'players', pid);
-      batch.update(pRef, {
+      batch.update(doc(db, 'players', pid), {
         runsScored: increment(playerStats[pid].runs),
         wicketsTaken: increment(playerStats[pid].wickets),
         matchesPlayed: increment(1),
@@ -306,43 +284,59 @@ export default function MatchScoreboardPage() {
     router.push('/matches');
   };
 
+  const initInningsTwo = () => {
+    if (!inn1 || !match || !setupPair.strikerId || !setupPair.nonStrikerId || !setupPair.bowlerId) return;
+    const battingTeamId = inn1.battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+    const bowlingTeamId = inn1.battingTeamId === match.team1Id ? match.team1Id : match.team2Id;
+
+    const inningData = {
+      id: 'inning_2',
+      matchId: matchId,
+      inningNumber: 2,
+      battingTeamId,
+      bowlingTeamId,
+      score: 0,
+      wickets: 0,
+      oversCompleted: 0,
+      ballsInCurrentOver: 0,
+      strikerPlayerId: setupPair.strikerId,
+      nonStrikerPlayerId: setupPair.nonStrikerId,
+      currentBowlerPlayerId: setupPair.bowlerId,
+      umpireId: user?.uid || 'anonymous',
+      matchStatus: 'live'
+    };
+
+    setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), inningData, { merge: true });
+    updateDocumentNonBlocking(matchRef!, { currentInningNumber: 2 });
+    setIsSecondInningsSetupOpen(false);
+    setActiveInningView(2);
+    setSetupPair({ strikerId: '', nonStrikerId: '', bowlerId: '' });
+  };
+
   if (isMatchLoading) return <div className="p-20 text-center">Loading scoreboard...</div>;
   if (!match) return <div className="p-20 text-center">Match data missing.</div>;
 
   const target = inn1 ? inn1.score + 1 : 0;
+  const bowlingSquadIds = activeInningData?.bowlingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
+  const battingSquadIds = activeInningData?.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
   
-  const currentBowlingSquadIds = activeInningData?.bowlingTeamId === match.team1Id 
-    ? match.team1SquadPlayerIds 
-    : match.team2SquadPlayerIds;
+  const bowlingPool = allPlayers?.filter(p => bowlingSquadIds.includes(p.id)) || [];
+  const battingPool = allPlayers?.filter(p => battingSquadIds.includes(p.id)) || [];
 
-  const bowlingPool = allPlayers?.filter(p => currentBowlingSquadIds.includes(p.id)) || [];
-
-  const secondInningsBattingTeamId = inn1?.battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
-  const secondInningsBowlingTeamId = secondInningsBattingTeamId === match.team1Id ? match.team2Id : match.team1Id;
-
-  const secondInningsBattingSquadIds = secondInningsBattingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
-  const secondInningsBowlingSquadIds = secondInningsBowlingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
-
-  const secondInningsBattingPlayers = allPlayers?.filter(p => secondInningsBattingSquadIds.includes(p.id)) || [];
-  const secondInningsBowlingPlayers = allPlayers?.filter(p => secondInningsBowlingSquadIds.includes(p.id)) || [];
-
-  const requiresFielder = wicketDetails.type === 'caught' || wicketDetails.type === 'runout' || wicketDetails.type === 'stumping';
+  const chasingBattingTeamId = inn1?.battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+  const chasingBowlingTeamId = chasingBattingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+  const chasingBattingSquad = chasingBattingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
+  const chasingBowlingSquad = chasingBowlingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="bg-primary text-white p-6 rounded-2xl shadow-xl border-b-8 border-secondary relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-          <Trophy className="w-32 h-32 rotate-12" />
-        </div>
-        
+        <div className="absolute top-0 right-0 p-4 opacity-10"><Trophy className="w-32 h-32 rotate-12" /></div>
         <div className="flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
           <div className="text-center md:text-left flex-1">
-            <Badge className="bg-white/20 text-white mb-2 uppercase tracking-widest text-[10px]">
-              {activeInningView === 1 ? '1st Innings' : '2nd Innings'}
-            </Badge>
+            <Badge className="bg-white/20 text-white mb-2 uppercase tracking-widest text-[10px]">{activeInningView === 1 ? '1st Innings' : '2nd Innings'}</Badge>
             <h1 className="text-4xl font-black">{activeInningData ? getTeamName(activeInningData.battingTeamId) : '---'}</h1>
           </div>
-          
           <div className="text-center px-10 border-x border-white/10">
             <div className="flex items-baseline justify-center gap-2">
               <span className="text-6xl font-black">{activeInningData?.score || 0}</span>
@@ -352,20 +346,12 @@ export default function MatchScoreboardPage() {
               {activeInningData?.oversCompleted || 0}.{activeInningData?.ballsInCurrentOver || 0} Overs
             </p>
           </div>
-
           <div className="text-center md:text-right flex-1">
-            {match.status === 'live' ? (
-              <Badge variant="destructive" className="animate-pulse mb-2">LIVE SCOREBOARD</Badge>
-            ) : (
-              <Badge className="bg-secondary mb-2">MATCH ARCHIVED</Badge>
-            )}
-            
+            {match.status === 'live' ? <Badge variant="destructive" className="animate-pulse mb-2">LIVE SCOREBOARD</Badge> : <Badge className="bg-secondary mb-2">ARCHIVED</Badge>}
             {activeInningView === 2 && inn1 && match.status === 'live' && inn2 && (
               <div className="bg-black/20 p-2 rounded-lg mt-2">
                 <p className="text-xs font-bold text-secondary">Target: {target}</p>
-                <p className="text-[10px] opacity-80">
-                  Need {Math.max(0, target - inn2.score)} runs in {Math.max(0, (match.totalOvers * 6) - (inn2.oversCompleted * 6 + inn2.ballsInCurrentOver))} balls
-                </p>
+                <p className="text-[10px] opacity-80">Need {Math.max(0, target - inn2.score)} runs in {Math.max(0, (match.totalOvers * 6) - (inn2.oversCompleted * 6 + inn2.ballsInCurrentOver))} balls</p>
               </div>
             )}
           </div>
@@ -386,79 +372,37 @@ export default function MatchScoreboardPage() {
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-lg">Scoring Panel</CardTitle>
                     <div className="flex gap-2">
-                       <Button variant="outline" size="sm" onClick={() => setIsBowlerModalOpen(true)}>
-                        <RefreshCw className="w-4 h-4 mr-1" /> Change Bowler
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={handleUndo} disabled={!deliveries || deliveries.length === 0}>
-                        <Undo2 className="w-4 h-4 mr-1" /> Undo Ball
-                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => setIsBowlerModalOpen(true)}><RefreshCw className="w-4 h-4 mr-1" /> Bowler</Button>
+                      <Button variant="outline" size="sm" onClick={handleUndo} disabled={!deliveries || deliveries.length === 0}><Undo2 className="w-4 h-4 mr-1" /> Undo</Button>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  {needsNewBowler ? (
-                    <div className="p-8 text-center bg-muted/50 rounded-2xl border-2 border-dashed border-primary/20">
+                  {needsOpeningPair ? (
+                    <div className="p-12 text-center bg-muted/50 rounded-2xl border-2 border-dashed border-primary/20">
                       <UserPlus className="w-12 h-12 mx-auto mb-4 text-primary opacity-40" />
-                      <h3 className="text-lg font-bold mb-2">Next Over Selection</h3>
-                      <p className="text-sm text-muted-foreground mb-6">Over finished! Select the next bowler to continue.</p>
-                      <Button onClick={() => setIsBowlerModalOpen(true)} className="h-12 px-10 font-bold">
-                        Pick Next Bowler
-                      </Button>
+                      <h3 className="text-lg font-bold mb-2">Innings Ready</h3>
+                      <p className="text-sm text-muted-foreground mb-6">Setup the opening pair to start scoring.</p>
+                      <Button onClick={() => setIsOpeningPairSetupOpen(true)} className="h-12 px-10 font-bold bg-secondary hover:bg-secondary/90">Initialize Opening Pair</Button>
+                    </div>
+                  ) : needsNewBowler ? (
+                    <div className="p-8 text-center bg-muted/50 rounded-2xl border-2 border-dashed border-primary/20">
+                      <h3 className="text-lg font-bold mb-2">Over Finished</h3>
+                      <p className="text-sm text-muted-foreground mb-6">Select the next bowler to continue.</p>
+                      <Button onClick={() => setIsBowlerModalOpen(true)} className="h-12 px-10 font-bold">Pick Next Bowler</Button>
                     </div>
                   ) : (
                     <>
                       <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                         {[0, 1, 2, 3, 4, 6].map((num) => (
-                          <Button 
-                            key={num} 
-                            size="lg" 
-                            variant="secondary"
-                            disabled={isCurrentInningsOver}
-                            onClick={() => handleBall(num)}
-                            className="h-16 font-black text-xl hover:bg-primary hover:text-white"
-                          >
-                            {num}
-                          </Button>
+                          <Button key={num} size="lg" variant="secondary" disabled={isCurrentInningsOver} onClick={() => handleBall(num)} className="h-16 font-black text-xl hover:bg-primary hover:text-white">{num}</Button>
                         ))}
-                        <Button 
-                          variant="outline" 
-                          size="lg" 
-                          disabled={isCurrentInningsOver}
-                          className="h-16 font-black border-2 border-secondary text-secondary" 
-                          onClick={() => handleBall(1)}
-                        >
-                          1D
-                        </Button>
+                        <Button variant="outline" size="lg" disabled={isCurrentInningsOver} className="h-16 font-black border-2 border-secondary text-secondary" onClick={() => handleBall(1)}>1D</Button>
                       </div>
-
                       <div className="grid grid-cols-3 gap-3">
-                        <Button 
-                          variant="destructive" 
-                          size="lg" 
-                          className="h-16 font-black" 
-                          disabled={isCurrentInningsOver}
-                          onClick={() => setIsWicketModalOpen(true)}
-                        >
-                          WICKET
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="lg" 
-                          className="h-16 font-black border-2 border-primary" 
-                          disabled={isCurrentInningsOver}
-                          onClick={() => handleBall(0, false, 'wide')}
-                        >
-                          WIDE
-                        </Button>
-                        <Button 
-                          variant="outline" 
-                          size="lg" 
-                          className="h-16 font-black border-2 border-primary" 
-                          disabled={isCurrentInningsOver}
-                          onClick={() => setIsNoBallModalOpen(true)}
-                        >
-                          NO BALL
-                        </Button>
+                        <Button variant="destructive" size="lg" className="h-16 font-black" disabled={isCurrentInningsOver} onClick={() => setIsWicketModalOpen(true)}>WICKET</Button>
+                        <Button variant="outline" size="lg" className="h-16 font-black border-2 border-primary" disabled={isCurrentInningsOver} onClick={() => handleBall(0, false, 'wide')}>WIDE</Button>
+                        <Button variant="outline" size="lg" className="h-16 font-black border-2 border-primary" disabled={isCurrentInningsOver} onClick={() => setIsNoBallModalOpen(true)}>NO BALL</Button>
                       </div>
                     </>
                   )}
@@ -466,57 +410,21 @@ export default function MatchScoreboardPage() {
               </Card>
 
               <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Match Controls</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle className="text-lg">Controls</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
                   <div className="p-4 bg-muted/50 rounded-lg space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-muted-foreground">STRIKER</span>
-                      <span className="text-sm font-bold text-primary truncate max-w-[120px]">{getPlayerName(activeInningData?.strikerPlayerId || '')}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-muted-foreground">PARTNER</span>
-                      <span className="text-sm font-bold truncate max-w-[120px]">{getPlayerName(activeInningData?.nonStrikerPlayerId || '')}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-muted-foreground">BOWLING</span>
-                      <span className="text-sm font-bold text-secondary truncate max-w-[120px]">{getPlayerName(activeInningData?.currentBowlerPlayerId || '')}</span>
-                    </div>
+                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-muted-foreground">STRIKER</span><span className="text-sm font-bold text-primary truncate max-w-[120px]">{getPlayerName(activeInningData?.strikerPlayerId || '')}</span></div>
+                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-muted-foreground">PARTNER</span><span className="text-sm font-bold truncate max-w-[120px]">{getPlayerName(activeInningData?.nonStrikerPlayerId || '')}</span></div>
+                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-muted-foreground">BOWLING</span><span className="text-sm font-bold text-secondary truncate max-w-[120px]">{getPlayerName(activeInningData?.currentBowlerPlayerId || '')}</span></div>
                   </div>
-
                   <div className="grid grid-cols-1 gap-2">
-                    <Button variant="outline" className="w-full" onClick={() => {
-                      if (!activeInningRef || !activeInningData) return;
-                      updateDocumentNonBlocking(activeInningRef, {
-                        strikerPlayerId: activeInningData.nonStrikerPlayerId,
-                        nonStrikerPlayerId: activeInningData.strikerPlayerId
-                      });
-                    }}>
-                      <Shuffle className="w-4 h-4 mr-1" /> Swap Batsmen
-                    </Button>
-                    <Button variant="outline" className="w-full text-xs font-bold" onClick={() => router.push('/match/new')}>
-                      <ArrowLeft className="w-3 h-3 mr-2" /> Back to Setup
-                    </Button>
+                    <Button variant="outline" className="w-full" onClick={() => { if (!activeInningRef || !activeInningData) return; updateDocumentNonBlocking(activeInningRef, { strikerPlayerId: activeInningData.nonStrikerPlayerId, nonStrikerPlayerId: activeInningData.strikerPlayerId }); }}><Shuffle className="w-4 h-4 mr-1" /> Swap Strike</Button>
+                    <Button variant="outline" className="w-full text-xs font-bold" onClick={() => router.push('/match/new')}><ArrowLeft className="w-3 h-3 mr-2" /> Back to Setup</Button>
                   </div>
-
                   {match.currentInningNumber === 1 ? (
-                    <Button 
-                      className="w-full bg-secondary hover:bg-secondary/90 h-12 font-bold" 
-                      onClick={() => setIsSecondInningsSetupOpen(true)}
-                      disabled={!isCurrentInningsOver}
-                    >
-                      Start 2nd Innings
-                    </Button>
+                    <Button className="w-full bg-secondary hover:bg-secondary/90 h-12 font-bold" onClick={() => setIsSecondInningsSetupOpen(true)} disabled={!isCurrentInningsOver}>Start 2nd Innings</Button>
                   ) : (
-                    <Button 
-                      variant="destructive" 
-                      className="w-full h-12 font-bold" 
-                      onClick={finalizeMatch}
-                      disabled={!isCurrentInningsOver}
-                    >
-                      Finalize Match Result
-                    </Button>
+                    <Button variant="destructive" className="w-full h-12 font-bold" onClick={finalizeMatch} disabled={!isCurrentInningsOver}>Finalize Result</Button>
                   )}
                 </CardContent>
               </Card>
@@ -524,211 +432,88 @@ export default function MatchScoreboardPage() {
           ) : (
             <Card className="p-12 text-center border-2 border-dashed">
               <Trophy className="w-12 h-12 mx-auto mb-4 opacity-10" />
-              <p className="text-muted-foreground font-medium">
-                {match.status === 'completed' ? 'Official Scorecard Finalized.' : 'Guest View Mode: Real-time scores only.'}
-              </p>
+              <p className="text-muted-foreground font-medium">{match.status === 'completed' ? 'Official Scorecard Finalized.' : 'Guest View Mode: Real-time scores only.'}</p>
             </Card>
           )}
 
           <Card className="mt-6">
-            <CardHeader className="py-4">
-              <CardTitle className="text-sm">Over Timeline</CardTitle>
-            </CardHeader>
+            <CardHeader className="py-4"><CardTitle className="text-sm">Ball Timeline</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-2">
                 {deliveries?.map((d) => (
                   <div key={d.id} className="flex items-center gap-4 p-3 bg-muted/20 rounded-lg border-l-4 border-primary/40">
-                    <div className="w-12 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-xs shrink-0">
-                      {d.overNumber}.{d.ballNumberInOver}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold">{d.outcomeDescription}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase font-medium">
-                        {getPlayerName(d.strikerPlayerId)} vs {getPlayerName(d.bowlerPlayerId)}
-                      </p>
-                    </div>
+                    <div className="w-12 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-xs shrink-0">{d.overNumber}.{d.ballNumberInOver}</div>
+                    <div className="flex-1"><p className="text-sm font-bold">{d.outcomeDescription}</p><p className="text-[10px] text-muted-foreground uppercase font-medium">{getPlayerName(d.strikerPlayerId)} vs {getPlayerName(d.bowlerPlayerId)}</p></div>
                   </div>
                 ))}
-                {(!deliveries || deliveries.length === 0) && (
-                   <p className="text-center py-6 text-xs text-muted-foreground italic">No deliveries recorded yet.</p>
-                )}
+                {(!deliveries || deliveries.length === 0) && <p className="text-center py-6 text-xs text-muted-foreground italic">No deliveries recorded yet.</p>}
               </div>
             </CardContent>
           </Card>
         </div>
       </Tabs>
 
+      {/* Setup Opening Pair Modal (For any innings) */}
+      <Dialog open={isOpeningPairSetupOpen} onOpenChange={setIsOpeningPairSetupOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Initialize Match Players</DialogTitle><DialogDescription>Select starting players to begin scoring this innings.</DialogDescription></DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Striker</Label><Select onValueChange={(v) => setSetupPair({...setupPair, strikerId: v})}><SelectTrigger><SelectValue placeholder="Striker" /></SelectTrigger><SelectContent>{battingPool.filter(p => p.id !== setupPair.nonStrikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label>Non-Striker</Label><Select onValueChange={(v) => setSetupPair({...setupPair, nonStrikerId: v})}><SelectTrigger><SelectValue placeholder="Non-Striker" /></SelectTrigger><SelectContent>{battingPool.filter(p => p.id !== setupPair.strikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+            </div>
+            <div className="space-y-2"><Label>Opening Bowler</Label><Select onValueChange={(v) => setSetupPair({...setupPair, bowlerId: v})}><SelectTrigger><SelectValue placeholder="Select Bowler" /></SelectTrigger><SelectContent>{bowlingPool.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+          </div>
+          <DialogFooter><Button className="w-full h-12 font-bold bg-secondary" onClick={handleOpeningPairConfirm} disabled={!setupPair.strikerId || !setupPair.nonStrikerId || !setupPair.bowlerId}>Confirm & Start Scoring</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2nd Innings Transition Modal */}
+      <Dialog open={isSecondInningsSetupOpen} onOpenChange={setIsSecondInningsSetupOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Setup 2nd Innings</DialogTitle><DialogDescription>Select starting lineup for the chasing team.</DialogDescription></DialogHeader>
+          <div className="space-y-6 py-4">
+             <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Striker</Label><Select onValueChange={(v) => setSetupPair({...setupPair, strikerId: v})}><SelectTrigger><SelectValue placeholder="Select Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => chasingBattingSquad.includes(p.id) && p.id !== setupPair.nonStrikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label>Non-Striker</Label><Select onValueChange={(v) => setSetupPair({...setupPair, nonStrikerId: v})}><SelectTrigger><SelectValue placeholder="Select Non-Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => chasingBattingSquad.includes(p.id) && p.id !== setupPair.strikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+            </div>
+            <div className="space-y-2"><Label>Opening Bowler</Label><Select onValueChange={(v) => setSetupPair({...setupPair, bowlerId: v})}><SelectTrigger><SelectValue placeholder="Select Bowler" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => chasingBowlingSquad.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+          </div>
+          <DialogFooter><Button className="w-full h-12 font-bold bg-secondary" onClick={initInningsTwo} disabled={!setupPair.strikerId || !setupPair.nonStrikerId || !setupPair.bowlerId}>Start 2nd Innings</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* No Ball Modal */}
       <Dialog open={isNoBallModalOpen} onOpenChange={setIsNoBallModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>No Ball Extras</DialogTitle>
-            <DialogDescription>Were any runs scored off the bat on this No Ball?</DialogDescription>
-          </DialogHeader>
-          <div className="grid grid-cols-3 gap-2 py-4">
-            {[0, 1, 2, 3, 4, 6].map((num) => (
-              <Button 
-                key={num} 
-                variant="outline" 
-                className="h-16 text-xl font-bold"
-                onClick={() => handleBall(num, false, 'noball')}
-              >
-                {num} Runs
-              </Button>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setIsNoBallModalOpen(false)}>Cancel</Button>
-          </DialogFooter>
+        <DialogContent>
+          <DialogHeader><DialogTitle>No Ball Extras</DialogTitle><DialogDescription>Were any runs scored off the bat?</DialogDescription></DialogHeader>
+          <div className="grid grid-cols-3 gap-2 py-4">{[0, 1, 2, 3, 4, 6].map((num) => <Button key={num} variant="outline" className="h-16 text-xl font-bold" onClick={() => handleBall(num, false, 'noball')}>{num} Runs</Button>)}</div>
         </DialogContent>
       </Dialog>
 
       {/* Wicket Modal */}
       <Dialog open={isWicketModalOpen} onOpenChange={setIsWicketModalOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Wicket Fall Confirmation</DialogTitle>
-            <DialogDescription>Select details for the dismissal of {getPlayerName(activeInningData?.strikerPlayerId || '')}</DialogDescription>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Wicket Confirmation</DialogTitle><DialogDescription>Details for dismissal of {getPlayerName(activeInningData?.strikerPlayerId || '')}</DialogDescription></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Wicket Type</Label>
-              <Select value={wicketDetails.type} onValueChange={(v) => setWicketDetails({...wicketDetails, type: v, fielderId: 'none'})}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bowled">Bowled</SelectItem>
-                  <SelectItem value="caught">Caught</SelectItem>
-                  <SelectItem value="runout">Run Out</SelectItem>
-                  <SelectItem value="stumping">Stumping</SelectItem>
-                  <SelectItem value="hit wicket">Hit Wicket</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {requiresFielder && (
-              <div className="space-y-2">
-                <Label>{wicketDetails.type === 'caught' ? 'Who caught?' : 'Who dismissal?'}</Label>
-                <Select value={wicketDetails.fielderId} onValueChange={(v) => setWicketDetails({...wicketDetails, fielderId: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select fielder" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">--- Select Fielder ---</SelectItem>
-                    {bowlingPool.map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2"><Label>Type</Label><Select value={wicketDetails.type} onValueChange={(v) => setWicketDetails({...wicketDetails, type: v, fielderId: 'none'})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="caught">Caught</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumping">Stumping</SelectItem><SelectItem value="hit wicket">Hit Wicket</SelectItem></SelectContent></Select></div>
+            {['caught', 'runout', 'stumping'].includes(wicketDetails.type) && (
+              <div className="space-y-2"><Label>Fielder Involved</Label><Select value={wicketDetails.fielderId} onValueChange={(v) => setWicketDetails({...wicketDetails, fielderId: v})}><SelectTrigger><SelectValue placeholder="Pick fielder" /></SelectTrigger><SelectContent>{bowlingPool.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             )}
-
-            <div className="space-y-2">
-              <Label>Next Batter</Label>
-              <Select onValueChange={(v) => setWicketDetails({...wicketDetails, newStrikerId: v})}>
-                <SelectTrigger><SelectValue placeholder="Pick incoming batsman" /></SelectTrigger>
-                <SelectContent>
-                  {(activeInningData?.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds)
-                    .filter(pid => pid !== activeInningData?.nonStrikerPlayerId && pid !== activeInningData?.strikerPlayerId)
-                    .map(pid => (
-                      <SelectItem key={pid} value={pid}>{getPlayerName(pid)}</SelectItem>
-                    ))
-                  }
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="space-y-2"><Label>Incoming Batter</Label><Select onValueChange={(v) => setWicketDetails({...wicketDetails, newStrikerId: v})}><SelectTrigger><SelectValue placeholder="Pick next batter" /></SelectTrigger><SelectContent>{battingSquadIds.filter(pid => pid !== activeInningData?.nonStrikerPlayerId && pid !== activeInningData?.strikerPlayerId).map(pid => <SelectItem key={pid} value={pid}>{getPlayerName(pid)}</SelectItem>)}</SelectContent></Select></div>
           </div>
-          <DialogFooter>
-            <Button variant="destructive" className="w-full h-12" onClick={() => handleBall(0, true)} disabled={!wicketDetails.newStrikerId || (requiresFielder && (wicketDetails.fielderId === 'none' || !wicketDetails.fielderId))}>Confirm Wicket</Button>
-          </DialogFooter>
+          <DialogFooter><Button variant="destructive" className="w-full h-12" onClick={() => handleBall(0, true)} disabled={!wicketDetails.newStrikerId || (['caught', 'runout', 'stumping'].includes(wicketDetails.type) && wicketDetails.fielderId === 'none')}>Confirm Wicket</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Bowler Selection Modal */}
-      <Dialog open={isBowlerModalOpen} onOpenChange={(open) => {
-        if (!needsNewBowler || open) setIsBowlerModalOpen(open);
-      }}>
+      <Dialog open={isBowlerModalOpen} onOpenChange={setIsBowlerModalOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{activeInningData?.ballsInCurrentOver === 0 && activeInningData?.oversCompleted > 0 ? 'Select Next Bowler' : 'Assign Bowler'}</DialogTitle>
-            <DialogDescription>
-              {activeInningData?.ballsInCurrentOver === 0 && activeInningData?.oversCompleted > 0 
-                ? 'The over is complete. Choose the next bowler.' 
-                : 'Assign a bowler to the current over.'}
-            </DialogDescription>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Assign Bowler</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Available Bowlers</Label>
-              <Select value={selectedNextBowlerId} onValueChange={setSelectedNextBowlerId}>
-                <SelectTrigger><SelectValue placeholder="Select bowler" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">--- Select Bowler ---</SelectItem>
-                  {bowlingPool
-                    .filter(p => p.id !== (deliveries?.[0]?.bowlerPlayerId || ''))
-                    .filter(p => p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId)
-                    .map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.role})</SelectItem>
-                    ))
-                  }
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="space-y-2"><Label>Select Bowler</Label><Select value={selectedNextBowlerId} onValueChange={setSelectedNextBowlerId}><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{bowlingPool.filter(p => p.id !== (deliveries?.[0]?.bowlerPlayerId || '')).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
           </div>
-          <DialogFooter>
-            <Button className="w-full h-12 font-bold" onClick={handleNextBowlerSelect} disabled={!selectedNextBowlerId || selectedNextBowlerId === 'none'}>
-              Confirm Selection
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* 2nd Innings Setup Modal */}
-      <Dialog open={isSecondInningsSetupOpen} onOpenChange={setIsSecondInningsSetupOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Setup 2nd Innings</DialogTitle>
-            <DialogDescription>Select the starting lineup for the chasing team.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Striker</Label>
-                <Select onValueChange={(v) => setSecondInningsSetup({...secondInningsSetup, strikerId: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Striker" /></SelectTrigger>
-                  <SelectContent>
-                    {secondInningsBattingPlayers.filter(p => p.id !== secondInningsSetup.nonStrikerId).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Non-Striker</Label>
-                <Select onValueChange={(v) => setSecondInningsSetup({...secondInningsSetup, nonStrikerId: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
-                  <SelectContent>
-                    {secondInningsBattingPlayers.filter(p => p.id !== secondInningsSetup.strikerId).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Opening Bowler</Label>
-              <Select onValueChange={(v) => setSecondInningsSetup({...secondInningsSetup, bowlerId: v})}>
-                <SelectTrigger><SelectValue placeholder="Select Bowler" /></SelectTrigger>
-                <SelectContent>
-                  {secondInningsBowlingPlayers.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button className="w-full h-12 font-bold bg-secondary hover:bg-secondary/90" onClick={startSecondInnings} disabled={!secondInningsSetup.strikerId || !secondInningsSetup.nonStrikerId || !secondInningsSetup.bowlerId}>
-              <PlayCircle className="mr-2 h-5 w-5" /> Start 2nd Innings
-            </Button>
-          </DialogFooter>
+          <DialogFooter><Button className="w-full h-12 font-bold" onClick={handleNextBowlerSelect} disabled={!selectedNextBowlerId || selectedNextBowlerId === 'none'}>Confirm Bowler</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
