@@ -1,20 +1,20 @@
 
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection } from '@/firebase';
-import { doc, collection, query, orderBy, limit, deleteDoc, getDocs } from 'firebase/firestore';
+import { doc, collection, query, orderBy, getDocs, writeBatch, increment } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Activity, Trophy, History as HistoryIcon, Undo2, Users, ArrowRightLeft, UserMinus, Plus } from 'lucide-react';
+import { Activity, Trophy, History as HistoryIcon, Undo2, Users, ArrowRightLeft, UserMinus, Plus, CheckCircle2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApp } from '@/context/AppContext';
-import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
+import { setDocumentNonBlocking, updateDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { toast } from '@/hooks/use-toast';
 
 export default function MatchScoreboardPage() {
@@ -34,6 +34,10 @@ export default function MatchScoreboardPage() {
   const team2Ref = useMemoFirebase(() => match ? doc(db, 'teams', match.team2Id) : null, [db, match]);
   const { data: team2 } = useDoc(team2Ref);
 
+  // Fetch all players for both teams to show names
+  const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
+  const { data: allPlayers } = useCollection(allPlayersQuery);
+
   const inningId = `inning_${match?.currentInningNumber || 1}`;
   const inningRef = useMemoFirebase(() => match ? doc(db, 'matches', matchId, 'innings', inningId) : null, [db, matchId, inningId]);
   const { data: inning } = useDoc(inningRef);
@@ -49,17 +53,20 @@ export default function MatchScoreboardPage() {
     playerOutId: ''
   });
 
+  const getPlayerName = (pid: string) => {
+    return allPlayers?.find(p => p.id === pid)?.name || pid;
+  };
+
   const handleBall = (runs: number, isWicket = false, extra: 'none' | 'wide' | 'noball' = 'none') => {
     if (!isUmpire || match?.status !== 'live' || !inning) return;
 
     let runsForThisBall = runs;
     if (extra !== 'none') runsForThisBall += 1;
 
-    // Strike Rotation Logic
-    // In cricket, strike changes on odd runs or at end of over
     let newStriker = inning.strikerPlayerId;
     let newNonStriker = inning.nonStrikerPlayerId;
 
+    // Strike Rotation Logic
     if (runs % 2 !== 0) {
       const temp = newStriker;
       newStriker = newNonStriker;
@@ -98,7 +105,7 @@ export default function MatchScoreboardPage() {
       extraType: extra,
       extraRuns: extra !== 'none' ? 1 : 0,
       totalRunsOnDelivery: runsForThisBall,
-      outcomeDescription: isWicket ? 'Wicket!' : `${runsForThisBall} runs`,
+      outcomeDescription: isWicket ? 'Wicket!' : `${runsForThisBall}${extra !== 'none' ? ' (extra)' : ''}`,
       dismissalType: isWicket ? wicketDetails.type : 'none',
       timestamp: new Date().toISOString(),
       umpireId: user?.uid,
@@ -119,32 +126,104 @@ export default function MatchScoreboardPage() {
     if (isWicket) setIsWicketModalOpen(false);
   };
 
-  const handleUndo = async () => {
+  const handleUndo = () => {
     if (!deliveries || deliveries.length === 0 || !inningRef) return;
     const lastBall = deliveries[0];
     
-    // Reverse the logic (Simplified for prototype)
     updateDocumentNonBlocking(inningRef, {
-      score: inning?.score! - lastBall.totalRunsOnDelivery,
-      wickets: lastBall.isWicket ? inning?.wickets! - 1 : inning?.wickets!,
-      // Overs reverse logic would be more complex, but for MVP we decrement ball count
+      score: Math.max(0, inning?.score! - lastBall.totalRunsOnDelivery),
+      wickets: lastBall.isWicket ? Math.max(0, inning?.wickets! - 1) : inning?.wickets!,
       ballsInCurrentOver: inning?.ballsInCurrentOver === 0 ? 5 : inning?.ballsInCurrentOver! - 1,
-      oversCompleted: inning?.ballsInCurrentOver === 0 ? inning?.oversCompleted! - 1 : inning?.oversCompleted!
+      oversCompleted: inning?.ballsInCurrentOver === 0 ? Math.max(0, inning?.oversCompleted! - 1) : inning?.oversCompleted!
     });
 
-    const ballDoc = doc(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords', lastBall.id);
-    deleteDoc(ballDoc);
+    deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords', lastBall.id));
     toast({ title: "Ball Revoked", description: "The last delivery has been removed." });
   };
 
-  const completeMatch = () => {
-    if (!isUmpire || !matchRef) return;
-    updateDocumentNonBlocking(matchRef, { status: 'completed', resultDescription: 'Match finished' });
-    toast({ title: "Match Finalized", description: "Stats archived." });
+  const startSecondInnings = () => {
+    if (!isUmpire || !match) return;
+    
+    const nextInningId = 'inning_2';
+    const battingTeamId = inning?.battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+    const bowlingTeamId = inning?.battingTeamId === match.team1Id ? match.team1Id : match.team2Id;
+
+    const inningData = {
+      id: nextInningId,
+      matchId: matchId,
+      inningNumber: 2,
+      battingTeamId,
+      bowlingTeamId,
+      score: 0,
+      wickets: 0,
+      oversCompleted: 0,
+      ballsInCurrentOver: 0,
+      umpireId: user?.uid || 'anonymous',
+      matchStatus: 'live'
+    };
+
+    setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', nextInningId), inningData, { merge: true });
+    updateDocumentNonBlocking(matchRef!, { currentInningNumber: 2 });
+    toast({ title: "Innings Break", description: "Second innings is now live." });
+  };
+
+  const completeMatch = async () => {
+    if (!isUmpire || !match || !allPlayers) return;
+
+    // Aggregate Stats
+    const batch = writeBatch(db);
+    
+    // 1. Get all delivery records for this match
+    // Note: In a large app we'd use a server function, but for prototype we do it here.
+    const allDeliveries: any[] = [];
+    const innings = ['inning_1', 'inning_2'];
+    
+    for (const iid of innings) {
+      const q = query(collection(db, 'matches', matchId, 'innings', iid, 'deliveryRecords'));
+      const snap = await getDocs(q);
+      snap.forEach(doc => allDeliveries.push(doc.data()));
+    }
+
+    // 2. Tally Player Stats
+    const playerStats: Record<string, { runs: number, wickets: number, balls: number, dots: number }> = {};
+    
+    allDeliveries.forEach(ball => {
+      // Batter tally
+      if (!playerStats[ball.strikerPlayerId]) playerStats[ball.strikerPlayerId] = { runs: 0, wickets: 0, balls: 0, dots: 0 };
+      playerStats[ball.strikerPlayerId].runs += ball.runsScored;
+      if (ball.extraType === 'none') playerStats[ball.strikerPlayerId].balls += 1;
+      
+      // Bowler tally
+      if (!playerStats[ball.bowlerPlayerId]) playerStats[ball.bowlerPlayerId] = { runs: 0, wickets: 0, balls: 0, dots: 0 };
+      if (ball.isWicket) playerStats[ball.bowlerPlayerId].wickets += 1;
+      if (ball.totalRunsOnDelivery === 0) playerStats[ball.bowlerPlayerId].dots += 1;
+    });
+
+    // 3. Update Firestore
+    Object.entries(playerStats).forEach(([pid, stats]) => {
+      const pRef = doc(db, 'players', pid);
+      // Basic CVP logic: 1 run = 1 pt, 1 wicket = 20 pts
+      const cvpGain = stats.runs + (stats.wickets * 20);
+      batch.update(pRef, {
+        runsScored: increment(stats.runs),
+        wicketsTaken: increment(stats.wickets),
+        matchesPlayed: increment(1),
+        careerCVP: increment(cvpGain)
+      });
+    });
+
+    // Finalize Match
+    batch.update(matchRef!, { 
+      status: 'completed', 
+      resultDescription: 'Match finished successfully. Stats aggregated.' 
+    });
+
+    await batch.commit();
+    toast({ title: "Match Finalized", description: "Statistics have been updated globally." });
     router.push('/matches');
   };
 
-  if (isMatchLoading) return <div className="p-20 text-center">Loading live dashboard...</div>;
+  if (isMatchLoading) return <div className="p-20 text-center">Loading match dashboard...</div>;
   if (!match) return <div className="p-20 text-center">Match data unavailable.</div>;
 
   const battingTeam = inning?.battingTeamId === match.team1Id ? team1 : team2;
@@ -156,7 +235,9 @@ export default function MatchScoreboardPage() {
       <div className="bg-primary text-white p-6 rounded-2xl shadow-xl border-b-8 border-secondary">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="text-center md:text-left flex-1">
-            <Badge className="bg-white/20 text-white mb-2 uppercase tracking-tighter">Batting</Badge>
+            <Badge className="bg-white/20 text-white mb-2 uppercase tracking-tighter">
+              {match.currentInningNumber === 1 ? 'First Innings' : 'Second Innings'}
+            </Badge>
             <h1 className="text-4xl font-black">{battingTeam?.name}</h1>
             <p className="text-xs opacity-70 mt-1">vs {bowlingTeam?.name}</p>
           </div>
@@ -173,7 +254,10 @@ export default function MatchScoreboardPage() {
 
           <div className="text-center md:text-right flex-1">
             <Badge variant="destructive" className="animate-pulse mb-2">LIVE</Badge>
-            <p className="text-sm font-bold opacity-70">Target: {match.currentInningNumber === 2 ? '---' : 'TBD'}</p>
+            {match.currentInningNumber === 2 && (
+              <p className="text-sm font-bold text-secondary-foreground">Target Score: {/* Logic to fetch 1st inn score */}</p>
+            )}
+            <p className="text-xs opacity-60">Max Overs: {match.totalOvers}</p>
           </div>
         </div>
       </div>
@@ -233,25 +317,40 @@ export default function MatchScoreboardPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">In-Game Actions</CardTitle>
+                  <CardTitle className="text-lg">Match Actions</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <Button variant="outline" className="w-full justify-start h-12">
-                    <ArrowRightLeft className="mr-2 w-4 h-4 text-secondary" /> Swap Batsmen
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start h-12">
-                    <UserMinus className="mr-2 w-4 h-4 text-destructive" /> Retire Player
-                  </Button>
-                  <Button variant="destructive" className="w-full h-12 mt-6 font-bold" onClick={completeMatch}>
-                    End Match
-                  </Button>
+                  <div className="p-4 bg-muted/50 rounded-lg space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-muted-foreground uppercase">On Strike</span>
+                      <span className="text-sm font-bold text-primary">{getPlayerName(inning?.strikerPlayerId || '')}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-muted-foreground uppercase">Non-Strike</span>
+                      <span className="text-sm font-bold">{getPlayerName(inning?.nonStrikerPlayerId || '')}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-muted-foreground uppercase">Bowling</span>
+                      <span className="text-sm font-bold text-secondary">{getPlayerName(inning?.currentBowlerPlayerId || '')}</span>
+                    </div>
+                  </div>
+
+                  {match.currentInningNumber === 1 ? (
+                    <Button className="w-full bg-secondary hover:bg-secondary/90 h-12 font-bold" onClick={startSecondInnings}>
+                      Next Inning <Activity className="ml-2 w-4 h-4" />
+                    </Button>
+                  ) : (
+                    <Button variant="destructive" className="w-full h-12 font-bold" onClick={completeMatch}>
+                      Complete Match <CheckCircle2 className="ml-2 w-4 h-4" />
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             </div>
           ) : (
             <Card className="p-12 text-center border-dashed border-2">
               <Users className="w-12 h-12 mx-auto mb-4 opacity-20" />
-              <p className="text-muted-foreground">The scoring console is available only for the match Umpire.</p>
+              <p className="text-muted-foreground">This dashboard is read-only for Guest mode.</p>
             </Card>
           )}
         </TabsContent>
@@ -260,25 +359,26 @@ export default function MatchScoreboardPage() {
            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
              <Card>
                <CardHeader className="bg-primary/5">
-                 <CardTitle className="text-sm font-bold">Batting XI</CardTitle>
+                 <CardTitle className="text-sm font-bold">{team1?.name} Squad</CardTitle>
                </CardHeader>
                <CardContent className="p-4 space-y-2">
                  {match.team1SquadPlayerIds.map(pid => (
                    <div key={pid} className="flex justify-between items-center p-2 bg-muted/30 rounded-lg">
-                     <span className="text-sm font-medium">{pid.slice(0, 8)}</span>
+                     <span className="text-sm font-medium">{getPlayerName(pid)}</span>
                      {inning?.strikerPlayerId === pid && <Badge className="bg-secondary">Striker</Badge>}
+                     {inning?.nonStrikerPlayerId === pid && <Badge variant="outline">Non-Striker</Badge>}
                    </div>
                  ))}
                </CardContent>
              </Card>
              <Card>
                <CardHeader className="bg-secondary/5">
-                 <CardTitle className="text-sm font-bold">Bowling XI</CardTitle>
+                 <CardTitle className="text-sm font-bold">{team2?.name} Squad</CardTitle>
                </CardHeader>
                <CardContent className="p-4 space-y-2">
                  {match.team2SquadPlayerIds.map(pid => (
                    <div key={pid} className="flex justify-between items-center p-2 bg-muted/30 rounded-lg">
-                     <span className="text-sm font-medium">{pid.slice(0, 8)}</span>
+                     <span className="text-sm font-medium">{getPlayerName(pid)}</span>
                      {inning?.currentBowlerPlayerId === pid && <Badge className="bg-primary">Bowling</Badge>}
                    </div>
                  ))}
@@ -296,20 +396,25 @@ export default function MatchScoreboardPage() {
                <div className="space-y-3">
                  {deliveries?.map((d, idx) => (
                    <div key={d.id} className="flex items-center gap-4 p-3 border-b last:border-0 hover:bg-muted/30 transition-colors">
-                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary">
+                     <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center font-bold text-primary shrink-0">
                        {d.overNumber}.{d.ballNumberInOver}
                      </div>
                      <div className="flex-1">
                         <p className="font-bold">{d.outcomeDescription}</p>
-                        <p className="text-[10px] text-muted-foreground uppercase">{d.extraType !== 'none' ? d.extraType : 'Legal Ball'}</p>
+                        <p className="text-[10px] text-muted-foreground uppercase">
+                          {getPlayerName(d.strikerPlayerId)} vs {getPlayerName(d.bowlerPlayerId)}
+                        </p>
                      </div>
-                     <div className="text-right text-[10px] text-muted-foreground">
-                       {new Date(d.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                     <div className="text-right">
+                       <p className="text-[10px] font-bold text-muted-foreground">
+                         {new Date(d.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                       </p>
+                       {d.extraType !== 'none' && <Badge variant="outline" className="text-[8px]">{d.extraType}</Badge>}
                      </div>
                    </div>
                  ))}
                  {(!deliveries || deliveries.length === 0) && (
-                   <div className="text-center py-10 opacity-50 italic">No balls bowled yet.</div>
+                   <div className="text-center py-10 opacity-50 italic">Waiting for first delivery...</div>
                  )}
                </div>
              </CardContent>
@@ -322,7 +427,7 @@ export default function MatchScoreboardPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Wicket Fall Details</DialogTitle>
-            <DialogDescription>Specify the dismissal type and players involved.</DialogDescription>
+            <DialogDescription>Record the dismissal of {getPlayerName(inning?.strikerPlayerId || '')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -335,6 +440,22 @@ export default function MatchScoreboardPage() {
                   <SelectItem value="runout">Run Out</SelectItem>
                   <SelectItem value="stumping">Stumping</SelectItem>
                   <SelectItem value="lbw">LBW</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Next Batter (Optional)</Label>
+              <Select onValueChange={(v) => updateDocumentNonBlocking(inningRef!, { strikerPlayerId: v })}>
+                <SelectTrigger><SelectValue placeholder="Select New Batsman" /></SelectTrigger>
+                <SelectContent>
+                  {battingTeam === team1 ? 
+                    match.team1SquadPlayerIds.filter(pid => pid !== inning?.strikerPlayerId && pid !== inning?.nonStrikerPlayerId).map(pid => (
+                      <SelectItem key={pid} value={pid}>{getPlayerName(pid)}</SelectItem>
+                    )) : 
+                    match.team2SquadPlayerIds.filter(pid => pid !== inning?.strikerPlayerId && pid !== inning?.nonStrikerPlayerId).map(pid => (
+                      <SelectItem key={pid} value={pid}>{getPlayerName(pid)}</SelectItem>
+                    ))
+                  }
                 </SelectContent>
               </Select>
             </div>
