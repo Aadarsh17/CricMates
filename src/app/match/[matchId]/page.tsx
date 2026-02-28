@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -9,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Undo2, Shuffle, ArrowLeft, UserCircle, UserPlus, RefreshCw } from 'lucide-react';
+import { Trophy, Undo2, Shuffle, ArrowLeft, UserPlus, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -60,7 +59,8 @@ export default function MatchScoreboardPage() {
   const [isBowlerModalOpen, setIsBowlerModalOpen] = useState(false);
   const [wicketDetails, setWicketDetails] = useState({
     type: 'bowled',
-    newStrikerId: ''
+    newStrikerId: '',
+    fielderId: 'none'
   });
   const [selectedNextBowlerId, setSelectedNextBowlerId] = useState('');
 
@@ -84,6 +84,7 @@ export default function MatchScoreboardPage() {
 
   const needsNewBowler = activeInningData?.ballsInCurrentOver === 0 && 
                          activeInningData?.oversCompleted > 0 && 
+                         activeInningData?.oversCompleted < (match?.totalOvers || 0) &&
                          !activeInningData?.currentBowlerPlayerId;
 
   const handleBall = (runs: number, isWicket = false, extra: 'none' | 'wide' | 'noball' = 'none') => {
@@ -149,6 +150,7 @@ export default function MatchScoreboardPage() {
       totalRunsOnDelivery: runsForThisBall,
       outcomeDescription: isWicket ? 'WICKET!' : `${runsForThisBall}${extra !== 'none' ? ` (${extra})` : ''}`,
       dismissalType: isWicket ? wicketDetails.type : 'none',
+      fielderPlayerId: isWicket ? wicketDetails.fielderId : 'none',
       timestamp: new Date().toISOString(),
       umpireId: user?.uid || 'anonymous',
       matchStatus: 'live'
@@ -179,10 +181,10 @@ export default function MatchScoreboardPage() {
 
     if (isWicket) {
       setIsWicketModalOpen(false);
-      setWicketDetails({ type: 'bowled', newStrikerId: '' });
+      setWicketDetails({ type: 'bowled', newStrikerId: '', fielderId: 'none' });
     }
 
-    if (isOverEnd && !isCurrentInningsOver) {
+    if (isOverEnd && !isCurrentInningsOver && newOvers < (match?.totalOvers || 0)) {
       setIsBowlerModalOpen(true);
     }
   };
@@ -235,7 +237,7 @@ export default function MatchScoreboardPage() {
       
       if (d.bowlerPlayerId && d.bowlerPlayerId !== 'none') {
         if (!playerStats[d.bowlerPlayerId]) playerStats[d.bowlerPlayerId] = { runs: 0, wickets: 0, matches: 1 };
-        if (d.isWicket && d.dismissalType !== 'runout') {
+        if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'hit wicket') {
           playerStats[d.bowlerPlayerId].wickets += 1;
         }
       }
@@ -280,6 +282,8 @@ export default function MatchScoreboardPage() {
 
   const bowlingPool = allPlayers?.filter(p => currentBowlingSquadIds.includes(p.id)) || [];
 
+  const requiresFielder = wicketDetails.type === 'caught' || wicketDetails.type === 'runout' || wicketDetails.type === 'stumping';
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="bg-primary text-white p-6 rounded-2xl shadow-xl border-b-8 border-secondary relative overflow-hidden">
@@ -301,7 +305,7 @@ export default function MatchScoreboardPage() {
               <span className="text-3xl opacity-50">/ {activeInningData?.wickets || 0}</span>
             </div>
             <p className="text-sm font-bold tracking-widest mt-2 bg-secondary px-3 py-1 rounded-full inline-block">
-              {activeInningData?.oversCompleted || 0}.{activeInningData?.ballsInCurrentOver || 0} Overs
+              {activeInningData?.ballsInCurrentOver === 6 ? activeInningData?.oversCompleted : activeInningData?.oversCompleted}.{activeInningData?.ballsInCurrentOver === 0 && activeInningData?.oversCompleted > 0 ? 0 : activeInningData?.ballsInCurrentOver} Overs
             </p>
           </div>
 
@@ -540,17 +544,33 @@ export default function MatchScoreboardPage() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label>Wicket Type</Label>
-              <Select value={wicketDetails.type} onValueChange={(v) => setWicketDetails({...wicketDetails, type: v})}>
+              <Select value={wicketDetails.type} onValueChange={(v) => setWicketDetails({...wicketDetails, type: v, fielderId: 'none'})}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="bowled">Bowled</SelectItem>
                   <SelectItem value="caught">Caught</SelectItem>
                   <SelectItem value="runout">Run Out</SelectItem>
                   <SelectItem value="stumping">Stumping</SelectItem>
-                  <SelectItem value="lbw">LBW</SelectItem>
+                  <SelectItem value="hit wicket">Hit Wicket</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+
+            {requiresFielder && (
+              <div className="space-y-2">
+                <Label>{wicketDetails.type === 'caught' ? 'Who caught?' : 'Who dismissal?'}</Label>
+                <Select value={wicketDetails.fielderId} onValueChange={(v) => setWicketDetails({...wicketDetails, fielderId: v})}>
+                  <SelectTrigger><SelectValue placeholder="Select fielder" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">--- Select Fielder ---</SelectItem>
+                    {bowlingPool.map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label>Next Batter</Label>
               <Select onValueChange={(v) => setWicketDetails({...wicketDetails, newStrikerId: v})}>
@@ -567,7 +587,7 @@ export default function MatchScoreboardPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="destructive" className="w-full h-12" onClick={() => handleBall(0, true)} disabled={!wicketDetails.newStrikerId}>Confirm Wicket</Button>
+            <Button variant="destructive" className="w-full h-12" onClick={() => handleBall(0, true)} disabled={!wicketDetails.newStrikerId || (requiresFielder && (wicketDetails.fielderId === 'none' || !wicketDetails.fielderId))}>Confirm Wicket</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -592,6 +612,7 @@ export default function MatchScoreboardPage() {
               <Select value={selectedNextBowlerId} onValueChange={setSelectedNextBowlerId}>
                 <SelectTrigger><SelectValue placeholder="Select bowler" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">--- Select Bowler ---</SelectItem>
                   {bowlingPool
                     // Filter out the bowler who just finished the over (if it's an over-end)
                     .filter(p => p.id !== (deliveries?.[0]?.bowlerPlayerId || ''))
@@ -606,7 +627,7 @@ export default function MatchScoreboardPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button className="w-full h-12 font-bold" onClick={handleNextBowlerSelect} disabled={!selectedNextBowlerId}>
+            <Button className="w-full h-12 font-bold" onClick={handleNextBowlerSelect} disabled={!selectedNextBowlerId || selectedNextBowlerId === 'none'}>
               Confirm Selection
             </Button>
           </DialogFooter>
