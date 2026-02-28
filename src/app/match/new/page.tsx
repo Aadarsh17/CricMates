@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { PlayCircle, ShieldCheck, CheckCircle2, UserPlus, Users } from 'lucide-react';
+import { PlayCircle, ShieldCheck, CheckCircle2, Users } from 'lucide-react';
 
 export default function NewMatchPage() {
   const db = useFirestore();
@@ -43,32 +43,26 @@ export default function NewMatchPage() {
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
 
-  const team1Players = allPlayers?.filter(p => p.teamId === setup.team1Id || !p.teamId);
-  const team2Players = allPlayers?.filter(p => p.teamId === setup.team2Id || !p.teamId);
-
-  useEffect(() => {
-    // Reset opening pair when squads or toss changes
-    setSetup(prev => ({ ...prev, strikerId: '', nonStrikerId: '', bowlerId: '' }));
-  }, [setup.team1Squad, setup.team2Squad, setup.tossWinner, setup.tossDecision, setup.commonPlayerId]);
+  // Filter players for each team based on their teamId or if they are free agents
+  const team1Pool = allPlayers?.filter(p => p.teamId === setup.team1Id || !p.teamId);
+  const team2Pool = allPlayers?.filter(p => p.teamId === setup.team2Id || !p.teamId);
 
   const handleStartMatch = () => {
     if (!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId) {
-      toast({ title: "Opening Pair Missing", description: "Select openers and a bowler to begin.", variant: "destructive" });
-      return;
-    }
-
-    if (setup.strikerId === setup.nonStrikerId) {
-      toast({ title: "Invalid Selection", description: "Striker and Non-Striker must be different players.", variant: "destructive" });
+      toast({ title: "Selection Required", description: "Select openers and a bowler.", variant: "destructive" });
       return;
     }
 
     const matchId = doc(collection(db, 'matches')).id;
+    const finalT1Squad = setup.commonPlayerId ? [...setup.team1Squad, setup.commonPlayerId] : setup.team1Squad;
+    const finalT2Squad = setup.commonPlayerId ? [...setup.team2Squad, setup.commonPlayerId] : setup.team2Squad;
+
     const matchData = {
       id: matchId,
       team1Id: setup.team1Id,
       team2Id: setup.team2Id,
-      team1SquadPlayerIds: setup.commonPlayerId ? [...setup.team1Squad, setup.commonPlayerId] : setup.team1Squad,
-      team2SquadPlayerIds: setup.commonPlayerId ? [...setup.team2Squad, setup.commonPlayerId] : setup.team2Squad,
+      team1SquadPlayerIds: finalT1Squad,
+      team2SquadPlayerIds: finalT2Squad,
       totalOvers: parseInt(setup.totalOvers),
       status: 'live',
       tossWinnerTeamId: setup.tossWinner,
@@ -106,68 +100,64 @@ export default function NewMatchPage() {
 
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_1'), inningData, { merge: true });
     
-    toast({ title: "Play Ball!", description: "Match has been initialized." });
+    toast({ title: "Match Started!", description: "Play ball." });
     router.push(`/match/${matchId}`);
   };
 
-  const battingSquad = setup.tossWinner === setup.team1Id 
+  const currentBattingSquadIds = setup.tossWinner === setup.team1Id 
     ? (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad)
     : (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad);
   
-  // Add common player to available pool
-  if (setup.commonPlayerId) battingSquad.push(setup.commonPlayerId);
-
-  const bowlingSquad = setup.tossWinner === setup.team1Id 
+  const currentBowlingSquadIds = setup.tossWinner === setup.team1Id 
     ? (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad)
     : (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad);
-  
-  if (setup.commonPlayerId) bowlingSquad.push(setup.commonPlayerId);
+
+  // Add common player if selected
+  if (setup.commonPlayerId) {
+    currentBattingSquadIds.push(setup.commonPlayerId);
+    currentBowlingSquadIds.push(setup.commonPlayerId);
+  }
+
+  const battingPlayers = allPlayers?.filter(p => currentBattingSquadIds.includes(p.id)) || [];
+  const bowlingPlayers = allPlayers?.filter(p => currentBowlingSquadIds.includes(p.id)) || [];
 
   if (!isUmpire) {
     return (
       <div className="max-w-md mx-auto py-20 text-center">
         <ShieldCheck className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Umpire Access Only</h2>
-        <p className="text-muted-foreground mb-6">Officiating tools are reserved for registered Umpires.</p>
-        <Button variant="outline" onClick={() => router.push('/')}>Return Home</Button>
+        <h2 className="text-2xl font-bold mb-2">Umpire Only</h2>
+        <Button onClick={() => router.push('/')}>Return Home</Button>
       </div>
     );
   }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 pb-20">
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <PlayCircle className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold font-headline">Initialize Match</h1>
-        </div>
-        <div className="flex gap-1">
-          {[1, 2, 3, 4].map(s => (
-            <div key={s} className={`w-8 h-1 rounded-full ${s <= step ? 'bg-primary' : 'bg-muted'}`} />
-          ))}
+          <h1 className="text-3xl font-bold font-headline">New Match Setup</h1>
         </div>
       </div>
 
       {step === 1 && (
-        <Card className="shadow-lg border-t-4 border-primary">
-          <CardHeader>
-            <CardTitle>1. Opponents & Format</CardTitle>
-          </CardHeader>
+        <Card>
+          <CardHeader><CardTitle>1. Select Teams & Format</CardTitle></CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Team 1 (Home)</Label>
+                <Label>Team 1</Label>
                 <Select value={setup.team1Id} onValueChange={(v) => setSetup({...setup, team1Id: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Home Team" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
                     {teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Team 2 (Away)</Label>
+                <Label>Team 2</Label>
                 <Select value={setup.team2Id} onValueChange={(v) => setSetup({...setup, team2Id: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Away Team" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
                     {teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                   </SelectContent>
@@ -175,83 +165,57 @@ export default function NewMatchPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Overs per Innings</Label>
+              <Label>Match Overs</Label>
               <Input type="number" value={setup.totalOvers} onChange={(e) => setSetup({...setup, totalOvers: e.target.value})} />
             </div>
-            <Button className="w-full h-12" disabled={!setup.team1Id || !setup.team2Id} onClick={() => setStep(2)}>
-              Select Squads
-            </Button>
+            <Button className="w-full" disabled={!setup.team1Id || !setup.team2Id} onClick={() => setStep(2)}>Next: Select Squads</Button>
           </CardContent>
         </Card>
       )}
 
       {step === 2 && (
-        <Card className="shadow-lg border-t-4 border-primary">
-          <CardHeader>
-            <CardTitle>2. Squad Selection</CardTitle>
-            <CardDescription>Uneven squad sizes are allowed.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <h3 className="font-bold border-b pb-2">Team 1 Players</h3>
-                <div className="max-h-60 overflow-y-auto space-y-2 p-3 bg-muted/30 rounded-lg">
-                  {team1Players?.map(p => (
-                    <div key={p.id} className="flex items-center space-x-2">
-                      <Checkbox 
-                        id={`t1-${p.id}`} 
-                        checked={setup.team1Squad.includes(p.id)} 
-                        onCheckedChange={(checked) => {
-                          const newSquad = checked 
-                            ? [...setup.team1Squad, p.id] 
-                            : setup.team1Squad.filter(id => id !== p.id);
-                          setSetup({...setup, team1Squad: newSquad});
-                        }} 
-                      />
-                      <Label htmlFor={`t1-${p.id}`} className="text-sm">{p.name}</Label>
-                    </div>
-                  ))}
-                </div>
+        <Card>
+          <CardHeader><CardTitle>2. Squad Selection</CardTitle></CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-2 gap-8">
+              <div className="space-y-3">
+                <h3 className="font-bold border-b pb-1">Team 1</h3>
+                {team1Pool?.map(p => (
+                  <div key={p.id} className="flex items-center gap-2">
+                    <Checkbox checked={setup.team1Squad.includes(p.id)} onCheckedChange={(c) => {
+                      const newSquad = c ? [...setup.team1Squad, p.id] : setup.team1Squad.filter(id => id !== p.id);
+                      setSetup({...setup, team1Squad: newSquad});
+                    }} id={`t1-${p.id}`} />
+                    <Label htmlFor={`t1-${p.id}`} className="text-sm cursor-pointer">{p.name}</Label>
+                  </div>
+                ))}
               </div>
-              <div className="space-y-4">
-                <h3 className="font-bold border-b pb-2">Team 2 Players</h3>
-                <div className="max-h-60 overflow-y-auto space-y-2 p-3 bg-muted/30 rounded-lg">
-                  {team2Players?.map(p => (
-                    <div key={p.id} className="flex items-center space-x-2">
-                      <Checkbox 
-                        id={`t2-${p.id}`} 
-                        checked={setup.team2Squad.includes(p.id)} 
-                        onCheckedChange={(checked) => {
-                          const newSquad = checked 
-                            ? [...setup.team2Squad, p.id] 
-                            : setup.team2Squad.filter(id => id !== p.id);
-                          setSetup({...setup, team2Squad: newSquad});
-                        }} 
-                      />
-                      <Label htmlFor={`t2-${p.id}`} className="text-sm">{p.name}</Label>
-                    </div>
-                  ))}
-                </div>
+              <div className="space-y-3">
+                <h3 className="font-bold border-b pb-1">Team 2</h3>
+                {team2Pool?.map(p => (
+                  <div key={p.id} className="flex items-center gap-2">
+                    <Checkbox checked={setup.team2Squad.includes(p.id)} onCheckedChange={(c) => {
+                      const newSquad = c ? [...setup.team2Squad, p.id] : setup.team2Squad.filter(id => id !== p.id);
+                      setSetup({...setup, team2Squad: newSquad});
+                    }} id={`t2-${p.id}`} />
+                    <Label htmlFor={`t2-${p.id}`} className="text-sm cursor-pointer">{p.name}</Label>
+                  </div>
+                ))}
               </div>
             </div>
-
-            <div className="p-4 bg-primary/5 rounded-xl border border-primary/10">
-              <div className="flex items-center gap-2 mb-3">
-                <Users className="w-4 h-4 text-primary" />
-                <h3 className="text-sm font-bold">Common Player (Optional)</h3>
-              </div>
+            <div className="p-4 bg-muted rounded-xl">
+              <Label>Common Player (Plays for both sides)</Label>
               <Select value={setup.commonPlayerId} onValueChange={(v) => setSetup({...setup, commonPlayerId: v})}>
-                <SelectTrigger><SelectValue placeholder="Select a player for both sides" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No Common Player</SelectItem>
+                  <SelectItem value="">None</SelectItem>
                   {allPlayers?.filter(p => !setup.team1Squad.includes(p.id) && !setup.team2Squad.includes(p.id)).map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="flex gap-4">
+            <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>Back</Button>
               <Button className="flex-1" onClick={() => setStep(3)}>Next: Toss</Button>
             </div>
@@ -260,16 +224,14 @@ export default function NewMatchPage() {
       )}
 
       {step === 3 && (
-        <Card className="shadow-lg border-t-4 border-primary">
-          <CardHeader>
-            <CardTitle>3. Toss & Decisions</CardTitle>
-          </CardHeader>
+        <Card>
+          <CardHeader><CardTitle>3. Toss Decision</CardTitle></CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Toss Winner</Label>
                 <Select value={setup.tossWinner} onValueChange={(v) => setSetup({...setup, tossWinner: v})}>
-                  <SelectTrigger><SelectValue placeholder="Winner" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value={setup.team1Id}>{teams?.find(t => t.id === setup.team1Id)?.name}</SelectItem>
                     <SelectItem value={setup.team2Id}>{teams?.find(t => t.id === setup.team2Id)?.name}</SelectItem>
@@ -277,7 +239,7 @@ export default function NewMatchPage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Action</Label>
+                <Label>Decision</Label>
                 <Select value={setup.tossDecision} onValueChange={(v) => setSetup({...setup, tossDecision: v})}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -287,61 +249,56 @@ export default function NewMatchPage() {
                 </Select>
               </div>
             </div>
-            <div className="flex gap-4">
+            <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setStep(2)}>Back</Button>
-              <Button className="flex-1" disabled={!setup.tossWinner} onClick={() => setStep(4)}>Finalize Openers</Button>
+              <Button className="flex-1" disabled={!setup.tossWinner} onClick={() => setStep(4)}>Next: Openers</Button>
             </div>
           </CardContent>
         </Card>
       )}
 
       {step === 4 && (
-        <Card className="shadow-lg border-t-4 border-primary">
-          <CardHeader>
-            <CardTitle>4. Opening Pair</CardTitle>
-            <CardDescription>Select the starting batsmen and bowler. No default selections.</CardDescription>
-          </CardHeader>
+        <Card>
+          <CardHeader><CardTitle>4. Starting Players</CardTitle></CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Striker</Label>
-                  <Select value={setup.strikerId} onValueChange={(v) => setSetup({...setup, strikerId: v})}>
-                    <SelectTrigger><SelectValue placeholder="Select Striker" /></SelectTrigger>
-                    <SelectContent>
-                      {allPlayers?.filter(p => battingSquad.includes(p.id) && p.id !== setup.nonStrikerId).map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name} ({p.role})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Non-Striker</Label>
-                  <Select value={setup.nonStrikerId} onValueChange={(v) => setSetup({...setup, nonStrikerId: v})}>
-                    <SelectTrigger><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
-                    <SelectContent>
-                      {allPlayers?.filter(p => battingSquad.includes(p.id) && p.id !== setup.strikerId).map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name} ({p.role})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Striker</Label>
+                <Select value={setup.strikerId || undefined} onValueChange={(v) => setSetup({...setup, strikerId: v})}>
+                  <SelectTrigger><SelectValue placeholder="Select Striker" /></SelectTrigger>
+                  <SelectContent>
+                    {battingPlayers.filter(p => p.id !== setup.nonStrikerId).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
-                <Label>Opening Bowler</Label>
-                <Select value={setup.bowlerId} onValueChange={(v) => setSetup({...setup, bowlerId: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Bowler" /></SelectTrigger>
+                <Label>Non-Striker</Label>
+                <Select value={setup.nonStrikerId || undefined} onValueChange={(v) => setSetup({...setup, nonStrikerId: v})}>
+                  <SelectTrigger><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
                   <SelectContent>
-                    {allPlayers?.filter(p => bowlingSquad.includes(p.id)).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.role})</SelectItem>
+                    {battingPlayers.filter(p => p.id !== setup.strikerId).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            <div className="flex gap-4">
+            <div className="space-y-2">
+              <Label>Opening Bowler</Label>
+              <Select value={setup.bowlerId || undefined} onValueChange={(v) => setSetup({...setup, bowlerId: v})}>
+                <SelectTrigger><SelectValue placeholder="Select Bowler" /></SelectTrigger>
+                <SelectContent>
+                  {bowlingPlayers.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setStep(3)}>Back</Button>
-              <Button className="flex-1 bg-secondary hover:bg-secondary/90 h-12 font-bold" onClick={handleStartMatch} disabled={!setup.strikerId || !setup.nonStrikerId || setup.strikerId === setup.nonStrikerId}>
+              <Button className="flex-1 bg-secondary hover:bg-secondary/90 h-12 font-bold" onClick={handleStartMatch} disabled={!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId}>
                 START MATCH <CheckCircle2 className="ml-2 w-4 h-4" />
               </Button>
             </div>
