@@ -1,13 +1,14 @@
+
 "use client"
 
 import { useState } from 'react';
 import { useCollection, useMemoFirebase, useFirestore, useUser } from '@/firebase';
-import { collection, query, orderBy, doc, deleteDoc, setDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Users, Plus, ChevronRight, LayoutGrid, List, Trash2, Edit } from 'lucide-react';
+import { Users, Plus, LayoutGrid, List, Trash2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,7 @@ import Link from 'next/link';
 
 export default function TeamsPage() {
   const { isUmpire } = useApp();
-  const { user } = useUser();
+  const { user, isUserLoading } = useUser();
   const db = useFirestore();
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -28,10 +29,17 @@ export default function TeamsPage() {
   const { data: teams, isLoading } = useCollection(teamsQuery);
 
   const handleCreateTeam = () => {
+    if (!isUmpire) return;
+
     if (!user) {
-      toast({ title: "Authentication Required", description: "You must be logged in to create a team.", variant: "destructive" });
+      if (isUserLoading) {
+        toast({ title: "Connecting...", description: "Please wait a moment while we establish a secure session." });
+      } else {
+        toast({ title: "Access Denied", description: "You must be in Umpire mode to register a team.", variant: "destructive" });
+      }
       return;
     }
+
     if (!newTeamName.trim()) return;
 
     const teamId = doc(collection(db, 'teams')).id;
@@ -78,34 +86,36 @@ export default function TeamsPage() {
             </Button>
           </div>
           
-          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90">
-                <Plus className="mr-2 h-4 w-4" /> Register Team
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Register New Franchise</DialogTitle>
-                <DialogDescription>Enter the name of the team you want to create.</DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Team Name</Label>
-                  <Input 
-                    id="name" 
-                    placeholder="e.g. Mumbai Indians" 
-                    value={newTeamName} 
-                    onChange={(e) => setNewTeamName(e.target.value)} 
-                  />
+          {isUmpire && (
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary hover:bg-primary/90">
+                  <Plus className="mr-2 h-4 w-4" /> Register Team
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Register New Franchise</DialogTitle>
+                  <DialogDescription>Enter the name of the team you want to create.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Team Name</Label>
+                    <Input 
+                      id="name" 
+                      placeholder="e.g. Mumbai Indians" 
+                      value={newTeamName} 
+                      onChange={(e) => setNewTeamName(e.target.value)} 
+                    />
+                  </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
-                <Button onClick={handleCreateTeam} disabled={!newTeamName.trim()}>Create Team</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
+                  <Button onClick={handleCreateTeam} disabled={!newTeamName.trim()}>Create Team</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 
@@ -130,7 +140,7 @@ export default function TeamsPage() {
                     <p className="text-xs text-muted-foreground font-medium uppercase tracking-tighter">Franchise</p>
                   </div>
                 </div>
-                {user?.uid === team.ownerId && (
+                {isUmpire && user?.uid === team.ownerId && (
                   <Button variant="ghost" size="icon" onClick={() => handleDeleteTeam(team.id, team.name)} className="text-destructive hover:bg-destructive/10">
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -165,9 +175,11 @@ export default function TeamsPage() {
         <div className="py-20 text-center border-2 border-dashed rounded-2xl">
           <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
           <p className="text-muted-foreground mb-4">No franchises registered in the league.</p>
-          <Button variant="outline" onClick={() => setIsCreateOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" /> Register First Team
-          </Button>
+          {isUmpire && (
+            <Button variant="outline" onClick={() => setIsCreateOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" /> Register First Team
+            </Button>
+          )}
         </div>
       )}
     </div>
