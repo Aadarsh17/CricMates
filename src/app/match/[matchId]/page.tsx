@@ -4,18 +4,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection } from '@/firebase';
-import { doc, collection, query, orderBy, where, getDocs, writeBatch } from 'firebase/firestore';
+import { doc, collection, query, orderBy, writeBatch } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Info, Users, Undo2, PlayCircle, Trophy, MessageSquare, Loader2, History, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { Info, Undo2, History, ChevronRight, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { useApp } from '@/context/AppContext';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -80,16 +78,47 @@ export default function MatchScoreboardPage() {
     const deliveries = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
     if (!deliveries) return [];
     
-    const overs: Record<number, any[]> = {};
-    deliveries.forEach(d => {
-      if (!overs[d.overNumber]) overs[d.overNumber] = [];
-      overs[d.overNumber].push(d);
+    const oversMap: Record<number, { 
+      overNumber: number; 
+      balls: any[]; 
+      overRuns: number; 
+      cumulativeScore: number; 
+      cumulativeWickets: number;
+      bowlerId: string;
+      batterIds: string[];
+    }> = {};
+
+    let runningScore = 0;
+    let runningWickets = 0;
+
+    const sortedDeliveries = [...deliveries].sort((a, b) => a.timestamp - b.timestamp);
+
+    sortedDeliveries.forEach(d => {
+      runningScore += d.totalRunsOnDelivery;
+      if (d.isWicket) runningWickets++;
+
+      if (!oversMap[d.overNumber]) {
+        oversMap[d.overNumber] = {
+          overNumber: d.overNumber,
+          balls: [],
+          overRuns: 0,
+          cumulativeScore: 0,
+          cumulativeWickets: 0,
+          bowlerId: d.bowlerPlayerId,
+          batterIds: []
+        };
+      }
+      
+      oversMap[d.overNumber].balls.push(d);
+      oversMap[d.overNumber].overRuns += d.totalRunsOnDelivery;
+      oversMap[d.overNumber].cumulativeScore = runningScore;
+      oversMap[d.overNumber].cumulativeWickets = runningWickets;
+      if (!oversMap[d.overNumber].batterIds.includes(d.strikerPlayerId)) {
+        oversMap[d.overNumber].batterIds.push(d.strikerPlayerId);
+      }
     });
     
-    return Object.entries(overs).map(([num, balls]) => ({
-      overNumber: parseInt(num),
-      balls: balls.sort((a,b) => a.timestamp - b.timestamp)
-    })).sort((a,b) => b.overNumber - a.overNumber);
+    return Object.values(oversMap).sort((a, b) => b.overNumber - a.overNumber);
   }, [activeInningView, inn1Deliveries, inn2Deliveries]);
 
   const handleEndMatch = async () => {
@@ -141,7 +170,6 @@ export default function MatchScoreboardPage() {
       const newT2BallsFaced = (t2.totalBallsFaced || 0) + i2Balls;
       const newT2BallsBowled = (t2.totalBallsBowled || 0) + i1Balls;
 
-      // NRR Formula: (Total Runs Scored * 6 / Total Balls Faced) - (Total Runs Conceded * 6 / Total Balls Bowled)
       const t1NRR = (newT1RunsScored * 6 / (newT1BallsFaced || 1)) - (newT1RunsConceded * 6 / (newT1BallsBowled || 1));
       const t2NRR = (newT2RunsScored * 6 / (newT2BallsFaced || 1)) - (newT2RunsConceded * 6 / (newT2BallsBowled || 1));
 
@@ -190,7 +218,9 @@ export default function MatchScoreboardPage() {
     let partTotalRuns = 0;
     let partTotalBalls = 0;
 
-    deliveries.forEach((d: any) => {
+    const sortedDeliveries = [...deliveries].sort((a, b) => a.timestamp - b.timestamp);
+
+    sortedDeliveries.forEach((d: any) => {
       runningScore += d.totalRunsOnDelivery;
 
       if (d.extraType !== 'none') {
@@ -305,7 +335,7 @@ export default function MatchScoreboardPage() {
         <TabsContent value="info" className="mt-4 space-y-4">
           <Card className="border shadow-none rounded-sm overflow-hidden">
             <CardHeader className="bg-slate-50 py-3 px-4 border-b">
-              <CardTitle className="text-[10px] uppercase font-black text-slate-400 flex items-center gap-2"><Info className="w-3 h-3" /> INFO</CardTitle>
+              <CardTitle className="text-[10px] uppercase font-black text-slate-400 flex items-center gap-2">INFO</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y text-xs">
@@ -413,39 +443,67 @@ export default function MatchScoreboardPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="overs" className="mt-4 space-y-6">
+        <TabsContent value="overs" className="mt-4 space-y-0 divide-y bg-white rounded-lg border shadow-sm">
+          <div className="flex gap-2 overflow-x-auto p-4 border-b bg-slate-50/50">
+            <Button variant={activeInningView === 1 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(1)} className="rounded-full text-[10px] font-bold h-8">Innings 1</Button>
+            <Button variant={activeInningView === 2 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(2)} className="rounded-full text-[10px] font-bold h-8" disabled={!inn2}>Innings 2</Button>
+          </div>
+          
           {groupedOvers.length > 0 ? (
-            <div className="space-y-4">
-              {groupedOvers.map((over) => (
-                <Card key={over.overNumber} className="border shadow-none overflow-hidden">
-                  <div className="bg-slate-50 px-4 py-2 border-b flex justify-between items-center">
-                    <span className="font-black text-[10px] uppercase tracking-widest text-slate-400">Over {over.overNumber}</span>
-                  </div>
-                  <div className="divide-y">
-                    {over.balls.map((ball, idx) => (
-                      <div key={idx} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className={cn(
-                            "w-8 h-8 rounded-full flex items-center justify-center font-black text-xs border",
-                            ball.isWicket ? "bg-destructive text-white border-destructive" : 
-                            ball.runsScored >= 4 ? "bg-primary text-white border-primary" : "bg-white text-slate-900"
-                          )}>
-                            {ball.isWicket ? 'W' : ball.totalRunsOnDelivery}
-                          </div>
-                          <div className="space-y-0.5">
-                            <p className="text-[10px] font-bold text-slate-900">{getPlayerName(ball.bowlerPlayerId)} to {getPlayerName(ball.strikerPlayerId)}</p>
-                            <p className="text-[9px] text-slate-500 font-medium">{ball.outcomeDescription}</p>
-                          </div>
-                        </div>
-                        <Badge variant="outline" className="text-[8px] h-4 font-bold">{ball.overNumber}.{ball.ballNumberInOver}</Badge>
-                      </div>
+            groupedOvers.map((over) => (
+              <div key={over.overNumber} className="p-4 flex flex-col md:flex-row gap-4 md:items-start md:justify-between hover:bg-slate-50 transition-colors">
+                <div className="space-y-1 min-w-[120px]">
+                  <p className="font-black text-sm text-slate-900">Over {over.overNumber} <span className="text-slate-400 font-bold ml-1">- {over.overRuns} runs</span></p>
+                  <p className="text-xs font-black text-slate-500 uppercase tracking-tighter">
+                    {getAbbr(getTeamName(activeInningData?.battingTeamId || ''))} {over.cumulativeScore}-{over.cumulativeWickets}
+                  </p>
+                </div>
+                
+                <div className="flex-1 space-y-3">
+                  <p className="text-xs font-bold text-slate-700">
+                    {getPlayerName(over.bowlerId)} to {over.batterIds.map((id, idx) => (
+                      <span key={id}>{idx > 0 && ' & '}{getPlayerName(id)}</span>
                     ))}
+                  </p>
+                  
+                  <div className="flex flex-wrap gap-1.5">
+                    {over.balls.map((ball, idx) => {
+                      let bgColor = 'bg-slate-400';
+                      let text = ball.totalRunsOnDelivery;
+                      
+                      if (ball.isWicket) {
+                        bgColor = 'bg-red-600';
+                        text = 'W';
+                      } else if (ball.runsScored === 6) {
+                        bgColor = 'bg-purple-600';
+                      } else if (ball.runsScored === 4) {
+                        bgColor = 'bg-blue-600';
+                      } else if (ball.extraType === 'wide') {
+                        bgColor = 'bg-amber-700';
+                        text = 'Wd';
+                      } else if (ball.extraType === 'noball') {
+                        bgColor = 'bg-amber-700';
+                        text = 'Nb';
+                      }
+                      
+                      return (
+                        <div 
+                          key={idx} 
+                          className={cn(
+                            "w-7 h-7 flex items-center justify-center rounded-sm text-[10px] font-black text-white shadow-sm",
+                            bgColor
+                          )}
+                        >
+                          {text}
+                        </div>
+                      );
+                    })}
                   </div>
-                </Card>
-              ))}
-            </div>
+                </div>
+              </div>
+            ))
           ) : (
-            <div className="text-center py-20 border-2 border-dashed rounded-xl space-y-3">
+            <div className="text-center py-20 space-y-3">
               <History className="w-10 h-10 text-slate-200 mx-auto" />
               <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No deliveries recorded yet</p>
             </div>
