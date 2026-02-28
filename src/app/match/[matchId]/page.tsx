@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy, writeBatch } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Info, Undo2, History, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { History, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,11 @@ export default function MatchScoreboardPage() {
   const { user } = useUser();
   const { isUmpire } = useApp();
   const router = useRouter();
+
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const matchRef = useMemoFirebase(() => doc(db, 'matches', matchId), [db, matchId]);
   const { data: match, isLoading: isMatchLoading } = useDoc(matchRef);
@@ -150,11 +155,7 @@ export default function MatchScoreboardPage() {
     }
 
     const batch = writeBatch(db);
-
-    batch.update(doc(db, 'matches', matchId), {
-      status: 'completed',
-      resultDescription: result
-    });
+    batch.update(doc(db, 'matches', matchId), { status: 'completed', resultDescription: result });
 
     const t1 = allTeams?.find(t => t.id === team1Id);
     const t2 = allTeams?.find(t => t.id === team2Id);
@@ -170,6 +171,7 @@ export default function MatchScoreboardPage() {
       const newT2BallsFaced = (t2.totalBallsFaced || 0) + i2Balls;
       const newT2BallsBowled = (t2.totalBallsBowled || 0) + i1Balls;
 
+      // NRR = (Total Runs Scored * 6 / Total Balls Faced) - (Total Runs Conceded * 6 / Total Balls Bowled)
       const t1NRR = (newT1RunsScored * 6 / (newT1BallsFaced || 1)) - (newT1RunsConceded * 6 / (newT1BallsBowled || 1));
       const t2NRR = (newT2RunsScored * 6 / (newT2BallsFaced || 1)) - (newT2RunsConceded * 6 / (newT2BallsBowled || 1));
 
@@ -309,7 +311,7 @@ export default function MatchScoreboardPage() {
     return { batting: Object.values(battingMap), bowling: Object.values(bowlingMap), fow, partnerships, extras };
   }, [activeInningView, inn1Deliveries, inn2Deliveries]);
 
-  if (isMatchLoading) return <div className="p-20 text-center">Loading scoreboard...</div>;
+  if (!isMounted || isMatchLoading) return <div className="p-20 text-center">Loading scoreboard...</div>;
   if (!match) return <div className="p-20 text-center">Match data missing.</div>;
 
   return (
@@ -340,7 +342,7 @@ export default function MatchScoreboardPage() {
             <CardContent className="p-0">
               <div className="divide-y text-xs">
                 <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Match</span><span className="font-black text-slate-900">{getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)}</span></div>
-                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Date</span><span className="font-medium text-slate-900">{new Date(match.matchDate).toLocaleDateString()}</span></div>
+                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Date</span><span className="font-medium text-slate-900">{isMounted ? new Date(match.matchDate).toLocaleDateString() : '---'}</span></div>
                 <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Toss</span><span className="font-medium text-slate-900">{match.tossWinnerTeamId ? `${getTeamName(match.tossWinnerTeamId)} won & opt to ${match.tossDecision}` : '---'}</span></div>
               </div>
             </CardContent>
