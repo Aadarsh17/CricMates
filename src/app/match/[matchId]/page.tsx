@@ -171,7 +171,7 @@ export default function MatchScoreboardPage() {
       const newT2BallsFaced = (t2.totalBallsFaced || 0) + i2Balls;
       const newT2BallsBowled = (t2.totalBallsBowled || 0) + i1Balls;
 
-      // NRR = (Total Runs Scored * 6 / Total Balls Faced) - (Total Runs Conceded * 6 / Total Balls Bowled)
+      // NRR Formula: (Runs * 6 / Balls Faced) - (Runs * 6 / Balls Bowled)
       const t1NRR = (newT1RunsScored * 6 / (newT1BallsFaced || 1)) - (newT1RunsConceded * 6 / (newT1BallsBowled || 1));
       const t2NRR = (newT2RunsScored * 6 / (newT2BallsFaced || 1)) - (newT2RunsConceded * 6 / (newT2BallsBowled || 1));
 

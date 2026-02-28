@@ -6,7 +6,7 @@ import { collection, query, orderBy, doc, limit } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, MapPin, Info } from 'lucide-react';
+import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -19,9 +19,8 @@ import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
 
-function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], isUmpire: boolean }) {
+function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, teams: any[], isUmpire: boolean, isMounted: boolean }) {
   const db = useFirestore();
-  const { user } = useUser();
   const [isEditing, setIsEditing] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [editedResult, setEditedResult] = useState(match.resultDescription);
@@ -31,7 +30,6 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
   const inn2Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_2'), [db, match.id]);
   const { data: inn2 } = useDoc(inn2Ref);
 
-  // Mocking "Player of the Match" for the prototype UI
   const [potm, setPotm] = useState<any>(null);
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players'), limit(1)), [db]);
   const { data: samplePlayers } = useCollection(playersQuery);
@@ -43,13 +41,11 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
   }, [samplePlayers]);
 
   const getTeam = (id: string) => teams.find(t => t.id === id);
-  const t1 = getTeam(match.team1Id);
-  const t2 = getTeam(match.team2Id);
 
   const getAbbr = (name: string) => (name || 'UNK').substring(0, 3).toUpperCase();
 
   const formatDate = (dateString: string) => {
-    if (!dateString) return 'Unknown Date';
+    if (!isMounted || !dateString) return '---';
     return new Date(dateString).toLocaleDateString('en-GB', { 
       day: 'numeric', 
       month: 'short', 
@@ -117,7 +113,7 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
                   <DialogHeader><DialogTitle>Edit Match Result</DialogTitle></DialogHeader>
                   <div className="py-4 space-y-4">
                     <div className="space-y-2">
@@ -133,7 +129,7 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
                 <AlertDialogTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                 </AlertDialogTrigger>
-                <AlertDialogContent>
+                <AlertDialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete this Match?</AlertDialogTitle>
                     <AlertDialogDescription>This action cannot be undone. All delivery records and stats for this match will be lost.</AlertDialogDescription>
@@ -257,7 +253,7 @@ export default function MatchHistoryPage() {
             </div>
           ) : liveMatches.length > 0 ? ( 
             liveMatches.map(match => (
-              <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
+              <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />
             ))
           ) : (
             <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
@@ -277,7 +273,7 @@ export default function MatchHistoryPage() {
             </div>
           ) : pastMatches.length > 0 ? (
             pastMatches.map(match => (
-              <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
+              <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />
             ))
           ) : (
             <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
