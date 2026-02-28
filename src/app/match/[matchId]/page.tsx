@@ -94,13 +94,21 @@ export default function MatchScoreboardPage() {
   }, [match, allPlayers]);
 
   const scorecard = useMemo(() => {
-    if (!deliveries) return { batting: [], bowling: [], extras: { wide: 0, noball: 0, byes: 0, legbyes: 0, total: 0 } };
+    if (!deliveries) return { batting: [], bowling: [], fow: [], partnerships: [], extras: { wide: 0, noball: 0, byes: 0, legbyes: 0, total: 0 } };
 
     const battingMap: Record<string, any> = {};
     const bowlingMap: Record<string, any> = {};
     const extras = { wide: 0, noball: 0, byes: 0, legbyes: 0, total: 0 };
+    const fow: any[] = [];
+    const partnerships: any[] = [];
+
+    let runningScore = 0;
+    let runningWickets = 0;
+    let currentPart = { p1: { id: '', runs: 0 }, p2: { id: '', runs: 0 }, total: 0, wicket: 1 };
 
     deliveries.forEach((d: any) => {
+      runningScore += d.totalRunsOnDelivery;
+
       if (d.extraType !== 'none') {
         const type = d.extraType as keyof typeof extras;
         if (extras[type] !== undefined) {
@@ -109,11 +117,23 @@ export default function MatchScoreboardPage() {
         }
       }
 
+      // Partnerships Tracking
+      if (!currentPart.p1.id && d.strikerPlayerId !== 'none') currentPart.p1.id = d.strikerPlayerId;
+      // We assume non-striker is whatever isn't p1. This is simplified for MVP.
+      
       if (d.strikerPlayerId && d.strikerPlayerId !== 'none') {
         if (!battingMap[d.strikerPlayerId]) {
           battingMap[d.strikerPlayerId] = { id: d.strikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out' };
         }
         battingMap[d.strikerPlayerId].runs += d.runsScored;
+        
+        if (currentPart.p1.id === d.strikerPlayerId) currentPart.p1.runs += d.runsScored;
+        else {
+          if (!currentPart.p2.id) currentPart.p2.id = d.strikerPlayerId;
+          currentPart.p2.runs += d.runsScored;
+        }
+        currentPart.total += d.totalRunsOnDelivery;
+
         if (d.extraType !== 'wide') {
           battingMap[d.strikerPlayerId].balls += 1;
         }
@@ -155,11 +175,33 @@ export default function MatchScoreboardPage() {
           bowlingMap[d.bowlerPlayerId].wickets += 1;
         }
       }
+
+      if (d.isWicket) {
+        runningWickets++;
+        fow.push({
+          wicket: runningWickets,
+          score: runningScore,
+          batterId: d.batsmanOutPlayerId,
+          over: `${d.overNumber}.${d.ballNumberInOver}`
+        });
+
+        partnerships.push({...currentPart});
+        // Reset partnership
+        const survivor = d.batsmanOutPlayerId === currentPart.p1.id ? currentPart.p2 : currentPart.p1;
+        currentPart = {
+          p1: { id: survivor.id, runs: 0 },
+          p2: { id: '', runs: 0 },
+          total: 0,
+          wicket: runningWickets + 1
+        };
+      }
     });
 
     return {
       batting: Object.values(battingMap),
       bowling: Object.values(bowlingMap),
+      fow,
+      partnerships,
       extras
     };
   }, [deliveries]);
@@ -673,6 +715,49 @@ export default function MatchScoreboardPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              {/* Fall of Wickets */}
+              <div className="mt-8">
+                <h3 className="text-xs font-bold uppercase text-slate-500 mb-3 tracking-widest">Fall of Wickets</h3>
+                <div className="text-[11px] text-slate-700 flex flex-wrap gap-x-4 gap-y-2 leading-relaxed">
+                  {scorecard.fow.length > 0 ? scorecard.fow.map((f, i) => (
+                    <span key={i}>
+                      <span className="font-bold text-slate-900">{f.score}-{f.wicket}</span> ({getPlayerName(f.batterId)}, {f.over} ov){i < scorecard.fow.length - 1 ? ',' : ''}
+                    </span>
+                  )) : (
+                    <span className="text-slate-400 italic">No wickets fallen yet</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Partnerships */}
+              <div className="mt-8">
+                <h3 className="text-xs font-bold uppercase text-slate-500 mb-3 tracking-widest">Partnerships</h3>
+                <div className="bg-white border rounded-sm overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow>
+                        <TableHead className="text-[10px] uppercase font-bold text-slate-500">Wkt</TableHead>
+                        <TableHead className="text-[10px] uppercase font-bold text-slate-500">Batters</TableHead>
+                        <TableHead className="text-right text-[10px] uppercase font-bold text-slate-500">Runs</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {scorecard.partnerships.length > 0 ? scorecard.partnerships.map((p, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="py-2 text-xs font-bold text-slate-400">{p.wicket}</TableCell>
+                          <TableCell className="py-2 text-xs">
+                            <span className="font-bold text-blue-600">{getPlayerName(p.p1.id)}</span> ({p.p1.runs}) & <span className="font-bold text-blue-600">{getPlayerName(p.p2.id)}</span> ({p.p2.runs})
+                          </TableCell>
+                          <TableCell className="py-2 text-right text-xs font-black text-slate-900">{p.total}</TableCell>
+                        </TableRow>
+                      )) : (
+                        <TableRow><TableCell colSpan={3} className="text-center text-xs text-slate-400 py-4 italic">No completed partnerships recorded</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </div>
           )}
         </TabsContent>
@@ -895,4 +980,3 @@ export default function MatchScoreboardPage() {
     </div>
   );
 }
-
