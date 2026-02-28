@@ -1,3 +1,22 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-cricket",
+      "description": "Cricket Stadium",
+      "imageUrl": "https://images.unsplash.com/photo-1663832952954-170d73947ba7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxjcmlja2V0JTIwc3RhZGl1bXxlbnwwfHx8fDE3NzIyMDY4MDh8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "cricket stadium"
+    },
+    {
+      "id": "team-logo",
+      "description": "Team Logo",
+      "imageUrl": "https://images.unsplash.com/photo-1760037035212-216095656f71?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxzcG9ydHMlMjBsb2dvfGVufDB8fHx8MTc3MjI4ODI2MHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "sports logo"
+    },
+    {
+      "id": "player-avatar",
+      "description": "Player Profile",
+      "imageUrl": "https://images.unsplash.com/photo-1565787154274-c8d076ad34e7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxjcmlja2V0JTIwcGxheWVyfGVufDB8fHx8MTc3MjI4ODI2MXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "cricket player"
+    }
+  ]
 }
