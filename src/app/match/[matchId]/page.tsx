@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { UserCircle, Info, Users, ChevronRight } from 'lucide-react';
+import { UserCircle, Info, Users, ChevronRight, Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -142,7 +142,7 @@ export default function MatchScoreboardPage() {
         } else {
           bowlingMap[d.bowlerPlayerId].runs += d.runsScored;
         }
-        if (d.isWicket && !['run out', 'hit wicket'].includes(d.dismissalType)) {
+        if (d.isWicket && !['runout', 'hit wicket'].includes(d.dismissalType)) {
           bowlingMap[d.bowlerPlayerId].wickets += 1;
         }
       }
@@ -159,7 +159,7 @@ export default function MatchScoreboardPage() {
     if (!match || !activeInningData || !scorecard.batting) return [];
     const squad = activeInningData.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
     const battingIds = scorecard.batting.map(b => b.id);
-    const onField = [activeInningData.strikerPlayerId, activeInningData.nonStrikerPlayerId];
+    const onField = [activeInningData.strikerPlayerId, activeInningData.nonStrikerPlayerId].filter(Boolean);
     return squad.filter(pid => !battingIds.includes(pid) && !onField.includes(pid));
   }, [match, activeInningData, scorecard.batting]);
 
@@ -225,7 +225,7 @@ export default function MatchScoreboardPage() {
       }
     }
 
-    // Construct dismissal description
+    // Construct dismissal description professionally
     let dismissalDesc = 'out';
     if (isWicket) {
       const bowler = getPlayerName(activeInningData.currentBowlerPlayerId);
@@ -233,6 +233,7 @@ export default function MatchScoreboardPage() {
       switch(wicketDetails.type) {
         case 'bowled': dismissalDesc = `b ${bowler}`; break;
         case 'caught': dismissalDesc = `c ${fielder} b ${bowler}`; break;
+        case 'lbw': dismissalDesc = `lbw b ${bowler}`; break;
         case 'runout': dismissalDesc = `run out (${fielder})`; break;
         case 'stumping': dismissalDesc = `st ${fielder} b ${bowler}`; break;
         case 'hit wicket': dismissalDesc = `hit wicket b ${bowler}`; break;
@@ -512,7 +513,9 @@ export default function MatchScoreboardPage() {
                             {getPlayerName(b.id)}
                             {b.id === activeInningData.strikerPlayerId && <span className="text-[8px] text-slate-400">*</span>}
                           </div>
-                          <div className="text-[9px] text-slate-400 font-medium italic">{b.dismissal}</div>
+                          <div className="text-[9px] text-slate-400 font-medium italic">
+                            {b.out ? b.dismissal : 'not out'}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right font-black text-xs">{b.runs}</TableCell>
                         <TableCell className="text-right text-slate-500 text-xs">{b.balls}</TableCell>
@@ -648,6 +651,7 @@ export default function MatchScoreboardPage() {
                 <SelectContent>
                   <SelectItem value="bowled">Bowled</SelectItem>
                   <SelectItem value="caught">Caught</SelectItem>
+                  <SelectItem value="lbw">LBW</SelectItem>
                   <SelectItem value="runout">Run Out</SelectItem>
                   <SelectItem value="stumping">Stumping</SelectItem>
                   <SelectItem value="hit wicket">Hit Wicket</SelectItem>
