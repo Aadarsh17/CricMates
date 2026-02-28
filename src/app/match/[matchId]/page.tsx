@@ -56,8 +56,7 @@ export default function MatchScoreboardPage() {
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
-  // Calculate dismissed players for the current inning to filter them out
-  const dismissedPlayerIds = Array.from(new Set(deliveries?.filter(d => d.isWicket && d.batsmanOutPlayerId).map(d => d.batsmanOutPlayerId) || []));
+  const dismissedPlayerIds = Array.from(new Set(deliveries?.filter(d => d.isWicket && d.batsmanOutPlayerId && d.batsmanOutPlayerId !== 'none').map(d => d.batsmanOutPlayerId) || []));
 
   const [isWicketModalOpen, setIsWicketModalOpen] = useState(false);
   const [isBowlerModalOpen, setIsBowlerModalOpen] = useState(false);
@@ -67,7 +66,7 @@ export default function MatchScoreboardPage() {
   
   const [wicketDetails, setWicketDetails] = useState({
     type: 'bowled',
-    newStrikerId: 'none', // Set to none to allow "Last Man Standing"
+    newStrikerId: '',
     fielderId: 'none'
   });
   const [selectedNextBowlerId, setSelectedNextBowlerId] = useState('');
@@ -90,12 +89,13 @@ export default function MatchScoreboardPage() {
     return t ? t.name : 'Unknown Team';
   };
 
-  // Check if current innings is over. Allowing up to 11 wickets for "Last Man Standing"
+  const isLastManStanding = activeInningData?.wickets === 10;
+  
   const isCurrentInningsOver = !!(activeInningData && match && (
     activeInningData.wickets >= 11 || 
     (activeInningData.oversCompleted >= match.totalOvers) ||
     (activeInningView === 2 && inn1 && activeInningData.score > inn1.score) ||
-    (activeInningData.wickets === 10 && !activeInningData.strikerPlayerId && !activeInningData.nonStrikerPlayerId)
+    (activeInningData.wickets === 10 && !activeInningData.strikerPlayerId)
   ));
 
   const needsNewBowler = activeInningData?.ballsInCurrentOver === 0 && 
@@ -103,12 +103,9 @@ export default function MatchScoreboardPage() {
                          activeInningData?.oversCompleted < (match?.totalOvers || 0) &&
                          !activeInningData?.currentBowlerPlayerId;
 
-  // In standard play, we need 2 batsmen. In Last Man Standing (10 wickets down), we only need 1.
-  const isLastManStanding = activeInningData?.wickets === 10;
-  const needsOpeningPair = activeInningData && (
-    (!activeInningData.strikerPlayerId && !isLastManStanding) || 
-    (!activeInningData.currentBowlerPlayerId)
-  );
+  const isStartingInnings = activeInningData && activeInningData.oversCompleted === 0 && activeInningData.ballsInCurrentOver === 0 && activeInningData.wickets === 0;
+  const needsOpeningPair = isStartingInnings && (!activeInningData?.strikerPlayerId || !activeInningData?.currentBowlerPlayerId);
+  const needsNextBatter = activeInningData && !activeInningData.strikerPlayerId && !isCurrentInningsOver && !isStartingInnings;
 
   const handleBall = (runs: number, isWicket = false, extra: 'none' | 'wide' | 'noball' = 'none') => {
     if (!isUmpire || match?.status !== 'live' || !activeInningData || !activeInningRef || isCurrentInningsOver) {
@@ -127,12 +124,11 @@ export default function MatchScoreboardPage() {
     let newStriker = currentInning.strikerPlayerId;
     let newNonStriker = currentInning.nonStrikerPlayerId;
 
-    if (!newStriker && !newNonStriker) {
-      setIsOpeningPairSetupOpen(true);
+    if (!newStriker && !isStartingInnings) {
+      toast({ title: "Setup Required", description: "Select next batter first." });
       return;
     }
 
-    // Strike rotation (only if we have two batsmen)
     if (runs % 2 !== 0 && newStriker && newNonStriker) {
       const temp = newStriker;
       newStriker = newNonStriker;
@@ -149,7 +145,6 @@ export default function MatchScoreboardPage() {
         isOverEnd = true;
         newOvers += 1;
         newBalls = 0;
-        // End of over strike rotation (only if we have two batsmen)
         if (newStriker && newNonStriker) {
           const temp = newStriker;
           newStriker = newNonStriker;
@@ -183,9 +178,8 @@ export default function MatchScoreboardPage() {
 
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', deliveryId), deliveryData, { merge: true });
     
-    // Handle the new batsman (or lack thereof in Last Man Standing)
     let finalStriker = isWicket ? (wicketDetails.newStrikerId === 'none' ? '' : wicketDetails.newStrikerId) : newStriker;
-    let finalNonStriker = newNonStriker;
+    let finalNonStriker = isWicket && wicketDetails.newStrikerId === 'none' ? '' : newNonStriker;
 
     updateDocumentNonBlocking(activeInningRef, {
       score: currentInning.score + runsForThisBall,
@@ -199,7 +193,7 @@ export default function MatchScoreboardPage() {
 
     if (isWicket) {
       setIsWicketModalOpen(false);
-      setWicketDetails({ type: 'bowled', newStrikerId: 'none', fielderId: 'none' });
+      setWicketDetails({ type: 'bowled', newStrikerId: '', fielderId: 'none' });
     }
     
     if (extra === 'noball') {
@@ -244,7 +238,7 @@ export default function MatchScoreboardPage() {
       ballsInCurrentOver: lastBall.extraType === 'none' ? (wasOverEnd ? 5 : lastBall.ballNumberInOver - 1) : activeInningData.ballsInCurrentOver,
       oversCompleted: wasOverEnd ? activeInningData.oversCompleted - 1 : activeInningData.oversCompleted,
       strikerPlayerId: lastBall.strikerPlayerId,
-      nonStrikerPlayerId: activeInningData.nonStrikerPlayerId, // Maintain non-striker
+      nonStrikerPlayerId: activeInningData.nonStrikerPlayerId,
       currentBowlerPlayerId: lastBall.bowlerPlayerId
     });
 
@@ -343,7 +337,7 @@ export default function MatchScoreboardPage() {
   const chasingBattingTeamId = inn1?.battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
   const chasingBowlingTeamId = chasingBattingTeamId === match.team1Id ? match.team2Id : match.team1Id;
   const chasingBattingSquad = chasingBattingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
-  const chasingBowlingSquad = chasingBowlingTeamId === match.team1Id ? match.team2Id === chasingBattingTeamId ? match.team1SquadPlayerIds : match.team2SquadPlayerIds : match.team1SquadPlayerIds;
+  const chasingBowlingSquad = chasingBowlingTeamId === match.team1Id ? match.team2SquadPlayerIds : match.team1SquadPlayerIds;
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -401,6 +395,12 @@ export default function MatchScoreboardPage() {
                       <h3 className="text-lg font-bold mb-2">Innings Ready</h3>
                       <p className="text-sm text-muted-foreground mb-6">Setup the opening pair to start scoring.</p>
                       <Button onClick={() => setIsOpeningPairSetupOpen(true)} className="h-12 px-10 font-bold bg-secondary hover:bg-secondary/90">Initialize Opening Pair</Button>
+                    </div>
+                  ) : needsNextBatter ? (
+                    <div className="p-12 text-center bg-muted/50 rounded-2xl border-2 border-dashed border-destructive/20">
+                      <h3 className="text-lg font-bold mb-2">Batsman Required</h3>
+                      <p className="text-sm text-muted-foreground mb-6">Select the next player to join {getPlayerName(activeInningData?.nonStrikerPlayerId || '')} on field.</p>
+                      <Button onClick={() => setIsWicketModalOpen(true)} className="h-12 px-10 font-bold bg-secondary hover:bg-secondary/90">Select Next Batter</Button>
                     </div>
                   ) : needsNewBowler ? (
                     <div className="p-8 text-center bg-muted/50 rounded-2xl border-2 border-dashed border-primary/20">
@@ -470,14 +470,13 @@ export default function MatchScoreboardPage() {
         </div>
       </Tabs>
 
-      {/* Setup Opening Pair Modal (For any innings) */}
       <Dialog open={isOpeningPairSetupOpen} onOpenChange={setIsOpeningPairSetupOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Initialize Match Players</DialogTitle><DialogDescription>Select starting players to begin scoring this innings.</DialogDescription></DialogHeader>
           <div className="space-y-6 py-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Striker</Label><Select onValueChange={(v) => setSetupPair({...setupPair, strikerId: v})}><SelectTrigger><SelectValue placeholder="Striker" /></SelectTrigger><SelectContent>{battingPool.filter(p => p.id !== setupPair.nonStrikerId && !dismissedPlayerIds.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label>Non-Striker</Label><Select onValueChange={(v) => setSetupPair({...setupPair, nonStrikerId: v})}><SelectTrigger><SelectValue placeholder="Non-Striker" /></SelectTrigger><SelectContent>{battingPool.filter(p => p.id !== setupPair.strikerId && !dismissedPlayerIds.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label>Striker</Label><Select onValueChange={(v) => setSetupPair({...setupPair, strikerId: v})}><SelectTrigger><SelectValue placeholder="Striker" /></SelectTrigger><SelectContent>{battingPool.filter(p => p.id !== setupPair.nonStrikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label>Non-Striker</Label><Select onValueChange={(v) => setSetupPair({...setupPair, nonStrikerId: v})}><SelectTrigger><SelectValue placeholder="Non-Striker" /></SelectTrigger><SelectContent>{battingPool.filter(p => p.id !== setupPair.strikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
             <div className="space-y-2"><Label>Opening Bowler</Label><Select onValueChange={(v) => setSetupPair({...setupPair, bowlerId: v})}><SelectTrigger><SelectValue placeholder="Select Bowler" /></SelectTrigger><SelectContent>{bowlingPool.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
           </div>
@@ -485,7 +484,6 @@ export default function MatchScoreboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* 2nd Innings Transition Modal */}
       <Dialog open={isSecondInningsSetupOpen} onOpenChange={setIsSecondInningsSetupOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Setup 2nd Innings</DialogTitle><DialogDescription>Select starting lineup for the chasing team.</DialogDescription></DialogHeader>
@@ -500,7 +498,6 @@ export default function MatchScoreboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* No Ball Modal */}
       <Dialog open={isNoBallModalOpen} onOpenChange={setIsNoBallModalOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>No Ball Extras</DialogTitle><DialogDescription>Were any runs scored off the bat?</DialogDescription></DialogHeader>
@@ -508,7 +505,6 @@ export default function MatchScoreboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Wicket Modal */}
       <Dialog open={isWicketModalOpen} onOpenChange={setIsWicketModalOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Wicket Confirmation</DialogTitle><DialogDescription>Details for dismissal of {getPlayerName(activeInningData?.strikerPlayerId || '')}</DialogDescription></DialogHeader>
@@ -518,16 +514,18 @@ export default function MatchScoreboardPage() {
               <div className="space-y-2"><Label>Fielder Involved</Label><Select value={wicketDetails.fielderId} onValueChange={(v) => setWicketDetails({...wicketDetails, fielderId: v})}><SelectTrigger><SelectValue placeholder="Pick fielder" /></SelectTrigger><SelectContent>{bowlingPool.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             )}
             <div className="space-y-2">
-              <Label>Next Batter (Last player plays alone if 10 wickets down)</Label>
+              <Label>Next Batter (or Last Man Standing)</Label>
               <Select value={wicketDetails.newStrikerId} onValueChange={(v) => setWicketDetails({...wicketDetails, newStrikerId: v})}>
                 <SelectTrigger><SelectValue placeholder="Pick next batter or end" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No More Batsmen (End Innings)</SelectItem>
-                  {battingSquadIds.filter(pid => 
-                    pid !== activeInningData?.nonStrikerPlayerId && 
-                    pid !== activeInningData?.strikerPlayerId &&
-                    !dismissedPlayerIds.includes(pid)
-                  ).map(pid => <SelectItem key={pid} value={pid}>{getPlayerName(pid)}</SelectItem>)}
+                  {isLastManStanding ? (
+                    <SelectItem value={activeInningData?.nonStrikerPlayerId || 'none'}>Last Man Standing: {getPlayerName(activeInningData?.nonStrikerPlayerId || '')}</SelectItem>
+                  ) : (
+                    battingSquadIds.filter(pid => pid !== activeInningData?.nonStrikerPlayerId && pid !== activeInningData?.strikerPlayerId && !dismissedPlayerIds.includes(pid)).map(pid => (
+                      <SelectItem key={pid} value={pid}>{getPlayerName(pid)}</SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -536,7 +534,6 @@ export default function MatchScoreboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Bowler Selection Modal */}
       <Dialog open={isBowlerModalOpen} onOpenChange={setIsBowlerModalOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Assign Bowler</DialogTitle></DialogHeader>
