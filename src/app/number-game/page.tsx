@@ -1,10 +1,11 @@
+
 "use client"
 
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash } from 'lucide-react';
+import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 export default function NumberGame() {
@@ -13,6 +14,7 @@ export default function NumberGame() {
   const [balls, setBalls] = useState(0);
   const [out, setOut] = useState(false);
   const [history, setHistory] = useState<number[]>([]);
+  const [players, setPlayers] = useState<string[]>(['Batter 1', 'Batter 2']);
 
   const handleScore = (runs: number) => {
     if (out) return;
@@ -27,13 +29,27 @@ export default function NumberGame() {
         setOut(true);
         toast({
           title: "OUT!",
-          description: "3 Dot balls in a row. Batter is out!",
+          description: "3 Consecutive dots. Batter is out!",
           variant: "destructive"
         });
       }
     } else {
       setScore(prev => prev + runs);
-      setDots(0); // Reset dots on scoring
+      setDots(0);
+    }
+  };
+
+  const handleUndo = () => {
+    if (history.length === 0) return;
+    const last = history[0];
+    setHistory(prev => prev.slice(1));
+    setBalls(prev => prev - 1);
+    if (last === 0) {
+      setDots(prev => Math.max(0, prev - 1));
+      setOut(false);
+    } else {
+      setScore(prev => prev - last);
+      setDots(0);
     }
   };
 
@@ -52,27 +68,27 @@ export default function NumberGame() {
           <Hash className="text-secondary" />
           <span>Number Game</span>
         </h1>
-        <p className="text-muted-foreground text-sm">Casual Street Cricket: 3 Dots = Out!</p>
+        <Badge variant="secondary" className="mt-2 uppercase tracking-tighter">Special Sunday Mode</Badge>
       </div>
 
-      <Card className={`text-center border-2 transition-colors ${out ? 'border-destructive bg-destructive/5' : 'border-primary'}`}>
+      <Card className={`text-center border-2 transition-all ${out ? 'border-destructive bg-destructive/5 scale-95 shadow-none' : 'border-primary shadow-xl'}`}>
         <CardHeader>
           <div className="flex justify-between items-center mb-2">
-             <Badge variant="outline" className="font-mono">Balls: {balls}</Badge>
+             <Badge variant="outline" className="font-mono bg-white">Balls: {balls}</Badge>
              <div className="flex space-x-1">
                {[...Array(3)].map((_, i) => (
-                 <Circle key={i} className={`w-3 h-3 ${i < dots ? 'fill-destructive text-destructive' : 'text-muted'}`} />
+                 <Circle key={i} className={`w-4 h-4 transition-all duration-300 ${i < dots ? 'fill-destructive text-destructive scale-110' : 'text-muted'}`} />
                ))}
              </div>
           </div>
-          <CardTitle className="text-6xl font-black text-primary">
+          <CardTitle className="text-7xl font-black text-primary py-4">
             {out ? "OUT" : score}
           </CardTitle>
-          <CardDescription className="text-sm font-bold uppercase tracking-widest">
-            Current Score
+          <CardDescription className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            {players[0]}'s Innings
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
           <div className="grid grid-cols-3 gap-3">
             {[0, 1, 2, 3, 4, 6].map((num) => (
               <Button 
@@ -81,54 +97,69 @@ export default function NumberGame() {
                 size="lg"
                 disabled={out}
                 onClick={() => handleScore(num)}
-                className={`h-16 text-xl font-bold ${num === 0 ? 'border-2' : 'bg-primary hover:bg-primary/90'}`}
+                className={`h-16 text-2xl font-black ${num === 0 ? 'border-2 border-primary/20' : 'bg-primary hover:bg-primary/90'}`}
               >
                 {num === 0 ? "Dot" : num}
               </Button>
             ))}
           </div>
           
-          <div className="mt-8 flex gap-4">
-            <Button variant="ghost" className="flex-1" onClick={reset}>
-              <RotateCcw className="mr-2 h-4 w-4" /> Reset Game
+          <div className="flex gap-4">
+            <Button variant="outline" className="flex-1" onClick={handleUndo}>
+              <Undo2 className="mr-2 h-4 w-4" /> Undo
             </Button>
-            {out && (
-               <Button className="flex-1 bg-secondary hover:bg-secondary/90" onClick={reset}>
-                <Play className="mr-2 h-4 w-4" /> New Batter
-              </Button>
-            )}
+            <Button variant="ghost" className="flex-1" onClick={reset}>
+              <RotateCcw className="mr-2 h-4 w-4" /> Clear
+            </Button>
           </div>
-        </CardContent>
-      </Card>
 
-      <Card>
-        <CardHeader className="py-4">
-          <CardTitle className="text-sm flex items-center">
-            <HistoryIcon className="w-4 h-4 mr-2 text-muted-foreground" />
-            Recent Balls
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {history.length > 0 ? history.map((h, i) => (
-            <div key={i} className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border ${h === 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : 'bg-secondary/10 text-secondary border-secondary/20'}`}>
-              {h}
-            </div>
-          )) : (
-            <p className="text-xs text-muted-foreground italic">No balls bowled yet.</p>
+          {out && (
+             <Button className="w-full bg-secondary hover:bg-secondary/90 h-14 text-lg font-bold" onClick={reset}>
+              <Play className="mr-2 h-5 w-5" /> Next Batter
+            </Button>
           )}
         </CardContent>
       </Card>
 
-      <div className="bg-muted p-4 rounded-xl space-y-2">
-        <h3 className="text-sm font-bold flex items-center">
+      <div className="grid grid-cols-2 gap-4">
+        <Card className="shadow-sm">
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-[10px] uppercase text-muted-foreground flex items-center">
+              <HistoryIcon className="w-3 h-3 mr-1" /> Recent Balls
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 flex flex-wrap gap-1.5">
+            {history.map((h, i) => (
+              <div key={i} className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border ${h === 0 ? 'bg-destructive/10 text-destructive border-destructive/20' : 'bg-secondary/10 text-secondary border-secondary/20'}`}>
+                {h}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+        
+        <Card className="shadow-sm">
+          <CardHeader className="py-3 px-4">
+            <CardTitle className="text-[10px] uppercase text-muted-foreground flex items-center">
+              <UserPlus className="w-3 h-3 mr-1" /> Rotation
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 text-[10px] font-medium text-muted-foreground italic">
+            Next: Batter 2<br/>
+            Bowler: Last Player
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="bg-primary/5 p-4 rounded-xl border border-primary/10">
+        <h3 className="text-sm font-bold flex items-center mb-2">
           <Skull className="w-4 h-4 mr-2 text-destructive" />
-          Street Rules
+          Sunday Rules Engaged
         </h3>
-        <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-          <li>Every run counts as normal points.</li>
-          <li>Three consecutive dot balls results in an automatic <strong>OUT</strong>.</li>
-          <li>Rotating bowling: Every player bowls one ball after another.</li>
-          <li>Competitive sessions track your high score locally.</li>
+        <ul className="text-[10px] text-muted-foreground space-y-1 list-disc list-inside">
+          <li><strong>3 Dots = Out</strong>: Consecutive dot balls retire the batter.</li>
+          <li><strong>Reverse Bowling</strong>: Order starts from the last registered player.</li>
+          <li><strong>Mid-Match Adds</strong>: New players can join anytime.</li>
+          <li><strong>Infinite Rotation</strong>: No fixed overs, play till sunset.</li>
         </ul>
       </div>
     </div>

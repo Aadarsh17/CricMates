@@ -1,22 +1,24 @@
+
 "use client"
 
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { Trophy, Users, LayoutDashboard, ShieldCheck, User, Menu, X, Play } from 'lucide-react';
+import { Trophy, Users, LayoutDashboard, ShieldCheck, User, Menu, X, Play, UserCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 export default function Navbar() {
-  const { role, setRole, isUmpire } = useApp();
+  const { setRole, isUmpire } = useApp();
   const [isOpen, setIsOpen] = useState(false);
 
   const navLinks = [
     { name: 'Home', href: '/', icon: LayoutDashboard },
     { name: 'Matches', href: '/matches', icon: Play },
-    { name: 'Rankings', href: '/rankings', icon: Trophy },
     { name: 'Teams', href: '/teams', icon: Users },
-    { name: 'Number Game', href: '/number-game', icon: Users },
+    { name: 'Players', href: '/players', icon: UserCircle },
+    { name: 'Rankings', href: '/rankings', icon: Trophy },
+    { name: 'Number Game', href: '/number-game', icon: Play },
   ];
 
   return (
@@ -33,7 +35,7 @@ export default function Navbar() {
           {/* Desktop Nav */}
           <div className="hidden md:flex items-center space-x-6">
             {navLinks.map((link) => (
-              <Link key={link.href} href={link.href} className="flex items-center space-x-1 hover:text-secondary transition-colors">
+              <Link key={link.href} href={link.href} className="flex items-center space-x-1 hover:text-secondary transition-colors text-sm font-medium">
                 <link.icon className="w-4 h-4" />
                 <span>{link.name}</span>
               </Link>
@@ -46,7 +48,7 @@ export default function Navbar() {
               className={cn("flex items-center space-x-2", !isUmpire && "bg-transparent text-white border-white hover:bg-white/10")}
             >
               {isUmpire ? <ShieldCheck className="w-4 h-4" /> : <User className="w-4 h-4" />}
-              <span>{isUmpire ? "Umpire Mode" : "Guest Mode"}</span>
+              <span>{isUmpire ? "Umpire" : "Guest"}</span>
             </Button>
           </div>
 
