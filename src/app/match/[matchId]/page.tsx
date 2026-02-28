@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc } 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -33,9 +33,22 @@ export default function MatchScoreboardPage() {
   const [isWicketDialogOpen, setIsWicketDialogOpen] = useState(false);
   const [isBowlerDialogOpen, setIsBowlerDialogOpen] = useState(false);
   const [isEditResultOpen, setIsEditResultOpen] = useState(false);
+  const [isEditScoresOpen, setIsEditScoresOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('live');
   const [activeInningView, setActiveInningView] = useState<number>(1);
   const [editedResult, setEditedResult] = useState('');
+
+  // Form states for full scorecard editing
+  const [editForm, setEditForm] = useState({
+    inn1Score: 0,
+    inn1Wickets: 0,
+    inn1Overs: 0,
+    inn1Balls: 0,
+    inn2Score: 0,
+    inn2Wickets: 0,
+    inn2Overs: 0,
+    inn2Balls: 0
+  });
 
   const [wicketForm, setWicketForm] = useState({
     type: 'bowled',
@@ -64,7 +77,19 @@ export default function MatchScoreboardPage() {
     if (match?.resultDescription) {
       setEditedResult(match.resultDescription);
     }
-  }, [match?.currentInningNumber, match?.resultDescription]);
+    if (inn1 || inn2) {
+      setEditForm({
+        inn1Score: inn1?.score || 0,
+        inn1Wickets: inn1?.wickets || 0,
+        inn1Overs: inn1?.oversCompleted || 0,
+        inn1Balls: inn1?.ballsInCurrentOver || 0,
+        inn2Score: inn2?.score || 0,
+        inn2Wickets: inn2?.wickets || 0,
+        inn2Overs: inn2?.oversCompleted || 0,
+        inn2Balls: inn2?.ballsInCurrentOver || 0,
+      });
+    }
+  }, [match?.currentInningNumber, match?.resultDescription, inn1, inn2]);
 
   const inn1DeliveriesQuery = useMemoFirebase(() => 
     query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
@@ -204,7 +229,7 @@ export default function MatchScoreboardPage() {
       wickets: newWickets,
       oversCompleted: newOvers,
       ballsInCurrentOver: newBalls,
-      strikerPlayerId: 'none' // Umpire must select new batter
+      strikerPlayerId: 'none' 
     });
 
     setIsWicketDialogOpen(false);
@@ -355,6 +380,32 @@ export default function MatchScoreboardPage() {
     toast({ title: "Result Updated", description: "Match details corrected." });
   };
 
+  const handleUpdateScores = async () => {
+    const batch = writeBatch(db);
+    
+    if (inn1) {
+      batch.update(doc(db, 'matches', matchId, 'innings', 'inning_1'), {
+        score: editForm.inn1Score,
+        wickets: editForm.inn1Wickets,
+        oversCompleted: editForm.inn1Overs,
+        ballsInCurrentOver: editForm.inn1Balls
+      });
+    }
+
+    if (inn2) {
+      batch.update(doc(db, 'matches', matchId, 'innings', 'inning_2'), {
+        score: editForm.inn2Score,
+        wickets: editForm.inn2Wickets,
+        oversCompleted: editForm.inn2Overs,
+        ballsInCurrentOver: editForm.inn2Balls
+      });
+    }
+
+    await batch.commit();
+    setIsEditScoresOpen(false);
+    toast({ title: "Scorecard Updated", description: "Numerical stats corrected." });
+  };
+
   const groupedOvers = useMemo(() => {
     const deliveries = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
     if (!deliveries) return [];
@@ -411,10 +462,15 @@ export default function MatchScoreboardPage() {
         <h1 className="text-lg md:text-2xl font-black text-slate-900 tracking-tight">{getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)}</h1>
         <div className="flex items-center justify-center gap-2 mt-1">
           <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{match.status === 'completed' ? match.resultDescription : 'Match In Progress'}</p>
-          {isUmpire && match.status === 'completed' && (
-            <Button variant="ghost" size="icon" onClick={() => setIsEditResultOpen(true)} className="h-6 w-6 text-primary hover:bg-primary/5">
-              <Edit2 className="w-3 h-3" />
-            </Button>
+          {isUmpire && (
+            <div className="flex gap-1">
+              <Button variant="ghost" size="icon" onClick={() => setIsEditResultOpen(true)} className="h-6 w-6 text-primary hover:bg-primary/5">
+                <Edit2 className="w-3 h-3" />
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => setIsEditScoresOpen(true)} className="h-6 w-6 text-secondary hover:bg-secondary/5">
+                <Settings2 className="w-3 h-3" />
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -529,9 +585,16 @@ export default function MatchScoreboardPage() {
         </TabsContent>
 
         <TabsContent value="scorecard" className="mt-4 space-y-8">
-           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            <Button variant={activeInningView === 1 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(1)} className="rounded-full text-[10px] font-bold h-8">Innings 1</Button>
-            <Button variant={activeInningView === 2 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(2)} className="rounded-full text-[10px] font-bold h-8" disabled={!inn2}>Innings 2</Button>
+           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide items-center justify-between">
+            <div className="flex gap-2">
+              <Button variant={activeInningView === 1 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(1)} className="rounded-full text-[10px] font-bold h-8">Innings 1</Button>
+              <Button variant={activeInningView === 2 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(2)} className="rounded-full text-[10px] font-bold h-8" disabled={!inn2}>Innings 2</Button>
+            </div>
+            {isUmpire && (
+              <Button variant="outline" size="sm" onClick={() => setIsEditScoresOpen(true)} className="rounded-full text-[10px] font-bold h-8">
+                <Settings2 className="w-3 h-3 mr-1" /> Edit Scores
+              </Button>
+            )}
           </div>
           <div className="p-4 text-center text-slate-400 text-xs italic">Scorecard data populated from live deliveries...</div>
         </TabsContent>
@@ -598,9 +661,71 @@ export default function MatchScoreboardPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Edit Numerical Scores Dialog */}
+      <Dialog open={isEditScoresOpen} onOpenChange={setIsEditScoresOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Scorecard Stats</DialogTitle></DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Inning 1 Edits */}
+              <div className="space-y-4 p-4 border rounded-xl bg-slate-50/50">
+                <h3 className="font-black text-xs uppercase tracking-widest text-primary">Innings 1: {getAbbr(getTeamName(match.team1Id))}</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold">Runs</Label>
+                    <Input type="number" value={editForm.inn1Score} onChange={(e) => setEditForm({...editForm, inn1Score: parseInt(e.target.value) || 0})} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold">Wickets</Label>
+                    <Input type="number" value={editForm.inn1Wickets} onChange={(e) => setEditForm({...editForm, inn1Wickets: parseInt(e.target.value) || 0})} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold">Overs Done</Label>
+                    <Input type="number" value={editForm.inn1Overs} onChange={(e) => setEditForm({...editForm, inn1Overs: parseInt(e.target.value) || 0})} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold">Balls in Over</Label>
+                    <Input type="number" max="5" value={editForm.inn1Balls} onChange={(e) => setEditForm({...editForm, inn1Balls: parseInt(e.target.value) || 0})} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Inning 2 Edits */}
+              <div className="space-y-4 p-4 border rounded-xl bg-slate-50/50">
+                <h3 className="font-black text-xs uppercase tracking-widest text-secondary">Innings 2: {getAbbr(getTeamName(match.team2Id))}</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold">Runs</Label>
+                    <Input type="number" value={editForm.inn2Score} onChange={(e) => setEditForm({...editForm, inn2Score: parseInt(e.target.value) || 0})} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold">Wickets</Label>
+                    <Input type="number" value={editForm.inn2Wickets} onChange={(e) => setEditForm({...editForm, inn2Wickets: parseInt(e.target.value) || 0})} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold">Overs Done</Label>
+                    <Input type="number" value={editForm.inn2Overs} onChange={(e) => setEditForm({...editForm, inn2Overs: parseInt(e.target.value) || 0})} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-bold">Balls in Over</Label>
+                    <Input type="number" max="5" value={editForm.inn2Balls} onChange={(e) => setEditForm({...editForm, inn2Balls: parseInt(e.target.value) || 0})} />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground italic">Note: These edits directly modify the scorecard totals. Use with caution during live matches.</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleUpdateScores} className="w-full font-black uppercase tracking-widest">
+              <Save className="w-4 h-4 mr-2" /> Save Numerical Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Edit Result Dialog */}
       <Dialog open={isEditResultOpen} onOpenChange={setIsEditResultOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md">
+        <DialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Match Result</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
@@ -615,7 +740,7 @@ export default function MatchScoreboardPage() {
           </div>
           <DialogFooter>
             <Button onClick={handleUpdateResult} className="w-full font-black uppercase tracking-widest">
-              <Save className="w-4 h-4 mr-2" /> Save Corrections
+              <Save className="w-4 h-4 mr-2" /> Save Result Text
             </Button>
           </DialogFooter>
         </DialogContent>
