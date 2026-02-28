@@ -4,21 +4,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection } from '@/firebase';
-import { doc, collection, query, orderBy, writeBatch, getDocs, increment } from 'firebase/firestore';
+import { doc, collection, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Undo2, Shuffle, RefreshCw, Star, UserCircle, ChevronRight, Info, Calendar, Clock, MapPin, Users } from 'lucide-react';
+import { UserCircle, Info, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
-import { cn } from '@/lib/utils';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -26,7 +23,6 @@ export default function MatchScoreboardPage() {
   const db = useFirestore();
   const { user } = useUser();
   const { isUmpire } = useApp();
-  const router = useRouter();
 
   const matchRef = useMemoFirebase(() => doc(db, 'matches', matchId), [db, matchId]);
   const { data: match, isLoading: isMatchLoading } = useDoc(matchRef);
@@ -77,6 +73,15 @@ export default function MatchScoreboardPage() {
   const dismissedPlayerIds = useMemo(() => {
     return Array.from(new Set(deliveries?.filter(d => d.isWicket && d.batsmanOutPlayerId && d.batsmanOutPlayerId !== 'none').map(d => d.batsmanOutPlayerId) || []));
   }, [deliveries]);
+
+  // Dynamic POTM Calculation based on CVP
+  const potm = useMemo(() => {
+    if (!match || !allPlayers) return null;
+    const participantIds = [...match.team1SquadPlayerIds, ...match.team2SquadPlayerIds];
+    const participants = allPlayers.filter(p => participantIds.includes(p.id));
+    if (participants.length === 0) return null;
+    return participants.reduce((prev, current) => ((prev.careerCVP || 0) > (current.careerCVP || 0)) ? prev : current);
+  }, [match, allPlayers]);
 
   // Scorecard Aggregation
   const scorecard = useMemo(() => {
@@ -299,7 +304,6 @@ export default function MatchScoreboardPage() {
   const needsOpeningPair = isStartingInnings && (!activeInningData?.strikerPlayerId || !activeInningData?.currentBowlerPlayerId);
   const needsNextBatter = activeInningData && !activeInningData.strikerPlayerId && !isCurrentInningsOver && !isStartingInnings;
 
-  // Format date for IST
   const formatDateIST = (dateStr: string) => {
     if (!dateStr) return '---';
     const date = new Date(dateStr);
@@ -314,7 +318,6 @@ export default function MatchScoreboardPage() {
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-20">
-      {/* Clean Match Header */}
       <div className="border-b bg-white p-6">
         <h1 className="text-2xl font-black text-slate-900 tracking-tight">
           {getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)}
@@ -343,7 +346,7 @@ export default function MatchScoreboardPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y text-xs">
-                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Match</span><span className="font-black text-slate-900">{getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)}</span></div>
+                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Match</span><span className="font-black text-slate-900">{getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)} • 1st T20I</span></div>
                 <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Date</span><span className="font-medium text-slate-900">{formatDateIST(match.matchDate)}</span></div>
                 <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Time</span><span className="font-medium text-slate-900">{formatTimeIST(match.matchDate)}</span></div>
                 <div className="flex p-4">
@@ -357,7 +360,6 @@ export default function MatchScoreboardPage() {
             </CardContent>
           </Card>
 
-          {/* Squads inside Info tab as requested */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card className="border shadow-none rounded-sm">
               <CardHeader className="bg-slate-50 py-3 px-4 border-b">
@@ -398,7 +400,6 @@ export default function MatchScoreboardPage() {
         </TabsContent>
 
         <TabsContent value="live" className="space-y-6">
-          {/* Professional Live Summary (Visible to all) */}
           <div className="bg-white p-6 rounded-sm border shadow-sm space-y-6">
             <div className="text-blue-600 font-bold text-sm">
               {match.resultDescription}
@@ -421,24 +422,25 @@ export default function MatchScoreboardPage() {
               )}
             </div>
 
-            <div className="pt-6 border-t">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">PLAYER OF THE MATCH</p>
-              <div className="flex items-center gap-4">
-                <Avatar className="h-14 w-14 border-2 border-slate-100">
-                  <AvatarImage src={`https://picsum.photos/seed/${matchId}_potm/100`} />
-                  <AvatarFallback><UserCircle className="w-8 h-8 text-slate-300" /></AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-base font-black text-slate-800">Sahibzada Farhan</p>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                    {getTeamName(match.team1Id)}
-                  </p>
+            {potm && (
+              <div className="pt-6 border-t">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">PLAYER OF THE MATCH</p>
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-14 w-14 border-2 border-slate-100">
+                    <AvatarImage src={potm.imageUrl || `https://picsum.photos/seed/${potm.id}/100`} />
+                    <AvatarFallback><UserCircle className="w-8 h-8 text-slate-300" /></AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-base font-black text-slate-800">{potm.name}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                      {getTeamName(potm.teamId)}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Scoring Controls (Only for Umpires) */}
           {isUmpire && match.status === 'live' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <Card className="lg:col-span-2 border-none shadow-none bg-slate-50/50">
@@ -495,12 +497,6 @@ export default function MatchScoreboardPage() {
                     <div className="flex justify-between"><span>Non-Striker</span><span className="font-bold">{getPlayerName(activeInningData?.nonStrikerPlayerId || '')}</span></div>
                     <div className="flex justify-between"><span>Bowler</span><span className="font-bold text-secondary">{getPlayerName(activeInningData?.currentBowlerPlayerId || '')}</span></div>
                   </div>
-                  {activeInningView === 2 && inn1 && (
-                    <div className="bg-blue-50 p-3 rounded border border-blue-100 text-center">
-                      <p className="text-[10px] uppercase font-bold text-blue-400">Target</p>
-                      <p className="text-2xl font-black text-blue-600">{target}</p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </div>
@@ -552,28 +548,9 @@ export default function MatchScoreboardPage() {
                         {scorecard.extras.total} (b {scorecard.extras.byes || 0}, lb {scorecard.extras.legbyes || 0}, w {scorecard.extras.wide || 0}, nb {scorecard.extras.noball || 0}, p 0)
                       </TableCell>
                     </TableRow>
-                    <TableRow className="bg-slate-50">
-                      <TableCell className="text-xs font-bold">Total</TableCell>
-                      <TableCell colSpan={5} className="text-xs font-black text-right">
-                        {activeInningData.score}-{activeInningData.wickets} ({activeInningData.oversCompleted} Overs, RR: {activeInningData.oversCompleted > 0 ? (activeInningData.score / activeInningData.oversCompleted).toFixed(1) : '0.0'})
-                      </TableCell>
-                    </TableRow>
                   </TableBody>
                 </Table>
               </div>
-
-              {didNotBatPlayers.length > 0 && (
-                <div className="p-3 border-t bg-white">
-                  <span className="text-[10px] font-black uppercase text-slate-400 mr-4">Did not Bat</span>
-                  <div className="inline-flex flex-wrap gap-2 mt-1">
-                    {didNotBatPlayers.map((pid, idx) => (
-                      <span key={pid} className="text-xs text-blue-600 font-medium">
-                        {getPlayerName(pid)}{idx < didNotBatPlayers.length - 1 ? ',' : ''}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <div className="bg-white border rounded-sm overflow-hidden mt-6">
                 <Table>
@@ -584,8 +561,6 @@ export default function MatchScoreboardPage() {
                       <TableHead className="text-right text-[10px] font-bold uppercase text-slate-500">M</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase text-slate-500">R</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase text-slate-500">W</TableHead>
-                      <TableHead className="text-right text-[10px] font-bold uppercase text-slate-500">NB</TableHead>
-                      <TableHead className="text-right text-[10px] font-bold uppercase text-slate-500">WD</TableHead>
                       <TableHead className="text-right text-[10px] font-bold uppercase text-slate-500">ECO</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -597,8 +572,6 @@ export default function MatchScoreboardPage() {
                         <TableCell className="text-right text-xs">{bw.maidens}</TableCell>
                         <TableCell className="text-right text-xs font-black">{bw.runs}</TableCell>
                         <TableCell className="text-right text-xs font-black text-secondary">{bw.wickets}</TableCell>
-                        <TableCell className="text-right text-xs text-slate-500">{bw.noballs}</TableCell>
-                        <TableCell className="text-right text-xs text-slate-500">{bw.wides}</TableCell>
                         <TableCell className="text-right text-xs text-slate-500">
                           {bw.legalBalls > 0 ? ((bw.runs / (bw.legalBalls / 6))).toFixed(2) : '0.00'}
                         </TableCell>
