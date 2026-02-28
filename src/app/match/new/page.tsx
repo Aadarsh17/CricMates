@@ -28,7 +28,7 @@ export default function NewMatchPage() {
     team2Id: '',
     team1Squad: [] as string[],
     team2Squad: [] as string[],
-    commonPlayerId: '',
+    commonPlayerId: 'none',
     totalOvers: '20',
     tossWinner: '',
     tossDecision: 'bat',
@@ -53,8 +53,9 @@ export default function NewMatchPage() {
     }
 
     const matchId = doc(collection(db, 'matches')).id;
-    const finalT1Squad = setup.commonPlayerId ? [...setup.team1Squad, setup.commonPlayerId] : setup.team1Squad;
-    const finalT2Squad = setup.commonPlayerId ? [...setup.team2Squad, setup.commonPlayerId] : setup.team2Squad;
+    const hasCommon = setup.commonPlayerId && setup.commonPlayerId !== 'none';
+    const finalT1Squad = hasCommon ? [...setup.team1Squad, setup.commonPlayerId] : setup.team1Squad;
+    const finalT2Squad = hasCommon ? [...setup.team2Squad, setup.commonPlayerId] : setup.team2Squad;
 
     const matchData = {
       id: matchId,
@@ -111,8 +112,8 @@ export default function NewMatchPage() {
     ? (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad)
     : (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad);
 
-  const battingPlayers = allPlayers?.filter(p => currentBattingSquadIds.includes(p.id) || p.id === setup.commonPlayerId) || [];
-  const bowlingPlayers = allPlayers?.filter(p => currentBowlingSquadIds.includes(p.id) || p.id === setup.commonPlayerId) || [];
+  const battingPlayers = allPlayers?.filter(p => currentBattingSquadIds.includes(p.id) || (setup.commonPlayerId !== 'none' && p.id === setup.commonPlayerId)) || [];
+  const bowlingPlayers = allPlayers?.filter(p => currentBowlingSquadIds.includes(p.id) || (setup.commonPlayerId !== 'none' && p.id === setup.commonPlayerId)) || [];
 
   if (!isUmpire) {
     return (
@@ -203,7 +204,7 @@ export default function NewMatchPage() {
               <Select value={setup.commonPlayerId} onValueChange={(v) => setSetup({...setup, commonPlayerId: v})}>
                 <SelectTrigger><SelectValue placeholder="Select shared player" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">(None)</SelectItem>
+                  <SelectItem value="none">(None)</SelectItem>
                   {allPlayers?.filter(p => !setup.team1Squad.includes(p.id) && !setup.team2Squad.includes(p.id)).map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
