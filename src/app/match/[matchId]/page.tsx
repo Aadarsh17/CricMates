@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
+import { cn } from '@/lib/utils';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -151,6 +152,36 @@ export default function MatchScoreboardPage() {
       bowling: Object.values(bowlingMap),
       extras
     };
+  }, [deliveries]);
+
+  const oversSummary = useMemo(() => {
+    if (!deliveries) return [];
+    const groups: Record<number, any> = {};
+    let runningScore = 0;
+    let runningWickets = 0;
+
+    deliveries.forEach((d) => {
+      const ov = d.overNumber + 1;
+      if (!groups[ov]) {
+        groups[ov] = {
+          overNumber: ov,
+          runs: 0,
+          balls: [],
+          bowlerId: d.bowlerPlayerId,
+          batterIds: new Set<string>(),
+          scoreAtEnd: '',
+        };
+      }
+      groups[ov].runs += d.totalRunsOnDelivery;
+      groups[ov].balls.push(d);
+      groups[ov].batterIds.add(d.strikerPlayerId);
+      
+      runningScore += d.totalRunsOnDelivery;
+      if (d.isWicket) runningWickets += 1;
+      groups[ov].scoreAtEnd = `${runningScore}-${runningWickets}`;
+    });
+
+    return Object.values(groups).reverse();
   }, [deliveries]);
 
   const didNotBatPlayers = useMemo(() => {
@@ -324,6 +355,37 @@ export default function MatchScoreboardPage() {
     if (!dateStr) return '---';
     const date = new Date(dateStr);
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }) + ' IST';
+  };
+
+  const BallBubble = ({ ball }: { ball: any }) => {
+    let color = 'bg-slate-400';
+    let label = ball.runsScored.toString();
+
+    if (ball.isWicket) {
+      color = 'bg-[#e91e63]'; // Pinkish-Red for W
+      label = 'W';
+    } else if (ball.extraType === 'wide') {
+      color = 'bg-[#fbc02d]'; // Gold for Extras
+      label = 'Wd';
+    } else if (ball.extraType === 'noball') {
+      color = 'bg-[#fbc02d]';
+      label = 'NB';
+    } else if (ball.runsScored === 4) {
+      color = 'bg-[#0091ca]'; // Blue for 4
+      label = '4';
+    } else if (ball.runsScored === 6) {
+      color = 'bg-[#9c27b0]'; // Purple for 6
+      label = '6';
+    } else if (ball.runsScored > 0) {
+      color = 'bg-[#8bc34a]'; // Green for 1,2,3
+      label = ball.runsScored.toString();
+    }
+
+    return (
+      <div className={cn("w-7 h-7 rounded-sm flex items-center justify-center text-[10px] font-bold text-white", color)}>
+        {label}
+      </div>
+    );
   };
 
   return (
@@ -675,6 +737,35 @@ export default function MatchScoreboardPage() {
               </TableBody>
             </Table>
           </div>
+        </TabsContent>
+
+        <TabsContent value="overs" className="mt-4 space-y-2">
+          {oversSummary.length > 0 ? (
+            oversSummary.map((over) => (
+              <div key={over.overNumber} className="bg-white p-4 border rounded-sm flex flex-col md:flex-row gap-4 items-start md:items-center">
+                <div className="w-full md:w-32">
+                  <p className="text-sm font-black text-slate-900">Over {over.overNumber} <span className="text-slate-400 font-bold ml-1">- {over.runs} runs</span></p>
+                  <p className="text-xs font-black text-slate-400 uppercase tracking-tight">
+                    {getAbbr(getTeamName(activeInningData?.battingTeamId || ''))} {over.scoreAtEnd}
+                  </p>
+                </div>
+                <div className="flex-1 space-y-2 w-full">
+                  <p className="text-xs font-bold text-slate-700">
+                    {getPlayerName(over.bowlerId)} to {Array.from(over.batterIds).map(id => getPlayerName(id as string)).join(' & ')}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {over.balls.map((ball: any) => (
+                      <BallBubble key={ball.id} ball={ball} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-20 text-center border-2 border-dashed rounded-sm bg-slate-50">
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No overs completed yet</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
