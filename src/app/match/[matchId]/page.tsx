@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Undo2, Shuffle, AlertCircle, RotateCcw } from 'lucide-react';
+import { Trophy, Undo2, Shuffle, ArrowLeft, RotateCcw, UserCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -187,12 +187,6 @@ export default function MatchScoreboardPage() {
 
     deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', lastBall.id));
     toast({ title: "Ball Undone", description: "Score reverted." });
-  };
-
-  const handleMainUndo = () => {
-    if (confirm("Reset everything? All match data will be lost and you will return to team selection.")) {
-      window.location.href = '/match/new';
-    }
   };
 
   const finalizeMatch = async () => {
@@ -405,8 +399,8 @@ export default function MatchScoreboardPage() {
                       <Shuffle className="w-4 h-4 mr-1" /> Swap Batsmen
                     </Button>
 
-                    <Button variant="destructive" className="w-full font-bold uppercase tracking-tight" onClick={handleMainUndo}>
-                      <RotateCcw className="w-4 h-4 mr-2" /> Main Undo (Reset)
+                    <Button variant="outline" className="w-full font-bold" onClick={() => router.push('/match/new')}>
+                      <ArrowLeft className="w-4 h-4 mr-2" /> Back to Setup
                     </Button>
                   </div>
 
