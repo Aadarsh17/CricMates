@@ -1,11 +1,11 @@
 
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCollection, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { PlayCircle, ShieldCheck, CheckCircle2, Users } from 'lucide-react';
+import { PlayCircle, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 export default function NewMatchPage() {
   const db = useFirestore();
@@ -43,7 +43,6 @@ export default function NewMatchPage() {
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
 
-  // Filter players for each team based on their teamId or if they are free agents
   const team1Pool = allPlayers?.filter(p => p.teamId === setup.team1Id || !p.teamId);
   const team2Pool = allPlayers?.filter(p => p.teamId === setup.team2Id || !p.teamId);
 
@@ -104,6 +103,11 @@ export default function NewMatchPage() {
     router.push(`/match/${matchId}`);
   };
 
+  const getPlayerName = (pid: string) => {
+    const p = allPlayers?.find(ap => ap.id === pid);
+    return p ? p.name : 'Unknown';
+  };
+
   const currentBattingSquadIds = setup.tossWinner === setup.team1Id 
     ? (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad)
     : (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad);
@@ -112,14 +116,8 @@ export default function NewMatchPage() {
     ? (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad)
     : (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad);
 
-  // Add common player if selected
-  if (setup.commonPlayerId) {
-    currentBattingSquadIds.push(setup.commonPlayerId);
-    currentBowlingSquadIds.push(setup.commonPlayerId);
-  }
-
-  const battingPlayers = allPlayers?.filter(p => currentBattingSquadIds.includes(p.id)) || [];
-  const bowlingPlayers = allPlayers?.filter(p => currentBowlingSquadIds.includes(p.id)) || [];
+  const battingPlayers = allPlayers?.filter(p => currentBattingSquadIds.includes(p.id) || p.id === setup.commonPlayerId) || [];
+  const bowlingPlayers = allPlayers?.filter(p => currentBowlingSquadIds.includes(p.id) || p.id === setup.commonPlayerId) || [];
 
   if (!isUmpire) {
     return (
@@ -148,7 +146,7 @@ export default function NewMatchPage() {
               <div className="space-y-2">
                 <Label>Team 1</Label>
                 <Select value={setup.team1Id} onValueChange={(v) => setSetup({...setup, team1Id: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select Team" /></SelectTrigger>
                   <SelectContent>
                     {teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                   </SelectContent>
@@ -157,7 +155,7 @@ export default function NewMatchPage() {
               <div className="space-y-2">
                 <Label>Team 2</Label>
                 <Select value={setup.team2Id} onValueChange={(v) => setSetup({...setup, team2Id: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select Team" /></SelectTrigger>
                   <SelectContent>
                     {teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
                   </SelectContent>
@@ -204,7 +202,7 @@ export default function NewMatchPage() {
               </div>
             </div>
             <div className="p-4 bg-muted rounded-xl">
-              <Label>Common Player (Plays for both sides)</Label>
+              <Label>Common Player (Optional)</Label>
               <Select value={setup.commonPlayerId} onValueChange={(v) => setSetup({...setup, commonPlayerId: v})}>
                 <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
                 <SelectContent>
@@ -264,7 +262,7 @@ export default function NewMatchPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Striker</Label>
-                <Select value={setup.strikerId || undefined} onValueChange={(v) => setSetup({...setup, strikerId: v})}>
+                <Select value={setup.strikerId} onValueChange={(v) => setSetup({...setup, strikerId: v})}>
                   <SelectTrigger><SelectValue placeholder="Select Striker" /></SelectTrigger>
                   <SelectContent>
                     {battingPlayers.filter(p => p.id !== setup.nonStrikerId).map(p => (
@@ -275,7 +273,7 @@ export default function NewMatchPage() {
               </div>
               <div className="space-y-2">
                 <Label>Non-Striker</Label>
-                <Select value={setup.nonStrikerId || undefined} onValueChange={(v) => setSetup({...setup, nonStrikerId: v})}>
+                <Select value={setup.nonStrikerId} onValueChange={(v) => setSetup({...setup, nonStrikerId: v})}>
                   <SelectTrigger><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
                   <SelectContent>
                     {battingPlayers.filter(p => p.id !== setup.strikerId).map(p => (
@@ -287,7 +285,7 @@ export default function NewMatchPage() {
             </div>
             <div className="space-y-2">
               <Label>Opening Bowler</Label>
-              <Select value={setup.bowlerId || undefined} onValueChange={(v) => setSetup({...setup, bowlerId: v})}>
+              <Select value={setup.bowlerId} onValueChange={(v) => setSetup({...setup, bowlerId: v})}>
                 <SelectTrigger><SelectValue placeholder="Select Bowler" /></SelectTrigger>
                 <SelectContent>
                   {bowlingPlayers.map(p => (

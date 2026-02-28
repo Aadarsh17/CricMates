@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Activity, Trophy, Undo2, CheckCircle2, AlertCircle, Shuffle } from 'lucide-react';
+import { Trophy, Undo2, Shuffle, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -63,11 +63,13 @@ export default function MatchScoreboardPage() {
   });
 
   const getPlayerName = (pid: string) => {
+    if (!pid) return '---';
     const p = allPlayers?.find(p => p.id === pid);
     return p ? p.name : 'Unknown Player';
   };
 
   const getTeamName = (tid: string) => {
+    if (!tid) return '---';
     const t = allTeams?.find(t => t.id === tid);
     return t ? t.name : 'Unknown Team';
   };
@@ -80,6 +82,9 @@ export default function MatchScoreboardPage() {
 
   const handleBall = (runs: number, isWicket = false, extra: 'none' | 'wide' | 'noball' = 'none') => {
     if (!isUmpire || match?.status !== 'live' || !activeInningData || !activeInningRef || isCurrentInningsOver) {
+      if (isCurrentInningsOver) {
+        toast({ title: "Innings Over", description: "This innings has reached its conclusion.", variant: "destructive" });
+      }
       return;
     }
 
@@ -186,8 +191,8 @@ export default function MatchScoreboardPage() {
   };
 
   const handleMainUndo = () => {
-    if (confirm("Reset current match setup? All scoring progress will be lost.")) {
-      window.location.href = '/match/new';
+    if (confirm("Reset current match setup? All scoring progress will be lost and you will go back to the starting page.")) {
+      router.push('/match/new');
     }
   };
 
@@ -196,48 +201,7 @@ export default function MatchScoreboardPage() {
 
     const batch = writeBatch(db);
     
-    // Calculate final stats
-    const playerStats: Record<string, { runs: number, wickets: number, balls: number, dots: number }> = {};
-    const teamStats: Record<string, { runs: number, wickets: number, won: boolean }> = {
-      [match.team1Id]: { runs: inn1.score, wickets: inn1.wickets, won: false },
-      [match.team2Id]: { runs: inn2.score, wickets: inn2.wickets, won: false }
-    };
-
-    const fetchDeliveries = async (innId: string) => {
-      const q = query(collection(db, 'matches', matchId, 'innings', innId, 'deliveryRecords'));
-      const snap = await getDocs(q);
-      snap.forEach(d => {
-        const data = d.data();
-        if (!playerStats[data.strikerPlayerId]) playerStats[data.strikerPlayerId] = { runs: 0, wickets: 0, balls: 0, dots: 0 };
-        if (!playerStats[data.bowlerPlayerId]) playerStats[data.bowlerPlayerId] = { runs: 0, wickets: 0, balls: 0, dots: 0 };
-        
-        playerStats[data.strikerPlayerId].runs += data.runsScored;
-        playerStats[data.strikerPlayerId].balls += (data.extraType === 'none' ? 1 : 0);
-        if (data.runsScored === 0 && data.extraType === 'none') playerStats[data.strikerPlayerId].dots += 1;
-        
-        if (data.isWicket && data.dismissalType !== 'runout') {
-          playerStats[data.bowlerPlayerId].wickets += 1;
-        }
-      });
-    };
-
-    await fetchDeliveries('inning_1');
-    await fetchDeliveries('inning_2');
-
-    // Update global player rankings
-    Object.keys(playerStats).forEach(pid => {
-      const p = allPlayers?.find(ap => ap.id === pid);
-      if (p) {
-        const stats = playerStats[pid];
-        batch.update(doc(db, 'players', pid), {
-          runsScored: (p.runsScored || 0) + stats.runs,
-          wicketsTaken: (p.wicketsTaken || 0) + stats.wickets,
-          matchesPlayed: (p.matchesPlayed || 0) + 1,
-          careerCVP: (p.careerCVP || 0) + (stats.runs + (stats.wickets * 15))
-        });
-      }
-    });
-
+    // Simple results calculation
     let result = "Match Drawn";
     if (inn2.score > inn1.score) {
       result = `${getTeamName(inn2.battingTeamId)} won by ${10 - inn2.wickets} wickets`;
@@ -384,7 +348,7 @@ export default function MatchScoreboardPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Controls</CardTitle>
-                  <Button variant="destructive" size="sm" onClick={handleMainUndo} className="w-full mt-2">
+                  <Button variant="destructive" size="sm" onClick={handleMainUndo} className="w-full mt-2 font-bold uppercase tracking-tighter">
                     Main Undo (Reset)
                   </Button>
                 </CardHeader>
@@ -392,15 +356,15 @@ export default function MatchScoreboardPage() {
                   <div className="p-4 bg-muted/50 rounded-lg space-y-3">
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-bold text-muted-foreground">STRIKER</span>
-                      <span className="text-sm font-bold text-primary">{activeInningData ? getPlayerName(activeInningData.strikerPlayerId) : '---'}</span>
+                      <span className="text-sm font-bold text-primary truncate max-w-[120px]">{activeInningData ? getPlayerName(activeInningData.strikerPlayerId) : '---'}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-bold text-muted-foreground">NON-STRIKE</span>
-                      <span className="text-sm font-bold">{activeInningData ? getPlayerName(activeInningData.nonStrikerPlayerId) : '---'}</span>
+                      <span className="text-sm font-bold truncate max-w-[120px]">{activeInningData ? getPlayerName(activeInningData.nonStrikerPlayerId) : '---'}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-bold text-muted-foreground">BOWLER</span>
-                      <span className="text-sm font-bold text-secondary">{activeInningData ? getPlayerName(activeInningData.currentBowlerPlayerId) : '---'}</span>
+                      <span className="text-sm font-bold text-secondary truncate max-w-[120px]">{activeInningData ? getPlayerName(activeInningData.currentBowlerPlayerId) : '---'}</span>
                     </div>
                   </div>
 
