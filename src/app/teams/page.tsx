@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import Link from 'next/link';
+import Link from 'link';
 
 function TeamMatchHistory({ teamId, matches, teams }: { teamId: string, matches: any[], teams: any[] }) {
   const teamMatches = matches.filter(m => m.team1Id === teamId || m.team2Id === teamId).slice(0, 5);

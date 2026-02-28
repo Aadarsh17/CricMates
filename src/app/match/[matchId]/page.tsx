@@ -86,14 +86,6 @@ export default function MatchScoreboardPage() {
     return Array.from(new Set(deliveries?.filter(d => d.isWicket && d.batsmanOutPlayerId && d.batsmanOutPlayerId !== 'none').map(d => d.batsmanOutPlayerId) || []));
   }, [deliveries]);
 
-  const potm = useMemo(() => {
-    if (!match || !allPlayers) return null;
-    const participantIds = [...match.team1SquadPlayerIds, ...match.team2SquadPlayerIds];
-    const participants = allPlayers.filter(p => participantIds.includes(p.id));
-    if (participants.length === 0) return null;
-    return participants.reduce((prev, current) => ((prev.careerCVP || 0) > (current.careerCVP || 0)) ? prev : current);
-  }, [match, allPlayers]);
-
   const scorecard = useMemo(() => {
     if (!deliveries) return { batting: [], bowling: [], fow: [], partnerships: [], extras: { wide: 0, noball: 0, byes: 0, legbyes: 0, total: 0 } };
 
@@ -427,9 +419,9 @@ export default function MatchScoreboardPage() {
       }
     }
 
-    const getDecimalOvers = (inn: any) => {
+    const getMathOvers = (inn: any, isAllOut: boolean) => {
       if (!inn) return 0;
-      if (inn.wickets >= 10) return match.totalOvers;
+      if (isAllOut) return match.totalOvers;
       return (inn.oversCompleted || 0) + ((inn.ballsInCurrentOver || 0) / 6);
     };
 
@@ -459,8 +451,8 @@ export default function MatchScoreboardPage() {
       });
     };
 
-    const o1 = getDecimalOvers(inn1);
-    const o2 = getDecimalOvers(inn2);
+    const o1 = getMathOvers(inn1, (inn1.wickets || 0) >= 10);
+    const o2 = getMathOvers(inn2, (inn2?.wickets || 0) >= 10);
 
     updateTeamStats(inn1.battingTeamId, s1, s2, o1, o2, winnerId === inn1.battingTeamId, !winnerId);
     if (inn2) updateTeamStats(inn2.battingTeamId, s2, s1, o2, o1, winnerId === inn2.battingTeamId, !winnerId);
@@ -659,6 +651,39 @@ export default function MatchScoreboardPage() {
                   </TableBody>
                 </Table>
               </div>
+
+              <div className="space-y-4">
+                <p className="text-[10px] font-black uppercase text-slate-400">Fall of Wickets</p>
+                <div className="overflow-x-auto border rounded-sm">
+                   <Table>
+                    <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[10px] font-bold">Wkt</TableHead><TableHead className="text-[10px] font-bold">Batter</TableHead><TableHead className="text-right text-[10px] font-bold">Score</TableHead><TableHead className="text-right text-[10px] font-bold">Over</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {scorecard.fow.map(f => (
+                        <TableRow key={f.wicket}><TableCell className="text-xs font-bold">{f.wicket}</TableCell><TableCell className="text-xs text-blue-600 font-medium">{getPlayerName(f.batterId)}</TableCell><TableCell className="text-right text-xs font-bold">{f.score}</TableCell><TableCell className="text-right text-xs text-slate-500">{f.over}</TableCell></TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-[10px] font-black uppercase text-slate-400">Partnerships</p>
+                <div className="overflow-x-auto border rounded-sm">
+                   <Table>
+                    <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[10px] font-bold">Wkt</TableHead><TableHead className="text-[10px] font-bold">Batter 1</TableHead><TableHead className="text-center text-[10px] font-bold">Total</TableHead><TableHead className="text-right text-[10px] font-bold">Batter 2</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {scorecard.partnerships.map((p, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="text-xs font-bold">{p.wicket}</TableCell>
+                          <TableCell className="text-xs"><span className="text-blue-600 font-medium">{getPlayerName(p.p1.id)}</span><br/><span className="text-[10px] text-slate-400">{p.p1.runs} ({p.p1.balls})</span></TableCell>
+                          <TableCell className="text-center font-black text-xs">{p.totalRuns}<br/><span className="text-[10px] font-normal text-slate-400">({p.totalBalls} balls)</span></TableCell>
+                          <TableCell className="text-right text-xs"><span className="text-blue-600 font-medium">{getPlayerName(p.p2.id)}</span><br/><span className="text-[10px] text-slate-400">{p.p2.runs} ({p.p2.balls})</span></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </div>
           )}
         </TabsContent>
@@ -696,7 +721,6 @@ export default function MatchScoreboardPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Optimized Dialogs for Mobile Scroll and Middle Centering */}
       <Dialog open={isOpeningPairSetupOpen} onOpenChange={setIsOpeningPairSetupOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Set Openers</DialogTitle></DialogHeader>
