@@ -1,12 +1,15 @@
 'use client';
 
-import { useCollection, useMemoFirebase, useFirestore, useDoc, deleteDocumentNonBlocking, useUser } from '@/firebase';
+import { useCollection, useMemoFirebase, useFirestore, useDoc, deleteDocumentNonBlocking, useUser, updateDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2 } from 'lucide-react';
+import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Check, X } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
@@ -15,6 +18,9 @@ import { toast } from '@/hooks/use-toast';
 function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], isUmpire: boolean }) {
   const db = useFirestore();
   const { user } = useUser();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedResult, setEditedResult] = useState(match.resultDescription);
+
   const inn1Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_1'), [db, match.id]);
   const { data: inn1 } = useDoc(inn1Ref);
   const inn2Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_2'), [db, match.id]);
@@ -34,8 +40,8 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
     
     if (!user) {
       toast({ 
-        title: "Auth Error", 
-        description: "Please wait for Umpire session to initialize.",
+        title: "Session Error", 
+        description: "Please enable Umpire mode to delete.",
         variant: "destructive"
       });
       return;
@@ -43,16 +49,23 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
 
     const matchName = `${t1?.name || 'Team 1'} vs ${t2?.name || 'Team 2'}`;
     
-    if (confirm(`Are you sure you want to delete the match: ${matchName}?`)) {
+    if (confirm(`CRITICAL: Are you sure you want to PERMANENTLY delete the match: ${matchName}?`)) {
       toast({ 
         title: "Deleting Match", 
-        description: "Removing record from history..." 
+        description: "Match record is being removed..." 
       });
       
       deleteDocumentNonBlocking(doc(db, 'matches', match.id));
-      
-      // Note: The UI will update automatically via the useCollection hook
     }
+  };
+
+  const handleUpdateResult = () => {
+    if (!editedResult.trim()) return;
+    updateDocumentNonBlocking(doc(db, 'matches', match.id), {
+      resultDescription: editedResult
+    });
+    setIsEditing(false);
+    toast({ title: "Result Updated", description: "Match result description has been updated." });
   };
 
   const getInningDisplay = (inning: any) => {
@@ -91,16 +104,43 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
             )}
           </div>
           {isUmpire && (
-            <Button 
-              type="button"
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors z-10"
-              onClick={handleDelete}
-              aria-label="Delete Match"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Dialog open={isEditing} onOpenChange={setIsEditing}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors">
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit Match Result</DialogTitle>
+                    <DialogDescription>Manually update the final result description for this match.</DialogDescription>
+                  </DialogHeader>
+                  <div className="py-4 space-y-2">
+                    <Label htmlFor="result">Result Summary</Label>
+                    <Input 
+                      id="result" 
+                      value={editedResult} 
+                      onChange={(e) => setEditedResult(e.target.value)} 
+                      placeholder="e.g. Team A won by 10 runs"
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsEditing(false)}>Cancel</Button>
+                    <Button onClick={handleUpdateResult}>Save Changes</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              <Button 
+                type="button"
+                variant="ghost" 
+                size="icon" 
+                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                onClick={handleDelete}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
           )}
         </div>
 
@@ -109,7 +149,7 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
           {getInningDisplay(inn2)}
         </div>
 
-        <div className="text-xs font-medium text-primary">
+        <div className="text-xs font-bold text-primary italic border-l-2 border-primary/20 pl-2">
           {match.resultDescription}
         </div>
 

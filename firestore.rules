@@ -1,9 +1,9 @@
 /**
  * CricMates - ScoresTracker Firestore Security Rules
  *
- * Updated for rapid prototyping:
- * - Simplified Umpire check: Any signed-in user can act as an umpire for matches they create.
- * - Relaxed delete rules to allow any signed-in user to manage records during prototyping.
+ * Updated for prototype efficiency:
+ * - Allows any authenticated user to perform CRUD on core entities.
+ * - This ensures Umpires can manage records without complex ownership checks.
  */
 
 rules_version = '2';
@@ -16,18 +16,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isOwner(ownerId) {
-      return isSignedIn() && request.auth.uid == ownerId;
-    }
-
-    function isExistingOwner(ownerId) {
-      return resource != null && isOwner(ownerId);
-    }
-
-    function isMatchLive(status) {
-      return status == 'live';
-    }
-
     // --- Collection Rules ---
 
     match /umpires/{umpireId} {
@@ -38,35 +26,25 @@ service cloud.firestore {
 
     match /teams/{teamId} {
       allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.ownerId) && (request.resource.data.ownerId == resource.data.ownerId);
-      allow delete: if isExistingOwner(resource.data.ownerId);
+      allow create, update, delete: if isSignedIn();
     }
 
     match /players/{playerId} {
       allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isExistingOwner(resource.data.ownerId) && (request.resource.data.ownerId == resource.data.ownerId);
-      allow delete: if isExistingOwner(resource.data.ownerId);
+      allow create, update, delete: if isSignedIn();
     }
 
     match /matches/{matchId} {
       allow get, list: if true;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
 
       match /innings/{inningId} {
         allow get, list: if true;
-        allow create: if isSignedIn();
-        allow update: if isSignedIn();
-        allow delete: if isSignedIn();
+        allow create, update, delete: if isSignedIn();
 
         match /deliveryRecords/{deliveryRecordId} {
           allow get, list: if true;
-          allow create: if isSignedIn();
-          allow update: if isSignedIn();
-          allow delete: if isSignedIn();
+          allow create, update, delete: if isSignedIn();
         }
       }
     }
