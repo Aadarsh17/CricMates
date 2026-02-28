@@ -38,6 +38,7 @@ export type CalculateCvpInput = z.infer<typeof CalculateCvpInputSchema>;
 // Output Schema
 const CalculateCvpOutputSchema = z.object({
   cvpPoints: z.number().describe('The total Cricket Value Points (CVP) calculated for the player.'),
+  breakdown: z.string().describe('A brief explanation of how the points were calculated.'),
 });
 export type CalculateCvpOutput = z.infer<typeof CalculateCvpOutputSchema>;
 
@@ -51,7 +52,45 @@ const calculateCvpPrompt = ai.definePrompt({
   name: 'calculateCvpPrompt',
   input: {schema: CalculateCvpInputSchema},
   output: {schema: CalculateCvpOutputSchema},
-  prompt: `You are an expert cricket analyst specializing in calculating Cricket Value Points (CVP) for players based on their match performance.\n\nCalculate the total CVP for the player "{{playerName}}" using the following performance data and CVP rules. Respond with a JSON object containing a single key "cvpPoints" with the calculated total CVP points as its value. Do not include any other text or explanation.\n\n---\nCVP Rules:\n\nGeneral:\n- Match Start: +1 point if the player was in the playing XI.\n\nBatting:\n- Runs: 1 Run = 1 Point.\n- Boundary Bonus: +1 extra point for every 4 (Total 5 points for a 4).\n- Six Bonus: +2 extra points for every 6 (Total 8 points for a 6).\n- Strike Rate (Min 10 balls faced):\n    - SR > 170: +6 points.\n    - SR < 50: -2 points.\n    - Strike Rate (SR) = (Runs Scored / Balls Faced) * 100. If Balls Faced is 0, SR is 0 to avoid division by zero.\n\nBowling:\n- Wicket: 15 Points (excluding run-outs).\n- Wicket Milestones:\n    - 2 or 3 Wickets in a match: +4 extra points.\n    - 4 or 5+ Wickets in a match: +10 extra points.\n- Maiden Over: +5 points per maiden.\n- Economy Rate (Min 2 overs bowled):\n    - Econ < 5: +6 points.\n    - Econ 5-6: +4 points.\n    - Econ 10-11: -2 points.\n    - Econ > 12: -4 points.\n    - Economy Rate (Econ) = (Runs Conceded / Overs Bowled). If Overs Bowled is 0, Econ is 0 to avoid division by zero.\n\nFielding:\n- Dismissal (Catch/Stumping/Run-out): 4 points per event.\n---\n\nPlayer Performance Data for "{{playerName}}":\n\n{{#if isInPlayingXI}}\n- Player was in the playing XI. (+1 point)\n{{else}}\n- Player was NOT in the playing XI. (0 points)\n{{/if}}\n\nBatting:\n- Runs Scored: {{batting.runsScored}}\n- Fours: {{batting.fours}}\n- Sixes: {{batting.sixes}}\n- Balls Faced: {{batting.ballsFaced}}\n\nBowling:\n- Wickets Taken (excluding run-outs): {{bowling.wicketsTaken}}\n- Maidens: {{bowling.maidens}}\n- Overs Bowled: {{bowling.oversBowled}}\n- Runs Conceded: {{bowling.runsConceded}}\n\nFielding:\n- Catches: {{fielding.catches}}\n- Stumpings: {{fielding.stumpings}}\n- Run-outs: {{fielding.runOuts}}\n\nCalculate the total CVP points and output it as a JSON object like this: {"cvpPoints": <total_points>}.\n`
+  prompt: `You are an expert cricket analyst specializing in calculating Cricket Value Points (CVP) v1.2.5.
+
+Calculate the total CVP for "{{playerName}}" based on these rules:
+
+General:
+- Match Start: +1 point if the player was in the playing XI.
+
+Batting:
+- Runs: 1 Run = 1 Point.
+- Boundary Bonus: +1 extra point for every 4 (Total 5).
+- Six Bonus: +2 extra points for every 6 (Total 8).
+- Strike Rate (SR) (Min 10 balls faced):
+    - SR > 170: +6 points.
+    - SR < 50: -2 points.
+    - SR = (Runs Scored / Balls Faced) * 100.
+
+Bowling:
+- Wicket: 15 Points (excluding run-outs).
+- Wicket Milestones:
+    - 2 or 3 Wickets in a match: +4 extra points.
+    - 4 or 5+ Wickets in a match: +10 extra points.
+- Maiden Over: +5 points per maiden.
+- Economy Rate (Econ) (Min 2 overs bowled):
+    - Econ < 5: +6 points.
+    - Econ 5-6: +4 points.
+    - Econ 10-11: -2 points.
+    - Econ > 12: -4 points.
+    - Econ = (Runs Conceded / Overs Bowled).
+
+Fielding:
+- Dismissal (Catch/Stumping/Run-out): 4 points per event.
+
+Player Data for "{{playerName}}":
+{{#if isInPlayingXI}} - Playing XI: Yes{{else}} - Playing XI: No{{/if}}
+Batting: {{batting.runsScored}} runs, {{batting.fours}}x4, {{batting.sixes}}x6, {{batting.ballsFaced}} balls.
+Bowling: {{bowling.wicketsTaken}} wickets, {{bowling.maidens}} maidens, {{bowling.oversBowled}} overs, {{bowling.runsConceded}} runs.
+Fielding: {{fielding.catches}} catches, {{fielding.stumpings}} stumpings, {{fielding.runOuts}} run-outs.
+
+Output a JSON object with "cvpPoints" (number) and "breakdown" (string summary).`
 });
 
 // Flow definition
@@ -62,11 +101,8 @@ const calculateCvpFlow = ai.defineFlow(
     outputSchema: CalculateCvpOutputSchema,
   },
   async (input) => {
-    // Call the prompt with the input data
     const {output} = await calculateCvpPrompt(input);
-    if (!output) {
-      throw new Error('Failed to calculate CVP: output was null or undefined.');
-    }
+    if (!output) throw new Error('Failed to calculate CVP.');
     return output;
   }
 );
