@@ -45,11 +45,21 @@ export default function MatchScoreboardPage() {
   const activeInningData = activeInningView === 1 ? inn1 : inn2;
   const activeInningRef = activeInningView === 1 ? inn1Ref : inn2Ref;
 
-  const deliveriesQuery = useMemoFirebase(() => 
-    query(collection(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords'), orderBy('timestamp', 'asc')), 
-    [db, matchId, activeInningView]
+  // Fetch both innings for the Overs tab
+  const inn1DeliveriesQuery = useMemoFirebase(() => 
+    query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
+    [db, matchId]
   );
-  const { data: deliveries } = useCollection(deliveriesQuery);
+  const { data: inn1Deliveries } = useCollection(inn1DeliveriesQuery);
+
+  const inn2DeliveriesQuery = useMemoFirebase(() => 
+    query(collection(db, 'matches', matchId, 'innings', 'inning_2', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
+    [db, matchId]
+  );
+  const { data: inn2Deliveries } = useCollection(inn2DeliveriesQuery);
+
+  // For scorecard and handleUndo, we use the active view
+  const deliveries = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
 
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
@@ -154,7 +164,7 @@ export default function MatchScoreboardPage() {
     };
   }, [deliveries]);
 
-  const oversSummary = useMemo(() => {
+  const generateOversSummary = (deliveries: any[], battingTeamId: string) => {
     if (!deliveries) return [];
     const groups: Record<number, any> = {};
     let runningScore = 0;
@@ -170,6 +180,7 @@ export default function MatchScoreboardPage() {
           bowlerId: d.bowlerPlayerId,
           batterIds: new Set<string>(),
           scoreAtEnd: '',
+          battingTeamId: battingTeamId
         };
       }
       groups[ov].runs += d.totalRunsOnDelivery;
@@ -182,7 +193,10 @@ export default function MatchScoreboardPage() {
     });
 
     return Object.values(groups).reverse();
-  }, [deliveries]);
+  };
+
+  const inn1Overs = useMemo(() => generateOversSummary(inn1Deliveries || [], inn1?.battingTeamId || ''), [inn1Deliveries, inn1]);
+  const inn2Overs = useMemo(() => generateOversSummary(inn2Deliveries || [], inn2?.battingTeamId || ''), [inn2Deliveries, inn2]);
 
   const didNotBatPlayers = useMemo(() => {
     if (!match || !activeInningData || !scorecard.batting) return [];
@@ -387,6 +401,27 @@ export default function MatchScoreboardPage() {
       </div>
     );
   };
+
+  const OverRow = ({ over }: { over: any }) => (
+    <div className="bg-white p-4 border rounded-sm flex flex-col md:flex-row gap-4 items-start md:items-center">
+      <div className="w-full md:w-32">
+        <p className="text-sm font-black text-slate-900">Over {over.overNumber} <span className="text-slate-400 font-bold ml-1">- {over.runs} runs</span></p>
+        <p className="text-xs font-black text-slate-400 uppercase tracking-tight">
+          {getAbbr(getTeamName(over.battingTeamId))} {over.scoreAtEnd}
+        </p>
+      </div>
+      <div className="flex-1 space-y-2 w-full">
+        <p className="text-xs font-bold text-slate-700">
+          {getPlayerName(over.bowlerId)} to {Array.from(over.batterIds).map(id => getPlayerName(id as string)).join(' & ')}
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          {over.balls.map((ball: any) => (
+            <BallBubble key={ball.id} ball={ball} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-20">
@@ -739,28 +774,31 @@ export default function MatchScoreboardPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="overs" className="mt-4 space-y-2">
-          {oversSummary.length > 0 ? (
-            oversSummary.map((over) => (
-              <div key={over.overNumber} className="bg-white p-4 border rounded-sm flex flex-col md:flex-row gap-4 items-start md:items-center">
-                <div className="w-full md:w-32">
-                  <p className="text-sm font-black text-slate-900">Over {over.overNumber} <span className="text-slate-400 font-bold ml-1">- {over.runs} runs</span></p>
-                  <p className="text-xs font-black text-slate-400 uppercase tracking-tight">
-                    {getAbbr(getTeamName(activeInningData?.battingTeamId || ''))} {over.scoreAtEnd}
-                  </p>
-                </div>
-                <div className="flex-1 space-y-2 w-full">
-                  <p className="text-xs font-bold text-slate-700">
-                    {getPlayerName(over.bowlerId)} to {Array.from(over.batterIds).map(id => getPlayerName(id as string)).join(' & ')}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {over.balls.map((ball: any) => (
-                      <BallBubble key={ball.id} ball={ball} />
-                    ))}
-                  </div>
-                </div>
+        <TabsContent value="overs" className="mt-4 space-y-6">
+          {inn2Overs.length > 0 && (
+            <div className="space-y-4">
+              <div className="bg-primary text-white p-3 rounded-sm">
+                <span className="font-bold text-xs uppercase">Innings 2 - {getTeamName(inn2?.battingTeamId || '')}</span>
               </div>
-            ))
+              <div className="space-y-2">
+                {inn2Overs.map((over) => (
+                  <OverRow key={over.overNumber} over={over} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {inn1Overs.length > 0 ? (
+            <div className="space-y-4">
+              <div className="bg-slate-200 text-slate-800 p-3 rounded-sm">
+                <span className="font-bold text-xs uppercase">Innings 1 - {getTeamName(inn1?.battingTeamId || '')}</span>
+              </div>
+              <div className="space-y-2">
+                {inn1Overs.map((over) => (
+                  <OverRow key={over.overNumber} over={over} />
+                ))}
+              </div>
+            </div>
           ) : (
             <div className="py-20 text-center border-2 border-dashed rounded-sm bg-slate-50">
               <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No overs completed yet</p>
@@ -857,3 +895,4 @@ export default function MatchScoreboardPage() {
     </div>
   );
 }
+
