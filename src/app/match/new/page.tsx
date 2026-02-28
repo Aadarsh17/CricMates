@@ -4,7 +4,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCollection, useMemoFirebase, useFirestore, useUser } from '@/firebase';
-import { collection, query, orderBy, doc, where } from 'firebase/firestore';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -14,9 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { PlayCircle, Trophy, ShieldCheck, Users, Info, Settings2, UserPlus, CheckCircle2 } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
+import { PlayCircle, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 export default function NewMatchPage() {
   const db = useFirestore();
@@ -44,13 +42,17 @@ export default function NewMatchPage() {
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
 
-  // In Street Mode, all players are available for both teams
   const team1Players = allPlayers?.filter(p => p.teamId === setup.team1Id || !p.teamId);
   const team2Players = allPlayers?.filter(p => p.teamId === setup.team2Id || !p.teamId);
 
   const handleStartMatch = () => {
     if (!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId) {
       toast({ title: "Opening Pair Missing", description: "Select openers and a bowler to begin.", variant: "destructive" });
+      return;
+    }
+
+    if (setup.strikerId === setup.nonStrikerId) {
+      toast({ title: "Invalid Selection", description: "Striker and Non-Striker must be different players.", variant: "destructive" });
       return;
     }
 
@@ -280,7 +282,7 @@ export default function NewMatchPage() {
                   <Select value={setup.strikerId} onValueChange={(v) => setSetup({...setup, strikerId: v})}>
                     <SelectTrigger><SelectValue placeholder="Opening Batter" /></SelectTrigger>
                     <SelectContent>
-                      {allPlayers?.filter(p => battingSquad.includes(p.id)).map(p => (
+                      {allPlayers?.filter(p => battingSquad.includes(p.id) && p.id !== setup.nonStrikerId).map(p => (
                         <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}
                     </SelectContent>

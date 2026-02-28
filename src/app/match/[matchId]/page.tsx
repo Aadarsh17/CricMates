@@ -59,7 +59,7 @@ export default function MatchScoreboardPage() {
   const [isWicketModalOpen, setIsWicketModalOpen] = useState(false);
   const [wicketDetails, setWicketDetails] = useState({
     type: 'bowled',
-    playerOutId: ''
+    newStrikerId: ''
   });
 
   const getPlayerName = (pid: string) => {
@@ -120,7 +120,7 @@ export default function MatchScoreboardPage() {
       inningId: `inning_${activeInningView}`,
       matchId,
       overNumber: currentInning.oversCompleted,
-      ballNumberInOver: extra === 'none' ? (isOverEnd ? 6 : newBalls) : currentInning.ballsInCurrentOver,
+      ballNumberInOver: extra === 'none' ? (newBalls === 0 ? 6 : newBalls) : currentInning.ballsInCurrentOver,
       strikerPlayerId: currentInning.strikerPlayerId || 'unknown',
       bowlerPlayerId: currentInning.currentBowlerPlayerId || 'unknown',
       runsScored: runs,
@@ -142,7 +142,7 @@ export default function MatchScoreboardPage() {
       wickets: isWicket ? currentInning.wickets + 1 : currentInning.wickets,
       oversCompleted: newOvers,
       ballsInCurrentOver: newBalls,
-      strikerPlayerId: newStriker || '',
+      strikerPlayerId: isWicket ? wicketDetails.newStrikerId : newStriker || '',
       nonStrikerPlayerId: newNonStriker || ''
     });
 
@@ -450,19 +450,22 @@ export default function MatchScoreboardPage() {
             </div>
             <div className="space-y-2">
               <Label>Select New Batter</Label>
-              <Select onValueChange={(v) => updateDocumentNonBlocking(activeInningRef!, { strikerPlayerId: v })}>
+              <Select onValueChange={(v) => setWicketDetails({...wicketDetails, newStrikerId: v})}>
                 <SelectTrigger><SelectValue placeholder="Select from Squad" /></SelectTrigger>
                 <SelectContent>
-                  {(activeInningData?.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds).map(pid => (
-                    <SelectItem key={pid} value={pid}>{getPlayerName(pid)}</SelectItem>
-                  ))}
+                  {(activeInningData?.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds)
+                    .filter(pid => pid !== activeInningData?.nonStrikerPlayerId && pid !== activeInningData?.strikerPlayerId)
+                    .map(pid => (
+                      <SelectItem key={pid} value={pid}>{getPlayerName(pid)}</SelectItem>
+                    ))
+                  }
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsWicketModalOpen(false)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => handleBall(0, true)}>Confirm Wicket</Button>
+            <Button variant="destructive" onClick={() => handleBall(0, true)} disabled={!wicketDetails.newStrikerId}>Confirm Wicket</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
