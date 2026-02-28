@@ -1,0 +1,501 @@
+{
+  "entities": {
+    "Team": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Team",
+      "type": "object",
+      "description": "Represents a cricket team participating in matches and leagues.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Team entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The official name of the cricket team."
+        },
+        "logoUrl": {
+          "type": "string",
+          "description": "URL or base64 string for the team's logo image."
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "The unique identifier (UID) of the user who created this team. (Relationship: User 1:N Team)"
+        },
+        "matchesWon": {
+          "type": "number",
+          "description": "Total number of matches won by the team."
+        },
+        "matchesLost": {
+          "type": "number",
+          "description": "Total number of matches lost by the team."
+        },
+        "matchesDrawn": {
+          "type": "number",
+          "description": "Total number of matches drawn by the team."
+        },
+        "totalRunsScored": {
+          "type": "number",
+          "description": "Aggregate total runs scored by the team across all its matches."
+        },
+        "totalWicketsTaken": {
+          "type": "number",
+          "description": "Aggregate total wickets taken by the team across all its matches."
+        },
+        "netRunRate": {
+          "type": "number",
+          "description": "The team's Net Run Rate (NRR), calculated from all matches played, used for league rankings."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "ownerId",
+        "matchesWon",
+        "matchesLost",
+        "matchesDrawn",
+        "totalRunsScored",
+        "totalWicketsTaken",
+        "netRunRate"
+      ]
+    },
+    "Player": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Player",
+      "type": "object",
+      "description": "Details about an individual cricket player, including their stats and team affiliation.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Player entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "The full name of the player."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "URL for the player's profile image."
+        },
+        "teamId": {
+          "type": "string",
+          "description": "Reference to the Team the player belongs to. Can be 'none' or null if the player is a free agent. (Relationship: Team 1:N Player)"
+        },
+        "role": {
+          "type": "string",
+          "description": "The primary role of the player (e.g., 'Batsman', 'Bowler', 'All-rounder')."
+        },
+        "battingStyle": {
+          "type": "string",
+          "description": "The batting style of the player (e.g., 'Right-hand bat', 'Left-hand bat')."
+        },
+        "isWicketKeeper": {
+          "type": "boolean",
+          "description": "Indicates if the player is primarily a wicket-keeper."
+        },
+        "isRetired": {
+          "type": "boolean",
+          "description": "Indicates if the player has retired from active play."
+        },
+        "matchesPlayed": {
+          "type": "number",
+          "description": "Total number of matches played by the player."
+        },
+        "runsScored": {
+          "type": "number",
+          "description": "Total runs scored by the player across all matches."
+        },
+        "wicketsTaken": {
+          "type": "number",
+          "description": "Total wickets taken by the player across all matches."
+        },
+        "highestScore": {
+          "type": "number",
+          "description": "The player's highest individual score in a single innings."
+        },
+        "bestBowlingFigures": {
+          "type": "string",
+          "description": "The player's best bowling performance, typically formatted as 'wickets/runs' (e.g., '5/20')."
+        },
+        "careerCVP": {
+          "type": "number",
+          "description": "Cumulative Cricket Value Points (CVP) accumulated by the player across all matches, used for player rankings."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "teamId",
+        "role",
+        "battingStyle",
+        "isWicketKeeper",
+        "isRetired",
+        "matchesPlayed",
+        "runsScored",
+        "wicketsTaken",
+        "highestScore",
+        "bestBowlingFigures",
+        "careerCVP"
+      ]
+    },
+    "Match": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Match",
+      "type": "object",
+      "description": "Details about a specific cricket match played between two teams.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Match entity."
+        },
+        "team1Id": {
+          "type": "string",
+          "description": "Reference to the ID of the first team participating in the match. (Relationship: Team 1:N Match)"
+        },
+        "team2Id": {
+          "type": "string",
+          "description": "Reference to the ID of the second team participating in the match. (Relationship: Team 1:N Match)"
+        },
+        "team1SquadPlayerIds": {
+          "type": "array",
+          "description": "An array of player IDs representing the squad for team 1 in this specific match. (Relationship: Player N:N Match)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "team2SquadPlayerIds": {
+          "type": "array",
+          "description": "An array of player IDs representing the squad for team 2 in this specific match. (Relationship: Player N:N Match)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "totalOvers": {
+          "type": "number",
+          "description": "The total number of overs planned for the match."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the match (e.g., 'scheduled', 'live', 'completed')."
+        },
+        "tossWinnerTeamId": {
+          "type": "string",
+          "description": "Reference to the ID of the team that won the toss. (Relationship: Team 1:N Match)"
+        },
+        "tossDecision": {
+          "type": "string",
+          "description": "The decision made by the toss-winning team ('bat' or 'bowl')."
+        },
+        "currentInningNumber": {
+          "type": "number",
+          "description": "The current inning number being played (1 or 2). Relevant for 'live' matches."
+        },
+        "resultDescription": {
+          "type": "string",
+          "description": "A textual description of the match result (e.g., 'Team A won by 5 wickets')."
+        },
+        "matchDate": {
+          "type": "string",
+          "description": "The date and time when the match took place.",
+          "format": "date-time"
+        },
+        "umpireId": {
+          "type": "string",
+          "description": "The unique identifier (UID) of the umpire officiating this match. (Relationship: User 1:N Match)"
+        }
+      },
+      "required": [
+        "id",
+        "team1Id",
+        "team2Id",
+        "team1SquadPlayerIds",
+        "team2SquadPlayerIds",
+        "totalOvers",
+        "status",
+        "tossWinnerTeamId",
+        "tossDecision",
+        "matchDate"
+      ]
+    },
+    "Inning": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Inning",
+      "type": "object",
+      "description": "Represents a single inning within a cricket match, tracking its score and progress.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Inning entity."
+        },
+        "matchId": {
+          "type": "string",
+          "description": "Reference to the Match this inning belongs to. (Relationship: Match 1:N Inning)"
+        },
+        "inningNumber": {
+          "type": "number",
+          "description": "The sequential number of the inning within the match (1 for first inning, 2 for second)."
+        },
+        "battingTeamId": {
+          "type": "string",
+          "description": "Reference to the ID of the team currently batting in this inning. (Relationship: Team 1:N Inning)"
+        },
+        "bowlingTeamId": {
+          "type": "string",
+          "description": "Reference to the ID of the team currently bowling in this inning. (Relationship: Team 1:N Inning)"
+        },
+        "score": {
+          "type": "number",
+          "description": "The total runs scored by the batting team in this inning."
+        },
+        "wickets": {
+          "type": "number",
+          "description": "The total wickets fallen for the batting team in this inning."
+        },
+        "oversCompleted": {
+          "type": "number",
+          "description": "The number of full overs completed in this inning."
+        },
+        "ballsInCurrentOver": {
+          "type": "number",
+          "description": "The number of legal balls delivered in the current, incomplete over (0-5)."
+        },
+        "strikerPlayerId": {
+          "type": "string",
+          "description": "Reference to the ID of the player currently batting on strike. (Relationship: Player 1:N Inning)"
+        },
+        "nonStrikerPlayerId": {
+          "type": "string",
+          "description": "Reference to the ID of the player currently batting on the non-striker's end. (Relationship: Player 1:N Inning)"
+        },
+        "currentBowlerPlayerId": {
+          "type": "string",
+          "description": "Reference to the ID of the player currently bowling. (Relationship: Player 1:N Inning)"
+        }
+      },
+      "required": [
+        "id",
+        "matchId",
+        "inningNumber",
+        "battingTeamId",
+        "bowlingTeamId",
+        "score",
+        "wickets",
+        "oversCompleted",
+        "ballsInCurrentOver"
+      ]
+    },
+    "DeliveryRecord": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "DeliveryRecord",
+      "type": "object",
+      "description": "A detailed record of a single ball/delivery bowled during an inning, capturing all events.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the DeliveryRecord entity."
+        },
+        "inningId": {
+          "type": "string",
+          "description": "Reference to the Inning this delivery belongs to. (Relationship: Inning 1:N DeliveryRecord)"
+        },
+        "matchId": {
+          "type": "string",
+          "description": "Reference to the Match this delivery indirectly belongs to, for easier querying. (Relationship: Match 1:N DeliveryRecord)"
+        },
+        "overNumber": {
+          "type": "number",
+          "description": "The number of the over in which this delivery occurred (e.g., 1 for the first over)."
+        },
+        "ballNumberInOver": {
+          "type": "number",
+          "description": "The sequential legal ball number within its over (1-6). For extras like wide/no-ball that don't count, this might refer to the 'logical' ball number if it were legal, or a special marker."
+        },
+        "strikerPlayerId": {
+          "type": "string",
+          "description": "Reference to the ID of the batsman on strike for this delivery. (Relationship: Player 1:N DeliveryRecord)"
+        },
+        "bowlerPlayerId": {
+          "type": "string",
+          "description": "Reference to the ID of the bowler for this delivery. (Relationship: Player 1:N DeliveryRecord)"
+        },
+        "runsScored": {
+          "type": "number",
+          "description": "Runs scored off the bat by the striker (0-6)."
+        },
+        "isWicket": {
+          "type": "boolean",
+          "description": "Indicates if a wicket fell on this delivery."
+        },
+        "extraType": {
+          "type": "string",
+          "description": "Type of extra if any (e.g., 'wide', 'noball', 'byes', 'legbyes', 'none')."
+        },
+        "extraRuns": {
+          "type": "number",
+          "description": "Number of runs awarded for extras on this delivery."
+        },
+        "totalRunsOnDelivery": {
+          "type": "number",
+          "description": "The sum of runsScored and extraRuns for this single delivery."
+        },
+        "outcomeDescription": {
+          "type": "string",
+          "description": "A brief textual summary of the delivery's outcome (e.g., '4 runs', 'Wicket', '1 wide')."
+        },
+        "dismissalType": {
+          "type": "string",
+          "description": "The type of dismissal if a wicket fell (e.g., 'bowled', 'caught', 'run out', 'none')."
+        },
+        "batsmanOutPlayerId": {
+          "type": "string",
+          "description": "Reference to the ID of the player who was dismissed, if a wicket fell. (Relationship: Player 1:N DeliveryRecord)"
+        },
+        "fielderPlayerId": {
+          "type": "string",
+          "description": "Reference to the ID of the fielder involved in the dismissal (e.g., for catches, run-outs), if applicable. (Relationship: Player 1:N DeliveryRecord)"
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The exact date and time when this delivery occurred.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "inningId",
+        "matchId",
+        "overNumber",
+        "ballNumberInOver",
+        "strikerPlayerId",
+        "bowlerPlayerId",
+        "runsScored",
+        "isWicket",
+        "extraType",
+        "extraRuns",
+        "totalRunsOnDelivery",
+        "outcomeDescription",
+        "dismissalType",
+        "timestamp"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/umpires/{umpireId}",
+        "definition": {
+          "entityName": "UmpireRole",
+          "schema": {
+            "$ref": "#/backend/entities/UmpireRole"
+          },
+          "description": "This collection serves for Database-Backed Access Control (DBAC). A document's existence at `/umpires/{request.auth.uid}` grants a user 'Umpire' privileges. Documents contain minimal data, primarily a UID and a boolean to confirm the umpire role. This implicitly defined entity helps validate a user's role without custom claims.",
+          "params": [
+            {
+              "name": "umpireId",
+              "description": "The unique identifier (UID) of the user who is assigned the Umpire role."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/teams/{teamId}",
+        "definition": {
+          "entityName": "Team",
+          "schema": {
+            "$ref": "#/backend/entities/Team"
+          },
+          "description": "A top-level collection for cricket teams. All teams are publicly readable (for points tables, match selection), but write operations (CRUD) are restricted to the 'ownerId' of the team, which is stored in the document for authorization independence.",
+          "params": [
+            {
+              "name": "teamId",
+              "description": "The unique identifier for the team."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/players/{playerId}",
+        "definition": {
+          "entityName": "Player",
+          "schema": {
+            "$ref": "#/backend/entities/Player"
+          },
+          "description": "A top-level collection for all cricket players, including free agents. All player profiles are publicly readable for rankings and squad selection. Write operations (CRUD, retire feature) are restricted to the 'ownerId' of the player, which is stored in the document for authorization independence. Players can be 'free agents' by setting teamId to 'none' or null.",
+          "params": [
+            {
+              "name": "playerId",
+              "description": "The unique identifier for the player."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/matches/{matchId}",
+        "definition": {
+          "entityName": "Match",
+          "schema": {
+            "$ref": "#/backend/entities/Match"
+          },
+          "description": "A top-level collection for cricket matches. All match data is publicly readable (Guest Mode, Match History). Write operations (scoring, updates) are strictly limited to the 'umpireId' of the match when the 'status' field is 'live', which is stored in the document for authorization independence.",
+          "params": [
+            {
+              "name": "matchId",
+              "description": "The unique identifier for the match."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/matches/{matchId}/innings/{inningId}",
+        "definition": {
+          "entityName": "Inning",
+          "schema": {
+            "$ref": "#/backend/entities/Inning"
+          },
+          "description": "Subcollection storing details for each inning within a specific match. Read access is public, inheriting from the parent match. Write access is restricted to the 'umpireId' (denormalized from the parent Match) and only when the 'matchStatus' (also denormalized from the parent Match) is 'live' to maintain authorization independence.",
+          "params": [
+            {
+              "name": "matchId",
+              "description": "The unique identifier of the parent match."
+            },
+            {
+              "name": "inningId",
+              "description": "The unique identifier for the inning within the match."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/matches/{matchId}/innings/{inningId}/deliveryRecords/{deliveryRecordId}",
+        "definition": {
+          "entityName": "DeliveryRecord",
+          "schema": {
+            "$ref": "#/backend/entities/DeliveryRecord"
+          },
+          "description": "Subcollection storing ball-by-ball delivery records within a specific inning. Read access is public, inheriting from the parent match/inning. Write access is strictly limited to the 'umpireId' (denormalized from the parent Match) and only when the 'matchStatus' (also denormalized from the parent Match) is 'live' to maintain authorization independence and facilitate real-time scoring updates.",
+          "params": [
+            {
+              "name": "matchId",
+              "description": "The unique identifier of the parent match."
+            },
+            {
+              "name": "inningId",
+              "description": "The unique identifier of the parent inning."
+            },
+            {
+              "name": "deliveryRecordId",
+              "description": "The unique identifier for the delivery record."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure for CricMates is designed around core principles of Authorization Independence, Structural Segregation, and DBAC to ensure a secure, scalable, and debuggable system. \n\n**Authorization Independence via Denormalization:**\n- For `Team` and `Player` entities, `ownerId` is explicitly stored within each document in the `/teams/{teamId}` and `/players/{playerId}` collections, respectively. This allows security rules to evaluate `request.auth.uid == resource.data.ownerId` directly, without relying on `get()` operations to check parent ownership. This is crucial for atomic operations and prevents complex, hard-to-debug rule dependencies.\n- For `Match`, `Inning`, and `DeliveryRecord` entities, the `umpireId` and the `matchStatus` from the main `Match` document are denormalized and stored in every `Inning` and `DeliveryRecord` document. This means that a security rule for updating a `DeliveryRecord` can simply check `request.auth.uid == resource.data.umpireId && resource.data.matchStatus == 'live'`, thereby eliminating the need for `get('/matches/$(matchId)').data.umpireId` or `get('/matches/$(matchId)').data.status` calls. This guarantees that real-time scoring operations remain atomic and independent, adhering to a critical design principle.\n\n**Structural Segregation & QAPs (Queries Are Not Filters):**\n- **Global Collections for Public Data:** `teams`, `players`, and `matches` are top-level collections. This ensures that guests and users can efficiently query and list these entities (e.g., for the points table, player rankings, or match history) without being filtered by security rules (QAPs). \n    - `/teams/{teamId}`: All teams are publicly readable, but write access is restricted to the `ownerId` stored within the document, ensuring that only the creator can manage their team.\n    - `/players/{playerId}`: All players are publicly readable, facilitating global player rankings. Write access is restricted to the `ownerId` (the user who created the player profile), allowing for individual player management, including 'retire' features.\n    - `/matches/{matchId}`: All matches (scheduled, live, completed) are publicly readable for guest access (e.g., Public Scorecard, Match History). Write access is granted exclusively to the `umpireId` for the match, but only when `matchStatus` is 'live'. This uses the `status` field for logical segregation of write access, maintaining homogeneous read access.\n- **DBAC (Database-Backed Access Control):** The `/umpires/{umpireId}` collection is used for role-based access control. An authenticated user is identified as an umpire if a document with their UID exists in this collection. This centralizes role management within Firestore and allows for simple existence checks in security rules.\n\nThis design leverages denormalization to keep security rules explicit, flat, and free of hierarchical `get()` calls, making them robust and easy to audit. The use of top-level collections with denormalized ownership/control fields directly supports QAPs by allowing broad read queries while maintaining granular write control based on `request.auth.uid` and document attributes."
+  }
+}
