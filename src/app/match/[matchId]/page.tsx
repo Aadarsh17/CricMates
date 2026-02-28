@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Undo2, Shuffle, AlertCircle } from 'lucide-react';
+import { Trophy, Undo2, Shuffle, AlertCircle, RotateCcw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -74,16 +74,16 @@ export default function MatchScoreboardPage() {
     return t ? t.name : 'Unknown Team';
   };
 
-  const isCurrentInningsOver = activeInningData && match && (
+  const isCurrentInningsOver = !!(activeInningData && match && (
     activeInningData.wickets >= 10 || 
     (activeInningData.oversCompleted >= match.totalOvers) ||
     (activeInningView === 2 && inn1 && activeInningData.score > inn1.score)
-  );
+  ));
 
   const handleBall = (runs: number, isWicket = false, extra: 'none' | 'wide' | 'noball' = 'none') => {
     if (!isUmpire || match?.status !== 'live' || !activeInningData || !activeInningRef || isCurrentInningsOver) {
       if (isCurrentInningsOver) {
-        toast({ title: "Innings Over", description: "This innings has reached its conclusion.", variant: "destructive" });
+        toast({ title: "Innings Over", description: "No further deliveries allowed.", variant: "destructive" });
       }
       return;
     }
@@ -96,7 +96,7 @@ export default function MatchScoreboardPage() {
     let newNonStriker = currentInning.nonStrikerPlayerId;
 
     if (!newStriker || !newNonStriker) {
-      toast({ title: "Batsmen Missing", description: "Select openers first.", variant: "destructive" });
+      toast({ title: "Batsmen Missing", description: "Ensure both batsmen are set.", variant: "destructive" });
       return;
     }
 
@@ -112,7 +112,8 @@ export default function MatchScoreboardPage() {
     let newBalls = currentInning.ballsInCurrentOver;
 
     if (extra === 'none') {
-      if (currentInning.ballsInCurrentOver === 5) {
+      newBalls += 1;
+      if (newBalls >= 6) {
         isOverEnd = true;
         newOvers += 1;
         newBalls = 0;
@@ -120,8 +121,6 @@ export default function MatchScoreboardPage() {
         const temp = newStriker;
         newStriker = newNonStriker;
         newNonStriker = temp;
-      } else {
-        newBalls += 1;
       }
     }
 
@@ -151,7 +150,7 @@ export default function MatchScoreboardPage() {
     let finalStriker = isWicket ? wicketDetails.newStrikerId : newStriker;
     let finalNonStriker = newNonStriker;
 
-    // Correct strike if over ended and wicket fell
+    // Fix strike if over ended AND wicket fell
     if (isWicket && isOverEnd) {
       const temp = finalStriker;
       finalStriker = finalNonStriker;
@@ -187,12 +186,12 @@ export default function MatchScoreboardPage() {
     });
 
     deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', lastBall.id));
-    toast({ title: "Undo Successful", description: "Last delivery removed." });
+    toast({ title: "Ball Undone", description: "Score reverted." });
   };
 
   const handleMainUndo = () => {
-    if (confirm("Reset current match setup? All scoring progress will be lost and you will go back to the starting selection page.")) {
-      router.push('/match/new');
+    if (confirm("Reset everything? All match data will be lost and you will return to team selection.")) {
+      window.location.href = '/match/new';
     }
   };
 
@@ -200,42 +199,36 @@ export default function MatchScoreboardPage() {
     if (!isUmpire || !match || !inn1 || !inn2) return;
 
     const batch = writeBatch(db);
-    
-    // Aggregate player stats from all delivery records
     const d1 = await getDocs(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'));
     const d2 = await getDocs(collection(db, 'matches', matchId, 'innings', 'inning_2', 'deliveryRecords'));
     const allDels = [...d1.docs.map(d => d.data()), ...d2.docs.map(d => d.data())];
 
-    const playerStats: Record<string, { runs: number, wickets: number, balls: number, dots: number }> = {};
+    const playerStats: Record<string, { runs: number, wickets: number, balls: number }> = {};
     
     allDels.forEach(d => {
-      // Batting Stats
-      if (!playerStats[d.strikerPlayerId]) playerStats[d.strikerPlayerId] = { runs: 0, wickets: 0, balls: 0, dots: 0 };
+      if (!playerStats[d.strikerPlayerId]) playerStats[d.strikerPlayerId] = { runs: 0, wickets: 0, balls: 0 };
       playerStats[d.strikerPlayerId].runs += d.runsScored;
       if (d.extraType === 'none') playerStats[d.strikerPlayerId].balls += 1;
       
-      // Bowling Stats
-      if (!playerStats[d.bowlerPlayerId]) playerStats[d.bowlerPlayerId] = { runs: 0, wickets: 0, balls: 0, dots: 0 };
+      if (!playerStats[d.bowlerPlayerId]) playerStats[d.bowlerPlayerId] = { runs: 0, wickets: 0, balls: 0 };
       if (d.isWicket && d.dismissalType !== 'runout') {
         playerStats[d.bowlerPlayerId].wickets += 1;
       }
     });
 
-    // Update Player Rankings
     for (const pid in playerStats) {
       const pRef = doc(db, 'players', pid);
       const pData = allPlayers?.find(p => p.id === pid);
       if (pData) {
         batch.update(pRef, {
-          runsScored: (pData.runsScored || 0) + playerStats[pid].runs,
-          wicketsTaken: (pData.wicketsTaken || 0) + playerStats[pid].wickets,
-          matchesPlayed: (pData.matchesPlayed || 0) + 1,
-          careerCVP: (pData.careerCVP || 0) + (playerStats[pid].runs) + (playerStats[pid].wickets * 15)
+          runsScored: increment(playerStats[pid].runs),
+          wicketsTaken: increment(playerStats[pid].wickets),
+          matchesPlayed: increment(1),
+          careerCVP: increment(playerStats[pid].runs + (playerStats[pid].wickets * 15))
         });
       }
     }
 
-    // Determine Result & Update Team Table
     let result = "Match Drawn";
     if (inn2.score > inn1.score) {
       result = `${getTeamName(inn2.battingTeamId)} won by ${10 - inn2.wickets} wickets`;
@@ -254,8 +247,8 @@ export default function MatchScoreboardPage() {
     router.push('/matches');
   };
 
-  if (isMatchLoading) return <div className="p-20 text-center">Loading scorecard...</div>;
-  if (!match) return <div className="p-20 text-center">Match not found.</div>;
+  if (isMatchLoading) return <div className="p-20 text-center">Loading scoreboard...</div>;
+  if (!match) return <div className="p-20 text-center">Match data missing.</div>;
 
   const target = inn1 ? inn1.score + 1 : 0;
 
@@ -272,7 +265,7 @@ export default function MatchScoreboardPage() {
               {activeInningView === 1 ? '1st Innings' : '2nd Innings'}
             </Badge>
             <h1 className="text-4xl font-black">{activeInningData ? getTeamName(activeInningData.battingTeamId) : '---'}</h1>
-            <p className="text-xs opacity-70 mt-1">Vs {activeInningData ? getTeamName(activeInningData.bowlingTeamId) : '---'}</p>
+            <p className="text-xs opacity-70 mt-1 uppercase font-bold tracking-tighter">vs {activeInningData ? getTeamName(activeInningData.bowlingTeamId) : '---'}</p>
           </div>
           
           <div className="text-center px-10 border-x border-white/10">
@@ -287,9 +280,9 @@ export default function MatchScoreboardPage() {
 
           <div className="text-center md:text-right flex-1">
             {match.status === 'live' ? (
-              <Badge variant="destructive" className="animate-pulse mb-2">LIVE</Badge>
+              <Badge variant="destructive" className="animate-pulse mb-2">LIVE SCOREBOARD</Badge>
             ) : (
-              <Badge className="bg-secondary mb-2">COMPLETED</Badge>
+              <Badge className="bg-secondary mb-2">MATCH ARCHIVED</Badge>
             )}
             
             {activeInningView === 2 && inn1 && (
@@ -297,7 +290,7 @@ export default function MatchScoreboardPage() {
                 <p className="text-xs font-bold text-secondary">Target: {target}</p>
                 {match.status === 'live' && inn2 && (
                   <p className="text-[10px] opacity-80">
-                    Req: {Math.max(0, target - inn2.score)} in {Math.max(0, (match.totalOvers * 6) - (inn2.oversCompleted * 6 + inn2.ballsInCurrentOver))} balls
+                    Need {Math.max(0, target - inn2.score)} off {Math.max(0, (match.totalOvers * 6) - (inn2.oversCompleted * 6 + inn2.ballsInCurrentOver))} balls
                   </p>
                 )}
               </div>
@@ -319,11 +312,9 @@ export default function MatchScoreboardPage() {
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-center">
                     <CardTitle className="text-lg">Scoring Panel</CardTitle>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={handleUndo} disabled={!deliveries || deliveries.length === 0}>
-                        <Undo2 className="w-4 h-4 mr-1" /> Undo Ball
-                      </Button>
-                    </div>
+                    <Button variant="outline" size="sm" onClick={handleUndo} disabled={!deliveries || deliveries.length === 0}>
+                      <Undo2 className="w-4 h-4 mr-1" /> Undo Last
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -385,15 +376,12 @@ export default function MatchScoreboardPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Controls</CardTitle>
-                  <Button variant="destructive" size="sm" onClick={handleMainUndo} className="w-full mt-2 font-bold uppercase tracking-tighter">
-                    Main Undo (Reset)
-                  </Button>
+                  <CardTitle className="text-lg">Match Controls</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="p-4 bg-muted/50 rounded-lg space-y-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs font-bold text-muted-foreground">STRIKER</span>
+                      <span className="text-xs font-bold text-muted-foreground">ON STRIKE</span>
                       <span className="text-sm font-bold text-primary truncate max-w-[120px]">{activeInningData ? getPlayerName(activeInningData.strikerPlayerId) : '---'}</span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -406,15 +394,21 @@ export default function MatchScoreboardPage() {
                     </div>
                   </div>
 
-                  <Button variant="outline" className="w-full" onClick={() => {
-                    if (!activeInningRef || !activeInningData) return;
-                    updateDocumentNonBlocking(activeInningRef, {
-                      strikerPlayerId: activeInningData.nonStrikerPlayerId,
-                      nonStrikerPlayerId: activeInningData.strikerPlayerId
-                    });
-                  }}>
-                    <Shuffle className="w-4 h-4 mr-1" /> Swap Ends
-                  </Button>
+                  <div className="grid grid-cols-1 gap-2">
+                    <Button variant="outline" className="w-full" onClick={() => {
+                      if (!activeInningRef || !activeInningData) return;
+                      updateDocumentNonBlocking(activeInningRef, {
+                        strikerPlayerId: activeInningData.nonStrikerPlayerId,
+                        nonStrikerPlayerId: activeInningData.strikerPlayerId
+                      });
+                    }}>
+                      <Shuffle className="w-4 h-4 mr-1" /> Swap Batsmen
+                    </Button>
+
+                    <Button variant="destructive" className="w-full font-bold uppercase tracking-tight" onClick={handleMainUndo}>
+                      <RotateCcw className="w-4 h-4 mr-2" /> Main Undo (Reset)
+                    </Button>
+                  </div>
 
                   {match.currentInningNumber === 1 ? (
                     <Button 
@@ -451,7 +445,7 @@ export default function MatchScoreboardPage() {
                       onClick={finalizeMatch}
                       disabled={!isCurrentInningsOver}
                     >
-                      Finalize Match
+                      Finalize Match Result
                     </Button>
                   )}
                 </CardContent>
@@ -461,30 +455,33 @@ export default function MatchScoreboardPage() {
             <Card className="p-12 text-center">
               <Trophy className="w-12 h-12 mx-auto mb-4 opacity-10" />
               <p className="text-muted-foreground">
-                {match.status === 'completed' ? 'This match is completed.' : 'Scorecard is read-only for guests.'}
+                {match.status === 'completed' ? 'Official Scorecard Finalized.' : 'Guest view is read-only.'}
               </p>
             </Card>
           )}
 
           <Card className="mt-6">
             <CardHeader className="py-4">
-              <CardTitle className="text-sm">Over Timeline</CardTitle>
+              <CardTitle className="text-sm">Over Timeline (Latest First)</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 {deliveries?.map((d) => (
                   <div key={d.id} className="flex items-center gap-4 p-3 bg-muted/20 rounded-lg border-l-4 border-primary">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-xs shrink-0">
+                    <div className="w-12 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-xs shrink-0">
                       {d.overNumber}.{d.ballNumberInOver}
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-bold">{d.outcomeDescription}</p>
                       <p className="text-[10px] text-muted-foreground uppercase">
-                        {getPlayerName(d.strikerPlayerId)} off {getPlayerName(d.bowlerPlayerId)}
+                        {getPlayerName(d.strikerPlayerId)} vs {getPlayerName(d.bowlerPlayerId)}
                       </p>
                     </div>
                   </div>
                 ))}
+                {(!deliveries || deliveries.length === 0) && (
+                   <p className="text-center py-6 text-xs text-muted-foreground italic">No deliveries recorded yet.</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -494,12 +491,12 @@ export default function MatchScoreboardPage() {
       <Dialog open={isWicketModalOpen} onOpenChange={setIsWicketModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Wicket Details</DialogTitle>
-            <DialogDescription>Confirm dismissal for {activeInningData ? getPlayerName(activeInningData.strikerPlayerId) : 'batsman'}</DialogDescription>
+            <DialogTitle>Wicket Confirmation</DialogTitle>
+            <DialogDescription>Dismissal details for {activeInningData ? getPlayerName(activeInningData.strikerPlayerId) : 'batter'}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Type</Label>
+              <Label>Wicket Type</Label>
               <Select value={wicketDetails.type} onValueChange={(v) => setWicketDetails({...wicketDetails, type: v})}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -512,9 +509,9 @@ export default function MatchScoreboardPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Next Batter</Label>
+              <Label>Incoming Batter</Label>
               <Select onValueChange={(v) => setWicketDetails({...wicketDetails, newStrikerId: v})}>
-                <SelectTrigger><SelectValue placeholder="Select from Squad" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select new batter" /></SelectTrigger>
                 <SelectContent>
                   {(activeInningData?.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds)
                     .filter(pid => pid !== activeInningData?.nonStrikerPlayerId && pid !== activeInningData?.strikerPlayerId)
@@ -527,7 +524,7 @@ export default function MatchScoreboardPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="destructive" onClick={() => handleBall(0, true)} disabled={!wicketDetails.newStrikerId}>Confirm Wicket</Button>
+            <Button variant="destructive" className="w-full" onClick={() => handleBall(0, true)} disabled={!wicketDetails.newStrikerId}>Confirm Dismissal</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
