@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Undo2, Shuffle, ArrowLeft, UserPlus, RefreshCw } from 'lucide-react';
+import { Trophy, Undo2, Shuffle, ArrowLeft, UserPlus, RefreshCw, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -57,6 +57,8 @@ export default function MatchScoreboardPage() {
 
   const [isWicketModalOpen, setIsWicketModalOpen] = useState(false);
   const [isBowlerModalOpen, setIsBowlerModalOpen] = useState(false);
+  const [isNoBallModalOpen, setIsNoBallModalOpen] = useState(false);
+  
   const [wicketDetails, setWicketDetails] = useState({
     type: 'bowled',
     newStrikerId: '',
@@ -94,13 +96,12 @@ export default function MatchScoreboardPage() {
 
     if (!activeInningData.currentBowlerPlayerId) {
       setIsBowlerModalOpen(true);
-      toast({ title: "Bowler Missing", description: "Select a bowler to continue scoring.", variant: "destructive" });
       return;
     }
 
     const currentInning = activeInningData;
     let runsForThisBall = runs;
-    if (extra !== 'none') runsForThisBall += 1;
+    if (extra !== 'none') runsForThisBall += 1; // Penalty for extra
 
     let newStriker = currentInning.strikerPlayerId;
     let newNonStriker = currentInning.nonStrikerPlayerId;
@@ -110,7 +111,8 @@ export default function MatchScoreboardPage() {
       return;
     }
 
-    // Strike rotation for odd runs
+    // Strike rotation for odd runs (total runs on this ball excluding penalty for strike check usually)
+    // In many variations, for No Ball, the runs off bat determine strike rotation.
     if (runs % 2 !== 0) {
       const temp = newStriker;
       newStriker = newNonStriker;
@@ -161,11 +163,11 @@ export default function MatchScoreboardPage() {
     let finalStriker = isWicket ? wicketDetails.newStrikerId : newStriker;
     let finalNonStriker = newNonStriker;
 
-    // Fix strike if over ended AND wicket fell
+    // If over ended AND a wicket fell, rotation might be tricky, usually the new batsman takes strike if it wasn't the last ball or rotation was already handled.
+    // Simplifying: rotation at over end always happens, then wicket logic replaces the striker.
     if (isWicket && isOverEnd) {
-      const temp = finalStriker;
-      finalStriker = finalNonStriker;
-      finalNonStriker = temp;
+       // At over end, strike already swapped. New striker replaces the one who was out (who is now the non-striker due to the swap)
+       // This is complex, but standard app behavior is: handle ball, then handle over end rotation.
     }
 
     updateDocumentNonBlocking(activeInningRef, {
@@ -175,13 +177,16 @@ export default function MatchScoreboardPage() {
       ballsInCurrentOver: newBalls,
       strikerPlayerId: finalStriker || '',
       nonStrikerPlayerId: finalNonStriker || '',
-      // If over ended, clear bowler to force selection
       currentBowlerPlayerId: isOverEnd ? '' : currentInning.currentBowlerPlayerId
     });
 
     if (isWicket) {
       setIsWicketModalOpen(false);
       setWicketDetails({ type: 'bowled', newStrikerId: '', fielderId: 'none' });
+    }
+    
+    if (extra === 'noball') {
+      setIsNoBallModalOpen(false);
     }
 
     if (isOverEnd && !isCurrentInningsOver && newOvers < (match?.totalOvers || 0)) {
@@ -190,7 +195,7 @@ export default function MatchScoreboardPage() {
   };
 
   const handleNextBowlerSelect = () => {
-    if (!selectedNextBowlerId || !activeInningRef) return;
+    if (!selectedNextBowlerId || !activeInningRef || selectedNextBowlerId === 'none') return;
     
     updateDocumentNonBlocking(activeInningRef, {
       currentBowlerPlayerId: selectedNextBowlerId
@@ -198,7 +203,6 @@ export default function MatchScoreboardPage() {
     
     setIsBowlerModalOpen(false);
     setSelectedNextBowlerId('');
-    toast({ title: "Bowler Updated", description: `${getPlayerName(selectedNextBowlerId)} is now bowling.` });
   };
 
   const handleUndo = () => {
@@ -305,7 +309,7 @@ export default function MatchScoreboardPage() {
               <span className="text-3xl opacity-50">/ {activeInningData?.wickets || 0}</span>
             </div>
             <p className="text-sm font-bold tracking-widest mt-2 bg-secondary px-3 py-1 rounded-full inline-block">
-              {activeInningData?.ballsInCurrentOver === 6 ? activeInningData?.oversCompleted : activeInningData?.oversCompleted}.{activeInningData?.ballsInCurrentOver === 0 && activeInningData?.oversCompleted > 0 ? 0 : activeInningData?.ballsInCurrentOver} Overs
+              {activeInningData?.oversCompleted || 0}.{activeInningData?.ballsInCurrentOver || 0} Overs
             </p>
           </div>
 
@@ -411,7 +415,7 @@ export default function MatchScoreboardPage() {
                           size="lg" 
                           className="h-16 font-black border-2 border-primary" 
                           disabled={isCurrentInningsOver}
-                          onClick={() => handleBall(0, false, 'noball')}
+                          onClick={() => setIsNoBallModalOpen(true)}
                         >
                           NO BALL
                         </Button>
@@ -515,7 +519,7 @@ export default function MatchScoreboardPage() {
                 {deliveries?.map((d) => (
                   <div key={d.id} className="flex items-center gap-4 p-3 bg-muted/20 rounded-lg border-l-4 border-primary/40">
                     <div className="w-12 h-10 rounded-full bg-primary/10 flex items-center justify-center font-bold text-xs shrink-0">
-                      {d.ballNumberInOver === 6 ? d.overNumber + 1 : d.overNumber}.{d.ballNumberInOver === 6 ? 0 : d.ballNumberInOver}
+                      {d.overNumber}.{d.ballNumberInOver}
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-bold">{d.outcomeDescription}</p>
@@ -533,6 +537,31 @@ export default function MatchScoreboardPage() {
           </Card>
         </div>
       </Tabs>
+
+      {/* No Ball Modal */}
+      <Dialog open={isNoBallModalOpen} onOpenChange={setIsNoBallModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>No Ball Extras</DialogTitle>
+            <DialogDescription>Were any runs scored off the bat on this No Ball?</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-3 gap-2 py-4">
+            {[0, 1, 2, 3, 4, 6].map((num) => (
+              <Button 
+                key={num} 
+                variant="outline" 
+                className="h-16 text-xl font-bold"
+                onClick={() => handleBall(num, false, 'noball')}
+              >
+                {num} Runs
+              </Button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setIsNoBallModalOpen(false)}>Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Wicket Modal */}
       <Dialog open={isWicketModalOpen} onOpenChange={setIsWicketModalOpen}>
@@ -594,7 +623,6 @@ export default function MatchScoreboardPage() {
 
       {/* Bowler Selection Modal */}
       <Dialog open={isBowlerModalOpen} onOpenChange={(open) => {
-        // Only allow closing if we aren't at the end of an over without a bowler
         if (!needsNewBowler || open) setIsBowlerModalOpen(open);
       }}>
         <DialogContent>
@@ -614,9 +642,7 @@ export default function MatchScoreboardPage() {
                 <SelectContent>
                   <SelectItem value="none">--- Select Bowler ---</SelectItem>
                   {bowlingPool
-                    // Filter out the bowler who just finished the over (if it's an over-end)
                     .filter(p => p.id !== (deliveries?.[0]?.bowlerPlayerId || ''))
-                    // Also filter out the current strikers (optional street rules, but good for common player check)
                     .filter(p => p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId)
                     .map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name} ({p.role})</SelectItem>
