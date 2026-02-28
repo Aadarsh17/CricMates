@@ -8,19 +8,14 @@ import { doc, collection, query, orderBy, where, getDocs, writeBatch } from 'fir
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Info, Users, Undo2, PlayCircle, Sparkles, Trophy, MessageSquare, Loader2, History, ChevronRight, CheckCircle2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Info, Users, Undo2, PlayCircle, Trophy, MessageSquare, Loader2, History, ChevronRight, CheckCircle2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
-import { generateMatchSummary } from '@/ai/flows/generate-match-summary';
-import { calculateCvp } from '@/ai/flows/calculate-cvp-flow';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -36,11 +31,6 @@ export default function MatchScoreboardPage() {
   const [activeInningView, setActiveInningView] = useState<number>(1);
   const [activeTab, setActiveTab] = useState<string>('live');
 
-  // AI States
-  const [aiSummary, setAiSummary] = useState<string>('');
-  const [topPerformers, setTopPerformers] = useState<any[]>([]);
-  const [isAiLoading, setIsAiLoading] = useState(false);
-
   useEffect(() => {
     if (match?.currentInningNumber) {
       setActiveInningView(match.currentInningNumber);
@@ -53,7 +43,6 @@ export default function MatchScoreboardPage() {
   const { data: inn2 } = useDoc(inn2Ref);
 
   const activeInningData = activeInningView === 1 ? inn1 : inn2;
-  const activeInningRef = activeInningView === 1 ? inn1Ref : inn2Ref;
 
   const inn1DeliveriesQuery = useMemoFirebase(() => 
     query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
@@ -103,98 +92,6 @@ export default function MatchScoreboardPage() {
     })).sort((a,b) => b.overNumber - a.overNumber);
   }, [activeInningView, inn1Deliveries, inn2Deliveries]);
 
-  const handleGenerateAiReport = async () => {
-    if (!match || !inn1 || !allPlayers) return;
-    setIsAiLoading(true);
-    try {
-      const playerStats: Record<string, any> = {};
-      const allDeliveries = [...(inn1Deliveries || []), ...(inn2Deliveries || [])];
-
-      allDeliveries.forEach(d => {
-        if (!playerStats[d.strikerPlayerId]) playerStats[d.strikerPlayerId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, runsConceded: 0, overs: 0, catches: 0, stumpings: 0, runOuts: 0 };
-        if (!playerStats[d.bowlerPlayerId]) playerStats[d.bowlerPlayerId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, runsConceded: 0, overs: 0, catches: 0, stumpings: 0, runOuts: 0 };
-        
-        playerStats[d.strikerPlayerId].runs += d.runsScored;
-        if (d.extraType !== 'wide') playerStats[d.strikerPlayerId].balls += 1;
-        if (d.runsScored === 4) playerStats[d.strikerPlayerId].fours += 1;
-        if (d.runsScored === 6) playerStats[d.strikerPlayerId].sixes += 1;
-
-        if (d.extraType === 'none') playerStats[d.bowlerPlayerId].overs += (1/6);
-        playerStats[d.bowlerPlayerId].runsConceded += d.totalRunsOnDelivery;
-        if (d.isWicket && !['runout'].includes(d.dismissalType)) playerStats[d.bowlerPlayerId].wickets += 1;
-
-        if (d.isWicket && d.fielderPlayerId !== 'none') {
-          if (!playerStats[d.fielderPlayerId]) playerStats[d.fielderPlayerId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, runsConceded: 0, overs: 0, catches: 0, stumpings: 0, runOuts: 0 };
-          if (d.dismissalType === 'caught') playerStats[d.fielderPlayerId].catches += 1;
-          if (d.dismissalType === 'stumping') playerStats[d.fielderPlayerId].stumpings += 1;
-          if (d.dismissalType === 'runout') playerStats[d.fielderPlayerId].runOuts += 1;
-        }
-      });
-
-      const playersToCalculate = Object.keys(playerStats).sort((a,b) => (playerStats[b].runs + playerStats[b].wickets * 15) - (playerStats[a].runs + playerStats[a].wickets * 15)).slice(0, 5);
-      
-      const performers = await Promise.all(playersToCalculate.map(async pid => {
-        const stats = playerStats[pid];
-        const player = allPlayers.find(p => p.id === pid);
-        const cvpData = await calculateCvp({
-          playerId: pid,
-          playerName: player?.name || 'Player',
-          isInPlayingXI: true,
-          batting: { runsScored: stats.runs, fours: stats.fours, sixes: stats.sixes, ballsFaced: stats.balls },
-          bowling: { wicketsTaken: stats.wickets, maidens: stats.maidens, oversBowled: Number(stats.overs.toFixed(1)), runsConceded: stats.runsConceded },
-          fielding: { catches: stats.catches, stumpings: stats.stumpings, runOuts: stats.runOuts }
-        });
-        return { name: player?.name, ...stats, cvp: cvpData.cvpPoints, breakdown: cvpData.breakdown };
-      }));
-
-      setTopPerformers(performers.sort((a,b) => b.cvp - a.cvp));
-
-      const summary = await generateMatchSummary({
-        matchId,
-        matchOverall: {
-          date: match.matchDate,
-          totalOversScheduled: match.totalOvers,
-          result: match.resultDescription,
-          team1Name: getTeamName(match.team1Id),
-          team2Name: getTeamName(match.team2Id),
-          team1FinalScore: `${inn1.score}/${inn1.wickets}`,
-          team2FinalScore: inn2 ? `${inn2.score}/${inn2.wickets}` : 'N/A',
-          tossWinner: getTeamName(match.tossWinnerTeamId),
-          tossDecision: match.tossDecision
-        },
-        inningsSummaries: [
-          {
-            inningNumber: 1,
-            battingTeamName: getTeamName(inn1.battingTeamId),
-            bowlingTeamName: getTeamName(inn1.bowlingTeamId),
-            score: inn1.score,
-            wickets: inn1.wickets,
-            overs: Number(`${inn1.oversCompleted}.${inn1.ballsInCurrentOver}`),
-            topPerformersBatting: performers.filter(p => p.runs > 0).slice(0, 2).map(p => ({ playerName: p.name, runs: p.runs, ballsFaced: p.balls })),
-            topPerformersBowling: performers.filter(p => p.wickets > 0).slice(0, 2).map(p => ({ playerName: p.name, overs: p.overs, maidens: p.maidens, runsConceded: p.runsConceded, wickets: p.wickets })),
-            keyMoments: ['Match started with high intensity.']
-          }
-        ],
-        playerOverallPerformance: performers.map(p => ({
-          playerName: p.name,
-          teamName: 'Squad',
-          role: 'All-rounder',
-          cvpScore: p.cvp,
-          battingStats: { runs: p.runs, ballsFaced: p.balls, strikeRate: p.balls > 0 ? (p.runs/p.balls)*100 : 0, fours: p.fours, sixes: p.sixes },
-          bowlingStats: { overs: p.overs, maidens: p.maidens, runsConceded: p.runsConceded, wickets: p.wickets, economy: p.overs > 0 ? p.runsConceded/p.overs : 0 }
-        }))
-      });
-
-      setAiSummary(summary);
-      toast({ title: "AI Analysis Complete" });
-    } catch (e) {
-      console.error(e);
-      toast({ title: "AI Error", description: "Failed to process analytics.", variant: "destructive" });
-    } finally {
-      setIsAiLoading(false);
-    }
-  };
-
   const handleEndMatch = async () => {
     if (!match || !inn1) return;
     
@@ -202,11 +99,9 @@ export default function MatchScoreboardPage() {
     const team2Id = match.team2Id;
     
     const i1Score = inn1.score;
-    const i1Wickets = inn1.wickets;
     const i1Balls = (inn1.oversCompleted * 6) + (inn1.ballsInCurrentOver || 0);
     
     const i2Score = inn2?.score || 0;
-    const i2Wickets = inn2?.wickets || 0;
     const i2Balls = inn2 ? (inn2.oversCompleted * 6) + (inn2.ballsInCurrentOver || 0) : 0;
 
     let result = '';
@@ -218,7 +113,7 @@ export default function MatchScoreboardPage() {
       winnerId = team1Id;
       loserId = team2Id;
     } else if (i2Score > i1Score) {
-      result = `${getTeamName(team2Id)} won by ${10 - i2Wickets} wickets`;
+      result = `${getTeamName(team2Id)} won by ${10 - (inn2?.wickets || 0)} wickets`;
       winnerId = team2Id;
       loserId = team1Id;
     } else {
@@ -227,16 +122,11 @@ export default function MatchScoreboardPage() {
 
     const batch = writeBatch(db);
 
-    // Update Match
     batch.update(doc(db, 'matches', matchId), {
       status: 'completed',
       resultDescription: result
     });
 
-    // Update Team Stats
-    const t1Ref = doc(db, 'teams', team1Id);
-    const t2Ref = doc(db, 'teams', team2Id);
-    
     const t1 = allTeams?.find(t => t.id === team1Id);
     const t2 = allTeams?.find(t => t.id === team2Id);
 
@@ -251,13 +141,14 @@ export default function MatchScoreboardPage() {
       const newT2BallsFaced = (t2.totalBallsFaced || 0) + i2Balls;
       const newT2BallsBowled = (t2.totalBallsBowled || 0) + i1Balls;
 
-      // NRR = (Runs * 6 / Balls Faced) - (Runs * 6 / Balls Bowled)
+      // NRR Formula: (Total Runs Scored * 6 / Total Balls Faced) - (Total Runs Conceded * 6 / Total Balls Bowled)
       const t1NRR = (newT1RunsScored * 6 / (newT1BallsFaced || 1)) - (newT1RunsConceded * 6 / (newT1BallsBowled || 1));
       const t2NRR = (newT2RunsScored * 6 / (newT2BallsFaced || 1)) - (newT2RunsConceded * 6 / (newT2BallsBowled || 1));
 
-      batch.update(t1Ref, {
+      batch.update(doc(db, 'teams', team1Id), {
         matchesWon: (t1.matchesWon || 0) + (winnerId === team1Id ? 1 : 0),
         matchesLost: (t1.matchesLost || 0) + (loserId === team1Id ? 1 : 0),
+        matchesDrawn: (t1.matchesDrawn || 0) + (winnerId === '' ? 1 : 0),
         totalRunsScored: newT1RunsScored,
         totalRunsConceded: newT1RunsConceded,
         totalBallsFaced: newT1BallsFaced,
@@ -265,9 +156,10 @@ export default function MatchScoreboardPage() {
         netRunRate: t1NRR
       });
 
-      batch.update(t2Ref, {
+      batch.update(doc(db, 'teams', team2Id), {
         matchesWon: (t2.matchesWon || 0) + (winnerId === team2Id ? 1 : 0),
         matchesLost: (t2.matchesLost || 0) + (loserId === team2Id ? 1 : 0),
+        matchesDrawn: (t2.matchesDrawn || 0) + (winnerId === '' ? 1 : 0),
         totalRunsScored: newT2RunsScored,
         totalRunsConceded: newT2RunsConceded,
         totalBallsFaced: newT2BallsFaced,
@@ -399,13 +291,13 @@ export default function MatchScoreboardPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="flex w-full justify-start overflow-x-auto border-b rounded-none bg-transparent h-auto p-0 scrollbar-hide sticky top-16 z-40 bg-background/95 backdrop-blur">
-          {['Info', 'Live', 'Scorecard', 'Overs', 'AI Analytics'].map((tab) => (
+          {['Info', 'Live', 'Scorecard', 'Overs'].map((tab) => (
             <TabsTrigger 
               key={tab}
               value={tab.toLowerCase().replace(' ', '-')} 
               className="px-4 py-3 text-xs font-bold rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:text-secondary whitespace-nowrap"
             >
-              {tab === 'AI Analytics' ? <div className="flex items-center gap-1"><Sparkles className="w-3 h-3" /> Analytics</div> : tab}
+              {tab}
             </TabsTrigger>
           ))}
         </TabsList>
@@ -423,77 +315,6 @@ export default function MatchScoreboardPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="ai-analytics" className="mt-4 space-y-6">
-          {!aiSummary && !isAiLoading ? (
-            <div className="flex flex-col items-center justify-center py-20 border-2 border-dashed rounded-xl bg-white space-y-4">
-              <Sparkles className="w-12 h-12 text-primary/20" />
-              <div className="text-center">
-                <h3 className="font-black text-slate-900">AI Match Insights</h3>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Generate summary & player CVP scores</p>
-              </div>
-              <Button onClick={handleGenerateAiReport} className="bg-primary hover:bg-primary/90 font-bold">
-                Generate AI Analytics
-              </Button>
-            </div>
-          ) : isAiLoading ? (
-            <div className="flex flex-col items-center justify-center py-20 space-y-4">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-xs font-black text-slate-400 uppercase tracking-widest animate-pulse">Consulting AI Commentator...</p>
-            </div>
-          ) : (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-              <Card className="border-l-4 border-l-secondary shadow-sm">
-                <CardHeader className="pb-2">
-                  <div className="flex items-center gap-2">
-                    <MessageSquare className="w-4 h-4 text-secondary" />
-                    <CardTitle className="text-sm font-black uppercase tracking-tighter">Match Narrative</CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm leading-relaxed text-slate-700 font-medium italic whitespace-pre-wrap">{aiSummary}</p>
-                </CardContent>
-              </Card>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Trophy className="w-4 h-4 text-primary" />
-                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">MVP Performance Breakdown (v1.2.5)</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {topPerformers.map((p, idx) => (
-                    <Card key={idx} className="overflow-hidden border shadow-none hover:border-primary/50 transition-colors">
-                      <div className="bg-slate-50 p-3 border-b flex justify-between items-center">
-                        <span className="font-black text-xs text-slate-900">{p.name}</span>
-                        <Badge variant="secondary" className="font-black text-[10px]">{p.cvp} CVP</Badge>
-                      </div>
-                      <CardContent className="p-3 space-y-3">
-                        <div className="grid grid-cols-3 gap-2 text-center">
-                          <div className="bg-slate-100/50 p-2 rounded">
-                            <p className="text-[8px] font-black text-slate-400 uppercase">Runs</p>
-                            <p className="text-sm font-black">{p.runs}</p>
-                          </div>
-                          <div className="bg-slate-100/50 p-2 rounded">
-                            <p className="text-[8px] font-black text-slate-400 uppercase">Wkts</p>
-                            <p className="text-sm font-black text-secondary">{p.wickets}</p>
-                          </div>
-                          <div className="bg-slate-100/50 p-2 rounded">
-                            <p className="text-[8px] font-black text-slate-400 uppercase">SR</p>
-                            <p className="text-sm font-black text-primary">{p.balls > 0 ? ((p.runs/p.balls)*100).toFixed(0) : '0'}</p>
-                          </div>
-                        </div>
-                        <p className="text-[9px] text-slate-500 font-medium leading-tight">{p.breakdown}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-              <Button variant="outline" className="w-full" onClick={handleGenerateAiReport}>
-                <Undo2 className="w-4 h-4 mr-2" /> Recalculate Analytics
-              </Button>
-            </div>
-          )}
         </TabsContent>
 
         <TabsContent value="live" className="mt-4 space-y-6">
