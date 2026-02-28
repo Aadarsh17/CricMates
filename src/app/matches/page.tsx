@@ -1,5 +1,4 @@
-
-"use client"
+'use client';
 
 import { useCollection, useMemoFirebase, useFirestore, useDoc } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
@@ -7,11 +6,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Avatar } from 'lucide-react';
+import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
-import { AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 function MatchScoreCard({ match, teams }: { match: any, teams: any[] }) {
   const db = useFirestore();
@@ -30,15 +29,16 @@ function MatchScoreCard({ match, teams }: { match: any, teams: any[] }) {
 
   const getInningDisplay = (inning: any) => {
     if (!inning) return null;
+    const team = getTeam(inning.battingTeamId);
     return (
       <div className="flex justify-between items-center w-full">
         <div className="flex items-center gap-3">
           <Avatar className="w-6 h-6">
-            <AvatarImage src={getTeam(inning.battingTeamId)?.logoUrl} />
-            <AvatarFallback>{getTeam(inning.battingTeamId)?.name[0]}</AvatarFallback>
+            <AvatarImage src={team?.logoUrl} />
+            <AvatarFallback>{team?.name?.[0] || '?'}</AvatarFallback>
           </Avatar>
           <span className={`font-bold ${match.status === 'live' ? 'text-foreground' : 'text-muted-foreground'}`}>
-            {getTeam(inning.battingTeamId)?.name}
+            {team?.name || 'Unknown Team'}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -63,17 +63,8 @@ function MatchScoreCard({ match, teams }: { match: any, teams: any[] }) {
         </div>
 
         <div className="space-y-2 py-2">
-          {match.status === 'live' ? (
-            <>
-              {getInningDisplay(inn1)}
-              {getInningDisplay(inn2)}
-            </>
-          ) : (
-            <>
-              {getInningDisplay(inn1)}
-              {getInningDisplay(inn2)}
-            </>
-          )}
+          {getInningDisplay(inn1)}
+          {getInningDisplay(inn2)}
         </div>
 
         <div className="text-xs font-medium text-primary">
@@ -98,7 +89,7 @@ function MatchScoreCard({ match, teams }: { match: any, teams: any[] }) {
   );
 }
 
-export default function MatchesPage() {
+export default function MatchHistoryPage() {
   const { isUmpire } = useApp();
   const db = useFirestore();
   const [isMounted, setIsMounted] = useState(false);
@@ -115,6 +106,8 @@ export default function MatchesPage() {
 
   const liveMatches = matches?.filter(m => m.status === 'live') || [];
   const pastMatches = matches?.filter(m => m.status === 'completed') || [];
+
+  if (!isMounted) return null;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
