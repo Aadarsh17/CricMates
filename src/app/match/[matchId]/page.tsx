@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { UserCircle, Info, Users, Flag, ChevronDown, Star, CheckCircle2, Trophy, Clock } from 'lucide-react';
+import { UserCircle, Info, Users, Flag, ChevronDown, Star, CheckCircle2, Trophy, Clock, Calendar } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -437,12 +437,11 @@ export default function MatchScoreboardPage() {
       }
     }
 
-    // Official NRR calculation: (Runs Scored / Overs Faced) - (Runs Conceded / Overs Bowled)
     const getDecimalOvers = (inn: any) => {
       if (!inn) return 0;
-      // If a team is bowled out, use full quota of overs for NRR
       if (inn.wickets >= 10) return match.totalOvers;
-      return (inn.oversCompleted || 0) + ((inn.ballsInCurrentOver || 0) / 6);
+      const dec = (inn.oversCompleted || 0) + ((inn.ballsInCurrentOver || 0) / 6);
+      return Math.max(0.01, dec); // Avoid exactly zero
     };
 
     const updateTeamStats = (teamId: string, runsScored: number, runsConceded: number, oversFaced: number, oversBowled: number, isWinner: boolean, isDrawn: boolean) => {
@@ -465,7 +464,7 @@ export default function MatchScoreboardPage() {
         matchesDrawn: (team.matchesDrawn || 0) + (isDrawn ? 1 : 0),
         totalRunsScored: newRunsScored,
         totalRunsConceded: newRunsConceded,
-        totalOversFaced: newRunsFaced,
+        totalOversFaced: newOversFaced,
         totalOversBowled: newOversBowled,
         netRunRate: Number(nrrValue.toFixed(4))
       });
@@ -474,7 +473,6 @@ export default function MatchScoreboardPage() {
     const o1 = getDecimalOvers(inn1);
     const o2 = getDecimalOvers(inn2);
 
-    // Update Team 1 (Inn 1 Batting Team)
     updateTeamStats(
       inn1.battingTeamId, 
       s1, 
@@ -485,7 +483,6 @@ export default function MatchScoreboardPage() {
       !winnerId
     );
 
-    // Update Team 2 (Inn 2 Batting Team / Inn 1 Bowling Team)
     if (inn2) {
       updateTeamStats(
         inn2.battingTeamId, 
@@ -652,31 +649,6 @@ export default function MatchScoreboardPage() {
               </div>
             </CardContent>
           </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-             <Card className="border shadow-none rounded-sm">
-                <CardHeader className="bg-slate-50 py-3 px-4 border-b"><CardTitle className="text-[10px] uppercase font-black text-slate-400">{getTeamName(match.team1Id)} Squad</CardTitle></CardHeader>
-                <CardContent className="p-4 space-y-2">
-                  {allPlayers?.filter(p => match.team1SquadPlayerIds.includes(p.id)).map(p => (
-                    <div key={p.id} className="flex justify-between items-center text-[10px] font-bold py-1 border-b last:border-0 border-slate-50">
-                      <span className="text-blue-600">{p.name}</span>
-                      <span className="text-slate-400 uppercase tracking-tighter">{p.role}</span>
-                    </div>
-                  ))}
-                </CardContent>
-             </Card>
-             <Card className="border shadow-none rounded-sm">
-                <CardHeader className="bg-slate-50 py-3 px-4 border-b"><CardTitle className="text-[10px] uppercase font-black text-slate-400">{getTeamName(match.team2Id)} Squad</CardTitle></CardHeader>
-                <CardContent className="p-4 space-y-2">
-                  {allPlayers?.filter(p => match.team2SquadPlayerIds.includes(p.id)).map(p => (
-                    <div key={p.id} className="flex justify-between items-center text-[10px] font-bold py-1 border-b last:border-0 border-slate-50">
-                      <span className="text-blue-600">{p.name}</span>
-                      <span className="text-slate-400 uppercase tracking-tighter">{p.role}</span>
-                    </div>
-                  ))}
-                </CardContent>
-             </Card>
-          </div>
         </TabsContent>
 
         <TabsContent value="live" className="space-y-6 mt-4">
@@ -981,7 +953,7 @@ export default function MatchScoreboardPage() {
                   <TableHead className="text-center text-[10px] font-bold text-slate-500 uppercase">P</TableHead>
                   <TableHead className="text-center text-[10px] font-bold text-slate-500 uppercase">W</TableHead>
                   <TableHead className="text-center text-[10px] font-bold text-slate-500 uppercase">L</TableHead>
-                  <TableHead className="text-center text-[10px] font-bold text-slate-500 uppercase">NR</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold text-slate-500 uppercase">NR/D</TableHead>
                   <TableHead className="text-center text-[10px] font-bold text-slate-500 uppercase">PTS</TableHead>
                   <TableHead className="text-right text-[10px] font-bold text-slate-500 uppercase pr-8">NRR</TableHead>
                 </TableRow>
