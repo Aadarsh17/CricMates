@@ -6,7 +6,7 @@ import { collection, query, orderBy, doc, limit } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, Info, Trophy } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -19,7 +19,7 @@ import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
 
-function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, teams: any[], isUmpire: boolean, isMounted: boolean }) {
+function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { match: any, teams: any[], isUmpire: boolean, isMounted: boolean, allPlayers: any[] }) {
   const db = useFirestore();
   const [isEditing, setIsEditing] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
@@ -30,17 +30,8 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
   const inn2Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_2'), [db, match.id]);
   const { data: inn2 } = useDoc(inn2Ref);
 
-  const [potm, setPotm] = useState<any>(null);
-  const playersQuery = useMemoFirebase(() => query(collection(db, 'players'), limit(1)), [db]);
-  const { data: samplePlayers } = useCollection(playersQuery);
-  
-  useEffect(() => {
-    if (samplePlayers && samplePlayers.length > 0) {
-      setPotm(samplePlayers[0]);
-    }
-  }, [samplePlayers]);
-
   const getTeam = (id: string) => teams.find(t => t.id === id);
+  const getPlayer = (id: string) => allPlayers.find(p => p.id === id);
 
   const getAbbr = (name: string) => (name || 'UNK').substring(0, 3).toUpperCase();
 
@@ -49,9 +40,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
     return new Date(dateString).toLocaleDateString('en-GB', { 
       day: 'numeric', 
       month: 'short', 
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      year: 'numeric'
     });
   };
 
@@ -92,11 +81,13 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
   };
 
   const tossText = match.tossWinnerTeamId 
-    ? `${getTeam(match.tossWinnerTeamId)?.name} won the toss & elected to ${match.tossDecision}`
+    ? `${getTeam(match.tossWinnerTeamId)?.name} won & chose to ${match.tossDecision}`
     : 'Toss details unavailable';
 
+  const potm = match.potmPlayerId ? getPlayer(match.potmPlayerId) : null;
+
   return (
-    <Card className="border shadow-sm bg-white overflow-hidden group relative transition-all hover:border-primary/50 border-l-4 border-l-primary">
+    <Card className="border shadow-sm bg-white overflow-hidden group relative transition-all hover:border-primary/50 border-l-4 border-l-primary rounded-xl">
       <div className="p-5">
         <div className="flex justify-between items-start mb-3">
           <div className="flex flex-col">
@@ -161,23 +152,25 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
                 </div>
               </div>
 
-              <div>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Player of the Match</p>
-                <div className="flex items-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
-                  <Avatar className="h-10 w-10 border-2 border-secondary/20">
-                    <AvatarImage src={potm?.imageUrl || `https://picsum.photos/seed/${match.id}/100`} />
-                    <AvatarFallback><Star className="w-4 h-4 text-yellow-500" /></AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm font-black text-slate-800">{potm?.name || 'Loading...'}</p>
-                    <div className="flex items-center gap-1">
-                      <Badge variant="secondary" className="text-[8px] h-4 px-1">{potm?.role || 'Top Performer'}</Badge>
-                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Impact Score: 8.5</span>
+              {match.status === 'completed' && match.potmPlayerId && (
+                <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Player of the Match</p>
+                  <div className="flex items-center gap-3 bg-white p-2 rounded-xl border shadow-sm border-secondary/20 bg-secondary/5">
+                    <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
+                      <AvatarImage src={potm?.imageUrl || `https://picsum.photos/seed/${match.id}/100`} />
+                      <AvatarFallback><Star className="w-4 h-4 text-yellow-500" /></AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-sm font-black text-slate-800">{potm?.name || 'Top Performer'}</p>
+                      <div className="flex items-center gap-1">
+                        <Badge variant="secondary" className="text-[8px] h-4 px-1">{potm?.role || 'MVP'}</Badge>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">CVP Score: {match.potmCvpScore?.toFixed(1) || '0.0'}</span>
+                      </div>
                     </div>
+                    <Trophy className="ml-auto w-5 h-5 text-secondary mr-2" />
                   </div>
-                  <Star className="ml-auto w-5 h-5 text-yellow-400 fill-yellow-400 mr-2" />
                 </div>
-              </div>
+              )}
             </div>
             
             <div className="flex items-center gap-3 pt-2">
@@ -224,6 +217,9 @@ export default function MatchHistoryPage() {
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: teams = [] } = useCollection(teamsQuery);
 
+  const playersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
+  const { data: allPlayers = [] } = useCollection(playersQuery);
+
   const liveMatches = matches?.filter(m => m.status === 'live') || [];
   const pastMatches = matches?.filter(m => m.status === 'completed') || [];
 
@@ -239,21 +235,21 @@ export default function MatchHistoryPage() {
       </div>
 
       <Tabs defaultValue="past" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6 h-12 bg-slate-100 p-1">
-          <TabsTrigger value="live" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary">
+        <TabsList className="grid w-full grid-cols-2 mb-6 h-12 bg-slate-100 p-1 rounded-xl">
+          <TabsTrigger value="live" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">
             Live <Badge variant="destructive" className="ml-2 h-4 px-1 text-[8px] animate-pulse">NEW</Badge>
           </TabsTrigger>
-          <TabsTrigger value="past" className="font-bold data-[state=active]:bg-white">Completed</TabsTrigger>
+          <TabsTrigger value="past" className="font-bold data-[state=active]:bg-white rounded-lg">Completed</TabsTrigger>
         </TabsList>
         
         <TabsContent value="live" className="mt-0 space-y-4">
           {isLoading ? (
             <div className="space-y-4">
-              {[1, 2].map(i => <Card key={i} className="h-48 animate-pulse bg-slate-50" />)}
+              {[1, 2].map(i => <Card key={i} className="h-48 animate-pulse bg-slate-50 rounded-xl" />)}
             </div>
           ) : liveMatches.length > 0 ? ( 
             liveMatches.map(match => (
-              <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />
+              <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} allPlayers={allPlayers} />
             ))
           ) : (
             <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
@@ -269,11 +265,11 @@ export default function MatchHistoryPage() {
         <TabsContent value="past" className="mt-0 space-y-4">
           {isLoading ? (
             <div className="space-y-4">
-              {[1, 2, 3].map(i => <Card key={i} className="h-48 animate-pulse bg-slate-50" />)}
+              {[1, 2, 3].map(i => <Card key={i} className="h-48 animate-pulse bg-slate-50 rounded-xl" />)}
             </div>
           ) : pastMatches.length > 0 ? (
             pastMatches.map(match => (
-              <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />
+              <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} allPlayers={allPlayers} />
             ))
           ) : (
             <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">

@@ -4,16 +4,18 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection } from '@/firebase';
-import { doc, collection, query, orderBy, writeBatch } from 'firebase/firestore';
+import { doc, collection, query, orderBy, writeBatch, serverTimestamp } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2 } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
+import { calculatePlayerCVP, type PlayerMatchStats } from '@/lib/cvp-utils';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -65,9 +67,10 @@ export default function MatchScoreboardPage() {
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
+  const getPlayer = (pid: string) => allPlayers?.find(p => p.id === pid);
   const getPlayerName = (pid: string) => {
     if (!pid || pid === 'none') return '---';
-    const p = allPlayers?.find(p => p.id === pid);
+    const p = getPlayer(pid);
     return p ? p.name : 'Unknown Player';
   };
 
@@ -127,7 +130,7 @@ export default function MatchScoreboardPage() {
   }, [activeInningView, inn1Deliveries, inn2Deliveries]);
 
   const handleEndMatch = async () => {
-    if (!match || !inn1) return;
+    if (!match || !inn1 || !allTeams) return;
     
     const team1Id = match.team1Id;
     const team2Id = match.team2Id;
@@ -154,8 +157,72 @@ export default function MatchScoreboardPage() {
       result = "Match Drawn";
     }
 
+    // --- CVP & POTM Calculation ---
+    const allDeliveries = [...(inn1Deliveries || []), ...(inn2Deliveries || [])];
+    const perfMap: Record<string, PlayerMatchStats> = {};
+
+    [...match.team1SquadPlayerIds, ...match.team2SquadPlayerIds].forEach(pid => {
+      perfMap[pid] = {
+        id: pid, name: getPlayerName(pid),
+        runs: 0, ballsFaced: 0, fours: 0, sixes: 0,
+        wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0,
+        catches: 0, stumpings: 0, runOuts: 0
+      };
+    });
+
+    allDeliveries.forEach(d => {
+      if (d.strikerPlayerId && perfMap[d.strikerPlayerId]) {
+        perfMap[d.strikerPlayerId].runs += d.runsScored;
+        if (d.extraType !== 'wide') perfMap[d.strikerPlayerId].ballsFaced += 1;
+        if (d.runsScored === 4) perfMap[d.strikerPlayerId].fours += 1;
+        if (d.runsScored === 6) perfMap[d.strikerPlayerId].sixes += 1;
+      }
+      if (d.bowlerPlayerId && perfMap[d.bowlerPlayerId]) {
+        if (d.extraType === 'none') perfMap[d.bowlerPlayerId].ballsBowled += 1;
+        if (d.extraType === 'wide') perfMap[d.bowlerPlayerId].runsConceded += d.extraRuns;
+        else if (d.extraType === 'noball') perfMap[d.bowlerPlayerId].runsConceded += (d.runsScored + 1);
+        else perfMap[d.bowlerPlayerId].runsConceded += d.runsScored;
+        
+        if (d.isWicket && !['runout'].includes(d.dismissalType)) perfMap[d.bowlerPlayerId].wickets += 1;
+      }
+      if (d.isWicket && d.fielderPlayerId && perfMap[d.fielderPlayerId]) {
+        if (d.dismissalType === 'catch') perfMap[d.fielderPlayerId].catches += 1;
+        if (d.dismissalType === 'stumping') perfMap[d.fielderPlayerId].stumpings += 1;
+        if (d.dismissalType === 'runout') perfMap[d.fielderPlayerId].runOuts += 1;
+      }
+    });
+
+    let maxCVP = -Infinity;
+    let potmId = '';
+    const playerMatchPoints: Record<string, number> = {};
+
+    Object.entries(perfMap).forEach(([pid, stats]) => {
+      const pts = calculatePlayerCVP(stats);
+      playerMatchPoints[pid] = pts;
+      if (pts > maxCVP) {
+        maxCVP = pts;
+        potmId = pid;
+      }
+    });
+
     const batch = writeBatch(db);
-    batch.update(doc(db, 'matches', matchId), { status: 'completed', resultDescription: result });
+    batch.update(doc(db, 'matches', matchId), { 
+      status: 'completed', 
+      resultDescription: result,
+      potmPlayerId: potmId,
+      potmCvpScore: maxCVP
+    });
+
+    // Update Player Career CVP
+    Object.entries(playerMatchPoints).forEach(([pid, pts]) => {
+      const p = getPlayer(pid);
+      if (p) {
+        batch.update(doc(db, 'players', pid), {
+          careerCVP: (p.careerCVP || 0) + pts,
+          matchesPlayed: (p.matchesPlayed || 0) + 1
+        });
+      }
+    });
 
     const t1 = allTeams?.find(t => t.id === team1Id);
     const t2 = allTeams?.find(t => t.id === team2Id);
@@ -347,6 +414,30 @@ export default function MatchScoreboardPage() {
               </div>
             </CardContent>
           </Card>
+
+          {match.status === 'completed' && match.potmPlayerId && (
+            <Card className="border shadow-sm rounded-xl bg-primary/5 overflow-hidden border-primary/20">
+              <CardContent className="p-6 flex flex-col md:flex-row items-center gap-6">
+                 <div className="relative">
+                    <Avatar className="h-24 w-24 border-4 border-white shadow-xl">
+                      <AvatarImage src={getPlayer(match.potmPlayerId)?.imageUrl || `https://picsum.photos/seed/${match.potmPlayerId}/100`} />
+                      <AvatarFallback><Star className="w-8 h-8 text-yellow-500" /></AvatarFallback>
+                    </Avatar>
+                    <div className="absolute -bottom-2 -right-2 bg-secondary text-white p-1.5 rounded-full shadow-lg border-2 border-white">
+                      <Trophy className="w-4 h-4" />
+                    </div>
+                 </div>
+                 <div className="text-center md:text-left space-y-1">
+                    <p className="text-[10px] font-black uppercase text-primary tracking-[0.2em]">Player of the Match</p>
+                    <h3 className="text-2xl font-black text-slate-900">{getPlayerName(match.potmPlayerId)}</h3>
+                    <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
+                      <Badge className="bg-secondary text-white font-bold">{getPlayer(match.potmPlayerId)?.role}</Badge>
+                      <span className="text-xs font-black text-slate-400 uppercase tracking-tighter">Impact Score: {match.potmCvpScore?.toFixed(1) || '0.0'}</span>
+                    </div>
+                 </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="live" className="mt-4 space-y-6">
@@ -356,9 +447,15 @@ export default function MatchScoreboardPage() {
               {inn2 && <div className="flex justify-between items-center bg-slate-50 p-3 rounded-lg"><span className="font-black text-lg md:text-2xl text-slate-800">{getAbbr(getTeamName(match.team2Id))} {inn2.score}/{inn2.wickets} <span className="text-slate-400 font-bold text-xs">({inn2.oversCompleted}.{inn2.ballsInCurrentOver})</span></span>{match.currentInningNumber === 2 && match.status === 'live' && <Badge variant="secondary" className="animate-pulse">Active</Badge>}</div>}
             </div>
             {isUmpire && match.status === 'live' && (
-              <Button onClick={handleEndMatch} variant="destructive" className="w-full font-black uppercase text-xs h-12 tracking-widest mt-4">
+              <Button onClick={handleEndMatch} variant="destructive" className="w-full font-black uppercase text-xs h-12 tracking-widest mt-4 shadow-lg active:scale-95 transition-transform">
                 <CheckCircle2 className="w-4 h-4 mr-2" /> End Match
               </Button>
+            )}
+            {!isUmpire && match.status === 'live' && (
+              <div className="mt-4 p-4 bg-slate-50 rounded-xl border border-dashed flex items-center justify-center gap-2">
+                <ShieldAlert className="w-4 h-4 text-slate-400" />
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Umpire control only</p>
+              </div>
             )}
           </div>
         </TabsContent>
