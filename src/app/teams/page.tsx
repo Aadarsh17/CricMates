@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import Link from 'link';
+import Link from 'next/link';
 
 function TeamMatchHistory({ teamId, matches, teams }: { teamId: string, matches: any[], teams: any[] }) {
   const teamMatches = matches.filter(m => m.team1Id === teamId || m.team2Id === teamId).slice(0, 5);
@@ -127,7 +127,7 @@ export default function TeamsPage() {
           {[1,2,3].map(i => <Card key={i} className="animate-pulse h-64 bg-slate-50" />)}
         </div>
       ) : (
-        <div className={view === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
+        <div className={view === 'grid' ? "grid grid-cols-1 md:md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
           {teams?.map(team => (
             <Card key={team.id} className="hover:shadow-md transition-all group flex flex-col border shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between p-4 pb-2 space-y-0">

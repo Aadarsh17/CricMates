@@ -422,7 +422,9 @@ export default function MatchScoreboardPage() {
     const getMathOvers = (inn: any, isAllOut: boolean) => {
       if (!inn) return 0;
       if (isAllOut) return match.totalOvers;
-      return (inn.oversCompleted || 0) + ((inn.ballsInCurrentOver || 0) / 6);
+      const completed = inn.oversCompleted || 0;
+      const balls = inn.ballsInCurrentOver || 0;
+      return completed + (balls / 6);
     };
 
     const updateTeamStats = (teamId: string, runsScored: number, runsConceded: number, oversFaced: number, oversBowled: number, isWinner: boolean, isDrawn: boolean) => {
