@@ -8,13 +8,14 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc } 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
@@ -31,8 +32,10 @@ export default function MatchScoreboardPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [isWicketDialogOpen, setIsWicketDialogOpen] = useState(false);
   const [isBowlerDialogOpen, setIsBowlerDialogOpen] = useState(false);
+  const [isEditResultOpen, setIsEditResultOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('live');
   const [activeInningView, setActiveInningView] = useState<number>(1);
+  const [editedResult, setEditedResult] = useState('');
 
   const [wicketForm, setWicketForm] = useState({
     type: 'bowled',
@@ -58,7 +61,10 @@ export default function MatchScoreboardPage() {
     if (match?.currentInningNumber) {
       setActiveInningView(match.currentInningNumber);
     }
-  }, [match?.currentInningNumber]);
+    if (match?.resultDescription) {
+      setEditedResult(match.resultDescription);
+    }
+  }, [match?.currentInningNumber, match?.resultDescription]);
 
   const inn1DeliveriesQuery = useMemoFirebase(() => 
     query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
@@ -233,7 +239,6 @@ export default function MatchScoreboardPage() {
       result = "Match Drawn";
     }
 
-    // --- CVP & POTM Calculation ---
     const allDeliveries = [...(inn1Deliveries || []), ...(inn2Deliveries || [])];
     const perfMap: Record<string, PlayerMatchStats> = {};
 
@@ -289,7 +294,6 @@ export default function MatchScoreboardPage() {
       potmCvpScore: maxCVP
     });
 
-    // Update Player Career CVP
     Object.entries(playerMatchPoints).forEach(([pid, pts]) => {
       const p = getPlayer(pid);
       if (p) {
@@ -314,7 +318,6 @@ export default function MatchScoreboardPage() {
       const newT2BallsFaced = (t2.totalBallsFaced || 0) + i2Balls;
       const newT2BallsBowled = (t2.totalBallsBowled || 0) + i1Balls;
 
-      // NRR = (Runs * 6 / Balls Faced) - (Runs * 6 / Balls Bowled)
       const t1NRR = (newT1RunsScored * 6 / (newT1BallsFaced || 1)) - (newT1RunsConceded * 6 / (newT1BallsBowled || 1));
       const t2NRR = (newT2RunsScored * 6 / (newT2BallsFaced || 1)) - (newT2RunsConceded * 6 / (newT2BallsBowled || 1));
 
@@ -343,6 +346,13 @@ export default function MatchScoreboardPage() {
 
     await batch.commit();
     toast({ title: "Match Concluded", description: result });
+  };
+
+  const handleUpdateResult = () => {
+    if (!editedResult.trim()) return;
+    updateDocumentNonBlocking(doc(db, 'matches', matchId), { resultDescription: editedResult });
+    setIsEditResultOpen(false);
+    toast({ title: "Result Updated", description: "Match details corrected." });
   };
 
   const groupedOvers = useMemo(() => {
@@ -399,22 +409,33 @@ export default function MatchScoreboardPage() {
     <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
       <div className="border-b bg-white p-4 rounded-lg shadow-sm text-center">
         <h1 className="text-lg md:text-2xl font-black text-slate-900 tracking-tight">{getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)}</h1>
-        <p className="text-[10px] font-black uppercase text-slate-400 mt-1 tracking-widest">{match.status === 'completed' ? match.resultDescription : 'Match In Progress'}</p>
+        <div className="flex items-center justify-center gap-2 mt-1">
+          <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{match.status === 'completed' ? match.resultDescription : 'Match In Progress'}</p>
+          {isUmpire && match.status === 'completed' && (
+            <Button variant="ghost" size="icon" onClick={() => setIsEditResultOpen(true)} className="h-6 w-6 text-primary hover:bg-primary/5">
+              <Edit2 className="w-3 h-3" />
+            </Button>
+          )}
+        </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="flex w-full justify-start overflow-x-auto border-b rounded-none bg-transparent h-auto p-0 scrollbar-hide sticky top-16 z-40 bg-background/95 backdrop-blur">
-          {['Info', 'Live', 'Scorecard', 'Overs'].map((tab) => (
-            <TabsTrigger 
-              key={tab}
-              value={tab.toLowerCase()} 
-              className="px-6 py-4 text-xs font-bold rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:text-secondary whitespace-nowrap uppercase tracking-widest"
-            >
-              {tab}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      <div className="sticky top-16 z-40 bg-background/95 backdrop-blur border-b">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="flex w-full justify-start overflow-x-auto rounded-none bg-transparent h-auto p-0 scrollbar-hide">
+            {['Info', 'Live', 'Scorecard', 'Overs'].map((tab) => (
+              <TabsTrigger 
+                key={tab}
+                value={tab.toLowerCase()} 
+                className="px-6 py-4 text-xs font-bold rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:text-secondary whitespace-nowrap uppercase tracking-widest"
+              >
+                {tab}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </div>
 
+      <Tabs value={activeTab} className="w-full">
         <TabsContent value="info" className="mt-4 space-y-4">
           <Card className="border shadow-none rounded-sm overflow-hidden">
             <CardHeader className="bg-slate-50 py-3 px-4 border-b">
@@ -527,7 +548,7 @@ export default function MatchScoreboardPage() {
                 <div className="space-y-1 min-w-[120px]">
                   <p className="font-black text-sm text-slate-900">Over {over.overNumber} <span className="text-slate-400 font-bold ml-1">- {over.overRuns} runs</span></p>
                   <p className="text-xs font-black text-slate-500 uppercase tracking-tighter">
-                    {getAbbr(getTeamName(activeInningData?.battingTeamId || ''))} {over.cumulativeScore}-{over.cumulativeWickets}
+                    {getAbbr(getTeamName(activeInningView === 1 ? match.team1Id : match.team2Id))} {over.cumulativeScore}-{over.cumulativeWickets}
                   </p>
                 </div>
                 
@@ -576,6 +597,29 @@ export default function MatchScoreboardPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      {/* Edit Result Dialog */}
+      <Dialog open={isEditResultOpen} onOpenChange={setIsEditResultOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md">
+          <DialogHeader><DialogTitle>Edit Match Result</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Result Description</Label>
+              <Input 
+                value={editedResult} 
+                onChange={(e) => setEditedResult(e.target.value)} 
+                placeholder="e.g. Team A won by 10 runs"
+              />
+              <p className="text-[10px] text-muted-foreground">Use this to correct errors in the final result text.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleUpdateResult} className="w-full font-black uppercase tracking-widest">
+              <Save className="w-4 h-4 mr-2" /> Save Corrections
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Wicket Dialog */}
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
