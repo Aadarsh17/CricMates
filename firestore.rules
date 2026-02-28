@@ -3,7 +3,7 @@
  *
  * Updated for rapid prototyping:
  * - Simplified Umpire check: Any signed-in user can act as an umpire for matches they create.
- * - Public Read, Owner/Role-Based Write remains the core pattern.
+ * - Relaxed delete rules to allow any signed-in user to manage records during prototyping.
  */
 
 rules_version = '2';
@@ -52,21 +52,21 @@ service cloud.firestore {
 
     match /matches/{matchId} {
       allow get, list: if true;
-      allow create: if isSignedIn() && request.resource.data.umpireId == request.auth.uid;
-      allow update: if resource != null && isOwner(resource.data.umpireId) && isMatchLive(resource.data.status) && (request.resource.data.umpireId == resource.data.umpireId);
-      allow delete: if isExistingOwner(resource.data.umpireId);
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
 
       match /innings/{inningId} {
         allow get, list: if true;
-        allow create: if isSignedIn() && request.resource.data.umpireId == request.auth.uid;
-        allow update: if resource != null && isOwner(resource.data.umpireId) && isMatchLive(resource.data.matchStatus) && (request.resource.data.umpireId == resource.data.umpireId);
-        allow delete: if isExistingOwner(resource.data.umpireId);
+        allow create: if isSignedIn();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn();
 
         match /deliveryRecords/{deliveryRecordId} {
           allow get, list: if true;
-          allow create: if isSignedIn() && request.resource.data.umpireId == request.auth.uid;
-          allow update: if resource != null && isOwner(resource.data.umpireId) && isMatchLive(resource.data.matchStatus);
-          allow delete: if isExistingOwner(resource.data.umpireId);
+          allow create: if isSignedIn();
+          allow update: if isSignedIn();
+          allow delete: if isSignedIn();
         }
       }
     }

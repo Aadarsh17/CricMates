@@ -1,9 +1,8 @@
 'use client';
 
-import { useCollection, useMemoFirebase, useFirestore, useDoc, deleteDocumentNonBlocking } from '@/firebase';
+import { useCollection, useMemoFirebase, useFirestore, useDoc, deleteDocumentNonBlocking, useUser } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2 } from 'lucide-react';
@@ -28,8 +27,11 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
     return new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  const handleDelete = () => {
-    if (confirm("Are you sure you want to delete this match record? This action cannot be undone.")) {
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (confirm(`Are you sure you want to delete the match between ${t1?.name || 'Team 1'} and ${t2?.name || 'Team 2'}?`)) {
       deleteDocumentNonBlocking(doc(db, 'matches', match.id));
       toast({ 
         title: "Match Deleted", 
@@ -61,7 +63,7 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
   };
 
   return (
-    <Card className="hover:shadow-lg transition-all border-none shadow-sm bg-card overflow-hidden group">
+    <Card className="hover:shadow-lg transition-all border-none shadow-sm bg-card overflow-hidden group relative">
       <div className="p-4 space-y-3">
         <div className="text-[10px] text-muted-foreground font-medium flex justify-between items-start">
           <div className="flex flex-col gap-1">
@@ -77,10 +79,10 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
             <Button 
               variant="ghost" 
               size="icon" 
-              className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
               onClick={handleDelete}
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash2 className="w-4 h-4" />
             </Button>
           )}
         </div>
@@ -115,6 +117,7 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
 export default function MatchHistoryPage() {
   const { isUmpire } = useApp();
   const db = useFirestore();
+  const { user } = useUser();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
