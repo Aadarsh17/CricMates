@@ -2,17 +2,18 @@
 'use client';
 
 import { useCollection, useMemoFirebase, useFirestore, useDoc, deleteDocumentNonBlocking, useUser, updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, doc, where, limit } from 'firebase/firestore';
+import { collection, query, orderBy, doc, limit } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Check, X, AlertTriangle, ChevronDown, ChevronUp, Star } from 'lucide-react';
+import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, MapPin, Info } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
@@ -30,8 +31,7 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
   const inn2Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_2'), [db, match.id]);
   const { data: inn2 } = useDoc(inn2Ref);
 
-  // Mocking "Player of the Match" for the UI prototype
-  // In a real app, this would come from the match data or a CVP calculation
+  // Mocking "Player of the Match" for the prototype UI
   const [potm, setPotm] = useState<any>(null);
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players'), limit(1)), [db]);
   const { data: samplePlayers } = useCollection(playersQuery);
@@ -49,14 +49,17 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
   const getAbbr = (name: string) => (name || 'UNK').substring(0, 3).toUpperCase();
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (!dateString) return 'Unknown Date';
+    return new Date(dateString).toLocaleDateString('en-GB', { 
+      day: 'numeric', 
+      month: 'short', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const executeDelete = () => {
-    if (!user) {
-      toast({ title: "Session Error", description: "Login required.", variant: "destructive" });
-      return;
-    }
     deleteDocumentNonBlocking(doc(db, 'matches', match.id));
     toast({ title: "Match Deleted", description: "Record removed successfully." });
   };
@@ -72,55 +75,72 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
     if (!inning) return null;
     const team = getTeam(inning.battingTeamId);
     return (
-      <div className="flex justify-between items-center w-full py-1">
-        <div className="flex items-center gap-2">
-          <span className="font-black text-lg text-slate-700 w-10">{getAbbr(team?.name || '')}</span>
-          <span className="font-bold text-xl text-slate-900">
+      <div className="flex justify-between items-center w-full py-2">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-8 w-8 border bg-muted">
+            <AvatarImage src={`https://picsum.photos/seed/${inning.battingTeamId}/100`} />
+            <AvatarFallback>{getAbbr(team?.name || '')[0]}</AvatarFallback>
+          </Avatar>
+          <span className="font-black text-lg text-slate-800 tracking-tight">{getAbbr(team?.name || '')}</span>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <span className="font-black text-2xl text-slate-900">
             {inning.score}/{inning.wickets}
           </span>
           <span className="text-sm font-bold text-slate-500">
-            ({inning.oversCompleted})
+            ({inning.oversCompleted}.{inning.ballsInCurrentOver || 0})
           </span>
         </div>
       </div>
     );
   };
 
+  const tossText = match.tossWinnerTeamId 
+    ? `${getTeam(match.tossWinnerTeamId)?.name} won the toss & elected to ${match.tossDecision}`
+    : 'Toss details unavailable';
+
   return (
-    <Card className="border shadow-sm bg-white overflow-hidden group relative transition-all hover:border-primary/50">
+    <Card className="border shadow-sm bg-white overflow-hidden group relative transition-all hover:border-primary/50 border-l-4 border-l-primary">
       <div className="p-5">
-        <div className="flex justify-between items-start mb-2">
-          <div className="text-xs font-bold text-blue-600 hover:underline cursor-pointer">
-            {match.resultDescription}
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+              <Calendar className="w-3 h-3" /> {formatDate(match.matchDate)}
+            </span>
+            <div className="text-xs font-black text-primary mt-1">
+              {match.resultDescription}
+            </div>
           </div>
           {isUmpire && (
             <div className="flex items-center gap-1">
               <Dialog open={isEditing} onOpenChange={setIsEditing}>
                 <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7"><Edit2 className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>
                 </DialogTrigger>
                 <DialogContent>
-                  <DialogHeader><DialogTitle>Edit Result</DialogTitle></DialogHeader>
-                  <div className="py-4 space-y-2">
-                    <Label>Result Description</Label>
-                    <Input value={editedResult} onChange={(e) => setEditedResult(e.target.value)} />
+                  <DialogHeader><DialogTitle>Edit Match Result</DialogTitle></DialogHeader>
+                  <div className="py-4 space-y-4">
+                    <div className="space-y-2">
+                      <Label>Result Description</Label>
+                      <Input value={editedResult} onChange={(e) => setEditedResult(e.target.value)} placeholder="e.g. Team A won by 5 runs" />
+                    </div>
                   </div>
-                  <DialogFooter><Button onClick={handleUpdateResult}>Save</Button></DialogFooter>
+                  <DialogFooter><Button onClick={handleUpdateResult} className="w-full">Save Changes</Button></DialogFooter>
                 </DialogContent>
               </Dialog>
               
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"><Trash2 className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Match?</AlertDialogTitle>
-                    <AlertDialogDescription>This will permanently remove the match history record.</AlertDialogDescription>
+                    <AlertDialogTitle>Delete this Match?</AlertDialogTitle>
+                    <AlertDialogDescription>This action cannot be undone. All delivery records and stats for this match will be lost.</AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+                    <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Match</AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
@@ -128,43 +148,63 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
           )}
         </div>
 
-        <div className="space-y-0">
+        <div className="space-y-1 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
           {renderInningRow(inn1)}
           {renderInningRow(inn2)}
         </div>
 
         <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full mt-4">
-          <CollapsibleContent className="space-y-4 pt-4 border-t border-slate-100">
-            <div>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Player of the Match</p>
-              <div className="flex items-center gap-3">
-                <Avatar className="h-12 w-12 border-2 border-slate-100">
-                  <AvatarImage src={potm?.imageUrl || `https://picsum.photos/seed/${match.id}/100`} />
-                  <AvatarFallback><Star className="w-4 h-4 text-yellow-500" /></AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-sm font-bold text-slate-800">{potm?.name || 'Loading...'}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">{potm?.role || 'Performer'}</p>
+          <CollapsibleContent className="space-y-5 pt-4 border-t border-slate-100 animate-in slide-in-from-top-2">
+            <div className="grid grid-cols-1 gap-4">
+              <div className="flex items-start gap-3 bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+                <Info className="w-4 h-4 text-blue-500 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-tighter">Match Info</p>
+                  <p className="text-xs font-bold text-slate-700">{tossText}</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Format: {match.totalOvers} Overs Match</p>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Player of the Match</p>
+                <div className="flex items-center gap-3 bg-white p-2 rounded-xl border shadow-sm">
+                  <Avatar className="h-10 w-10 border-2 border-secondary/20">
+                    <AvatarImage src={potm?.imageUrl || `https://picsum.photos/seed/${match.id}/100`} />
+                    <AvatarFallback><Star className="w-4 h-4 text-yellow-500" /></AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-sm font-black text-slate-800">{potm?.name || 'Loading...'}</p>
+                    <div className="flex items-center gap-1">
+                      <Badge variant="secondary" className="text-[8px] h-4 px-1">{potm?.role || 'Top Performer'}</Badge>
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Impact Score: 8.5</span>
+                    </div>
+                  </div>
+                  <Star className="ml-auto w-5 h-5 text-yellow-400 fill-yellow-400 mr-2" />
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center gap-4 text-[10px] font-black uppercase text-slate-500 tracking-tighter pt-2">
-              <Link href={`/match/${match.id}`} className="hover:text-primary underline decoration-2 underline-offset-4">Full Scorecard</Link>
+            <div className="flex items-center gap-3 pt-2">
+              <Button asChild className="flex-1 bg-primary font-bold h-9">
+                <Link href={`/match/${match.id}`}>Full Scorecard</Link>
+              </Button>
               {match.status === 'completed' && (
-                <Link 
-                  href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}`} 
-                  className="flex items-center gap-1 text-secondary hover:underline"
-                >
-                  <RefreshCcw className="w-3 h-3" /> Play Again
-                </Link>
+                <Button asChild variant="outline" className="flex-1 border-secondary text-secondary hover:bg-secondary/5 font-bold h-9">
+                  <Link href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}`}>
+                    <RefreshCcw className="w-3 h-3 mr-2" /> Play Again
+                  </Link>
+                </Button>
               )}
             </div>
           </CollapsibleContent>
 
           <CollapsibleTrigger asChild>
-            <Button variant="ghost" className="w-full mt-2 h-8 text-slate-400 hover:bg-slate-50 hover:text-slate-600">
-              {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            <Button variant="ghost" className="w-full mt-2 h-8 text-slate-400 hover:bg-slate-50 hover:text-primary transition-colors">
+              {isOpen ? (
+                <div className="flex items-center gap-1 text-[10px] font-bold uppercase"><ChevronUp className="w-3 h-3" /> Show Less</div>
+              ) : (
+                <div className="flex items-center gap-1 text-[10px] font-bold uppercase"><ChevronDown className="w-3 h-3" /> View Details</div>
+              )}
             </Button>
           </CollapsibleTrigger>
         </Collapsible>
@@ -194,45 +234,57 @@ export default function MatchHistoryPage() {
   if (!isMounted) return null;
 
   return (
-    <div className="space-y-6 max-w-lg mx-auto pb-20">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-black font-headline tracking-tight">Match History</h1>
-        <p className="text-slate-500 text-xs font-bold uppercase tracking-widest">Leagues & Championships</p>
+    <div className="space-y-6 max-w-lg mx-auto pb-24">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900">Match History</h1>
+        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center gap-2">
+          <div className="w-8 h-0.5 bg-primary" /> League Records & Results
+        </p>
       </div>
 
       <Tabs defaultValue="past" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6 h-12">
-          <TabsTrigger value="live" className="font-bold">Live Now</TabsTrigger>
-          <TabsTrigger value="past" className="font-bold">Completed</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 mb-6 h-12 bg-slate-100 p-1">
+          <TabsTrigger value="live" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary">
+            Live <Badge variant="destructive" className="ml-2 h-4 px-1 text-[8px] animate-pulse">NEW</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="past" className="font-bold data-[state=active]:bg-white">Completed</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="live" className="mt-0">
-          <div className="grid grid-cols-1 gap-4">
-            {liveMatches.length > 0 ? ( liveMatches.map(match => (
-                <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
-              ))
-            ) : (
-              <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-slate-50">
-                <PlayCircle className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <p className="text-slate-400 text-xs font-bold uppercase">No active matches</p>
-              </div>
-            )}
-          </div>
+        <TabsContent value="live" className="mt-0 space-y-4">
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2].map(i => <Card key={i} className="h-48 animate-pulse bg-slate-50" />)}
+            </div>
+          ) : liveMatches.length > 0 ? ( 
+            liveMatches.map(match => (
+              <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
+            ))
+          ) : (
+            <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+              <PlayCircle className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">No active matches found</p>
+              <Button asChild variant="link" className="mt-2 text-primary">
+                <Link href="/match/new">Setup a Match</Link>
+              </Button>
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="past" className="mt-0">
-          <div className="grid grid-cols-1 gap-4">
-            {pastMatches.length > 0 ? (
-              pastMatches.map(match => (
-                <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
-              ))
-            ) : (
-              <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-slate-50">
-                <HistoryIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                <p className="text-slate-400 text-xs font-bold uppercase">No records found</p>
-              </div>
-            )}
-          </div>
+        <TabsContent value="past" className="mt-0 space-y-4">
+          {isLoading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map(i => <Card key={i} className="h-48 animate-pulse bg-slate-50" />)}
+            </div>
+          ) : pastMatches.length > 0 ? (
+            pastMatches.map(match => (
+              <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
+            ))
+          ) : (
+            <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+              <HistoryIcon className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Archive is empty</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
