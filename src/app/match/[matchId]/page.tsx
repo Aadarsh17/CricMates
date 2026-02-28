@@ -89,7 +89,8 @@ export default function MatchScoreboardPage() {
     return t ? t.name : 'Unknown Team';
   };
 
-  const isLastManStanding = activeInningData?.wickets === 10;
+  // Last Man Standing rule: triggered when 9 wickets are down, so the 10th wicket is the second-to-last player.
+  const isLastManPossible = activeInningData?.wickets === 9;
   
   const isCurrentInningsOver = !!(activeInningData && match && (
     activeInningData.wickets >= 11 || 
@@ -178,8 +179,18 @@ export default function MatchScoreboardPage() {
 
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', deliveryId), deliveryData, { merge: true });
     
+    // Determine new field positions after wicket
     let finalStriker = isWicket ? (wicketDetails.newStrikerId === 'none' ? '' : wicketDetails.newStrikerId) : newStriker;
-    let finalNonStriker = isWicket && wicketDetails.newStrikerId === 'none' ? '' : newNonStriker;
+    let finalNonStriker = newNonStriker;
+    
+    if (isWicket) {
+      if (wicketDetails.newStrikerId === 'none') {
+        finalNonStriker = '';
+      } else if (wicketDetails.newStrikerId === currentInning.nonStrikerPlayerId) {
+        // Last Man Standing: Non-striker is now the only player on field
+        finalNonStriker = '';
+      }
+    }
 
     updateDocumentNonBlocking(activeInningRef, {
       score: currentInning.score + runsForThisBall,
@@ -519,7 +530,7 @@ export default function MatchScoreboardPage() {
                 <SelectTrigger><SelectValue placeholder="Pick next batter or end" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No More Batsmen (End Innings)</SelectItem>
-                  {isLastManStanding ? (
+                  {isLastManPossible ? (
                     <SelectItem value={activeInningData?.nonStrikerPlayerId || 'none'}>Last Man Standing: {getPlayerName(activeInningData?.nonStrikerPlayerId || '')}</SelectItem>
                   ) : (
                     battingSquadIds.filter(pid => pid !== activeInningData?.nonStrikerPlayerId && pid !== activeInningData?.strikerPlayerId && !dismissedPlayerIds.includes(pid)).map(pid => (
