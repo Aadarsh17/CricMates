@@ -237,9 +237,9 @@ export default function MatchHistoryPage() {
     <div className="space-y-6 max-w-lg mx-auto pb-24">
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900">Match History</h1>
-        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center gap-2">
+        <div className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center gap-2">
           <div className="w-8 h-0.5 bg-primary" /> League Records & Results
-        </p>
+        </div>
       </div>
 
       <Tabs defaultValue="past" className="w-full">
