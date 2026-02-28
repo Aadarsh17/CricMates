@@ -1,18 +1,19 @@
 'use client';
 
-import { useCollection, useMemoFirebase, useFirestore, useDoc } from '@/firebase';
+import { useCollection, useMemoFirebase, useFirestore, useDoc, deleteDocumentNonBlocking } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw } from 'lucide-react';
+import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
+import { toast } from '@/hooks/use-toast';
 
-function MatchScoreCard({ match, teams }: { match: any, teams: any[] }) {
+function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], isUmpire: boolean }) {
   const db = useFirestore();
   const inn1Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_1'), [db, match.id]);
   const { data: inn1 } = useDoc(inn1Ref);
@@ -25,6 +26,16 @@ function MatchScoreCard({ match, teams }: { match: any, teams: any[] }) {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const handleDelete = () => {
+    if (confirm("Are you sure you want to delete this match record? This action cannot be undone.")) {
+      deleteDocumentNonBlocking(doc(db, 'matches', match.id));
+      toast({ 
+        title: "Match Deleted", 
+        description: "The match record has been removed successfully." 
+      });
+    }
   };
 
   const getInningDisplay = (inning: any) => {
@@ -50,15 +61,27 @@ function MatchScoreCard({ match, teams }: { match: any, teams: any[] }) {
   };
 
   return (
-    <Card className="hover:shadow-lg transition-all border-none shadow-sm bg-card overflow-hidden">
+    <Card className="hover:shadow-lg transition-all border-none shadow-sm bg-card overflow-hidden group">
       <div className="p-4 space-y-3">
-        <div className="text-[10px] text-muted-foreground font-medium flex justify-between">
-          <span>Match • {formatDate(match.matchDate)}</span>
-          {match.status === 'live' && (
-            <div className="flex items-center text-destructive">
-              <span className="animate-pulse w-1.5 h-1.5 bg-destructive rounded-full mr-1.5" />
-              LIVE
-            </div>
+        <div className="text-[10px] text-muted-foreground font-medium flex justify-between items-start">
+          <div className="flex flex-col gap-1">
+            <span>Match • {formatDate(match.matchDate)}</span>
+            {match.status === 'live' && (
+              <div className="flex items-center text-destructive">
+                <span className="animate-pulse w-1.5 h-1.5 bg-destructive rounded-full mr-1.5" />
+                LIVE
+              </div>
+            )}
+          </div>
+          {isUmpire && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={handleDelete}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </Button>
           )}
         </div>
 
@@ -135,7 +158,7 @@ export default function MatchHistoryPage() {
           <div className="grid grid-cols-1 gap-4">
             {liveMatches.length > 0 ? (
               liveMatches.map(match => (
-                <MatchScoreCard key={match.id} match={match} teams={teams} />
+                <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
               ))
             ) : (
               <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-muted/20">
@@ -150,7 +173,7 @@ export default function MatchHistoryPage() {
           <div className="grid grid-cols-1 gap-4">
             {pastMatches.length > 0 ? (
               pastMatches.map(match => (
-                <MatchScoreCard key={match.id} match={match} teams={teams} />
+                <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
               ))
             ) : (
               <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-muted/20">
