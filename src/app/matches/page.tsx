@@ -14,6 +14,7 @@ import { toast } from '@/hooks/use-toast';
 
 function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], isUmpire: boolean }) {
   const db = useFirestore();
+  const { user } = useUser();
   const inn1Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_1'), [db, match.id]);
   const { data: inn1 } = useDoc(inn1Ref);
   const inn2Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_2'), [db, match.id]);
@@ -31,12 +32,26 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
     e.preventDefault();
     e.stopPropagation();
     
-    if (confirm(`Are you sure you want to delete the match between ${t1?.name || 'Team 1'} and ${t2?.name || 'Team 2'}?`)) {
-      deleteDocumentNonBlocking(doc(db, 'matches', match.id));
+    if (!user) {
       toast({ 
-        title: "Match Deleted", 
-        description: "The match record has been removed successfully." 
+        title: "Auth Error", 
+        description: "Please wait for Umpire session to initialize.",
+        variant: "destructive"
       });
+      return;
+    }
+
+    const matchName = `${t1?.name || 'Team 1'} vs ${t2?.name || 'Team 2'}`;
+    
+    if (confirm(`Are you sure you want to delete the match: ${matchName}?`)) {
+      toast({ 
+        title: "Deleting Match", 
+        description: "Removing record from history..." 
+      });
+      
+      deleteDocumentNonBlocking(doc(db, 'matches', match.id));
+      
+      // Note: The UI will update automatically via the useCollection hook
     }
   };
 
@@ -77,10 +92,12 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
           </div>
           {isUmpire && (
             <Button 
+              type="button"
               variant="ghost" 
               size="icon" 
-              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors z-10"
               onClick={handleDelete}
+              aria-label="Delete Match"
             >
               <Trash2 className="w-4 h-4" />
             </Button>
@@ -117,7 +134,6 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
 export default function MatchHistoryPage() {
   const { isUmpire } = useApp();
   const db = useFirestore();
-  const { user } = useUser();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -158,33 +174,41 @@ export default function MatchHistoryPage() {
         </TabsList>
         
         <TabsContent value="live" className="mt-0">
-          <div className="grid grid-cols-1 gap-4">
-            {liveMatches.length > 0 ? (
-              liveMatches.map(match => (
-                <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
-              ))
-            ) : (
-              <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-muted/20">
-                <PlayCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                <p className="text-muted-foreground text-sm">No matches are currently active.</p>
-              </div>
-            )}
-          </div>
+          {isLoading ? (
+             <div className="py-12 text-center text-muted-foreground">Loading matches...</div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {liveMatches.length > 0 ? (
+                liveMatches.map(match => (
+                  <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
+                ))
+              ) : (
+                <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-muted/20">
+                  <PlayCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                  <p className="text-muted-foreground text-sm">No matches are currently active.</p>
+                </div>
+              )}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="past" className="mt-0">
-          <div className="grid grid-cols-1 gap-4">
-            {pastMatches.length > 0 ? (
-              pastMatches.map(match => (
-                <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
-              ))
-            ) : (
-              <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-muted/20">
-                <HistoryIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                <p className="text-muted-foreground text-sm">No completed matches found.</p>
-              </div>
-            )}
-          </div>
+          {isLoading ? (
+             <div className="py-12 text-center text-muted-foreground">Loading history...</div>
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {pastMatches.length > 0 ? (
+                pastMatches.map(match => (
+                  <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
+                ))
+              ) : (
+                <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-muted/20">
+                  <HistoryIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+                  <p className="text-muted-foreground text-sm">No completed matches found.</p>
+                </div>
+              )}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
