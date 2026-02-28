@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { UserCircle, Info, Users, Flag, ChevronDown, Star, CheckCircle2, Trophy, Clock, Calendar, Undo2, ChevronUp } from 'lucide-react';
+import { Info, Users, Undo2, PlayCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -263,17 +263,6 @@ export default function MatchScoreboardPage() {
     (activeInningView === 2 && inn1 && activeInningData.score > inn1.score)
   ));
 
-  const handleAssignNextBatter = (playerId: string) => {
-    if (!activeInningRef || !playerId) return;
-    if (playerId === 'none') {
-      updateDocumentNonBlocking(activeInningRef, { wickets: 10 });
-      return;
-    }
-    const updateData: any = { strikerPlayerId: playerId };
-    if (playerId === activeInningData?.nonStrikerPlayerId) updateData.nonStrikerPlayerId = '';
-    updateDocumentNonBlocking(activeInningRef, updateData);
-  };
-
   const handleBall = (runs: number, isWicket = false, extra: 'none' | 'wide' | 'noball' = 'none') => {
     if (!isUmpire || match?.status !== 'live' || !activeInningData || !activeInningRef || isCurrentInningsOver) return;
 
@@ -371,41 +360,11 @@ export default function MatchScoreboardPage() {
     if (isOverEnd && !isCurrentInningsOver) setIsBowlerModalOpen(true);
   };
 
-  const handleStartInnings2 = () => {
-    if (!match || !inn1 || !isUmpire) return;
-    
-    const battingTeamId = inn1.bowlingTeamId;
-    const bowlingTeamId = inn1.battingTeamId;
-
-    const inningData = {
-      id: 'inning_2',
-      matchId: matchId,
-      inningNumber: 2,
-      battingTeamId,
-      bowlingTeamId,
-      score: 0,
-      wickets: 0,
-      oversCompleted: 0,
-      ballsInCurrentOver: 0,
-      strikerPlayerId: '',
-      nonStrikerPlayerId: '',
-      currentBowlerPlayerId: '',
-      umpireId: user?.uid || 'anonymous',
-      matchStatus: 'live'
-    };
-
-    setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), inningData, { merge: true });
-    updateDocumentNonBlocking(matchRef, { currentInningNumber: 2 });
-    setActiveInningView(2);
-    setIsOpeningPairSetupOpen(true);
-  };
-
   const handleEndMatch = () => {
     if (!match || !inn1 || !isUmpire || !allTeams) return;
 
     let resultDesc = "Match Drawn";
     let winnerId = "";
-    
     const s1 = inn1.score || 0;
     const s2 = inn2?.score || 0;
 
@@ -419,26 +378,23 @@ export default function MatchScoreboardPage() {
       }
     }
 
-    const getMathOvers = (inn: any, isAllOut: boolean) => {
+    const getMatchBalls = (inn: any) => {
       if (!inn) return 0;
-      if (isAllOut) return match.totalOvers;
-      const completed = inn.oversCompleted || 0;
-      const balls = inn.ballsInCurrentOver || 0;
-      return completed + (balls / 6);
+      return (inn.oversCompleted * 6) + (inn.ballsInCurrentOver || 0);
     };
 
-    const updateTeamStats = (teamId: string, runsScored: number, runsConceded: number, oversFaced: number, oversBowled: number, isWinner: boolean, isDrawn: boolean) => {
+    const updateTeamStats = (teamId: string, runsScored: number, runsConceded: number, ballsFaced: number, ballsBowled: number, isWinner: boolean, isDrawn: boolean) => {
       const team = allTeams.find(t => t.id === teamId);
       if (!team) return;
 
       const totalRunsScored = (team.totalRunsScored || 0) + runsScored;
       const totalRunsConceded = (team.totalRunsConceded || 0) + runsConceded;
-      const totalOversFaced = (team.totalOversFaced || 0) + oversFaced;
-      const totalOversBowled = (team.totalOversBowled || 0) + oversBowled;
+      const totalBallsFaced = (team.totalBallsFaced || 0) + ballsFaced;
+      const totalBallsBowled = (team.totalBallsBowled || 0) + ballsBowled;
 
       let nrrValue = 0;
-      if (totalOversFaced > 0 && totalOversBowled > 0) {
-        nrrValue = (totalRunsScored / totalOversFaced) - (totalRunsConceded / totalOversBowled);
+      if (totalBallsFaced > 0 && totalBallsBowled > 0) {
+        nrrValue = (totalRunsScored * 6 / totalBallsFaced) - (totalRunsConceded * 6 / totalBallsBowled);
       }
 
       updateDocumentNonBlocking(doc(db, 'teams', teamId), {
@@ -447,17 +403,17 @@ export default function MatchScoreboardPage() {
         matchesDrawn: (team.matchesDrawn || 0) + (isDrawn ? 1 : 0),
         totalRunsScored,
         totalRunsConceded,
-        totalOversFaced,
-        totalOversBowled,
+        totalBallsFaced,
+        totalBallsBowled,
         netRunRate: Number(nrrValue.toFixed(4))
       });
     };
 
-    const o1 = getMathOvers(inn1, (inn1.wickets || 0) >= 10);
-    const o2 = getMathOvers(inn2, (inn2?.wickets || 0) >= 10);
+    const b1 = getMatchBalls(inn1);
+    const b2 = getMatchBalls(inn2);
 
-    updateTeamStats(inn1.battingTeamId, s1, s2, o1, o2, winnerId === inn1.battingTeamId, !winnerId);
-    if (inn2) updateTeamStats(inn2.battingTeamId, s2, s1, o2, o1, winnerId === inn2.battingTeamId, !winnerId);
+    updateTeamStats(inn1.battingTeamId, s1, s2, b1, b2, winnerId === inn1.battingTeamId, !winnerId);
+    if (inn2) updateTeamStats(inn2.battingTeamId, s2, s1, b2, b1, winnerId === inn2.battingTeamId, !winnerId);
 
     updateDocumentNonBlocking(matchRef, { status: 'completed', resultDescription: resultDesc });
     toast({ title: "Match Finalized", description: resultDesc });
@@ -486,9 +442,6 @@ export default function MatchScoreboardPage() {
   const bowlingSquadIds = currentBattingTeamId === match.team1Id ? match.team2SquadPlayerIds : match.team1SquadPlayerIds;
   const battingPool = allPlayers?.filter(p => battingSquadIds.includes(p.id)) || [];
   const bowlingPool = allPlayers?.filter(p => bowlingSquadIds.includes(p.id)) || [];
-
-  const needsOpeningPair = activeInningData && activeInningData.oversCompleted === 0 && activeInningData.ballsInCurrentOver === 0 && activeInningData.wickets === 0 && (!activeInningData?.strikerPlayerId || !activeInningData?.currentBowlerPlayerId);
-  const needsNextBatter = activeInningData && !activeInningData.strikerPlayerId && !isCurrentInningsOver && (activeInningData.oversCompleted > 0 || activeInningData.ballsInCurrentOver > 0 || activeInningData.wickets > 0);
 
   const BallBubble = ({ ball }: { ball: any }) => {
     let color = 'bg-slate-400';
@@ -523,7 +476,7 @@ export default function MatchScoreboardPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="flex w-full justify-start overflow-x-auto border-b rounded-none bg-transparent h-auto p-0 scrollbar-hide sticky top-16 z-40 bg-background/95 backdrop-blur">
-          {['Info', 'Live', 'Scorecard', 'Squads', 'Points Table', 'Overs'].map((tab) => (
+          {['Info', 'Live', 'Scorecard', 'Overs', 'Points Table'].map((tab) => (
             <TabsTrigger 
               key={tab}
               value={tab.toLowerCase().replace(' ', '-')} 
@@ -560,55 +513,39 @@ export default function MatchScoreboardPage() {
 
           {isUmpire && match.status === 'live' && (
             <div className="space-y-4">
-              <Card className="border shadow-none bg-slate-50/50">
-                <CardHeader className="py-2 px-4 flex flex-row items-center justify-between bg-white border-b">
-                  <CardTitle className="text-xs uppercase font-black text-slate-400">Controls</CardTitle>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => setIsBowlerModalOpen(true)} className="h-8 text-[10px] font-bold"><Users className="w-3 h-3 mr-1"/> New Bowler</Button>
-                    <Button variant="outline" size="sm" onClick={handleUndo} className="h-8 text-[10px] font-bold"><Undo2 className="w-3 h-3 mr-1"/> Undo</Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4 space-y-4">
-                  {needsOpeningPair ? (
-                    <Button onClick={() => setIsOpeningPairSetupOpen(true)} className="w-full h-16 text-lg font-bold">Set Opening Pair</Button>
-                  ) : needsNextBatter ? (
-                    <div className="space-y-3 p-4 bg-white border rounded-lg text-center">
-                      <p className="text-sm font-bold">Select Next Batter</p>
-                      <Select onValueChange={handleAssignNextBatter}>
-                        <SelectTrigger><SelectValue placeholder="Select Batter" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">All Out (End Inning)</SelectItem>
-                          {battingSquadIds.filter(id => !dismissedPlayerIds.includes(id) && id !== activeInningData?.nonStrikerPlayerId).map(id => (
-                            <SelectItem key={id} value={id}>{getPlayerName(id)}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                        {[0, 1, 2, 3, 4, 6].map(num => <Button key={num} size="lg" variant="outline" className="h-16 font-black text-2xl" onClick={() => handleBall(num)}>{num}</Button>)}
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <Button variant="destructive" size="lg" className="h-16 font-black text-xs" onClick={() => setIsWicketModalOpen(true)}>WICKET</Button>
-                        <Button variant="outline" size="lg" className="h-16 font-black border-secondary text-secondary" onClick={() => handleBall(0, false, 'wide')}>WIDE</Button>
-                        <Button variant="outline" size="lg" className="h-16 font-black border-secondary text-secondary" onClick={() => setIsNoBallModalOpen(true)}>NO BALL</Button>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <div className="flex gap-2">
-                {isCurrentInningsOver && match.currentInningNumber === 1 && !inn2 && <Button variant="secondary" className="flex-1 h-12 font-bold" onClick={handleStartInnings2}>Start 2nd Inning</Button>}
-                {isCurrentInningsOver && (match.currentInningNumber === 2 || (match.currentInningNumber === 1 && activeInningData?.wickets >= 10)) && <Button variant="destructive" className="flex-1 h-12 font-bold" onClick={handleEndMatch}>Finalize Match</Button>}
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {[0, 1, 2, 3, 4, 6].map(num => <Button key={num} size="lg" variant="outline" className="h-16 font-black text-2xl" onClick={() => handleBall(num)}>{num}</Button>)}
               </div>
+              <div className="grid grid-cols-3 gap-2">
+                <Button variant="destructive" size="lg" className="h-16 font-black text-xs" onClick={() => setIsWicketModalOpen(true)}>WICKET</Button>
+                <Button variant="outline" size="lg" className="h-16 font-black border-secondary text-secondary" onClick={() => handleBall(0, false, 'wide')}>WIDE</Button>
+                <Button variant="outline" size="lg" className="h-16 font-black border-secondary text-secondary" onClick={() => setIsNoBallModalOpen(true)}>NO BALL</Button>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setIsBowlerModalOpen(true)} className="flex-1 h-12 font-bold">New Bowler</Button>
+                <Button variant="outline" onClick={handleUndo} className="flex-1 h-12 font-bold">Undo</Button>
+              </div>
+              {isCurrentInningsOver && (
+                <div className="pt-4 flex gap-2">
+                  {match.currentInningNumber === 1 && !inn2 && <Button variant="secondary" className="flex-1 h-14 font-black" onClick={() => {
+                    const inningData = {
+                      id: 'inning_2', matchId, inningNumber: 2, battingTeamId: inn1.bowlingTeamId, bowlingTeamId: inn1.battingTeamId,
+                      score: 0, wickets: 0, oversCompleted: 0, ballsInCurrentOver: 0, strikerPlayerId: '', nonStrikerPlayerId: '', currentBowlerPlayerId: '',
+                      umpireId: user?.uid || 'anonymous', matchStatus: 'live'
+                    };
+                    setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), inningData, { merge: true });
+                    updateDocumentNonBlocking(matchRef, { currentInningNumber: 2 });
+                    setIsOpeningPairSetupOpen(true);
+                  }}>START 2ND INNING</Button>}
+                  {(match.currentInningNumber === 2 || (match.currentInningNumber === 1 && inn1.wickets >= 10)) && <Button variant="destructive" className="flex-1 h-14 font-black" onClick={handleEndMatch}>FINALIZE MATCH</Button>}
+                </div>
+              )}
             </div>
           )}
         </TabsContent>
 
         <TabsContent value="scorecard" className="mt-4 space-y-8">
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
             <Button variant={activeInningView === 1 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(1)} className="rounded-full text-[10px] font-bold h-8">Innings 1</Button>
             <Button variant={activeInningView === 2 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(2)} className="rounded-full text-[10px] font-bold h-8" disabled={!inn2}>Innings 2</Button>
           </div>
@@ -632,7 +569,6 @@ export default function MatchScoreboardPage() {
                         <TableCell className="text-right text-slate-500 text-xs">{b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0.0'}</TableCell>
                       </TableRow>
                     ))}
-                    <TableRow className="bg-slate-50/50"><TableCell className="text-xs font-bold">Extras</TableCell><TableCell colSpan={3} className="text-right text-xs font-bold">{scorecard.extras.total} (w{scorecard.extras.wide}, nb{scorecard.extras.noball}, b{scorecard.extras.byes}, lb{scorecard.extras.legbyes})</TableCell></TableRow>
                   </TableBody>
                 </Table>
               </div>
@@ -703,18 +639,23 @@ export default function MatchScoreboardPage() {
 
         <TabsContent value="points-table" className="mt-4">
           <div className="overflow-x-auto border rounded-sm bg-white">
-            <div className="bg-[#e6edeb] p-2 flex items-center"><div className="bg-[#7c3aed] text-white text-[9px] font-bold px-2 py-0.5 rounded-sm uppercase">CHAMPIONSHIP GROUP</div></div>
             <Table>
-              <TableHeader className="bg-[#f0f4f3]"><TableRow><TableHead className="w-10 text-[10px] font-bold uppercase">#</TableHead><TableHead className="text-[10px] font-bold uppercase">Team</TableHead><TableHead className="text-center text-[10px] font-bold uppercase">P</TableHead><TableHead className="text-center text-[10px] font-bold uppercase">W</TableHead><TableHead className="text-center text-[10px] font-bold uppercase">PTS</TableHead><TableHead className="text-right text-[10px] font-bold uppercase pr-4">NRR</TableHead></TableRow></TableHeader>
+              <TableHeader className="bg-[#f0f4f3]"><TableRow><TableHead className="w-10 text-[10px] font-bold">#</TableHead><TableHead className="text-[10px] font-bold">Team</TableHead><TableHead className="text-center text-[10px] font-bold">P</TableHead><TableHead className="text-center text-[10px] font-bold">W</TableHead><TableHead className="text-center text-[10px] font-bold">PTS</TableHead><TableHead className="text-right text-[10px] font-bold">NRR</TableHead></TableRow></TableHeader>
               <TableBody>
-                {allTeams?.sort((a,b) => (b.matchesWon*2+b.matchesDrawn) - (a.matchesWon*2+a.matchesDrawn) || (b.netRunRate-a.netRunRate)).map((team, idx) => (
-                  <TableRow key={team.id} className="h-12">
-                    <TableCell className="text-center font-bold text-xs text-slate-500">{idx+1}</TableCell>
-                    <TableCell className="py-2"><div className="flex items-center gap-2"><Avatar className="h-5 w-5 rounded-sm"><AvatarImage src={team.logoUrl}/><AvatarFallback>{team.name[0]}</AvatarFallback></Avatar><span className="font-bold text-blue-600 text-xs truncate max-w-[80px]">{team.name}</span></div></TableCell>
+                {allTeams?.sort((a,b) => {
+                  const ptsA = (a.matchesWon * 2) + (a.matchesDrawn || 0);
+                  const ptsB = (b.matchesWon * 2) + (b.matchesDrawn || 0);
+                  if (ptsB !== ptsA) return ptsB - ptsA;
+                  if (b.netRunRate !== a.netRunRate) return b.netRunRate - a.netRunRate;
+                  return (b.matchesWon || 0) - (a.matchesWon || 0);
+                }).map((team, idx) => (
+                  <TableRow key={team.id}>
+                    <TableCell className="text-center font-bold text-xs">{idx+1}</TableCell>
+                    <TableCell className="py-2 font-bold text-blue-600 text-xs">{team.name}</TableCell>
                     <TableCell className="text-center text-xs">{(team.matchesWon||0)+(team.matchesLost||0)+(team.matchesDrawn||0)}</TableCell>
-                    <TableCell className="text-center text-xs font-medium">{team.matchesWon||0}</TableCell>
-                    <TableCell className="text-center text-xs font-black">{team.matchesWon*2+team.matchesDrawn}</TableCell>
-                    <TableCell className="text-right text-xs font-bold pr-4">{(team.netRunRate||0)>0?'+':''}{(team.netRunRate||0).toFixed(3)}</TableCell>
+                    <TableCell className="text-center text-xs">{team.matchesWon||0}</TableCell>
+                    <TableCell className="text-center text-xs font-black">{team.matchesWon*2+(team.matchesDrawn||0)}</TableCell>
+                    <TableCell className="text-right text-xs font-bold">{(team.netRunRate||0).toFixed(3)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -727,13 +668,13 @@ export default function MatchScoreboardPage() {
         <DialogContent className="max-w-[90vw] sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Set Openers</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1"><Label>Striker</Label><Select onValueChange={(v) => setSetupPair({...setupPair, strikerId: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{battingPool.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1"><Label>Non-Striker</Label><Select onValueChange={(v) => setSetupPair({...setupPair, nonStrikerId: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{battingPool.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
             <div className="space-y-1"><Label>Opening Bowler</Label><Select onValueChange={(v) => setSetupPair({...setupPair, bowlerId: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{bowlingPool.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
           </div>
-          <DialogFooter><Button onClick={() => { if (activeInningRef) updateDocumentNonBlocking(activeInningRef, { strikerPlayerId: setupPair.strikerId, nonStrikerPlayerId: setupPair.nonStrikerId, currentBowlerPlayerId: setupPair.bowlerId }); setIsOpeningPairSetupOpen(false); }} className="w-full h-12">Start Match</Button></DialogFooter>
+          <DialogFooter><Button onClick={() => { if (activeInningRef) updateDocumentNonBlocking(activeInningRef, { strikerPlayerId: setupPair.strikerId, nonStrikerPlayerId: setupPair.nonStrikerId, currentBowlerPlayerId: setupPair.bowlerId }); setIsOpeningPairSetupOpen(false); }} className="w-full h-12">Start Inning</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -742,17 +683,9 @@ export default function MatchScoreboardPage() {
           <DialogHeader><DialogTitle>Record Wicket</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1"><Label>Type</Label><Select value={wicketDetails.type} onValueChange={(v) => setWicketDetails({...wicketDetails, type: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="caught">Caught</SelectItem><SelectItem value="lbw">LBW</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumping">Stumping</SelectItem><SelectItem value="hit wicket">Hit Wicket</SelectItem></SelectContent></Select></div>
-            {['caught', 'runout', 'stumping'].includes(wicketDetails.type) && <div className="space-y-1"><Label>Fielder</Label><Select value={wicketDetails.fielderId} onValueChange={(v) => setWicketDetails({...wicketDetails, fielderId: v})}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="none">None</SelectItem>{bowlingPool.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>}
             <div className="space-y-1"><Label>Next Batter</Label><Select onValueChange={(v) => setWicketDetails({...wicketDetails, newStrikerId: v})}><SelectTrigger><SelectValue placeholder="Select Batter"/></SelectTrigger><SelectContent><SelectItem value="none">All Out</SelectItem>{battingSquadIds.filter(id => !dismissedPlayerIds.includes(id) && id !== activeInningData?.strikerPlayerId).map(id => (<SelectItem key={id} value={id}>{getPlayerName(id)}</SelectItem>))}</SelectContent></Select></div>
           </div>
           <DialogFooter><Button variant="destructive" onClick={() => handleBall(0, true)} className="w-full h-14 font-black">CONFIRM WICKET</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={isNoBallModalOpen} onOpenChange={setIsNoBallModalOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>No Ball</DialogTitle><DialogDescription>Runs scored off bat?</DialogDescription></DialogHeader>
-          <div className="grid grid-cols-3 gap-2 py-4">{[0, 1, 2, 3, 4, 6].map(n => <Button key={n} variant="outline" className="h-16 font-black text-xl" onClick={() => handleBall(n, false, 'noball')}>{n}</Button>)}</div>
         </DialogContent>
       </Dialog>
 

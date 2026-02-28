@@ -4,13 +4,13 @@
 import { useState } from 'react';
 import { useCollection, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Users, Plus, LayoutGrid, List, Trash2, History, ArrowRight } from 'lucide-react';
+import { LayoutGrid, List, Plus, Trash2, History } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
@@ -81,7 +81,7 @@ export default function TeamsPage() {
       ownerId: user.uid,
       matchesWon: 0, matchesLost: 0, matchesDrawn: 0,
       totalRunsScored: 0, totalRunsConceded: 0,
-      totalOversFaced: 0, totalOversBowled: 0,
+      totalBallsFaced: 0, totalBallsBowled: 0,
       totalWicketsTaken: 0, netRunRate: 0,
     };
     setDocumentNonBlocking(doc(db, 'teams', teamId), teamData, { merge: true });
@@ -127,7 +127,7 @@ export default function TeamsPage() {
           {[1,2,3].map(i => <Card key={i} className="animate-pulse h-64 bg-slate-50" />)}
         </div>
       ) : (
-        <div className={view === 'grid' ? "grid grid-cols-1 md:md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
+        <div className={view === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
           {teams?.map(team => (
             <Card key={team.id} className="hover:shadow-md transition-all group flex flex-col border shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between p-4 pb-2 space-y-0">
