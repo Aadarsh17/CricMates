@@ -1,16 +1,102 @@
 
 "use client"
 
-import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
-import { collection, query, orderBy } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useCollection, useMemoFirebase, useFirestore, useDoc } from '@/firebase';
+import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, Trophy, History as HistoryIcon, ArrowRight } from 'lucide-react';
+import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Avatar } from 'lucide-react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
+import { AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+
+function MatchScoreCard({ match, teams }: { match: any, teams: any[] }) {
+  const db = useFirestore();
+  const inn1Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_1'), [db, match.id]);
+  const { data: inn1 } = useDoc(inn1Ref);
+  const inn2Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_2'), [db, match.id]);
+  const { data: inn2 } = useDoc(inn2Ref);
+
+  const getTeam = (id: string) => teams.find(t => t.id === id);
+  const t1 = getTeam(match.team1Id);
+  const t2 = getTeam(match.team2Id);
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const getInningDisplay = (inning: any) => {
+    if (!inning) return null;
+    return (
+      <div className="flex justify-between items-center w-full">
+        <div className="flex items-center gap-3">
+          <Avatar className="w-6 h-6">
+            <AvatarImage src={getTeam(inning.battingTeamId)?.logoUrl} />
+            <AvatarFallback>{getTeam(inning.battingTeamId)?.name[0]}</AvatarFallback>
+          </Avatar>
+          <span className={`font-bold ${match.status === 'live' ? 'text-foreground' : 'text-muted-foreground'}`}>
+            {getTeam(inning.battingTeamId)?.name}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="font-black text-lg">{inning.score}-{inning.wickets}</span>
+          <span className="text-xs text-muted-foreground">({inning.oversCompleted}.{inning.ballsInCurrentOver})</span>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <Card className="hover:shadow-lg transition-all border-none shadow-sm bg-card overflow-hidden">
+      <div className="p-4 space-y-3">
+        <div className="text-[10px] text-muted-foreground font-medium flex justify-between">
+          <span>Match • {formatDate(match.matchDate)}</span>
+          {match.status === 'live' && (
+            <div className="flex items-center text-destructive">
+              <span className="animate-pulse w-1.5 h-1.5 bg-destructive rounded-full mr-1.5" />
+              LIVE
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2 py-2">
+          {match.status === 'live' ? (
+            <>
+              {getInningDisplay(inn1)}
+              {getInningDisplay(inn2)}
+            </>
+          ) : (
+            <>
+              {getInningDisplay(inn1)}
+              {getInningDisplay(inn2)}
+            </>
+          )}
+        </div>
+
+        <div className="text-xs font-medium text-primary">
+          {match.resultDescription}
+        </div>
+
+        <div className="flex items-center gap-4 pt-2 border-t text-[11px] font-bold text-primary uppercase tracking-tight">
+          <Link href={`/match/${match.id}`} className="hover:underline">
+            {match.status === 'live' ? 'Live Score' : 'Scorecard'}
+          </Link>
+          {match.status === 'completed' && (
+            <Link 
+              href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}`} 
+              className="flex items-center gap-1 text-secondary hover:underline"
+            >
+              <RefreshCcw className="w-3 h-3" /> Play Again
+            </Link>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 export default function MatchesPage() {
   const { isUmpire } = useApp();
@@ -25,30 +111,20 @@ export default function MatchesPage() {
   const { data: matches, isLoading } = useCollection(matchesQuery);
 
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
-  const { data: teams } = useCollection(teamsQuery);
+  const { data: teams = [] } = useCollection(teamsQuery);
 
   const liveMatches = matches?.filter(m => m.status === 'live') || [];
   const pastMatches = matches?.filter(m => m.status === 'completed') || [];
 
-  const formatDate = (dateString: string) => {
-    if (!isMounted) return '';
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const getTeamName = (teamId: string) => {
-    const team = teams?.find(t => t.id === teamId);
-    return team ? team.name : 'Unknown Team';
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-4xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-headline">Match Center</h1>
-          <p className="text-muted-foreground">Track live scores and review historic performances.</p>
+          <h1 className="text-3xl font-bold font-headline">Match History</h1>
+          <p className="text-muted-foreground text-sm">Real-time scores and archived championships.</p>
         </div>
         {isUmpire && (
-          <Button className="bg-secondary hover:bg-secondary/90" asChild>
+          <Button className="bg-secondary hover:bg-secondary/90 h-9" asChild>
             <Link href="/match/new">
               <PlayCircle className="mr-2 h-4 w-4" /> Start New Match
             </Link>
@@ -56,85 +132,37 @@ export default function MatchesPage() {
         )}
       </div>
 
-      <Tabs defaultValue="live" className="w-full">
-        <TabsList className="grid w-full max-w-[400px] grid-cols-2">
-          <TabsTrigger value="live">Live Matches</TabsTrigger>
+      <Tabs defaultValue="past" className="w-full">
+        <TabsList className="grid w-full max-w-[400px] grid-cols-2 mb-6">
+          <TabsTrigger value="live">Live Now</TabsTrigger>
           <TabsTrigger value="past">Completed</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="live" className="mt-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <TabsContent value="live" className="mt-0">
+          <div className="grid grid-cols-1 gap-4">
             {liveMatches.length > 0 ? (
               liveMatches.map(match => (
-                <Card key={match.id} className="border-t-4 border-t-destructive shadow-md overflow-hidden hover:shadow-lg transition-all">
-                  <div className="bg-destructive/10 p-2 text-center text-[10px] font-bold text-destructive flex items-center justify-center">
-                    <span className="animate-pulse w-2 h-2 bg-destructive rounded-full mr-2" />
-                    MATCH IN PROGRESS
-                  </div>
-                  <CardHeader>
-                    <div className="flex justify-between items-center mb-4">
-                       <p className="text-xs text-muted-foreground flex items-center">
-                        <Calendar className="w-3 h-3 mr-1" /> {formatDate(match.matchDate)}
-                      </p>
-                      <Badge variant="destructive" className="animate-pulse uppercase text-[10px]">Live</Badge>
-                    </div>
-                    <div className="text-center py-4 bg-muted/50 rounded-xl">
-                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Competing Teams</p>
-                      <p className="font-black text-xl text-primary">{getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)}</p>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <Button className="w-full" asChild>
-                      <Link href={`/match/${match.id}`}>Open Scoreboard <ArrowRight className="ml-2 w-4 h-4" /></Link>
-                    </Button>
-                  </CardContent>
-                </Card>
+                <MatchScoreCard key={match.id} match={match} teams={teams} />
               ))
             ) : (
-              <div className="col-span-full py-20 text-center border-2 border-dashed rounded-2xl">
+              <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-muted/20">
                 <PlayCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                <p className="text-muted-foreground">No matches are currently live.</p>
+                <p className="text-muted-foreground text-sm">No matches are currently active.</p>
               </div>
             )}
           </div>
         </TabsContent>
 
-        <TabsContent value="past" className="mt-6">
-          <div className="space-y-4">
+        <TabsContent value="past" className="mt-0">
+          <div className="grid grid-cols-1 gap-4">
             {pastMatches.length > 0 ? (
               pastMatches.map(match => (
-                <Card key={match.id} className="hover:shadow-md transition-all">
-                  <CardContent className="p-0">
-                    <div className="flex flex-col md:flex-row items-stretch">
-                      <div className="bg-primary text-white p-6 md:w-1/4 flex flex-col justify-center items-center text-center">
-                        <Trophy className="w-8 h-8 mb-2 text-secondary" />
-                        <p className="text-xs font-bold uppercase tracking-widest opacity-70">Outcome</p>
-                        <p className="font-bold">{match.resultDescription || 'Result Pending'}</p>
-                      </div>
-                      <div className="flex-1 p-6 flex items-center justify-between">
-                        <div className="flex flex-col items-center flex-1 text-center px-4 min-w-0">
-                          <p className="font-bold text-lg truncate w-full">{getTeamName(match.team1Id)}</p>
-                          <p className="text-[10px] text-muted-foreground uppercase">Home Team</p>
-                        </div>
-                        <div className="text-muted-foreground font-black px-4">VS</div>
-                        <div className="flex flex-col items-center flex-1 text-center px-4 min-w-0">
-                          <p className="font-bold text-lg truncate w-full">{getTeamName(match.team2Id)}</p>
-                          <p className="text-[10px] text-muted-foreground uppercase">Away Team</p>
-                        </div>
-                        <div className="ml-4 hidden md:block">
-                          <Button variant="ghost" asChild>
-                            <Link href={`/match/${match.id}`}>Details</Link>
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <MatchScoreCard key={match.id} match={match} teams={teams} />
               ))
             ) : (
-              <div className="py-20 text-center border-2 border-dashed rounded-2xl">
+              <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-muted/20">
                 <HistoryIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
-                <p className="text-muted-foreground">No past matches found in the archive.</p>
+                <p className="text-muted-foreground text-sm">No completed matches found.</p>
               </div>
             )}
           </div>

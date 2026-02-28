@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { Trophy, Users, LayoutDashboard, ShieldCheck, User, Menu, X, Play, UserCircle } from 'lucide-react';
+import { Trophy, Users, LayoutDashboard, ShieldCheck, User, Menu, X, Play, UserCircle, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -14,7 +14,7 @@ export default function Navbar() {
 
   const navLinks = [
     { name: 'Home', href: '/', icon: LayoutDashboard },
-    { name: 'Matches', href: '/matches', icon: Play },
+    { name: 'Match History', href: '/matches', icon: History },
     { name: 'Teams', href: '/teams', icon: Users },
     { name: 'Players', href: '/players', icon: UserCircle },
     { name: 'Rankings', href: '/rankings', icon: Trophy },

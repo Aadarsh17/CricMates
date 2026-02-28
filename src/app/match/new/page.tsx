@@ -1,8 +1,8 @@
 
 "use client"
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCollection, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +21,7 @@ export default function NewMatchPage() {
   const { user } = useUser();
   const { isUmpire } = useApp();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [step, setStep] = useState(1);
   const [setup, setSetup] = useState({
@@ -42,6 +43,22 @@ export default function NewMatchPage() {
 
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
+
+  // Handle "Play Again" params
+  useEffect(() => {
+    const t1 = searchParams.get('t1');
+    const t2 = searchParams.get('t2');
+    const overs = searchParams.get('overs');
+
+    if (t1 && t2) {
+      setSetup(prev => ({
+        ...prev,
+        team1Id: t1,
+        team2Id: t2,
+        totalOvers: overs || '20'
+      }));
+    }
+  }, [searchParams]);
 
   const team1Pool = allPlayers?.filter(p => p.teamId === setup.team1Id || !p.teamId);
   const team2Pool = allPlayers?.filter(p => p.teamId === setup.team2Id || !p.teamId);
