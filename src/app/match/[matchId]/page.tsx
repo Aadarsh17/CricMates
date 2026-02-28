@@ -1030,7 +1030,7 @@ export default function MatchScoreboardPage() {
             </div>
           ) : (
             <div className="py-20 text-center border-2 border-dashed rounded-sm bg-slate-50">
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest No overs completed yet</p>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No overs completed yet</p>
             </div>
           )}
         </TabsContent>
