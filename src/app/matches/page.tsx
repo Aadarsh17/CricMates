@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useCollection, useMemoFirebase, useFirestore, useDoc, deleteDocumentNonBlocking, useUser, updateDocumentNonBlocking } from '@/firebase';
@@ -5,9 +6,10 @@ import { collection, query, orderBy, doc } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Check, X } from 'lucide-react';
+import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Check, X, AlertTriangle } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import Link from 'next/link';
@@ -34,10 +36,7 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
     return new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  const handleDelete = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    
+  const executeDelete = () => {
     if (!user) {
       toast({ 
         title: "Session Error", 
@@ -47,16 +46,12 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
       return;
     }
 
-    const matchName = `${t1?.name || 'Team 1'} vs ${t2?.name || 'Team 2'}`;
+    toast({ 
+      title: "Match Deleted", 
+      description: "The record has been permanently removed." 
+    });
     
-    if (confirm(`CRITICAL: Are you sure you want to PERMANENTLY delete the match: ${matchName}?`)) {
-      toast({ 
-        title: "Deleting Match", 
-        description: "Match record is being removed..." 
-      });
-      
-      deleteDocumentNonBlocking(doc(db, 'matches', match.id));
-    }
+    deleteDocumentNonBlocking(doc(db, 'matches', match.id));
   };
 
   const handleUpdateResult = () => {
@@ -131,15 +126,35 @@ function MatchScoreCard({ match, teams, isUmpire }: { match: any, teams: any[], 
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-              <Button 
-                type="button"
-                variant="ghost" 
-                size="icon" 
-                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                onClick={handleDelete}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="flex items-center gap-2">
+                      <AlertTriangle className="text-destructive w-5 h-5" />
+                      Confirm Deletion
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to permanently delete the match between <strong>{t1?.name}</strong> and <strong>{t2?.name}</strong>? This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Delete Match
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           )}
         </div>
@@ -218,8 +233,7 @@ export default function MatchHistoryPage() {
              <div className="py-12 text-center text-muted-foreground">Loading matches...</div>
           ) : (
             <div className="grid grid-cols-1 gap-4">
-              {liveMatches.length > 0 ? (
-                liveMatches.map(match => (
+              {liveMatches.length > 0 ? ( liveMatches.map(match => (
                   <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} />
                 ))
               ) : (
