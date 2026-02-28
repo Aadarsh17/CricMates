@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Undo2, Shuffle, RefreshCw, Star, UserCircle, ChevronRight, Info } from 'lucide-react';
+import { Trophy, Undo2, Shuffle, RefreshCw, Star, UserCircle, ChevronRight, Info, Calendar, Clock, MapPin, Users } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -299,6 +299,19 @@ export default function MatchScoreboardPage() {
   const needsOpeningPair = isStartingInnings && (!activeInningData?.strikerPlayerId || !activeInningData?.currentBowlerPlayerId);
   const needsNextBatter = activeInningData && !activeInningData.strikerPlayerId && !isCurrentInningsOver && !isStartingInnings;
 
+  // Format date for IST
+  const formatDateIST = (dateStr: string) => {
+    if (!dateStr) return '---';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const formatTimeIST = (dateStr: string) => {
+    if (!dateStr) return '---';
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' }) + ' IST';
+  };
+
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-20">
       {/* Clean Match Header */}
@@ -310,16 +323,79 @@ export default function MatchScoreboardPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="flex w-full justify-start overflow-x-auto border-b rounded-none bg-transparent h-auto p-0 scrollbar-hide">
-          {['Info', 'Live', 'Scorecard', 'Squads', 'Points Table', 'Overs'].map((tab) => (
+          {['Info', 'Live', 'Scorecard', 'Points Table', 'Overs'].map((tab) => (
             <TabsTrigger 
               key={tab}
               value={tab.toLowerCase().replace(' ', '-')} 
-              className="px-4 py-3 text-xs font-bold rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:bg-transparent data-[state=active]:text-secondary"
+              className="px-4 py-3 text-xs font-bold rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:border-b-2 data-[state=active]:bg-transparent data-[state=active]:text-secondary"
             >
               {tab}
             </TabsTrigger>
           ))}
         </TabsList>
+
+        <TabsContent value="info" className="space-y-6 mt-4">
+          <Card className="border shadow-none rounded-sm">
+            <CardHeader className="bg-slate-50 py-3 px-4 border-b">
+              <CardTitle className="text-[10px] uppercase font-black text-slate-400 flex items-center gap-2">
+                <Info className="w-3 h-3" /> INFO
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y text-xs">
+                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Match</span><span className="font-black text-slate-900">{getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)}</span></div>
+                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Date</span><span className="font-medium text-slate-900">{formatDateIST(match.matchDate)}</span></div>
+                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Time</span><span className="font-medium text-slate-900">{formatTimeIST(match.matchDate)}</span></div>
+                <div className="flex p-4">
+                  <span className="w-32 font-bold text-slate-500">Toss</span>
+                  <span className="font-medium text-slate-900">
+                    {match.tossWinnerTeamId ? `${getTeamName(match.tossWinnerTeamId)} won the toss and opt to ${match.tossDecision === 'bat' ? 'Bat' : 'Bowl'}` : '---'}
+                  </span>
+                </div>
+                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Venue</span><span className="font-medium text-slate-900">Dumping Ground nalasopara west</span></div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Squads inside Info tab as requested */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="border shadow-none rounded-sm">
+              <CardHeader className="bg-slate-50 py-3 px-4 border-b">
+                <CardTitle className="text-[10px] uppercase font-black text-slate-400 flex items-center gap-2">
+                  <Users className="w-3 h-3" /> {getTeamName(match.team1Id)} SQUAD
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="space-y-2">
+                  {allPlayers?.filter(p => match.team1SquadPlayerIds.includes(p.id)).map(p => (
+                    <div key={p.id} className="flex justify-between items-center text-xs py-1 border-b border-slate-50 last:border-0">
+                      <span className="font-bold text-blue-600">{p.name}</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-medium">{p.role}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-none rounded-sm">
+              <CardHeader className="bg-slate-50 py-3 px-4 border-b">
+                <CardTitle className="text-[10px] uppercase font-black text-slate-400 flex items-center gap-2">
+                  <Users className="w-3 h-3" /> {getTeamName(match.team2Id)} SQUAD
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="space-y-2">
+                  {allPlayers?.filter(p => match.team2SquadPlayerIds.includes(p.id)).map(p => (
+                    <div key={p.id} className="flex justify-between items-center text-xs py-1 border-b border-slate-50 last:border-0">
+                      <span className="font-bold text-blue-600">{p.name}</span>
+                      <span className="text-[10px] text-slate-400 uppercase font-medium">{p.role}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         <TabsContent value="live" className="space-y-6">
           {/* Professional Live Summary (Visible to all) */}
