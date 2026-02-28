@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { UserCircle, Info, Users, Flag, ChevronDown, Star, CheckCircle2 } from 'lucide-react';
+import { UserCircle, Info, Users, Flag, ChevronDown, Star, CheckCircle2, Trophy, Clock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -416,84 +416,92 @@ export default function MatchScoreboardPage() {
   };
 
   const handleEndMatch = () => {
-    if (!match || !inn1 || !inn2 || !isUmpire || !allTeams) return;
+    if (!match || !inn1 || !isUmpire || !allTeams) {
+      toast({ title: "Cannot End Match", description: "Match data or Team list is missing.", variant: "destructive" });
+      return;
+    }
 
     let resultDesc = "Match Drawn";
     let winnerId = "";
     
-    if (inn2.score > inn1.score) {
-      winnerId = inn2.battingTeamId;
-      resultDesc = `${getTeamName(inn2.battingTeamId)} won by ${10 - inn2.wickets} wickets`;
-    } else if (inn1.score > inn2.score) {
-      winnerId = inn1.battingTeamId;
-      resultDesc = `${getTeamName(inn1.battingTeamId)} won by ${inn1.score - inn2.score} runs`;
+    const s1 = inn1.score || 0;
+    const s2 = inn2?.score || 0;
+
+    if (inn2) {
+      if (s2 > s1) {
+        winnerId = inn2.battingTeamId;
+        resultDesc = `${getTeamName(inn2.battingTeamId)} won by ${10 - inn2.wickets} wickets`;
+      } else if (s1 > s2) {
+        winnerId = inn1.battingTeamId;
+        resultDesc = `${getTeamName(inn1.battingTeamId)} won by ${s1 - s2} runs`;
+      }
+    }
+
+    // Official NRR calculation: (Runs Scored / Overs Faced) - (Runs Conceded / Overs Bowled)
+    const getDecimalOvers = (inn: any) => {
+      if (!inn) return 0;
+      // If a team is bowled out, use full quota of overs for NRR
+      if (inn.wickets >= 10) return match.totalOvers;
+      return (inn.oversCompleted || 0) + ((inn.ballsInCurrentOver || 0) / 6);
+    };
+
+    const updateTeamStats = (teamId: string, runsScored: number, runsConceded: number, oversFaced: number, oversBowled: number, isWinner: boolean, isDrawn: boolean) => {
+      const team = allTeams.find(t => t.id === teamId);
+      if (!team) return;
+
+      const newRunsScored = (team.totalRunsScored || 0) + runsScored;
+      const newRunsConceded = (team.totalRunsConceded || 0) + runsConceded;
+      const newOversFaced = (team.totalOversFaced || 0) + oversFaced;
+      const newOversBowled = (team.totalOversBowled || 0) + oversBowled;
+
+      let nrrValue = 0;
+      if (newOversFaced > 0 && newOversBowled > 0) {
+        nrrValue = (newRunsScored / newOversFaced) - (newRunsConceded / newOversBowled);
+      }
+
+      updateDocumentNonBlocking(doc(db, 'teams', teamId), {
+        matchesWon: (team.matchesWon || 0) + (isWinner ? 1 : 0),
+        matchesLost: (team.matchesLost || 0) + (!isWinner && !isDrawn ? 1 : 0),
+        matchesDrawn: (team.matchesDrawn || 0) + (isDrawn ? 1 : 0),
+        totalRunsScored: newRunsScored,
+        totalRunsConceded: newRunsConceded,
+        totalOversFaced: newRunsFaced,
+        totalOversBowled: newOversBowled,
+        netRunRate: Number(nrrValue.toFixed(4))
+      });
+    };
+
+    const o1 = getDecimalOvers(inn1);
+    const o2 = getDecimalOvers(inn2);
+
+    // Update Team 1 (Inn 1 Batting Team)
+    updateTeamStats(
+      inn1.battingTeamId, 
+      s1, 
+      s2, 
+      o1, 
+      o2, 
+      winnerId === inn1.battingTeamId, 
+      !winnerId
+    );
+
+    // Update Team 2 (Inn 2 Batting Team / Inn 1 Bowling Team)
+    if (inn2) {
+      updateTeamStats(
+        inn2.battingTeamId, 
+        s2, 
+        s1, 
+        o2, 
+        o1, 
+        winnerId === inn2.battingTeamId, 
+        !winnerId
+      );
     }
 
     updateDocumentNonBlocking(matchRef, {
       status: 'completed',
       resultDescription: resultDesc
     });
-
-    const calculateNRRStats = (battingTeamId: string, bowlingTeamId: string, batInning: any, bowlInning: any) => {
-      const batTeam = allTeams.find(t => t.id === battingTeamId);
-      const bowlTeam = allTeams.find(t => t.id === bowlingTeamId);
-      if (!batTeam || !bowlTeam) return;
-
-      const getMatchDecimalOvers = (inn: any) => {
-        if (!inn) return 0;
-        // If bowled out, full quota of overs is used for NRR
-        if (inn.wickets >= 10) return match.totalOvers;
-        return (inn.oversCompleted || 0) + ((inn.ballsInCurrentOver || 0) / 6);
-      };
-
-      const batMatchOvers = getMatchDecimalOvers(batInning);
-      const bowlMatchOvers = getMatchDecimalOvers(bowlInning);
-
-      // --- Team A (Batting Team) Cumulative Update ---
-      const totalBatRunsScored = (batTeam.totalRunsScored || 0) + (batInning?.score || 0);
-      const totalBatRunsConceded = (batTeam.totalRunsConceded || 0) + (bowlInning?.score || 0);
-      const totalBatOversFaced = (batTeam.totalOversFaced || 0) + batMatchOvers;
-      const totalBatOversBowled = (batTeam.totalOversBowled || 0) + bowlMatchOvers;
-
-      const batNRR = (totalBatOversFaced > 0 && totalBatOversBowled > 0)
-        ? (totalBatRunsScored / totalBatOversFaced) - (totalBatRunsConceded / totalBatOversBowled)
-        : 0;
-
-      updateDocumentNonBlocking(doc(db, 'teams', battingTeamId), {
-        totalRunsScored: totalBatRunsScored,
-        totalRunsConceded: totalBatRunsConceded,
-        totalOversFaced: totalBatOversFaced,
-        totalOversBowled: totalBatOversBowled,
-        matchesWon: (batTeam.matchesWon || 0) + (winnerId === battingTeamId ? 1 : 0),
-        matchesLost: (batTeam.matchesLost || 0) + (winnerId && winnerId !== battingTeamId ? 1 : 0),
-        matchesDrawn: (batTeam.matchesDrawn || 0) + (!winnerId ? 1 : 0),
-        netRunRate: isFinite(batNRR) ? batNRR : 0
-      });
-
-      // --- Team B (Bowling Team) Cumulative Update ---
-      const totalBowlRunsScored = (bowlTeam.totalRunsScored || 0) + (bowlInning?.score || 0);
-      const totalBowlRunsConceded = (bowlTeam.totalRunsConceded || 0) + (batInning?.score || 0);
-      const totalBowlOversFaced = (bowlTeam.totalOversFaced || 0) + bowlMatchOvers;
-      const totalBowlOversBowled = (bowlTeam.totalOversBowled || 0) + batMatchOvers;
-
-      const bowlNRR = (totalBowlOversFaced > 0 && totalBowlOversBowled > 0)
-        ? (totalBowlRunsScored / totalBowlOversFaced) - (totalBowlRunsConceded / totalBowlOversBowled)
-        : 0;
-
-      updateDocumentNonBlocking(doc(db, 'teams', bowlingTeamId), {
-        totalRunsScored: totalBowlRunsScored,
-        totalRunsConceded: totalBowlRunsConceded,
-        totalOversFaced: totalBowlOversFaced,
-        totalOversBowled: totalBowlOversBowled,
-        matchesWon: (bowlTeam.matchesWon || 0) + (winnerId === bowlingTeamId ? 1 : 0),
-        matchesLost: (bowlTeam.matchesLost || 0) + (winnerId && winnerId !== bowlingTeamId ? 1 : 0),
-        matchesDrawn: (bowlTeam.matchesDrawn || 0) + (!winnerId ? 1 : 0),
-        netRunRate: isFinite(bowlNRR) ? bowlNRR : 0
-      });
-    };
-
-    // Calculate and update both teams
-    calculateNRRStats(inn1.battingTeamId, inn1.bowlingTeamId, inn1, inn2);
 
     toast({ title: "Match Finalized", description: resultDesc });
     router.push('/matches');
@@ -619,24 +627,61 @@ export default function MatchScoreboardPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y text-xs">
-                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Match</span><span className="font-black text-slate-900">{getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)} • {match.status === 'live' ? 'LIVE' : 'Match History'}</span></div>
-                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Date</span><span className="font-medium text-slate-900">{formatDateIST(match.matchDate)}</span></div>
-                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Time</span><span className="font-medium text-slate-900">{formatTimeIST(match.matchDate)}</span></div>
+                <div className="flex p-4">
+                  <span className="w-32 font-bold text-slate-500">Match</span>
+                  <span className="font-black text-slate-900">{getTeamName(match.team1Id)} vs {getTeamName(match.team2Id)}</span>
+                </div>
+                <div className="flex p-4">
+                  <span className="w-32 font-bold text-slate-500">Date</span>
+                  <span className="font-medium text-slate-900 flex items-center gap-2"><Calendar className="w-3 h-3"/> {formatDateIST(match.matchDate)}</span>
+                </div>
+                <div className="flex p-4">
+                  <span className="w-32 font-bold text-slate-500">Time</span>
+                  <span className="font-medium text-slate-900 flex items-center gap-2"><Clock className="w-3 h-3"/> {formatTimeIST(match.matchDate)}</span>
+                </div>
                 <div className="flex p-4">
                   <span className="w-32 font-bold text-slate-500">Toss</span>
                   <span className="font-medium text-slate-900">
                     {match.tossWinnerTeamId ? `${getTeamName(match.tossWinnerTeamId)} won the toss and opt to ${match.tossDecision === 'bat' ? 'Bat' : 'Bowl'}` : '---'}
                   </span>
                 </div>
-                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Venue</span><span className="font-medium text-slate-900">Dumping Ground nalasopara west</span></div>
+                <div className="flex p-4">
+                  <span className="w-32 font-bold text-slate-500">Venue</span>
+                  <span className="font-medium text-slate-900">Dumping Ground nalasopara west</span>
+                </div>
               </div>
             </CardContent>
           </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <Card className="border shadow-none rounded-sm">
+                <CardHeader className="bg-slate-50 py-3 px-4 border-b"><CardTitle className="text-[10px] uppercase font-black text-slate-400">{getTeamName(match.team1Id)} Squad</CardTitle></CardHeader>
+                <CardContent className="p-4 space-y-2">
+                  {allPlayers?.filter(p => match.team1SquadPlayerIds.includes(p.id)).map(p => (
+                    <div key={p.id} className="flex justify-between items-center text-[10px] font-bold py-1 border-b last:border-0 border-slate-50">
+                      <span className="text-blue-600">{p.name}</span>
+                      <span className="text-slate-400 uppercase tracking-tighter">{p.role}</span>
+                    </div>
+                  ))}
+                </CardContent>
+             </Card>
+             <Card className="border shadow-none rounded-sm">
+                <CardHeader className="bg-slate-50 py-3 px-4 border-b"><CardTitle className="text-[10px] uppercase font-black text-slate-400">{getTeamName(match.team2Id)} Squad</CardTitle></CardHeader>
+                <CardContent className="p-4 space-y-2">
+                  {allPlayers?.filter(p => match.team2SquadPlayerIds.includes(p.id)).map(p => (
+                    <div key={p.id} className="flex justify-between items-center text-[10px] font-bold py-1 border-b last:border-0 border-slate-50">
+                      <span className="text-blue-600">{p.name}</span>
+                      <span className="text-slate-400 uppercase tracking-tighter">{p.role}</span>
+                    </div>
+                  ))}
+                </CardContent>
+             </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="live" className="space-y-6 mt-4">
           <div className="bg-white p-6 rounded-sm border shadow-sm space-y-6">
-            <div className="text-blue-600 font-bold text-sm">
+            <div className="text-blue-600 font-bold text-sm uppercase tracking-widest">
               {match.resultDescription}
             </div>
 
@@ -644,14 +689,14 @@ export default function MatchScoreboardPage() {
               {inn1 && (
                 <div className="flex justify-between items-center">
                   <span className="font-black text-2xl text-slate-800 tracking-tight">
-                    {getAbbr(getTeamName(match.team1Id))} {inn1.score}/{inn1.wickets} <span className="text-slate-400 font-bold">({inn1.oversCompleted}.{inn1.ballsInCurrentOver})</span>
+                    {getAbbr(getTeamName(match.team1Id))} {inn1.score}/{inn1.wickets} <span className="text-slate-400 font-bold text-sm">({inn1.oversCompleted}.{inn1.ballsInCurrentOver})</span>
                   </span>
                 </div>
               )}
               {inn2 && (
                 <div className="flex justify-between items-center">
                   <span className="font-black text-2xl text-slate-800 tracking-tight">
-                    {getAbbr(getTeamName(match.team2Id))} {inn2.score}/{inn2.wickets} <span className="text-slate-400 font-bold">({inn2.oversCompleted}.{inn2.ballsInCurrentOver})</span>
+                    {getAbbr(getTeamName(match.team2Id))} {inn2.score}/{inn2.wickets} <span className="text-slate-400 font-bold text-sm">({inn2.oversCompleted}.{inn2.ballsInCurrentOver})</span>
                   </span>
                 </div>
               )}
@@ -750,8 +795,6 @@ export default function MatchScoreboardPage() {
             <Button variant={activeInningView === 2 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(2)} className="rounded-full text-[10px] font-bold h-7" disabled={!inn2 && match.currentInningNumber === 1}>Innings 2</Button>
           </div>
 
-          <div className="text-blue-600 font-bold text-xs mb-2">{match.resultDescription}</div>
-
           {activeInningData && (
             <div className="space-y-8">
               <div className="bg-primary text-white p-3 flex justify-between items-center rounded-sm">
@@ -796,26 +839,9 @@ export default function MatchScoreboardPage() {
                         {scorecard.extras.total} (b {scorecard.extras.byes || 0}, lb {scorecard.extras.legbyes || 0}, w {scorecard.extras.wide || 0}, nb {scorecard.extras.noball || 0})
                       </TableCell>
                     </TableRow>
-                    <TableRow className="bg-slate-100/50 border-t-2">
-                      <TableCell className="text-xs font-black">Total</TableCell>
-                      <TableCell colSpan={5} className="text-xs font-black text-right">
-                        {activeInningData.score}-{activeInningData.wickets} ({activeInningData.oversCompleted}.{activeInningData.ballsInCurrentOver} Ov, RR: {(activeInningData.score / (activeInningData.oversCompleted + (activeInningData.ballsInCurrentOver / 6)) || 0).toFixed(1)})
-                      </TableCell>
-                    </TableRow>
                   </TableBody>
                 </Table>
               </div>
-
-              {didNotBatPlayers.length > 0 && (
-                <div className="p-4 bg-slate-50 border rounded-sm flex gap-4">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase">Did not Bat</span>
-                  <div className="flex flex-wrap gap-2">
-                    {didNotBatPlayers.map(pid => (
-                      <span key={pid} className="text-[10px] font-bold text-blue-600">{getPlayerName(pid)}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               <div className="bg-white border rounded-sm overflow-hidden mt-6">
                 <Table>
@@ -870,9 +896,7 @@ export default function MatchScoreboardPage() {
               </div>
 
               <div className="space-y-2">
-                <div className="bg-slate-100 p-2 font-black text-[10px] uppercase text-slate-600">
-                  Partnerships
-                </div>
+                <div className="bg-slate-100 p-2 font-black text-[10px] uppercase text-slate-600">Partnerships</div>
                 <div className="border rounded-sm bg-white overflow-hidden">
                   <Table>
                     <TableBody>
@@ -947,9 +971,7 @@ export default function MatchScoreboardPage() {
         <TabsContent value="points-table" className="mt-4">
           <div className="bg-white border rounded-sm overflow-hidden shadow-sm">
             <div className="bg-[#e6edeb] p-2 flex items-center">
-               <div className="bg-[#7c3aed] text-white text-[9px] font-bold px-2 py-0.5 rounded-sm uppercase">
-                  CHAMPIONSHIP GROUP 1
-               </div>
+               <div className="bg-[#7c3aed] text-white text-[9px] font-bold px-2 py-0.5 rounded-sm uppercase">SUPER 8 - GROUP 1</div>
             </div>
             <Table>
               <TableHeader className="bg-[#f0f4f3]">
@@ -965,7 +987,12 @@ export default function MatchScoreboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {allTeams?.map((team, idx) => {
+                {allTeams?.sort((a, b) => {
+                  const ptsA = (a.matchesWon * 2) + a.matchesDrawn;
+                  const ptsB = (b.matchesWon * 2) + b.matchesDrawn;
+                  if (ptsB !== ptsA) return ptsB - ptsA;
+                  return (b.netRunRate || 0) - (a.netRunRate || 0);
+                }).map((team, idx) => {
                   const played = (team.matchesWon || 0) + (team.matchesLost || 0) + (team.matchesDrawn || 0);
                   const points = ((team.matchesWon || 0) * 2) + (team.matchesDrawn || 0);
                   return (
@@ -977,9 +1004,7 @@ export default function MatchScoreboardPage() {
                             <AvatarImage src={team.logoUrl} />
                             <AvatarFallback className="bg-slate-100 rounded-sm"><Flag className="w-3 h-3 text-slate-300" /></AvatarFallback>
                           </Avatar>
-                          <span className="font-bold text-blue-600 text-xs">
-                            {team.name}
-                          </span>
+                          <span className="font-bold text-blue-600 text-xs">{team.name}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-center text-xs font-medium text-slate-900">{played}</TableCell>
@@ -987,11 +1012,9 @@ export default function MatchScoreboardPage() {
                       <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesLost || 0}</TableCell>
                       <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesDrawn || 0}</TableCell>
                       <TableCell className="text-center text-xs font-black text-slate-900">{points}</TableCell>
-                      <TableCell className="text-right text-xs font-bold pr-4">
+                      <TableCell className="text-right text-xs font-bold pr-8">
                         <div className="flex items-center justify-end gap-2">
-                          <span className="text-slate-900">
-                            {(team.netRunRate || 0) > 0 ? '+' : ''}{(team.netRunRate || 0).toFixed(3)}
-                          </span>
+                          <span className="text-slate-900">{(team.netRunRate || 0) > 0 ? '+' : ''}{(team.netRunRate || 0).toFixed(3)}</span>
                           <ChevronDown className="w-3 h-3 text-slate-300 group-hover:text-slate-500" />
                         </div>
                       </TableCell>

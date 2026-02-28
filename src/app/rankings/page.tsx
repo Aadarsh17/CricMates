@@ -107,9 +107,7 @@ export default function RankingsPage() {
           {teams && teams.length > 0 ? (
             <div className="bg-white border rounded-sm overflow-hidden shadow-sm">
               <div className="bg-[#e6edeb] p-2 flex items-center">
-                 <div className="bg-[#7c3aed] text-white text-[9px] font-bold px-2 py-0.5 rounded-sm uppercase">
-                    CHAMPIONSHIP GROUP 1
-                 </div>
+                 <div className="bg-[#7c3aed] text-white text-[9px] font-bold px-2 py-0.5 rounded-sm uppercase">SUPER 8 - GROUP 1</div>
               </div>
               <Table>
                 <TableHeader className="bg-[#f0f4f3]">
@@ -125,9 +123,14 @@ export default function RankingsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {teams.map((team, idx) => {
-                    const played = team.matchesWon + team.matchesLost + team.matchesDrawn;
-                    const points = (team.matchesWon * 2) + team.matchesDrawn;
+                  {teams.sort((a, b) => {
+                    const ptsA = (a.matchesWon * 2) + a.matchesDrawn;
+                    const ptsB = (b.matchesWon * 2) + b.matchesDrawn;
+                    if (ptsB !== ptsA) return ptsB - ptsA;
+                    return (b.netRunRate || 0) - (a.netRunRate || 0);
+                  }).map((team, idx) => {
+                    const played = (team.matchesWon || 0) + (team.matchesLost || 0) + (team.matchesDrawn || 0);
+                    const points = ((team.matchesWon || 0) * 2) + (team.matchesDrawn || 0);
                     return (
                       <TableRow key={team.id} className="hover:bg-slate-50 group border-b last:border-0">
                         <TableCell className="text-center font-bold text-xs text-slate-500 py-3">{idx + 1}</TableCell>
@@ -143,14 +146,14 @@ export default function RankingsPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-center text-xs font-medium text-slate-900">{played}</TableCell>
-                        <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesWon}</TableCell>
-                        <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesLost}</TableCell>
-                        <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesDrawn}</TableCell>
+                        <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesWon || 0}</TableCell>
+                        <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesLost || 0}</TableCell>
+                        <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesDrawn || 0}</TableCell>
                         <TableCell className="text-center text-xs font-black text-slate-900">{points}</TableCell>
-                        <TableCell className="text-right text-xs font-bold pr-4">
+                        <TableCell className="text-right text-xs font-bold pr-8">
                           <div className="flex items-center justify-end gap-2">
-                            <span className={team.netRunRate >= 0 ? 'text-slate-900' : 'text-slate-900'}>
-                              {team.netRunRate > 0 ? '+' : ''}{team.netRunRate.toFixed(3)}
+                            <span className="text-slate-900">
+                              {(team.netRunRate || 0) > 0 ? '+' : ''}{(team.netRunRate || 0).toFixed(3)}
                             </span>
                             <ChevronDown className="w-3 h-3 text-slate-300 group-hover:text-slate-500" />
                           </div>
