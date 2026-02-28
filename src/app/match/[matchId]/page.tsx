@@ -63,7 +63,8 @@ export default function MatchScoreboardPage() {
   });
 
   const getPlayerName = (pid: string) => {
-    return allPlayers?.find(p => p.id === pid)?.name || '---';
+    const p = allPlayers?.find(p => p.id === pid);
+    return p ? `${p.name} (${p.role})` : '---';
   };
 
   const getTeamName = (tid: string) => {
@@ -91,8 +92,13 @@ export default function MatchScoreboardPage() {
     let newStriker = currentInning.strikerPlayerId;
     let newNonStriker = currentInning.nonStrikerPlayerId;
 
+    if (!newStriker || !newNonStriker) {
+      toast({ title: "Batsmen Missing", description: "Please ensure both striker and non-striker are selected.", variant: "destructive" });
+      return;
+    }
+
     if (newStriker === newNonStriker) {
-      toast({ title: "Striker Conflict", description: "Striker and Non-Striker cannot be the same. Please Swap first.", variant: "destructive" });
+      toast({ title: "Striker Conflict", description: "Striker and Non-Striker cannot be the same.", variant: "destructive" });
       return;
     }
 
@@ -176,7 +182,7 @@ export default function MatchScoreboardPage() {
   };
 
   const handleMainUndo = () => {
-    if (confirm("This will reset the match setup and take you back to the initialization page. Are you sure?")) {
+    if (confirm("Abandon current scoring and go back to Match Setup?")) {
       router.push('/match/new');
     }
   };
@@ -377,12 +383,12 @@ export default function MatchScoreboardPage() {
                       <CardTitle className="text-lg">Innings Logic</CardTitle>
                     </div>
                     <Button 
-                      variant="outline" 
+                      variant="destructive" 
                       size="sm" 
                       onClick={handleMainUndo} 
-                      className="w-full text-destructive border-destructive hover:bg-destructive/10 font-bold"
+                      className="w-full font-bold"
                     >
-                      <RotateCcw className="w-4 h-4 mr-2" /> Main Undo (Reset)
+                      Main Undo (Reset)
                     </Button>
                   </div>
                 </CardHeader>
