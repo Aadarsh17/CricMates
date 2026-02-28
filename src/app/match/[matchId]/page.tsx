@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -8,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, Undo2, Shuffle, ArrowLeft, UserPlus, RefreshCw, AlertCircle } from 'lucide-react';
+import { Trophy, Undo2, Shuffle, ArrowLeft, UserPlus, RefreshCw, AlertCircle, PlayCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -58,6 +59,7 @@ export default function MatchScoreboardPage() {
   const [isWicketModalOpen, setIsWicketModalOpen] = useState(false);
   const [isBowlerModalOpen, setIsBowlerModalOpen] = useState(false);
   const [isNoBallModalOpen, setIsNoBallModalOpen] = useState(false);
+  const [isSecondInningsSetupOpen, setIsSecondInningsSetupOpen] = useState(false);
   
   const [wicketDetails, setWicketDetails] = useState({
     type: 'bowled',
@@ -65,6 +67,12 @@ export default function MatchScoreboardPage() {
     fielderId: 'none'
   });
   const [selectedNextBowlerId, setSelectedNextBowlerId] = useState('');
+  
+  const [secondInningsSetup, setSecondInningsSetup] = useState({
+    strikerId: '',
+    nonStrikerId: '',
+    bowlerId: ''
+  });
 
   const getPlayerName = (pid: string) => {
     if (!pid || pid === 'none') return '---';
@@ -101,7 +109,7 @@ export default function MatchScoreboardPage() {
 
     const currentInning = activeInningData;
     let runsForThisBall = runs;
-    if (extra !== 'none') runsForThisBall += 1; // Penalty for extra
+    if (extra !== 'none') runsForThisBall += 1;
 
     let newStriker = currentInning.strikerPlayerId;
     let newNonStriker = currentInning.nonStrikerPlayerId;
@@ -111,8 +119,6 @@ export default function MatchScoreboardPage() {
       return;
     }
 
-    // Strike rotation for odd runs (total runs on this ball excluding penalty for strike check usually)
-    // In many variations, for No Ball, the runs off bat determine strike rotation.
     if (runs % 2 !== 0) {
       const temp = newStriker;
       newStriker = newNonStriker;
@@ -129,7 +135,6 @@ export default function MatchScoreboardPage() {
         isOverEnd = true;
         newOvers += 1;
         newBalls = 0;
-        // Strike rotation at over end
         const temp = newStriker;
         newStriker = newNonStriker;
         newNonStriker = temp;
@@ -162,13 +167,6 @@ export default function MatchScoreboardPage() {
     
     let finalStriker = isWicket ? wicketDetails.newStrikerId : newStriker;
     let finalNonStriker = newNonStriker;
-
-    // If over ended AND a wicket fell, rotation might be tricky, usually the new batsman takes strike if it wasn't the last ball or rotation was already handled.
-    // Simplifying: rotation at over end always happens, then wicket logic replaces the striker.
-    if (isWicket && isOverEnd) {
-       // At over end, strike already swapped. New striker replaces the one who was out (who is now the non-striker due to the swap)
-       // This is complex, but standard app behavior is: handle ball, then handle over end rotation.
-    }
 
     updateDocumentNonBlocking(activeInningRef, {
       score: currentInning.score + runsForThisBall,
@@ -221,6 +219,39 @@ export default function MatchScoreboardPage() {
 
     deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', lastBall.id));
     toast({ title: "Ball Undone", description: "Score reverted." });
+  };
+
+  const startSecondInnings = () => {
+    if (!inn1 || !match || !secondInningsSetup.strikerId || !secondInningsSetup.nonStrikerId || !secondInningsSetup.bowlerId) {
+      toast({ title: "Missing Players", description: "Please select all starting players.", variant: "destructive" });
+      return;
+    }
+
+    const battingTeamId = inn1.battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+    const bowlingTeamId = inn1.battingTeamId === match.team1Id ? match.team1Id : match.team2Id;
+
+    const inningData = {
+      id: 'inning_2',
+      matchId: matchId,
+      inningNumber: 2,
+      battingTeamId,
+      bowlingTeamId,
+      score: 0,
+      wickets: 0,
+      oversCompleted: 0,
+      ballsInCurrentOver: 0,
+      strikerPlayerId: secondInningsSetup.strikerId,
+      nonStrikerPlayerId: secondInningsSetup.nonStrikerId,
+      currentBowlerPlayerId: secondInningsSetup.bowlerId,
+      umpireId: user?.uid || 'anonymous',
+      matchStatus: 'live'
+    };
+
+    setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), inningData, { merge: true });
+    updateDocumentNonBlocking(matchRef!, { currentInningNumber: 2 });
+    setIsSecondInningsSetupOpen(false);
+    setActiveInningView(2);
+    toast({ title: "Innings 2 Started", description: "Good luck to the chasing team!" });
   };
 
   const finalizeMatch = async () => {
@@ -285,6 +316,15 @@ export default function MatchScoreboardPage() {
     : match.team2SquadPlayerIds;
 
   const bowlingPool = allPlayers?.filter(p => currentBowlingSquadIds.includes(p.id)) || [];
+
+  const secondInningsBattingTeamId = inn1?.battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+  const secondInningsBowlingTeamId = secondInningsBattingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+
+  const secondInningsBattingSquadIds = secondInningsBattingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
+  const secondInningsBowlingSquadIds = secondInningsBowlingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
+
+  const secondInningsBattingPlayers = allPlayers?.filter(p => secondInningsBattingSquadIds.includes(p.id)) || [];
+  const secondInningsBowlingPlayers = allPlayers?.filter(p => secondInningsBowlingSquadIds.includes(p.id)) || [];
 
   const requiresFielder = wicketDetails.type === 'caught' || wicketDetails.type === 'runout' || wicketDetails.type === 'stumping';
 
@@ -463,27 +503,7 @@ export default function MatchScoreboardPage() {
                   {match.currentInningNumber === 1 ? (
                     <Button 
                       className="w-full bg-secondary hover:bg-secondary/90 h-12 font-bold" 
-                      onClick={() => {
-                        if (!inn1) return;
-                        const battingTeamId = inn1.battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
-                        const bowlingTeamId = inn1.battingTeamId === match.team1Id ? match.team1Id : match.team2Id;
-                        const inningData = {
-                          id: 'inning_2',
-                          matchId,
-                          inningNumber: 2,
-                          battingTeamId,
-                          bowlingTeamId,
-                          score: 0,
-                          wickets: 0,
-                          oversCompleted: 0,
-                          ballsInCurrentOver: 0,
-                          umpireId: user?.uid || 'anonymous',
-                          matchStatus: 'live'
-                        };
-                        setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), inningData, { merge: true });
-                        updateDocumentNonBlocking(matchRef!, { currentInningNumber: 2 });
-                        setActiveInningView(2);
-                      }}
+                      onClick={() => setIsSecondInningsSetupOpen(true)}
                       disabled={!isCurrentInningsOver}
                     >
                       Start 2nd Innings
@@ -630,7 +650,7 @@ export default function MatchScoreboardPage() {
             <DialogTitle>{activeInningData?.ballsInCurrentOver === 0 && activeInningData?.oversCompleted > 0 ? 'Select Next Bowler' : 'Assign Bowler'}</DialogTitle>
             <DialogDescription>
               {activeInningData?.ballsInCurrentOver === 0 && activeInningData?.oversCompleted > 0 
-                ? 'The over is complete. Choose the next bowler (cannot be the same as the last over).' 
+                ? 'The over is complete. Choose the next bowler.' 
                 : 'Assign a bowler to the current over.'}
             </DialogDescription>
           </DialogHeader>
@@ -655,6 +675,58 @@ export default function MatchScoreboardPage() {
           <DialogFooter>
             <Button className="w-full h-12 font-bold" onClick={handleNextBowlerSelect} disabled={!selectedNextBowlerId || selectedNextBowlerId === 'none'}>
               Confirm Selection
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2nd Innings Setup Modal */}
+      <Dialog open={isSecondInningsSetupOpen} onOpenChange={setIsSecondInningsSetupOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Setup 2nd Innings</DialogTitle>
+            <DialogDescription>Select the starting lineup for the chasing team.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Striker</Label>
+                <Select onValueChange={(v) => setSecondInningsSetup({...secondInningsSetup, strikerId: v})}>
+                  <SelectTrigger><SelectValue placeholder="Select Striker" /></SelectTrigger>
+                  <SelectContent>
+                    {secondInningsBattingPlayers.filter(p => p.id !== secondInningsSetup.nonStrikerId).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Non-Striker</Label>
+                <Select onValueChange={(v) => setSecondInningsSetup({...secondInningsSetup, nonStrikerId: v})}>
+                  <SelectTrigger><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
+                  <SelectContent>
+                    {secondInningsBattingPlayers.filter(p => p.id !== secondInningsSetup.strikerId).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Opening Bowler</Label>
+              <Select onValueChange={(v) => setSecondInningsSetup({...secondInningsSetup, bowlerId: v})}>
+                <SelectTrigger><SelectValue placeholder="Select Bowler" /></SelectTrigger>
+                <SelectContent>
+                  {secondInningsBowlingPlayers.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button className="w-full h-12 font-bold bg-secondary hover:bg-secondary/90" onClick={startSecondInnings} disabled={!secondInningsSetup.strikerId || !secondInningsSetup.nonStrikerId || !secondInningsSetup.bowlerId}>
+              <PlayCircle className="mr-2 h-5 w-5" /> Start 2nd Innings
             </Button>
           </DialogFooter>
         </DialogContent>
