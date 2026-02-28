@@ -45,7 +45,6 @@ export default function MatchScoreboardPage() {
   const activeInningData = activeInningView === 1 ? inn1 : inn2;
   const activeInningRef = activeInningView === 1 ? inn1Ref : inn2Ref;
 
-  // Fetch both innings for the Overs tab
   const inn1DeliveriesQuery = useMemoFirebase(() => 
     query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
     [db, matchId]
@@ -58,7 +57,6 @@ export default function MatchScoreboardPage() {
   );
   const { data: inn2Deliveries } = useCollection(inn2DeliveriesQuery);
 
-  // For scorecard and handleUndo, we use the active view
   const deliveries = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
 
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
@@ -104,7 +102,12 @@ export default function MatchScoreboardPage() {
 
     let runningScore = 0;
     let runningWickets = 0;
-    let currentPart = { p1: { id: '', runs: 0 }, p2: { id: '', runs: 0 }, total: 0, wicket: 1 };
+    
+    // Detailed partnership state
+    let p1 = { id: '', runs: 0, balls: 0 };
+    let p2 = { id: '', runs: 0, balls: 0 };
+    let partTotalRuns = 0;
+    let partTotalBalls = 0;
 
     deliveries.forEach((d: any) => {
       runningScore += d.totalRunsOnDelivery;
@@ -117,22 +120,30 @@ export default function MatchScoreboardPage() {
         }
       }
 
-      // Partnerships Tracking
-      if (!currentPart.p1.id && d.strikerPlayerId !== 'none') currentPart.p1.id = d.strikerPlayerId;
-      // We assume non-striker is whatever isn't p1. This is simplified for MVP.
-      
+      // Initialize partners if needed
+      if (!p1.id && d.strikerPlayerId !== 'none') p1.id = d.strikerPlayerId;
+      // We assume the first non-striker encountered is p2
+      // In a real pro app we'd track this more precisely from start, but for MVP:
+      if (d.strikerPlayerId !== p1.id && !p2.id && d.strikerPlayerId !== 'none') p2.id = d.strikerPlayerId;
+
+      // Track partnership stats
+      partTotalRuns += d.totalRunsOnDelivery;
+      if (d.extraType === 'none') partTotalBalls += 1;
+
       if (d.strikerPlayerId && d.strikerPlayerId !== 'none') {
         if (!battingMap[d.strikerPlayerId]) {
           battingMap[d.strikerPlayerId] = { id: d.strikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out' };
         }
         battingMap[d.strikerPlayerId].runs += d.runsScored;
         
-        if (currentPart.p1.id === d.strikerPlayerId) currentPart.p1.runs += d.runsScored;
-        else {
-          if (!currentPart.p2.id) currentPart.p2.id = d.strikerPlayerId;
-          currentPart.p2.runs += d.runsScored;
+        // Track individual contribution to partnership
+        if (d.strikerPlayerId === p1.id) {
+          p1.runs += d.runsScored;
+          if (d.extraType === 'none') p1.balls += 1;
+        } else if (d.strikerPlayerId === p2.id) {
+          p2.runs += d.runsScored;
+          if (d.extraType === 'none') p2.balls += 1;
         }
-        currentPart.total += d.totalRunsOnDelivery;
 
         if (d.extraType !== 'wide') {
           battingMap[d.strikerPlayerId].balls += 1;
@@ -185,15 +196,21 @@ export default function MatchScoreboardPage() {
           over: `${d.overNumber}.${d.ballNumberInOver}`
         });
 
-        partnerships.push({...currentPart});
-        // Reset partnership
-        const survivor = d.batsmanOutPlayerId === currentPart.p1.id ? currentPart.p2 : currentPart.p1;
-        currentPart = {
-          p1: { id: survivor.id, runs: 0 },
-          p2: { id: '', runs: 0 },
-          total: 0,
-          wicket: runningWickets + 1
-        };
+        // Close current partnership
+        partnerships.push({
+          p1: { ...p1 },
+          p2: { ...p2 },
+          totalRuns: partTotalRuns,
+          totalBalls: partTotalBalls,
+          wicket: runningWickets
+        });
+
+        // Start new partnership
+        const survivorId = d.batsmanOutPlayerId === p1.id ? p2.id : p1.id;
+        p1 = { id: survivorId, runs: 0, balls: 0 };
+        p2 = { id: '', runs: 0, balls: 0 }; // p2 will be set on next delivery striker
+        partTotalRuns = 0;
+        partTotalBalls = 0;
       }
     });
 
@@ -418,22 +435,22 @@ export default function MatchScoreboardPage() {
     let label = ball.runsScored.toString();
 
     if (ball.isWicket) {
-      color = 'bg-[#e91e63]'; // Pinkish-Red for W
+      color = 'bg-[#e91e63]';
       label = 'W';
     } else if (ball.extraType === 'wide') {
-      color = 'bg-[#fbc02d]'; // Gold for Extras
+      color = 'bg-[#fbc02d]';
       label = 'Wd';
     } else if (ball.extraType === 'noball') {
       color = 'bg-[#fbc02d]';
       label = 'NB';
     } else if (ball.runsScored === 4) {
-      color = 'bg-[#0091ca]'; // Blue for 4
+      color = 'bg-[#0091ca]';
       label = '4';
     } else if (ball.runsScored === 6) {
-      color = 'bg-[#9c27b0]'; // Purple for 6
+      color = 'bg-[#9c27b0]';
       label = '6';
     } else if (ball.runsScored > 0) {
-      color = 'bg-[#8bc34a]'; // Green for 1,2,3
+      color = 'bg-[#8bc34a]';
       label = ball.runsScored.toString();
     }
 
@@ -614,7 +631,7 @@ export default function MatchScoreboardPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="scorecard" className="mt-4 space-y-6">
+        <TabsContent value="scorecard" className="mt-4 space-y-8">
           <div className="flex gap-2 mb-4">
             <Button variant={activeInningView === 1 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(1)} className="rounded-full text-[10px] font-bold h-7">Innings 1</Button>
             <Button variant={activeInningView === 2 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(2)} className="rounded-full text-[10px] font-bold h-7" disabled={!inn2 && match.currentInningNumber === 1}>Innings 2</Button>
@@ -623,7 +640,7 @@ export default function MatchScoreboardPage() {
           <div className="text-blue-600 font-bold text-xs mb-2">{match.resultDescription}</div>
 
           {activeInningData && (
-            <div className="space-y-4">
+            <div className="space-y-8">
               <div className="bg-primary text-white p-3 flex justify-between items-center rounded-sm">
                 <span className="font-bold text-sm uppercase">{getTeamName(activeInningData.battingTeamId)}</span>
                 <span className="font-black text-sm">{activeInningData.score}-{activeInningData.wickets} ({activeInningData.oversCompleted}.{activeInningData.ballsInCurrentOver} Ov)</span>
@@ -663,10 +680,10 @@ export default function MatchScoreboardPage() {
                     <TableRow className="bg-slate-50/30">
                       <TableCell className="text-xs font-bold">Extras</TableCell>
                       <TableCell colSpan={5} className="text-xs font-bold text-right">
-                        {scorecard.extras.total} (b {scorecard.extras.byes || 0}, lb {scorecard.extras.legbyes || 0}, w {scorecard.extras.wide || 0}, nb {scorecard.extras.noball || 0}, p 0)
+                        {scorecard.extras.total} (b {scorecard.extras.byes || 0}, lb {scorecard.extras.legbyes || 0}, w {scorecard.extras.wide || 0}, nb {scorecard.extras.noball || 0})
                       </TableCell>
                     </TableRow>
-                    <TableRow className="bg-slate-100/50">
+                    <TableRow className="bg-slate-100/50 border-t-2">
                       <TableCell className="text-xs font-black">Total</TableCell>
                       <TableCell colSpan={5} className="text-xs font-black text-right">
                         {activeInningData.score}-{activeInningData.wickets} ({activeInningData.oversCompleted}.{activeInningData.ballsInCurrentOver} Ov, RR: {(activeInningData.score / (activeInningData.oversCompleted + (activeInningData.ballsInCurrentOver / 6)) || 0).toFixed(1)})
@@ -716,40 +733,56 @@ export default function MatchScoreboardPage() {
                 </Table>
               </div>
 
-              {/* Fall of Wickets */}
-              <div className="mt-8">
-                <h3 className="text-xs font-bold uppercase text-slate-500 mb-3 tracking-widest">Fall of Wickets</h3>
-                <div className="text-[11px] text-slate-700 flex flex-wrap gap-x-4 gap-y-2 leading-relaxed">
-                  {scorecard.fow.length > 0 ? scorecard.fow.map((f, i) => (
-                    <span key={i}>
-                      <span className="font-bold text-slate-900">{f.score}-{f.wicket}</span> ({getPlayerName(f.batterId)}, {f.over} ov){i < scorecard.fow.length - 1 ? ',' : ''}
-                    </span>
-                  )) : (
-                    <span className="text-slate-400 italic">No wickets fallen yet</span>
-                  )}
+              {/* Fall of Wickets Table (Matching Requested Layout) */}
+              <div className="space-y-2">
+                <div className="bg-slate-100 p-2 font-black text-[10px] uppercase text-slate-600 flex justify-between">
+                  <span className="flex-1">Fall of Wickets</span>
+                  <span className="w-24 text-center">Score</span>
+                  <span className="w-24 text-right">Over</span>
+                </div>
+                <div className="border rounded-sm bg-white overflow-hidden">
+                  <Table>
+                    <TableBody>
+                      {scorecard.fow.length > 0 ? scorecard.fow.map((f, i) => (
+                        <TableRow key={i} className="border-b last:border-0 h-10">
+                          <TableCell className="text-xs font-bold text-blue-600">{getPlayerName(f.batterId)}</TableCell>
+                          <TableCell className="text-center text-xs font-black w-24">{f.score}-{f.wicket}</TableCell>
+                          <TableCell className="text-right text-xs font-medium text-slate-500 w-24">{f.over}</TableCell>
+                        </TableRow>
+                      )) : (
+                        <TableRow><TableCell colSpan={3} className="text-center text-xs text-slate-400 py-4 italic">No wickets fallen</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
 
-              {/* Partnerships */}
-              <div className="mt-8">
-                <h3 className="text-xs font-bold uppercase text-slate-500 mb-3 tracking-widest">Partnerships</h3>
-                <div className="bg-white border rounded-sm overflow-hidden">
+              {/* Partnerships Table (Matching Requested Layout) */}
+              <div className="space-y-2">
+                <div className="bg-slate-100 p-2 font-black text-[10px] uppercase text-slate-600">
+                  Partnerships
+                </div>
+                <div className="border rounded-sm bg-white overflow-hidden">
                   <Table>
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="text-[10px] uppercase font-bold text-slate-500">Wkt</TableHead>
-                        <TableHead className="text-[10px] uppercase font-bold text-slate-500">Batters</TableHead>
-                        <TableHead className="text-right text-[10px] uppercase font-bold text-slate-500">Runs</TableHead>
-                      </TableRow>
-                    </TableHeader>
                     <TableBody>
                       {scorecard.partnerships.length > 0 ? scorecard.partnerships.map((p, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="py-2 text-xs font-bold text-slate-400">{p.wicket}</TableCell>
-                          <TableCell className="py-2 text-xs">
-                            <span className="font-bold text-blue-600">{getPlayerName(p.p1.id)}</span> ({p.p1.runs}) & <span className="font-bold text-blue-600">{getPlayerName(p.p2.id)}</span> ({p.p2.runs})
+                        <TableRow key={i} className="border-b last:border-0">
+                          <TableCell className="w-[35%] py-4">
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="text-xs font-bold text-blue-600">{getPlayerName(p.p1.id)}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">{p.p1.runs}({p.p1.balls})</span>
+                            </div>
                           </TableCell>
-                          <TableCell className="py-2 text-right text-xs font-black text-slate-900">{p.total}</TableCell>
+                          <TableCell className="w-[30%] text-center py-4">
+                             <span className="text-xs font-black text-slate-900">{p.totalRuns}({p.totalBalls})</span>
+                             <div className="text-[8px] uppercase font-black text-slate-300 mt-1">{p.wicket}st wicket</div>
+                          </TableCell>
+                          <TableCell className="w-[35%] py-4 text-right">
+                            <div className="flex flex-col items-end gap-1">
+                              <span className="text-xs font-bold text-blue-600">{getPlayerName(p.p2.id)}</span>
+                              <span className="text-[10px] text-slate-400 font-medium">{p.p2.runs}({p.p2.balls})</span>
+                            </div>
+                          </TableCell>
                         </TableRow>
                       )) : (
                         <TableRow><TableCell colSpan={3} className="text-center text-xs text-slate-400 py-4 italic">No completed partnerships recorded</TableCell></TableRow>
