@@ -201,15 +201,15 @@ export default function TeamsPage() {
                 <div className="grid grid-cols-3 gap-2 text-center mb-4">
                   <div className="bg-slate-50 border border-slate-100 p-2 rounded-lg">
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Won</p>
-                    <p className="text-lg font-black text-secondary">{team.matchesWon}</p>
+                    <p className="text-lg font-black text-secondary">{team.matchesWon || 0}</p>
                   </div>
                   <div className="bg-slate-50 border border-slate-100 p-2 rounded-lg">
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Lost</p>
-                    <p className="text-lg font-black text-destructive">{team.matchesLost}</p>
+                    <p className="text-lg font-black text-destructive">{team.matchesLost || 0}</p>
                   </div>
                   <div className="bg-slate-50 border border-slate-100 p-2 rounded-lg">
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">NRR</p>
-                    <p className="text-sm font-black text-primary">{team.netRunRate.toFixed(3)}</p>
+                    <p className="text-sm font-black text-primary">{(team.netRunRate || 0).toFixed(3)}</p>
                   </div>
                 </div>
                 

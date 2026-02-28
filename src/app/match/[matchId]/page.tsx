@@ -64,7 +64,7 @@ export default function MatchScoreboardPage() {
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
 
-  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams'), orderBy('netRunRate', 'desc')), [db]);
+  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
   const getPlayerName = (pid: string) => {
@@ -387,7 +387,7 @@ export default function MatchScoreboardPage() {
   };
 
   const handleEndMatch = () => {
-    if (!match || !inn1 || !inn2 || !isUmpire) return;
+    if (!match || !inn1 || !inn2 || !isUmpire || !allTeams) return;
 
     let resultDesc = "Match Drawn";
     let winnerId = "";
@@ -406,55 +406,56 @@ export default function MatchScoreboardPage() {
     });
 
     const calculateNRRStats = (battingTeamId: string, bowlingTeamId: string, batInning: any, bowlInning: any) => {
-      const batTeam = allTeams?.find(t => t.id === battingTeamId);
-      const bowlTeam = allTeams?.find(t => t.id === bowlingTeamId);
+      const batTeam = allTeams.find(t => t.id === battingTeamId);
+      const bowlTeam = allTeams.find(t => t.id === bowlingTeamId);
       if (!batTeam || !bowlTeam) return;
 
-      const decimalOvers = (inn: any) => {
+      const getMatchDecimalOvers = (inn: any) => {
         if (!inn) return 0;
+        // If bowled out, full quota of overs is used for NRR
         if (inn.wickets >= 10) return match.totalOvers;
         return (inn.oversCompleted || 0) + ((inn.ballsInCurrentOver || 0) / 6);
       };
 
-      const batOvers = decimalOvers(batInning);
-      const bowlOvers = decimalOvers(bowlInning);
+      const batMatchOvers = getMatchDecimalOvers(batInning);
+      const bowlMatchOvers = getMatchDecimalOvers(bowlInning);
 
-      // Team A (Batting Team) Stats
-      const newBatRunsScored = (batTeam.totalRunsScored || 0) + (batInning?.score || 0);
-      const newBatRunsConceded = (batTeam.totalRunsConceded || 0) + (bowlInning?.score || 0);
-      const newBatOversFaced = (batTeam.totalOversFaced || 0) + batOvers;
-      const newBatOversBowled = (batTeam.totalOversBowled || 0) + bowlOvers;
+      // --- Team A (Batting Team) Cumulative Update ---
+      const totalBatRunsScored = (batTeam.totalRunsScored || 0) + (batInning?.score || 0);
+      const totalBatRunsConceded = (batTeam.totalRunsConceded || 0) + (bowlInning?.score || 0);
+      const totalBatOversFaced = (batTeam.totalOversFaced || 0) + batMatchOvers;
+      const totalBatOversBowled = (batTeam.totalOversBowled || 0) + bowlMatchOvers;
 
-      const batNRR = (newBatOversFaced > 0 && newBatOversBowled > 0)
-        ? (newBatRunsScored / newBatOversFaced) - (newBatRunsConceded / newBatOversBowled)
+      const batNRR = (totalBatOversFaced > 0 && totalBatOversBowled > 0)
+        ? (totalBatRunsScored / totalBatOversFaced) - (totalBatRunsConceded / totalBatOversBowled)
         : 0;
 
       updateDocumentNonBlocking(doc(db, 'teams', battingTeamId), {
-        totalRunsScored: newBatRunsScored,
-        totalRunsConceded: newBatRunsConceded,
-        totalOversFaced: newBatOversFaced,
-        totalOversBowled: newBatOversBowled,
+        totalRunsScored: totalBatRunsScored,
+        totalRunsConceded: totalBatRunsConceded,
+        totalOversFaced: totalBatOversFaced,
+        totalOversBowled: totalBatOversBowled,
         matchesWon: (batTeam.matchesWon || 0) + (winnerId === battingTeamId ? 1 : 0),
         matchesLost: (batTeam.matchesLost || 0) + (winnerId && winnerId !== battingTeamId ? 1 : 0),
         matchesDrawn: (batTeam.matchesDrawn || 0) + (!winnerId ? 1 : 0),
         netRunRate: isFinite(batNRR) ? batNRR : 0
       });
 
-      // Team B (Bowling Team) Stats
-      const newBowlRunsScored = (bowlTeam.totalRunsScored || 0) + (bowlInning?.score || 0);
-      const newBowlRunsConceded = (bowlTeam.totalRunsConceded || 0) + (batInning?.score || 0);
-      const newBowlOversFaced = (bowlTeam.totalOversFaced || 0) + bowlOvers;
-      const newBowlOversBowled = (bowlTeam.totalOversBowled || 0) + batOvers;
+      // --- Team B (Bowling Team) Cumulative Update ---
+      const totalBowlRunsScored = (bowlTeam.totalRunsScored || 0) + (bowlInning?.score || 0);
+      const totalBowlRunsConceded = (bowlTeam.totalRunsConceded || 0) + (batInning?.score || 0);
+      const totalBowlOversFaced = (bowlTeam.totalOversFaced || 0) + bowlMatchOvers;
+      const totalBowlOversBowled = (bowlTeam.totalOversBowled || 0) + batMatchOvers;
 
-      const bowlNRR = (newBowlOversFaced > 0 && newBowlOversBowled > 0)
-        ? (newBowlRunsScored / newBowlOversFaced) - (newBowlRunsConceded / newBowlOversBowled)
+      const bowlNRR = (totalBowlOversFaced > 0 && totalBowlOversBowled > 0)
+        ? (totalBowlRunsScored / totalBowlOversFaced) - (totalBowlRunsConceded / totalBowlOversBowled)
         : 0;
 
       updateDocumentNonBlocking(doc(db, 'teams', bowlingTeamId), {
-        totalRunsScored: newBowlRunsScored,
-        totalRunsConceded: newBowlRunsConceded,
-        totalOversFaced: newBowlOversFaced,
-        totalOversBowled: newBowlOversBowled,
+        totalRunsScored: totalBowlRunsScored,
+        totalRunsConceded: totalBowlRunsConceded,
+        totalOversFaced: totalBowlOversFaced,
+        totalOversBowled: totalBowlOversBowled,
         matchesWon: (bowlTeam.matchesWon || 0) + (winnerId === bowlingTeamId ? 1 : 0),
         matchesLost: (bowlTeam.matchesLost || 0) + (winnerId && winnerId !== bowlingTeamId ? 1 : 0),
         matchesDrawn: (bowlTeam.matchesDrawn || 0) + (!winnerId ? 1 : 0),
@@ -462,6 +463,7 @@ export default function MatchScoreboardPage() {
       });
     };
 
+    // Calculate and update both teams
     calculateNRRStats(inn1.battingTeamId, inn1.bowlingTeamId, inn1, inn2);
 
     toast({ title: "Match Finalized", description: resultDesc });
@@ -930,8 +932,8 @@ export default function MatchScoreboardPage() {
               </TableHeader>
               <TableBody>
                 {allTeams?.map((team, idx) => {
-                  const played = team.matchesWon + team.matchesLost + team.matchesDrawn;
-                  const points = (team.matchesWon * 2) + team.matchesDrawn;
+                  const played = (team.matchesWon || 0) + (team.matchesLost || 0) + (team.matchesDrawn || 0);
+                  const points = ((team.matchesWon || 0) * 2) + (team.matchesDrawn || 0);
                   return (
                     <TableRow key={team.id} className="hover:bg-slate-50 group border-b last:border-0">
                       <TableCell className="text-center font-bold text-xs text-slate-500 py-3">{idx + 1}</TableCell>
@@ -947,14 +949,14 @@ export default function MatchScoreboardPage() {
                         </div>
                       </TableCell>
                       <TableCell className="text-center text-xs font-medium text-slate-900">{played}</TableCell>
-                      <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesWon}</TableCell>
-                      <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesLost}</TableCell>
-                      <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesDrawn}</TableCell>
+                      <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesWon || 0}</TableCell>
+                      <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesLost || 0}</TableCell>
+                      <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesDrawn || 0}</TableCell>
                       <TableCell className="text-center text-xs font-black text-slate-900">{points}</TableCell>
                       <TableCell className="text-right text-xs font-bold pr-4">
                         <div className="flex items-center justify-end gap-2">
                           <span className="text-slate-900">
-                            {team.netRunRate > 0 ? '+' : ''}{team.netRunRate.toFixed(3)}
+                            {(team.netRunRate || 0) > 0 ? '+' : ''}{(team.netRunRate || 0).toFixed(3)}
                           </span>
                           <ChevronDown className="w-3 h-3 text-slate-300 group-hover:text-slate-500" />
                         </div>
