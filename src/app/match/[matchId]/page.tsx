@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { UserCircle, Info, Users, ChevronRight, Star } from 'lucide-react';
+import { UserCircle, Info, Users, Flag, ChevronDown, Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -53,7 +53,7 @@ export default function MatchScoreboardPage() {
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
 
-  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
+  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams'), orderBy('netRunRate', 'desc')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
   const getPlayerName = (pid: string) => {
@@ -74,7 +74,6 @@ export default function MatchScoreboardPage() {
     return Array.from(new Set(deliveries?.filter(d => d.isWicket && d.batsmanOutPlayerId && d.batsmanOutPlayerId !== 'none').map(d => d.batsmanOutPlayerId) || []));
   }, [deliveries]);
 
-  // Dynamic POTM Calculation based on CVP
   const potm = useMemo(() => {
     if (!match || !allPlayers) return null;
     const participantIds = [...match.team1SquadPlayerIds, ...match.team2SquadPlayerIds];
@@ -83,7 +82,6 @@ export default function MatchScoreboardPage() {
     return participants.reduce((prev, current) => ((prev.careerCVP || 0) > (current.careerCVP || 0)) ? prev : current);
   }, [match, allPlayers]);
 
-  // Scorecard Aggregation
   const scorecard = useMemo(() => {
     if (!deliveries) return { batting: [], bowling: [], extras: { wide: 0, noball: 0, byes: 0, legbyes: 0, total: 0 } };
 
@@ -225,7 +223,6 @@ export default function MatchScoreboardPage() {
       }
     }
 
-    // Construct dismissal description professionally
     let dismissalDesc = 'out';
     if (isWicket) {
       const bowler = getPlayerName(activeInningData.currentBowlerPlayerId);
@@ -619,6 +616,65 @@ export default function MatchScoreboardPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="points-table" className="mt-4">
+          <div className="bg-white border rounded-sm overflow-hidden shadow-sm">
+            <div className="bg-[#e6edeb] p-2 flex items-center">
+               <div className="bg-[#7c3aed] text-white text-[9px] font-bold px-2 py-0.5 rounded-sm uppercase">
+                  CHAMPIONSHIP GROUP 1
+               </div>
+            </div>
+            <Table>
+              <TableHeader className="bg-[#f0f4f3]">
+                <TableRow className="border-b-0">
+                  <TableHead className="w-12"></TableHead>
+                  <TableHead className="text-[10px] font-bold text-slate-500 uppercase">Team</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold text-slate-500 uppercase">P</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold text-slate-500 uppercase">W</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold text-slate-500 uppercase">L</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold text-slate-500 uppercase">NR</TableHead>
+                  <TableHead className="text-center text-[10px] font-bold text-slate-500 uppercase">PTS</TableHead>
+                  <TableHead className="text-right text-[10px] font-bold text-slate-500 uppercase pr-8">NRR</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allTeams?.map((team, idx) => {
+                  const played = team.matchesWon + team.matchesLost + team.matchesDrawn;
+                  const points = (team.matchesWon * 2) + team.matchesDrawn;
+                  return (
+                    <TableRow key={team.id} className="hover:bg-slate-50 group border-b last:border-0">
+                      <TableCell className="text-center font-bold text-xs text-slate-500 py-3">{idx + 1}</TableCell>
+                      <TableCell className="py-3">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-6 w-6 rounded-sm">
+                            <AvatarImage src={team.logoUrl} />
+                            <AvatarFallback className="bg-slate-100 rounded-sm"><Flag className="w-3 h-3 text-slate-300" /></AvatarFallback>
+                          </Avatar>
+                          <span className="font-bold text-blue-600 text-xs">
+                            {team.name}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center text-xs font-medium text-slate-900">{played}</TableCell>
+                      <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesWon}</TableCell>
+                      <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesLost}</TableCell>
+                      <TableCell className="text-center text-xs font-medium text-slate-900">{team.matchesDrawn}</TableCell>
+                      <TableCell className="text-center text-xs font-black text-slate-900">{points}</TableCell>
+                      <TableCell className="text-right text-xs font-bold pr-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-slate-900">
+                            {team.netRunRate > 0 ? '+' : ''}{team.netRunRate.toFixed(3)}
+                          </span>
+                          <ChevronDown className="w-3 h-3 text-slate-300 group-hover:text-slate-500" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
         </TabsContent>
       </Tabs>
 
