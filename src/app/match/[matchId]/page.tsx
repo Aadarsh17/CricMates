@@ -386,6 +386,35 @@ export default function MatchScoreboardPage() {
     if (isOverEnd && !isCurrentInningsOver) setIsBowlerModalOpen(true);
   };
 
+  const handleStartInnings2 = () => {
+    if (!match || !inn1 || !isUmpire) return;
+    
+    const battingTeamId = inn1.bowlingTeamId;
+    const bowlingTeamId = inn1.battingTeamId;
+
+    const inningData = {
+      id: 'inning_2',
+      matchId: matchId,
+      inningNumber: 2,
+      battingTeamId,
+      bowlingTeamId,
+      score: 0,
+      wickets: 0,
+      oversCompleted: 0,
+      ballsInCurrentOver: 0,
+      strikerPlayerId: '',
+      nonStrikerPlayerId: '',
+      currentBowlerPlayerId: '',
+      umpireId: user?.uid || 'anonymous',
+      matchStatus: 'live'
+    };
+
+    setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), inningData, { merge: true });
+    updateDocumentNonBlocking(matchRef, { currentInningNumber: 2 });
+    setActiveInningView(2);
+    setIsOpeningPairSetupOpen(true);
+  };
+
   const handleEndMatch = () => {
     if (!match || !inn1 || !inn2 || !isUmpire || !allTeams) return;
 
@@ -655,7 +684,12 @@ export default function MatchScoreboardPage() {
                   <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => setIsBowlerModalOpen(true)} className="h-7 text-[10px] font-bold">New Bowler</Button>
                     <Button variant="outline" size="sm" onClick={handleUndo} className="h-7 text-[10px] font-bold">Undo</Button>
-                    <Button variant="destructive" size="sm" onClick={handleEndMatch} className="h-7 text-[10px] font-bold">End Match</Button>
+                    {isCurrentInningsOver && match.currentInningNumber === 1 && !inn2 && (
+                      <Button variant="secondary" size="sm" onClick={handleStartInnings2} className="h-7 text-[10px] font-bold">Start 2nd Inning</Button>
+                    )}
+                    {isCurrentInningsOver && (match.currentInningNumber === 2 || (match.currentInningNumber === 1 && activeInningData?.wickets >= 10)) && (
+                      <Button variant="destructive" size="sm" onClick={handleEndMatch} className="h-7 text-[10px] font-bold">End Match</Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="p-4 space-y-4">
@@ -996,7 +1030,7 @@ export default function MatchScoreboardPage() {
             </div>
           ) : (
             <div className="py-20 text-center border-2 border-dashed rounded-sm bg-slate-50">
-              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">No overs completed yet</p>
+              <p className="text-slate-400 text-xs font-bold uppercase tracking-widest No overs completed yet</p>
             </div>
           )}
         </TabsContent>
