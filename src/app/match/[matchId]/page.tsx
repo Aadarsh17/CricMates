@@ -31,7 +31,7 @@ export default function MatchScoreboardPage() {
   const { data: match, isLoading: isMatchLoading } = useDoc(matchRef);
 
   const [activeInningView, setActiveInningView] = useState<number>(1);
-  const [activeTab, setActiveTab] = useState<string>('scorecard');
+  const [activeTab, setActiveTab] = useState<string>('live');
 
   useEffect(() => {
     if (match?.currentInningNumber) {
@@ -411,46 +411,53 @@ export default function MatchScoreboardPage() {
       if (!batTeam || !bowlTeam) return;
 
       const decimalOvers = (inn: any) => {
+        if (!inn) return 0;
         if (inn.wickets >= 10) return match.totalOvers;
-        return inn.oversCompleted + (inn.ballsInCurrentOver / 6);
+        return (inn.oversCompleted || 0) + ((inn.ballsInCurrentOver || 0) / 6);
       };
 
       const batOvers = decimalOvers(batInning);
       const bowlOvers = decimalOvers(bowlInning);
 
-      const newBatRunsScored = (batTeam.totalRunsScored || 0) + batInning.score;
-      const newBatRunsConceded = (batTeam.totalRunsConceded || 0) + bowlInning.score;
+      // Team A (Batting Team) Stats
+      const newBatRunsScored = (batTeam.totalRunsScored || 0) + (batInning?.score || 0);
+      const newBatRunsConceded = (batTeam.totalRunsConceded || 0) + (bowlInning?.score || 0);
       const newBatOversFaced = (batTeam.totalOversFaced || 0) + batOvers;
       const newBatOversBowled = (batTeam.totalOversBowled || 0) + bowlOvers;
 
-      const batNRR = (newBatRunsScored / newBatOversFaced) - (newBatRunsConceded / newBatOversBowled);
-
-      const newBowlRunsScored = (bowlTeam.totalRunsScored || 0) + bowlInning.score;
-      const newBowlRunsConceded = (bowlTeam.totalRunsConceded || 0) + batInning.score;
-      const newBowlOversFaced = (bowlTeam.totalOversFaced || 0) + bowlOvers;
-      const newBowlOversBowled = (bowlTeam.totalOversBowled || 0) + batOvers;
-
-      const bowlNRR = (newBowlRunsScored / newBowlOversFaced) - (newBowlRunsConceded / newBowlOversBowled);
+      const batNRR = (newBatOversFaced > 0 && newBatOversBowled > 0)
+        ? (newBatRunsScored / newBatOversFaced) - (newBatRunsConceded / newBatOversBowled)
+        : 0;
 
       updateDocumentNonBlocking(doc(db, 'teams', battingTeamId), {
         totalRunsScored: newBatRunsScored,
         totalRunsConceded: newBatRunsConceded,
         totalOversFaced: newBatOversFaced,
         totalOversBowled: newBatOversBowled,
-        matchesWon: batTeam.matchesWon + (winnerId === battingTeamId ? 1 : 0),
-        matchesLost: batTeam.matchesLost + (winnerId && winnerId !== battingTeamId ? 1 : 0),
-        matchesDrawn: batTeam.matchesDrawn + (!winnerId ? 1 : 0),
+        matchesWon: (batTeam.matchesWon || 0) + (winnerId === battingTeamId ? 1 : 0),
+        matchesLost: (batTeam.matchesLost || 0) + (winnerId && winnerId !== battingTeamId ? 1 : 0),
+        matchesDrawn: (batTeam.matchesDrawn || 0) + (!winnerId ? 1 : 0),
         netRunRate: isFinite(batNRR) ? batNRR : 0
       });
+
+      // Team B (Bowling Team) Stats
+      const newBowlRunsScored = (bowlTeam.totalRunsScored || 0) + (bowlInning?.score || 0);
+      const newBowlRunsConceded = (bowlTeam.totalRunsConceded || 0) + (batInning?.score || 0);
+      const newBowlOversFaced = (bowlTeam.totalOversFaced || 0) + bowlOvers;
+      const newBowlOversBowled = (bowlTeam.totalOversBowled || 0) + batOvers;
+
+      const bowlNRR = (newBowlOversFaced > 0 && newBowlOversBowled > 0)
+        ? (newBowlRunsScored / newBowlOversFaced) - (newBowlRunsConceded / newBowlOversBowled)
+        : 0;
 
       updateDocumentNonBlocking(doc(db, 'teams', bowlingTeamId), {
         totalRunsScored: newBowlRunsScored,
         totalRunsConceded: newBowlRunsConceded,
         totalOversFaced: newBowlOversFaced,
         totalOversBowled: newBowlOversBowled,
-        matchesWon: bowlTeam.matchesWon + (winnerId === bowlingTeamId ? 1 : 0),
-        matchesLost: bowlTeam.matchesLost + (winnerId && winnerId !== bowlingTeamId ? 1 : 0),
-        matchesDrawn: bowlTeam.matchesDrawn + (!winnerId ? 1 : 0),
+        matchesWon: (bowlTeam.matchesWon || 0) + (winnerId === bowlingTeamId ? 1 : 0),
+        matchesLost: (bowlTeam.matchesLost || 0) + (winnerId && winnerId !== bowlingTeamId ? 1 : 0),
+        matchesDrawn: (bowlTeam.matchesDrawn || 0) + (!winnerId ? 1 : 0),
         netRunRate: isFinite(bowlNRR) ? bowlNRR : 0
       });
     };

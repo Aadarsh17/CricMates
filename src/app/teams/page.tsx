@@ -97,6 +97,9 @@ export default function TeamsPage() {
       matchesLost: 0,
       matchesDrawn: 0,
       totalRunsScored: 0,
+      totalRunsConceded: 0,
+      totalOversFaced: 0,
+      totalOversBowled: 0,
       totalWicketsTaken: 0,
       netRunRate: 0,
     };
@@ -212,11 +215,13 @@ export default function TeamsPage() {
                 
                 <TeamMatchHistory teamId={team.id} matches={allMatches} teams={teams} />
 
-                <div className="mt-auto pt-6">
-                  <Button variant="outline" className="w-full text-xs font-black uppercase tracking-widest h-9 bg-slate-50 hover:bg-white hover:border-primary hover:text-primary" asChild>
-                    <Link href={`/teams/${team.id}`}>Manage Squad & Stats</Link>
-                  </Button>
-                </div>
+                {isUmpire && (
+                  <div className="mt-auto pt-6">
+                    <Button variant="outline" className="w-full text-xs font-black uppercase tracking-widest h-9 bg-slate-50 hover:bg-white hover:border-primary hover:text-primary" asChild>
+                      <Link href={`/teams/${team.id}`}>Manage Squad & Stats</Link>
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}
