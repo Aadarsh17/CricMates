@@ -103,11 +103,6 @@ export default function NewMatchPage() {
     router.push(`/match/${matchId}`);
   };
 
-  const getPlayerName = (pid: string) => {
-    const p = allPlayers?.find(ap => ap.id === pid);
-    return p ? p.name : 'Unknown';
-  };
-
   const currentBattingSquadIds = setup.tossWinner === setup.team1Id 
     ? (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad)
     : (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad);
@@ -265,8 +260,9 @@ export default function NewMatchPage() {
                 <Select value={setup.strikerId} onValueChange={(v) => setSetup({...setup, strikerId: v})}>
                   <SelectTrigger><SelectValue placeholder="Select Striker" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">Select Striker...</SelectItem>
                     {battingPlayers.filter(p => p.id !== setup.nonStrikerId).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.role})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -276,8 +272,9 @@ export default function NewMatchPage() {
                 <Select value={setup.nonStrikerId} onValueChange={(v) => setSetup({...setup, nonStrikerId: v})}>
                   <SelectTrigger><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">Select Non-Striker...</SelectItem>
                     {battingPlayers.filter(p => p.id !== setup.strikerId).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      <SelectItem key={p.id} value={p.id}>{p.name} ({p.role})</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -288,8 +285,9 @@ export default function NewMatchPage() {
               <Select value={setup.bowlerId} onValueChange={(v) => setSetup({...setup, bowlerId: v})}>
                 <SelectTrigger><SelectValue placeholder="Select Bowler" /></SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="">Select Bowler...</SelectItem>
                   {bowlingPlayers.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>{p.name} ({p.role})</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection } from '@/firebase';
-import { doc, collection, query, orderBy, writeBatch, getDocs } from 'firebase/firestore';
+import { doc, collection, query, orderBy, writeBatch, getDocs, increment } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -191,7 +191,7 @@ export default function MatchScoreboardPage() {
   };
 
   const handleMainUndo = () => {
-    if (confirm("Reset current match setup? All scoring progress will be lost and you will go back to the starting page.")) {
+    if (confirm("Reset current match setup? All scoring progress will be lost and you will go back to the starting selection page.")) {
       router.push('/match/new');
     }
   };
@@ -201,12 +201,50 @@ export default function MatchScoreboardPage() {
 
     const batch = writeBatch(db);
     
-    // Simple results calculation
+    // Aggregate player stats from all delivery records
+    const d1 = await getDocs(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'));
+    const d2 = await getDocs(collection(db, 'matches', matchId, 'innings', 'inning_2', 'deliveryRecords'));
+    const allDels = [...d1.docs.map(d => d.data()), ...d2.docs.map(d => d.data())];
+
+    const playerStats: Record<string, { runs: number, wickets: number, balls: number, dots: number }> = {};
+    
+    allDels.forEach(d => {
+      // Batting Stats
+      if (!playerStats[d.strikerPlayerId]) playerStats[d.strikerPlayerId] = { runs: 0, wickets: 0, balls: 0, dots: 0 };
+      playerStats[d.strikerPlayerId].runs += d.runsScored;
+      if (d.extraType === 'none') playerStats[d.strikerPlayerId].balls += 1;
+      
+      // Bowling Stats
+      if (!playerStats[d.bowlerPlayerId]) playerStats[d.bowlerPlayerId] = { runs: 0, wickets: 0, balls: 0, dots: 0 };
+      if (d.isWicket && d.dismissalType !== 'runout') {
+        playerStats[d.bowlerPlayerId].wickets += 1;
+      }
+    });
+
+    // Update Player Rankings
+    for (const pid in playerStats) {
+      const pRef = doc(db, 'players', pid);
+      const pData = allPlayers?.find(p => p.id === pid);
+      if (pData) {
+        batch.update(pRef, {
+          runsScored: (pData.runsScored || 0) + playerStats[pid].runs,
+          wicketsTaken: (pData.wicketsTaken || 0) + playerStats[pid].wickets,
+          matchesPlayed: (pData.matchesPlayed || 0) + 1,
+          careerCVP: (pData.careerCVP || 0) + (playerStats[pid].runs) + (playerStats[pid].wickets * 15)
+        });
+      }
+    }
+
+    // Determine Result & Update Team Table
     let result = "Match Drawn";
     if (inn2.score > inn1.score) {
       result = `${getTeamName(inn2.battingTeamId)} won by ${10 - inn2.wickets} wickets`;
+      batch.update(doc(db, 'teams', inn2.battingTeamId), { matchesWon: increment(1) });
+      batch.update(doc(db, 'teams', inn1.battingTeamId), { matchesLost: increment(1) });
     } else if (inn1.score > inn2.score) {
       result = `${getTeamName(inn1.battingTeamId)} won by ${inn1.score - inn2.score} runs`;
+      batch.update(doc(db, 'teams', inn1.battingTeamId), { matchesWon: increment(1) });
+      batch.update(doc(db, 'teams', inn2.battingTeamId), { matchesLost: increment(1) });
     }
 
     batch.update(matchRef!, { status: 'completed', resultDescription: result });
