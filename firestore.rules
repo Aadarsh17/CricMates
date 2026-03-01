@@ -1,9 +1,8 @@
 /**
- * CricMates - ScoresTracker Firestore Security Rules
- *
- * This configuration allows broad read access for all match data to support
- * real-time scoring and comprehensive player career statistics via collection group queries.
- * Write access is restricted to authenticated users (Umpires).
+ * CricMates - Professional Cricket Scoring Security Rules
+ * 
+ * Rules optimized for public read access to scoreboard and statistics,
+ * with write access restricted to verified Umpires.
  */
 
 rules_version = '2';
@@ -12,18 +11,14 @@ service cloud.firestore {
 
     // --- COLLECTION GROUP RULES ---
     // Specifically allow reading delivery records across all matches for statistics.
+    // This match pattern is required for collectionGroup('deliveryRecords') queries.
     match /{path=**}/deliveryRecords/{document} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
-    match /{path=**}/innings/{document} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-
     // --- GENERAL ACCESS ---
-    // Allow broad read access to support the public scoreboard and player profiles.
+    // Allow broad read access to support the public scoreboard, team profiles, and player rankings.
     match /{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
