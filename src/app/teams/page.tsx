@@ -8,9 +8,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LayoutGrid, List, Plus, Trash2, History } from 'lucide-react';
+import { LayoutGrid, List, Plus, Trash2, History, ChevronDown, ChevronUp } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/hooks/use-toast';
@@ -27,32 +28,26 @@ function TeamMatchHistory({ teamId, matches, teams }: { teamId: string, matches:
   );
 
   return (
-    <div className="mt-4 space-y-2">
-      <div className="flex items-center gap-2 mb-1">
-        <History className="w-3 h-3 text-slate-400" />
-        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Recent Matches</p>
-      </div>
-      <div className="space-y-2">
-        {teamMatches.map(match => {
-          const isTeam1 = match.team1Id === teamId;
-          const opponentId = isTeam1 ? match.team2Id : match.team1Id;
-          const opponent = teams?.find(t => t.id === opponentId);
-          return (
-            <div key={match.id} className="flex items-center justify-between bg-white p-2 rounded border shadow-sm hover:border-primary/30 transition-colors">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black text-slate-900 truncate max-w-[100px] inline-block">vs {opponent?.name || 'Unknown'}</span>
-                  {match.status === 'live' && <Badge variant="destructive" className="h-3 text-[6px] px-1 animate-pulse">LIVE</Badge>}
-                </div>
-                <p className="text-[9px] text-slate-500 font-medium line-clamp-1">{match.resultDescription}</p>
+    <div className="space-y-2 pt-2">
+      {teamMatches.map(match => {
+        const isTeam1 = match.team1Id === teamId;
+        const opponentId = isTeam1 ? match.team2Id : match.team1Id;
+        const opponent = teams?.find(t => t.id === opponentId);
+        return (
+          <div key={match.id} className="flex items-center justify-between bg-white p-2 rounded border shadow-sm hover:border-primary/30 transition-colors">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-900 truncate max-w-[100px] inline-block">vs {opponent?.name || 'Unknown'}</span>
+                {match.status === 'live' && <Badge variant="destructive" className="h-3 text-[6px] px-1 animate-pulse">LIVE</Badge>}
               </div>
-              <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase text-primary hover:bg-primary/10 px-2 shrink-0" asChild>
-                <Link href={`/match/${match.id}`}>Scorecard</Link>
-              </Button>
+              <p className="text-[9px] text-slate-500 font-medium line-clamp-1">{match.resultDescription}</p>
             </div>
-          );
-        })}
-      </div>
+            <Button size="sm" variant="ghost" className="h-7 text-[9px] font-black uppercase text-primary hover:bg-primary/10 px-2 shrink-0" asChild>
+              <Link href={`/match/${match.id}`}>Scorecard</Link>
+            </Button>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -64,6 +59,7 @@ export default function TeamsPage() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
+  const [openHistories, setOpenHistories] = useState<Record<string, boolean>>({});
 
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams'), orderBy('name', 'asc')), [db]);
   const { data: teams, isLoading } = useCollection(teamsQuery);
@@ -71,7 +67,6 @@ export default function TeamsPage() {
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
   const { data: allMatches = [] } = useCollection(allMatchesQuery);
 
-  // Dynamic calculation for team stats based on current matches
   const teamStats = useMemo(() => {
     const stats: Record<string, any> = {};
     if (!teams || teams.length === 0) return stats;
@@ -162,6 +157,8 @@ export default function TeamsPage() {
         <div className={view === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
           {teams?.map(team => {
             const stats = teamStats[team.id] || { wins: 0, losses: 0, nrr: 0 };
+            const isHistoryOpen = openHistories[team.id] ?? false;
+
             return (
               <Card key={team.id} className="hover:shadow-md transition-all group flex flex-col border shadow-sm">
                 <CardHeader className="flex flex-row items-center justify-between p-4 pb-2 space-y-0">
@@ -180,9 +177,28 @@ export default function TeamsPage() {
                     <div className="bg-slate-50 p-2 rounded text-center"><p className="text-[8px] font-black uppercase text-slate-400">Losses</p><p className="text-sm font-black text-destructive">{stats.losses}</p></div>
                     <div className="bg-slate-50 p-2 rounded text-center"><p className="text-[8px] font-black uppercase text-slate-400">NRR</p><p className="text-xs font-black text-primary">{(stats.nrr).toFixed(3)}</p></div>
                   </div>
-                  <TeamMatchHistory teamId={team.id} matches={allMatches} teams={teams || []} />
+
+                  <Collapsible 
+                    open={isHistoryOpen} 
+                    onOpenChange={(open) => setOpenHistories(prev => ({...prev, [team.id]: open}))}
+                    className="border rounded-lg bg-slate-50/30 overflow-hidden"
+                  >
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="w-full flex items-center justify-between px-3 py-2 h-auto hover:bg-slate-100">
+                        <div className="flex items-center gap-2">
+                          <History className="w-3 h-3 text-slate-400" />
+                          <span className="text-[9px] font-black text-slate-500 uppercase">Recent Form</span>
+                        </div>
+                        {isHistoryOpen ? <ChevronUp className="w-3 h-3 text-slate-400" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="px-2 pb-2">
+                      <TeamMatchHistory teamId={team.id} matches={allMatches} teams={teams || []} />
+                    </CollapsibleContent>
+                  </Collapsible>
+
                   <div className="mt-4 pt-4 border-t">
-                    <Button variant="outline" className="w-full text-[10px] font-black uppercase tracking-widest h-10" asChild><Link href={`/teams/${team.id}`}>View Squad & History</Link></Button>
+                    <Button variant="outline" className="w-full text-[10px] font-black uppercase tracking-widest h-10" asChild><Link href={`/teams/${team.id}`}>View Squad & Full Stats</Link></Button>
                   </div>
                 </CardContent>
               </Card>
@@ -193,3 +209,4 @@ export default function TeamsPage() {
     </div>
   );
 }
+

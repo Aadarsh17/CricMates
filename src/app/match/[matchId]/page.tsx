@@ -9,11 +9,12 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -37,6 +38,7 @@ export default function MatchScoreboardPage() {
   const [isEditFullMatchOpen, setIsEditFullMatchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('live');
   const [activeInningView, setActiveInningView] = useState<number>(1);
+  const [openOvers, setOpenOvers] = useState<Record<number, boolean>>({});
 
   const [editForm, setEditForm] = useState({
     status: 'live',
@@ -137,6 +139,17 @@ export default function MatchScoreboardPage() {
   );
   const { data: inn2Deliveries } = useCollection(inn2DeliveriesQuery);
 
+  const deliveriesByOver = useMemo(() => {
+    const deliveries = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
+    if (!deliveries) return {};
+    const grouped: Record<number, any[]> = {};
+    deliveries.forEach(d => {
+        if (!grouped[d.overNumber]) grouped[d.overNumber] = [];
+        grouped[d.overNumber].push(d);
+    });
+    return grouped;
+  }, [activeInningView, inn1Deliveries, inn2Deliveries]);
+
   const getExtendedInningStats = (deliveries: any[]) => {
     if (!deliveries) return { batting: [], bowling: [], fow: [], partnerships: [] };
     const bat: Record<string, any> = {};
@@ -158,7 +171,6 @@ export default function MatchScoreboardPage() {
     };
 
     deliveries.forEach((d, idx) => {
-      // Basic Stats
       if (!bat[d.strikerPlayerId]) bat[d.strikerPlayerId] = { id: d.strikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
       if (d.nonStrikerPlayerId && !bat[d.nonStrikerPlayerId]) bat[d.nonStrikerPlayerId] = { id: d.nonStrikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
       
@@ -172,7 +184,6 @@ export default function MatchScoreboardPage() {
       currentScore += d.totalRunsOnDelivery;
       if (d.extraType !== 'wide' && d.extraType !== 'noball') currentBalls += 1;
 
-      // Partnership logic
       if (!currentPartnership.batter1Id) {
           currentPartnership.batter1Id = d.strikerPlayerId;
           currentPartnership.batter2Id = d.nonStrikerPlayerId;
@@ -200,7 +211,6 @@ export default function MatchScoreboardPage() {
             playerOutId: outPid
         });
 
-        // Close Partnership
         partnerships.push({...currentPartnership});
         currentPartnership = {
             batter1Id: d.batsmanOutPlayerId === currentPartnership.batter1Id ? '' : currentPartnership.batter1Id,
@@ -212,13 +222,11 @@ export default function MatchScoreboardPage() {
         };
       }
 
-      // Bowling
       if (!bowl[d.bowlerPlayerId]) bowl[d.bowlerPlayerId] = { id: d.bowlerPlayerId, overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
       bowl[d.bowlerPlayerId].runs += d.totalRunsOnDelivery;
       if (d.isWicket && d.dismissalType !== 'runout') bowl[d.bowlerPlayerId].wickets += 1;
       if (d.extraType !== 'wide' && d.extraType !== 'noball') bowl[d.bowlerPlayerId].balls += 1;
 
-      // If last ball of innings, add current partnership if not added
       if (idx === deliveries.length - 1 && currentPartnership.balls > 0) {
           partnerships.push({...currentPartnership});
       }
@@ -706,7 +714,6 @@ export default function MatchScoreboardPage() {
                 </Card>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Fall of Wickets */}
                     <Card className="rounded-xl overflow-hidden shadow-sm">
                         <CardHeader className="bg-slate-50 py-3 px-4 border-b">
                             <CardTitle className="text-[10px] font-black uppercase tracking-widest">Fall of Wickets</CardTitle>
@@ -727,7 +734,6 @@ export default function MatchScoreboardPage() {
                         </CardContent>
                     </Card>
 
-                    {/* Partnerships */}
                     <Card className="rounded-xl overflow-hidden shadow-sm">
                         <CardHeader className="bg-slate-50 py-3 px-4 border-b">
                             <CardTitle className="text-[10px] font-black uppercase tracking-widest">Partnerships</CardTitle>
@@ -737,7 +743,7 @@ export default function MatchScoreboardPage() {
                                 <TableBody>
                                     {stats.partnerships.map((p, i) => (
                                         <TableRow key={i}>
-                                            <TableCell className="py-3">
+                                            <TableCell className="py-3 px-4">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <span className="text-[10px] font-bold truncate max-w-[80px]">{getPlayerName(p.batter1Id)}</span>
                                                     <span className="text-[10px] font-black text-primary">{p.runs} ({p.balls})</span>
@@ -791,43 +797,83 @@ export default function MatchScoreboardPage() {
         </TabsContent>
 
         <TabsContent value="overs" className="pt-4 space-y-4">
-           {activeInningData && (
-              <div className="space-y-4">
-                 <div className="flex justify-between items-center px-2">
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Recent Deliveries</p>
-                    <Select value={activeInningView.toString()} onValueChange={v => setActiveInningView(parseInt(v))}>
-                       <SelectTrigger className="w-32 h-8 text-[10px] font-black uppercase"><SelectValue /></SelectTrigger>
-                       <SelectContent>
-                          <SelectItem value="1">Innings 1</SelectItem>
-                          {inn2 && <SelectItem value="2">Innings 2</SelectItem>}
-                       </SelectContent>
-                    </Select>
-                 </div>
-                 
-                 <div className="space-y-2">
-                    {(activeInningView === 1 ? inn1Deliveries : inn2Deliveries)?.slice().reverse().map((d, idx) => (
-                       <Card key={d.id} className={cn("border-l-4 rounded-xl", d.isWicket ? "border-l-red-500" : (d.runsScored >= 4 ? "border-l-secondary" : "border-l-primary"))}>
-                          <CardContent className="p-3 flex items-center justify-between">
-                             <div className="flex items-center gap-3">
-                                <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center font-black text-[10px]">{d.overNumber-1}.{d.ballNumberInOver}</div>
-                                <div>
-                                   <p className="text-xs font-black">{getPlayerName(d.strikerPlayerId)}</p>
-                                   <p className="text-[9px] text-slate-400 font-bold uppercase">{getPlayerName(d.bowlerPlayerId)}</p>
-                                </div>
-                             </div>
-                             <div className="flex items-center gap-2">
-                                {d.isWicket ? (
-                                   <Badge variant="destructive" className="font-black">OUT</Badge>
-                                ) : (
-                                   <div className={cn("h-8 w-8 rounded flex items-center justify-center font-black text-sm", d.runsScored >= 4 ? "bg-secondary text-white" : "bg-slate-100")}>{d.totalRunsOnDelivery}</div>
-                                )}
-                             </div>
-                          </CardContent>
-                       </Card>
-                    ))}
-                 </div>
-              </div>
-           )}
+           <div className="flex justify-between items-center px-2">
+                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Inning History</p>
+                <Select value={activeInningView.toString()} onValueChange={v => setActiveInningView(parseInt(v))}>
+                    <SelectTrigger className="w-32 h-8 text-[10px] font-black uppercase"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="1">Innings 1</SelectItem>
+                        {inn2 && <SelectItem value="2">Innings 2</SelectItem>}
+                    </SelectContent>
+                </Select>
+            </div>
+
+            <div className="space-y-4">
+                {Object.keys(deliveriesByOver).sort((a, b) => Number(b) - Number(a)).map(overNumStr => {
+                    const overNum = Number(overNumStr);
+                    const overBalls = deliveriesByOver[overNum];
+                    const isOverOpen = openOvers[overNum] ?? false;
+                    const totalOverRuns = overBalls.reduce((acc, b) => acc + b.totalRunsOnDelivery, 0);
+                    const overWickets = overBalls.filter(b => b.isWicket).length;
+
+                    return (
+                        <Collapsible 
+                            key={overNum} 
+                            open={isOverOpen} 
+                            onOpenChange={(open) => setOpenOvers(prev => ({...prev, [overNum]: open}))}
+                            className="border rounded-xl bg-white overflow-hidden shadow-sm"
+                        >
+                            <CollapsibleTrigger asChild>
+                                <Button variant="ghost" className="w-full flex items-center justify-between p-4 hover:bg-slate-50">
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-8 w-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-black text-xs">
+                                            {overNum}
+                                        </div>
+                                        <div className="text-left">
+                                            <p className="text-xs font-black uppercase">Over {overNum}</p>
+                                            <p className="text-[10px] font-bold text-slate-400">{totalOverRuns} runs • {overWickets} wickets</p>
+                                        </div>
+                                    </div>
+                                    {isOverOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
+                                </Button>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="px-4 pb-4 space-y-2 border-t pt-4 bg-slate-50/30">
+                                {overBalls.map((d) => (
+                                    <div key={d.id} className="flex items-center justify-between bg-white p-3 rounded-lg border shadow-xs">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-7 w-7 rounded-full bg-slate-100 flex items-center justify-center font-black text-[10px]">
+                                                {d.overNumber-1}.{d.ballNumberInOver}
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-bold">{getPlayerName(d.strikerPlayerId)}</p>
+                                                <p className="text-[8px] text-slate-400 font-black uppercase">Bowler: {getPlayerName(d.bowlerPlayerId)}</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {d.isWicket ? (
+                                                <Badge variant="destructive" className="font-black text-[9px] h-6">OUT</Badge>
+                                            ) : (
+                                                <div className={cn(
+                                                    "h-7 w-7 rounded flex items-center justify-center font-black text-xs",
+                                                    d.runsScored >= 4 ? "bg-secondary text-white" : "bg-slate-100"
+                                                )}>
+                                                    {d.totalRunsOnDelivery}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </CollapsibleContent>
+                        </Collapsible>
+                    );
+                })}
+                {Object.keys(deliveriesByOver).length === 0 && (
+                    <div className="py-20 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+                        <History className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">No overs recorded yet</p>
+                    </div>
+                )}
+            </div>
         </TabsContent>
 
         <TabsContent value="charts" className="pt-4 space-y-6">
@@ -1005,3 +1051,4 @@ export default function MatchScoreboardPage() {
     </div>
   );
 }
+
