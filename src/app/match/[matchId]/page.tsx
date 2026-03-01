@@ -8,7 +8,7 @@ import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDo
 import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/tabs';
 import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -580,6 +580,11 @@ export default function MatchScoreboardPage() {
   const battingPlayers = allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id)) || [];
   const bowlingPlayers = allPlayers?.filter(p => currentBowlingSquadIds?.includes(p.id)) || [];
 
+  // Logic to exclude players who are already out from selection
+  const currentInningStats = activeInningData ? getExtendedInningStats(match.currentInningNumber === 1 ? inn1Deliveries || [] : inn2Deliveries || []) : null;
+  const dismissedPlayerIds = currentInningStats?.batting.filter(b => b.out).map(b => b.id) || [];
+  const availableBattingPlayers = battingPlayers.filter(p => !dismissedPlayerIds.includes(p.id));
+
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
       <div className="border-b bg-white p-4 rounded-lg shadow-sm">
@@ -1026,7 +1031,7 @@ export default function MatchScoreboardPage() {
                     <SelectTrigger className="font-bold text-xs h-10 shadow-sm"><SelectValue placeholder="Striker" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Not Set</SelectItem>
-                      {battingPlayers.map(p => p.id && <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      {availableBattingPlayers.map(p => p.id && <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1036,7 +1041,7 @@ export default function MatchScoreboardPage() {
                     <SelectTrigger className="font-bold text-xs h-10 shadow-sm"><SelectValue placeholder="Non-Striker" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Not Set</SelectItem>
-                      {battingPlayers.map(p => p.id && <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      {availableBattingPlayers.map(p => p.id && <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1112,7 +1117,7 @@ export default function MatchScoreboardPage() {
                     <SelectTrigger className="font-bold h-12"><SelectValue placeholder="Choose Striker" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="none">Not Selected</SelectItem>
-                        {battingPlayers.map(p => p.id && <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                        {availableBattingPlayers.map(p => p.id && <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
             </div>
@@ -1122,7 +1127,7 @@ export default function MatchScoreboardPage() {
                     <SelectTrigger className="font-bold h-12"><SelectValue placeholder="Choose Non-Striker" /></SelectTrigger>
                     <SelectContent>
                         <SelectItem value="none">Not Selected</SelectItem>
-                        {battingPlayers.map(p => p.id && <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                        {availableBattingPlayers.map(p => p.id && <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                 </Select>
             </div>
