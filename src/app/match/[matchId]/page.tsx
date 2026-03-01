@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc } 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -47,13 +47,15 @@ export default function MatchScoreboardPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [isWicketDialogOpen, setIsWicketDialogOpen] = useState(false);
   const [isBowlerDialogOpen, setIsBowlerDialogOpen] = useState(false);
-  const [isEditResultOpen, setIsEditResultOpen] = useState(false);
-  const [isEditScoresOpen, setIsEditScoresOpen] = useState(false);
+  const [isEditFullMatchOpen, setIsEditFullMatchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('live');
   const [activeInningView, setActiveInningView] = useState<number>(1);
-  const [editedResult, setEditedResult] = useState('');
 
   const [editForm, setEditForm] = useState({
+    status: 'live',
+    matchDate: '',
+    tossWinner: '',
+    tossDecision: 'bat',
     inn1Score: 0,
     inn1Wickets: 0,
     inn1Overs: 0,
@@ -61,7 +63,8 @@ export default function MatchScoreboardPage() {
     inn2Score: 0,
     inn2Wickets: 0,
     inn2Overs: 0,
-    inn2Balls: 0
+    inn2Balls: 0,
+    resultDescription: ''
   });
 
   const [wicketForm, setWicketForm] = useState({
@@ -85,25 +88,27 @@ export default function MatchScoreboardPage() {
   const activeInningData = match?.currentInningNumber === 1 ? inn1 : inn2;
 
   useEffect(() => {
-    if (match?.currentInningNumber) {
+    if (match?.currentInningNumber && activeTab === 'live') {
       setActiveInningView(match.currentInningNumber);
     }
-    if (match?.resultDescription) {
-      setEditedResult(match.resultDescription);
-    }
-    if (inn1 || inn2) {
+    if (match && inn1) {
       setEditForm({
-        inn1Score: inn1?.score || 0,
-        inn1Wickets: inn1?.wickets || 0,
-        inn1Overs: inn1?.oversCompleted || 0,
-        inn1Balls: inn1?.ballsInCurrentOver || 0,
+        status: match.status,
+        matchDate: match.matchDate.split('T')[0],
+        tossWinner: match.tossWinnerTeamId,
+        tossDecision: match.tossDecision,
+        inn1Score: inn1.score || 0,
+        inn1Wickets: inn1.wickets || 0,
+        inn1Overs: inn1.oversCompleted || 0,
+        inn1Balls: inn1.ballsInCurrentOver || 0,
         inn2Score: inn2?.score || 0,
         inn2Wickets: inn2?.wickets || 0,
         inn2Overs: inn2?.oversCompleted || 0,
         inn2Balls: inn2?.ballsInCurrentOver || 0,
+        resultDescription: match.resultDescription || ''
       });
     }
-  }, [match?.currentInningNumber, match?.resultDescription, inn1, inn2]);
+  }, [match, inn1, inn2]);
 
   const inn1DeliveriesQuery = useMemoFirebase(() => 
     query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
@@ -250,6 +255,38 @@ export default function MatchScoreboardPage() {
     toast({ title: "OUT!", variant: "destructive" });
   };
 
+  const handleUpdateFullMatch = async () => {
+    const batch = writeBatch(db);
+    
+    batch.update(doc(db, 'matches', matchId), {
+      status: editForm.status,
+      matchDate: new Date(editForm.matchDate).toISOString(),
+      tossWinnerTeamId: editForm.tossWinner,
+      tossDecision: editForm.tossDecision,
+      resultDescription: editForm.resultDescription
+    });
+
+    batch.update(doc(db, 'matches', matchId, 'innings', 'inning_1'), {
+      score: editForm.inn1Score,
+      wickets: editForm.inn1Wickets,
+      oversCompleted: editForm.inn1Overs,
+      ballsInCurrentOver: editForm.inn1Balls
+    });
+
+    if (inn2) {
+      batch.update(doc(db, 'matches', matchId, 'innings', 'inning_2'), {
+        score: editForm.inn2Score,
+        wickets: editForm.inn2Wickets,
+        oversCompleted: editForm.inn2Overs,
+        ballsInCurrentOver: editForm.inn2Balls
+      });
+    }
+
+    await batch.commit();
+    setIsEditFullMatchOpen(false);
+    toast({ title: "Match Updated", description: "Corrections have been saved." });
+  };
+
   const handleEndMatch = async () => {
     if (!match || !inn1 || !allTeams) return;
     
@@ -387,38 +424,54 @@ export default function MatchScoreboardPage() {
     toast({ title: "Match Concluded", description: result });
   };
 
-  const handleUpdateResult = () => {
-    if (!editedResult.trim()) return;
-    updateDocumentNonBlocking(doc(db, 'matches', matchId), { resultDescription: editedResult });
-    setIsEditResultOpen(false);
-    toast({ title: "Result Updated", description: "Match details corrected." });
-  };
+  const inningPerformances = useMemo(() => {
+    const deliveries = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
+    if (!deliveries || !match) return { batting: [], bowling: [] };
 
-  const handleUpdateScores = async () => {
-    const batch = writeBatch(db);
+    const battingMap: Record<string, any> = {};
+    const bowlingMap: Record<string, any> = {};
+
+    const squadIds = activeInningView === 1 
+      ? (inn1?.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds)
+      : (inn2?.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds);
     
-    if (inn1) {
-      batch.update(doc(db, 'matches', matchId, 'innings', 'inning_1'), {
-        score: editForm.inn1Score,
-        wickets: editForm.inn1Wickets,
-        oversCompleted: editForm.inn1Overs,
-        ballsInCurrentOver: editForm.inn1Balls
-      });
-    }
+    const opponentSquadIds = activeInningView === 1
+      ? (inn1?.bowlingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds)
+      : (inn2?.bowlingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds);
 
-    if (inn2) {
-      batch.update(doc(db, 'matches', matchId, 'innings', 'inning_2'), {
-        score: editForm.inn2Score,
-        wickets: editForm.inn2Wickets,
-        oversCompleted: editForm.inn2Overs,
-        ballsInCurrentOver: editForm.inn2Balls
-      });
-    }
+    squadIds.forEach(id => {
+      battingMap[id] = { id, name: getPlayerName(id), runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
+    });
 
-    await batch.commit();
-    setIsEditScoresOpen(false);
-    toast({ title: "Scorecard Updated", description: "Numerical stats corrected." });
-  };
+    opponentSquadIds.forEach(id => {
+      bowlingMap[id] = { id, name: getPlayerName(id), overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
+    });
+
+    deliveries.forEach(d => {
+      if (d.strikerPlayerId && battingMap[d.strikerPlayerId]) {
+        battingMap[d.strikerPlayerId].runs += d.runsScored;
+        if (d.extraType === 'none') battingMap[d.strikerPlayerId].balls += 1;
+        if (d.runsScored === 4) battingMap[d.strikerPlayerId].fours += 1;
+        if (d.runsScored === 6) battingMap[d.strikerPlayerId].sixes += 1;
+      }
+      if (d.isWicket && d.batsmanOutPlayerId && battingMap[d.batsmanOutPlayerId]) {
+        battingMap[d.batsmanOutPlayerId].out = true;
+        battingMap[d.batsmanOutPlayerId].dismissal = d.outcomeDescription || 'out';
+      }
+      if (d.bowlerPlayerId && bowlingMap[d.bowlerPlayerId]) {
+        if (d.extraType === 'none') bowlingMap[d.bowlerPlayerId].balls += 1;
+        if (d.extraType === 'wide') bowlingMap[d.bowlerPlayerId].runs += d.extraRuns;
+        else if (d.extraType === 'noball') bowlingMap[d.bowlerPlayerId].runs += (d.runsScored + 1);
+        else bowlingMap[d.bowlerPlayerId].runs += d.runsScored;
+        if (d.isWicket && d.dismissalType !== 'runout') bowlingMap[d.bowlerPlayerId].wickets += 1;
+      }
+    });
+
+    return {
+      batting: Object.values(battingMap).filter((p: any) => p.runs > 0 || p.balls > 0 || p.out),
+      bowling: Object.values(bowlingMap).filter((p: any) => p.balls > 0 || p.runs > 0)
+    };
+  }, [activeInningView, inn1Deliveries, inn2Deliveries, match, inn1, inn2]);
 
   const groupedOvers = useMemo(() => {
     const deliveries = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
@@ -467,27 +520,15 @@ export default function MatchScoreboardPage() {
     return Object.values(oversMap).sort((a, b) => b.overNumber - a.overNumber);
   }, [activeInningView, inn1Deliveries, inn2Deliveries]);
 
-  // Chart Data Processing
   const chartData = useMemo(() => {
     if (!inn1Deliveries || !match) return { worm: [], manhattan: [] };
-
     const totalOvers = match.totalOvers;
     const worm: any[] = [{ over: 0, inn1: 0, inn2: 0 }];
     const manhattan: any[] = [];
-
-    // Initialize data for each over
     for (let i = 1; i <= totalOvers; i++) {
       worm.push({ over: i, inn1: null, inn2: null });
-      manhattan.push({ 
-        over: i, 
-        inn1Runs: 0, 
-        inn1Wickets: 0, 
-        inn2Runs: 0, 
-        inn2Wickets: 0 
-      });
+      manhattan.push({ over: i, inn1Runs: 0, inn1Wickets: 0, inn2Runs: 0, inn2Wickets: 0 });
     }
-
-    // Process Inning 1
     let cumulative1 = 0;
     const inn1OversMap: Record<number, { runs: number, wickets: number }> = {};
     inn1Deliveries.forEach(d => {
@@ -495,18 +536,12 @@ export default function MatchScoreboardPage() {
       inn1OversMap[d.overNumber].runs += d.totalRunsOnDelivery;
       if (d.isWicket) inn1OversMap[d.overNumber].wickets += 1;
     });
-
     Object.entries(inn1OversMap).forEach(([oStr, stats]) => {
       const o = parseInt(oStr);
       cumulative1 += stats.runs;
       if (worm[o]) worm[o].inn1 = cumulative1;
-      if (manhattan[o-1]) {
-        manhattan[o-1].inn1Runs = stats.runs;
-        manhattan[o-1].inn1Wickets = stats.wickets;
-      }
+      if (manhattan[o-1]) { manhattan[o-1].inn1Runs = stats.runs; manhattan[o-1].inn1Wickets = stats.wickets; }
     });
-
-    // Process Inning 2
     if (inn2Deliveries) {
       let cumulative2 = 0;
       const inn2OversMap: Record<number, { runs: number, wickets: number }> = {};
@@ -515,18 +550,13 @@ export default function MatchScoreboardPage() {
         inn2OversMap[d.overNumber].runs += d.totalRunsOnDelivery;
         if (d.isWicket) inn2OversMap[d.overNumber].wickets += 1;
       });
-
       Object.entries(inn2OversMap).forEach(([oStr, stats]) => {
         const o = parseInt(oStr);
         cumulative2 += stats.runs;
         if (worm[o]) worm[o].inn2 = cumulative2;
-        if (manhattan[o-1]) {
-          manhattan[o-1].inn2Runs = stats.runs;
-          manhattan[o-1].inn2Wickets = stats.wickets;
-        }
+        if (manhattan[o-1]) { manhattan[o-1].inn2Runs = stats.runs; manhattan[o-1].inn2Wickets = stats.wickets; }
       });
     }
-
     return { worm, manhattan };
   }, [inn1Deliveries, inn2Deliveries, match]);
 
@@ -546,7 +576,7 @@ export default function MatchScoreboardPage() {
             </p>
           </div>
           {isUmpire && (
-            <Button size="sm" variant="outline" onClick={() => setIsEditScoresOpen(true)} className="rounded-full bg-slate-50 border-slate-200 text-[10px] font-black uppercase tracking-widest h-8 px-3">
+            <Button size="sm" variant="outline" onClick={() => setIsEditFullMatchOpen(true)} className="rounded-full bg-slate-50 border-slate-200 text-[10px] font-black uppercase tracking-widest h-8 px-3">
               <ShieldCheck className="w-3 h-3 mr-1 text-secondary" /> Umpire Tools
             </Button>
           )}
@@ -578,35 +608,11 @@ export default function MatchScoreboardPage() {
             <CardContent className="p-0">
               <div className="divide-y text-xs">
                 <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Venue</span><span className="font-black text-slate-900">League Grounds</span></div>
-                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Date</span><span className="font-medium text-slate-900">{isMounted ? new Date(match.matchDate).toLocaleDateString() : '---'}</span></div>
+                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Date</span><span className="font-medium text-slate-900">{new Date(match.matchDate).toLocaleDateString()}</span></div>
                 <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Toss</span><span className="font-medium text-slate-900">{match.tossWinnerTeamId ? `${getTeamName(match.tossWinnerTeamId)} won & opt to ${match.tossDecision}` : '---'}</span></div>
               </div>
             </CardContent>
           </Card>
-
-          {match.status === 'completed' && match.potmPlayerId && (
-            <Card className="border shadow-sm rounded-xl bg-primary/5 overflow-hidden border-primary/20">
-              <CardContent className="p-6 flex flex-col md:flex-row items-center gap-6">
-                 <div className="relative">
-                    <Avatar className="h-24 w-24 border-4 border-white shadow-xl">
-                      <AvatarImage src={getPlayer(match.potmPlayerId)?.imageUrl} />
-                      <AvatarFallback><Star className="w-8 h-8 text-yellow-500" /></AvatarFallback>
-                    </Avatar>
-                    <div className="absolute -bottom-2 -right-2 bg-secondary text-white p-1.5 rounded-full shadow-lg border-2 border-white">
-                      <Trophy className="w-4 h-4" />
-                    </div>
-                 </div>
-                 <div className="text-center md:text-left space-y-1">
-                    <p className="text-[10px] font-black uppercase text-primary tracking-[0.2em]">Player of the Match</p>
-                    <h3 className="text-2xl font-black text-slate-900">{getPlayerName(match.potmPlayerId)}</h3>
-                    <div className="flex items-center justify-center md:justify-start gap-2 mt-2">
-                      <Badge className="bg-secondary text-white font-bold">{getPlayer(match.potmPlayerId)?.role}</Badge>
-                      <span className="text-xs font-black text-slate-400 uppercase tracking-tighter">Impact Score: {match.potmCvpScore?.toFixed(1)}</span>
-                    </div>
-                 </div>
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
 
         <TabsContent value="live" className="mt-4 space-y-6">
@@ -631,7 +637,6 @@ export default function MatchScoreboardPage() {
                     <p className="text-sm font-black text-secondary">{match.currentInningNumber === 2 && inn1 ? inn1.score + 1 : '---'}</p>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-3 gap-3">
                   {[0, 1, 2, 3, 4, 6].map(runs => (
                     <Button key={runs} onClick={() => handleRecordBall(runs)} className="h-16 font-black text-2xl bg-white text-slate-900 border-2 border-slate-200 hover:bg-slate-50 hover:border-primary/50 shadow-sm transition-all active:scale-95">
@@ -639,57 +644,78 @@ export default function MatchScoreboardPage() {
                     </Button>
                   ))}
                 </div>
-
                 <div className="grid grid-cols-2 gap-3">
                   <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-14 font-black border-amber-200 text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">WIDE</Button>
                   <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-14 font-black border-amber-200 text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">NO BALL</Button>
                   <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-14 font-black border-red-200 text-red-700 bg-red-50 uppercase tracking-widest text-xs">OUT / WICKET</Button>
                   <Button variant="outline" onClick={() => setIsBowlerDialogOpen(true)} className="h-14 font-black border-slate-200 text-slate-600 uppercase tracking-widest text-xs">NEW BOWLER</Button>
                 </div>
-
                 <Button onClick={handleEndMatch} variant="destructive" className="w-full font-black uppercase text-sm h-14 tracking-widest mt-4 shadow-xl">
                   <CheckCircle2 className="w-5 h-5 mr-2" /> FINISH & SAVE MATCH
                 </Button>
-              </div>
-            )}
-
-            {!isUmpire && match.status === 'live' && (
-              <div className="mt-4 p-12 bg-slate-50 rounded-2xl border border-dashed flex flex-col items-center text-center gap-3">
-                <ShieldAlert className="w-12 h-12 text-slate-300" />
-                <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Officiating is restricted to Umpires</p>
               </div>
             )}
           </div>
         </TabsContent>
 
         <TabsContent value="scorecard" className="mt-4 space-y-6">
-           <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between">
-              <div className="flex gap-2">
-                <Button variant={activeInningView === 1 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(1)} className="rounded-full text-[10px] font-black h-8 px-4">1st Innings</Button>
-                <Button variant={activeInningView === 2 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(2)} className="rounded-full text-[10px] font-black h-8 px-4" disabled={!inn2}>2nd Innings</Button>
-              </div>
-            </div>
+          <div className="flex gap-2 overflow-x-auto p-4 border-b bg-slate-50/50 rounded-t-lg">
+            <Button variant={activeInningView === 1 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(1)} className="rounded-full text-[10px] font-black h-8 px-4">Innings 1</Button>
+            <Button variant={activeInningView === 2 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(2)} className="rounded-full text-[10px] font-black h-8 px-4" disabled={!inn2}>Innings 2</Button>
+          </div>
+
+          <div className="space-y-6">
+            <Card className="border shadow-none rounded-none border-x-0">
+              <CardHeader className="py-3 px-4 bg-slate-50 border-y"><CardTitle className="text-[10px] font-black uppercase text-slate-400">BATTING</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader><TableRow><TableHead className="text-[10px] font-black uppercase">Batter</TableHead><TableHead className="text-right text-[10px] font-black uppercase">R</TableHead><TableHead className="text-right text-[10px] font-black uppercase">B</TableHead><TableHead className="text-right text-[10px] font-black uppercase">4s</TableHead><TableHead className="text-right text-[10px] font-black uppercase">6s</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {inningPerformances.batting.map((p: any) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="py-3">
+                          <p className="font-bold text-xs">{p.name}{p.out ? '' : '*'}</p>
+                          <p className="text-[8px] text-slate-400 uppercase italic truncate max-w-[120px]">{p.dismissal}</p>
+                        </TableCell>
+                        <TableCell className="text-right font-black text-xs">{p.runs}</TableCell>
+                        <TableCell className="text-right text-xs text-slate-500">{p.balls}</TableCell>
+                        <TableCell className="text-right text-xs text-slate-500">{p.fours}</TableCell>
+                        <TableCell className="text-right text-xs text-slate-500">{p.sixes}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <Card className="border shadow-none rounded-none border-x-0">
+              <CardHeader className="py-3 px-4 bg-slate-50 border-y"><CardTitle className="text-[10px] font-black uppercase text-slate-400">BOWLING</CardTitle></CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader><TableRow><TableHead className="text-[10px] font-black uppercase">Bowler</TableHead><TableHead className="text-right text-[10px] font-black uppercase">O</TableHead><TableHead className="text-right text-[10px] font-black uppercase">R</TableHead><TableHead className="text-right text-[10px] font-black uppercase">W</TableHead><TableHead className="text-right text-[10px] font-black uppercase">E</TableHead></TableRow></TableHeader>
+                  <TableBody>
+                    {inningPerformances.bowling.map((p: any) => (
+                      <TableRow key={p.id}>
+                        <TableCell className="py-3 font-bold text-xs">{p.name}</TableCell>
+                        <TableCell className="text-right text-xs font-bold">{Math.floor(p.balls / 6)}.{p.balls % 6}</TableCell>
+                        <TableCell className="text-right text-xs text-slate-500">{p.runs}</TableCell>
+                        <TableCell className="text-right text-xs font-black text-primary">{p.wickets}</TableCell>
+                        <TableCell className="text-right text-xs text-slate-500">{(p.runs / (p.balls / 6 || 1)).toFixed(2)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
 
             {isUmpire && (
-              <Card className="border-dashed border-2 bg-slate-50/50">
-                <CardContent className="p-4 flex flex-col gap-3">
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Administrative Tools</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" onClick={() => setIsEditScoresOpen(true)} className="h-10 font-black text-[10px] uppercase bg-white border-slate-200">
-                      <PenTool className="w-3 h-3 mr-2" /> Edit Full Scorecard
-                    </Button>
-                    <Button variant="outline" onClick={() => setIsEditResultOpen(true)} className="h-10 font-black text-[10px] uppercase bg-white border-slate-200">
-                      <Edit2 className="w-3 h-3 mr-2" /> Correct Result Text
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="p-4 bg-slate-50 border-y border-dashed space-y-3">
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Administrative Tools</p>
+                 <Button variant="outline" onClick={() => setIsEditFullMatchOpen(true)} className="w-full h-12 font-black text-[10px] uppercase tracking-widest bg-white">
+                   <PenTool className="w-3 h-3 mr-2" /> Correct Full Scorecard & Meta
+                 </Button>
+              </div>
             )}
-            
-            <div className="p-12 text-center text-slate-300 font-black uppercase text-xs tracking-widest bg-slate-50 rounded-xl border border-dashed">
-              Detailed Scorecard Stats Generated from Overs History
-            </div>
           </div>
         </TabsContent>
 
@@ -698,278 +724,114 @@ export default function MatchScoreboardPage() {
             <Button variant={activeInningView === 1 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(1)} className="rounded-full text-[10px] font-black h-8 px-4">Innings 1</Button>
             <Button variant={activeInningView === 2 ? "secondary" : "ghost"} size="sm" onClick={() => setActiveInningView(2)} className="rounded-full text-[10px] font-black h-8 px-4" disabled={!inn2}>Innings 2</Button>
           </div>
-          
-          {groupedOvers.length > 0 ? (
-            groupedOvers.map((over) => (
-              <div key={over.overNumber} className="p-4 flex flex-col md:flex-row gap-4 md:items-start md:justify-between hover:bg-slate-50 transition-colors">
-                <div className="space-y-1 min-w-[140px]">
-                  <p className="font-black text-sm text-slate-900">Over {over.overNumber} <span className="text-slate-400 font-bold ml-1">- {over.overRuns} runs</span></p>
-                  <p className="text-xs font-black text-slate-500 uppercase tracking-tighter">
-                    {getAbbr(getTeamName(activeInningView === 1 ? match.team1Id : match.team2Id))} {over.cumulativeScore}-{over.cumulativeWickets}
-                  </p>
-                </div>
-                
-                <div className="flex-1 space-y-3">
-                  <p className="text-xs font-bold text-slate-700">
-                    {getPlayerName(over.bowlerId)} to {over.batterIds.map((id, idx) => (
-                      <span key={id}>{idx > 0 && ' & '}{getPlayerName(id)}</span>
-                    ))}
-                  </p>
-                  
-                  <div className="flex flex-wrap gap-1.5">
-                    {over.balls.map((ball, idx) => {
-                      let bgColor = 'bg-slate-400';
-                      let text = ball.totalRunsOnDelivery;
-                      
-                      if (ball.isWicket) {
-                        bgColor = 'bg-red-600';
-                        text = 'W';
-                      } else if (ball.runsScored === 6) {
-                        bgColor = 'bg-purple-600';
-                      } else if (ball.runsScored === 4) {
-                        bgColor = 'bg-blue-600';
-                      } else if (ball.extraType === 'wide') {
-                        bgColor = 'bg-amber-700';
-                        text = 'Wd';
-                      } else if (ball.extraType === 'noball') {
-                        bgColor = 'bg-amber-700';
-                        text = 'Nb';
-                      }
-                      
-                      return (
-                        <div key={idx} className={cn("w-8 h-8 flex items-center justify-center rounded-sm text-[10px] font-black text-white shadow-sm", bgColor)}>
-                          {text}
-                        </div>
-                      );
-                    })}
-                  </div>
+          {groupedOvers.map((over) => (
+            <div key={over.overNumber} className="p-4 flex flex-col md:flex-row gap-4 md:items-start md:justify-between hover:bg-slate-50 transition-colors">
+              <div className="space-y-1 min-w-[140px]">
+                <p className="font-black text-sm text-slate-900">Over {over.overNumber} <span className="text-slate-400 font-bold ml-1">- {over.overRuns} runs</span></p>
+                <p className="text-xs font-black text-slate-500 uppercase tracking-tighter">
+                  {getAbbr(getTeamName(activeInningView === 1 ? match.team1Id : match.team2Id))} {over.cumulativeScore}-{over.cumulativeWickets}
+                </p>
+              </div>
+              <div className="flex-1 space-y-3">
+                <p className="text-xs font-bold text-slate-700">
+                  {getPlayerName(over.bowlerId)} to {over.batterIds.map((id, idx) => (<span key={id}>{idx > 0 && ' & '}{getPlayerName(id)}</span>))}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {over.balls.map((ball, idx) => {
+                    let bgColor = 'bg-slate-400';
+                    let text = ball.totalRunsOnDelivery;
+                    if (ball.isWicket) { bgColor = 'bg-red-600'; text = 'W'; }
+                    else if (ball.runsScored === 6) bgColor = 'bg-purple-600';
+                    else if (ball.runsScored === 4) bgColor = 'bg-blue-600';
+                    else if (ball.extraType === 'wide') { bgColor = 'bg-amber-700'; text = 'Wd'; }
+                    else if (ball.extraType === 'noball') { bgColor = 'bg-amber-700'; text = 'Nb'; }
+                    return (<div key={idx} className={cn("w-8 h-8 flex items-center justify-center rounded-sm text-[10px] font-black text-white shadow-sm", bgColor)}>{text}</div>);
+                  })}
                 </div>
               </div>
-            ))
-          ) : (
-            <div className="text-center py-20 space-y-3">
-              <History className="w-12 h-12 text-slate-200 mx-auto" />
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Waiting for first delivery...</p>
             </div>
-          )}
+          ))}
         </TabsContent>
 
         <TabsContent value="charts" className="mt-4 space-y-6">
           <Card className="border shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                <LineChartIcon className="w-4 h-4 text-primary" /> Worm Graph (Runs Progress)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px] w-full mt-4">
-                <ChartContainer config={{ 
-                  inn1: { label: getAbbr(getTeamName(match.team1Id)), color: "hsl(var(--primary))" },
-                  inn2: { label: getAbbr(getTeamName(match.team2Id)), color: "hsl(var(--accent))" }
-                }}>
-                  <LineChart data={chartData.worm} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis 
-                      dataKey="over" 
-                      fontSize={10} 
-                      tickLine={false} 
-                      axisLine={false} 
-                      label={{ value: 'Overs', position: 'insideBottomRight', offset: -10, fontSize: 10, fontWeight: 'bold' }}
-                    />
-                    <YAxis 
-                      fontSize={10} 
-                      tickLine={false} 
-                      axisLine={false} 
-                      label={{ value: 'Runs', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10, fontWeight: 'bold' }}
-                    />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
-                    <Line 
-                      type="monotone" 
-                      dataKey="inn1" 
-                      stroke="hsl(var(--primary))" 
-                      strokeWidth={3} 
-                      dot={false} 
-                      activeDot={{ r: 4 }} 
-                      name={getAbbr(getTeamName(match.team1Id))}
-                      connectNulls
-                    />
-                    <Line 
-                      type="monotone" 
-                      dataKey="inn2" 
-                      stroke="hsl(var(--accent))" 
-                      strokeWidth={3} 
-                      dot={false} 
-                      activeDot={{ r: 4 }} 
-                      name={getAbbr(getTeamName(match.team2Id))}
-                      connectNulls
-                    />
-                  </LineChart>
-                </ChartContainer>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-secondary" /> Manhattan Chart (Runs Per Over)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[300px] w-full mt-4">
-                <ChartContainer config={{ 
-                  inn1Runs: { label: `${getAbbr(getTeamName(match.team1Id))} Runs`, color: "hsl(var(--primary))" },
-                  inn2Runs: { label: `${getAbbr(getTeamName(match.team2Id))} Runs`, color: "hsl(var(--accent))" }
-                }}>
-                  <BarChart data={chartData.manhattan} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                    <XAxis dataKey="over" fontSize={10} tickLine={false} axisLine={false} />
-                    <YAxis fontSize={10} tickLine={false} axisLine={false} />
-                    <ChartTooltip 
-                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          return (
-                            <div className="bg-white p-2 border rounded shadow-sm text-[10px] font-bold">
-                              <p className="border-b pb-1 mb-1">Over {payload[0].payload.over}</p>
-                              {payload.map((p: any, i: number) => (
-                                <div key={i} className="flex justify-between gap-4 py-0.5" style={{ color: p.color }}>
-                                  <span>{p.name}:</span>
-                                  <span>{p.value} {p.payload[`${p.dataKey.replace('Runs', 'Wickets')}`] > 0 ? `(${p.payload[`${p.dataKey.replace('Runs', 'Wickets')}`]}W)` : ''}</span>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
-                    <Bar dataKey="inn1Runs" name={getAbbr(getTeamName(match.team1Id))} fill="hsl(var(--primary))" radius={[2, 2, 0, 0]}>
-                      {chartData.manhattan.map((entry, index) => (
-                        <Cell key={`cell-1-${index}`} fill="hsl(var(--primary))" />
-                      ))}
-                    </Bar>
-                    <Bar dataKey="inn2Runs" name={getAbbr(getTeamName(match.team2Id))} fill="hsl(var(--accent))" radius={[2, 2, 0, 0]}>
-                      {chartData.manhattan.map((entry, index) => (
-                        <Cell key={`cell-2-${index}`} fill="hsl(var(--accent))" />
-                      ))}
-                    </Bar>
-                    {/* Wicket Markers */}
-                    {chartData.manhattan.map((entry, index) => {
-                      const markers = [];
-                      if (entry.inn1Wickets > 0) {
-                        markers.push(<ReferenceDot key={`w1-${index}`} x={entry.over} y={entry.inn1Runs + 1} r={3} fill="#ef4444" stroke="none" />);
-                      }
-                      if (entry.inn2Wickets > 0) {
-                        markers.push(<ReferenceDot key={`w2-${index}`} x={entry.over} y={entry.inn2Runs + 1} r={3} fill="#ef4444" stroke="none" />);
-                      }
-                      return markers;
-                    })}
-                  </BarChart>
-                </ChartContainer>
-                <div className="flex items-center justify-center gap-4 mt-2">
-                   <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500" /><span className="text-[8px] font-black uppercase text-slate-400">Wicket Fallen</span></div>
-                </div>
-              </div>
-            </CardContent>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><LineChartIcon className="w-4 h-4 text-primary" /> Progress</CardTitle></CardHeader>
+            <CardContent><div className="h-[300px] w-full mt-4"><ChartContainer config={{ inn1: { label: getAbbr(getTeamName(match.team1Id)), color: "hsl(var(--primary))" }, inn2: { label: getAbbr(getTeamName(match.team2Id)), color: "hsl(var(--accent))" } }}><LineChart data={chartData.worm} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" /><XAxis dataKey="over" fontSize={10} tickLine={false} axisLine={false} /><YAxis fontSize={10} tickLine={false} axisLine={false} /><ChartTooltip content={<ChartTooltipContent />} /><Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} /><Line type="monotone" dataKey="inn1" stroke="hsl(var(--primary))" strokeWidth={3} dot={false} connectNulls /><Line type="monotone" dataKey="inn2" stroke="hsl(var(--accent))" strokeWidth={3} dot={false} connectNulls /></LineChart></ChartContainer></div></CardContent>
           </Card>
         </TabsContent>
       </Tabs>
 
-      {/* Full Scorecard Editor Dialog */}
-      <Dialog open={isEditScoresOpen} onOpenChange={setIsEditScoresOpen}>
+      {/* FULL MATCH EDITOR DIALOG */}
+      <Dialog open={isEditFullMatchOpen} onOpenChange={setIsEditFullMatchOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl">
-          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Full Scorecard Correction</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-black uppercase">Full Scorecard Correction</DialogTitle></DialogHeader>
           <div className="space-y-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Inning 1 Edits */}
-              <div className="space-y-4 p-4 border rounded-xl bg-primary/5 border-primary/20">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 rounded-full bg-primary" />
-                  <h3 className="font-black text-xs uppercase tracking-widest text-primary">Innings 1: {getAbbr(getTeamName(match.team1Id))}</h3>
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase text-slate-500">Match Status</Label>
+                  <Select value={editForm.status} onValueChange={(v) => setEditForm({...editForm, status: v})}>
+                    <SelectTrigger className="font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="live">Live (Ongoing)</SelectItem>
+                      <SelectItem value="completed">Completed (Finalized)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Total Runs</Label>
-                    <Input type="number" className="font-black" value={editForm.inn1Score} onChange={(e) => setEditForm({...editForm, inn1Score: parseInt(e.target.value) || 0})} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Wickets</Label>
-                    <Input type="number" className="font-black" value={editForm.inn1Wickets} onChange={(e) => setEditForm({...editForm, inn1Wickets: parseInt(e.target.value) || 0})} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Overs (Complete)</Label>
-                    <Input type="number" className="font-black" value={editForm.inn1Overs} onChange={(e) => setEditForm({...editForm, inn1Overs: parseInt(e.target.value) || 0})} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Balls in Over</Label>
-                    <Input type="number" max="5" className="font-black" value={editForm.inn1Balls} onChange={(e) => setEditForm({...editForm, inn1Balls: parseInt(e.target.value) || 0})} />
-                  </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase text-slate-500">Match Date</Label>
+                  <Input type="date" className="font-bold" value={editForm.matchDate} onChange={(e) => setEditForm({...editForm, matchDate: e.target.value})} />
                 </div>
-              </div>
+             </div>
 
-              {/* Inning 2 Edits */}
-              <div className="space-y-4 p-4 border rounded-xl bg-secondary/5 border-secondary/20">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 rounded-full bg-secondary" />
-                  <h3 className="font-black text-xs uppercase tracking-widest text-secondary">Innings 2: {getAbbr(getTeamName(match.team2Id))}</h3>
+             <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase text-slate-500">Toss Winner</Label>
+                  <Select value={editForm.tossWinner} onValueChange={(v) => setEditForm({...editForm, tossWinner: v})}>
+                    <SelectTrigger className="font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={match.team1Id}>{getTeamName(match.team1Id)}</SelectItem>
+                      <SelectItem value={match.team2Id}>{getTeamName(match.team2Id)}</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Total Runs</Label>
-                    <Input type="number" className="font-black" value={editForm.inn2Score} onChange={(e) => setEditForm({...editForm, inn2Score: parseInt(e.target.value) || 0})} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Wickets</Label>
-                    <Input type="number" className="font-black" value={editForm.inn2Wickets} onChange={(e) => setEditForm({...editForm, inn2Wickets: parseInt(e.target.value) || 0})} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Overs (Complete)</Label>
-                    <Input type="number" className="font-black" value={editForm.inn2Overs} onChange={(e) => setEditForm({...editForm, inn2Overs: parseInt(e.target.value) || 0})} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[10px] font-black uppercase text-slate-500">Balls in Over</Label>
-                    <Input type="number" max="5" className="font-black" value={editForm.inn2Balls} onChange={(e) => setEditForm({...editForm, inn2Balls: parseInt(e.target.value) || 0})} />
-                  </div>
+                <div className="space-y-1">
+                  <Label className="text-[10px] font-black uppercase text-slate-500">Toss Decision</Label>
+                  <Select value={editForm.tossDecision} onValueChange={(v) => setEditForm({...editForm, tossDecision: v})}>
+                    <SelectTrigger className="font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="bat">Elect to Bat</SelectItem>
+                      <SelectItem value="bowl">Elect to Bowl</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-            </div>
-            <div className="p-3 bg-amber-50 border border-amber-100 rounded-lg flex items-start gap-3">
-              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-[10px] font-medium text-amber-700">Manual edits to totals will override the calculated stats from the delivery history. Use this only for necessary corrections.</p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={handleUpdateScores} className="w-full h-12 font-black uppercase tracking-widest shadow-lg">
-              <Save className="w-4 h-4 mr-2" /> Commit Scorecard Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+             </div>
 
-      {/* Edit Result Dialog */}
-      <Dialog open={isEditResultOpen} onOpenChange={setIsEditResultOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto rounded-xl">
-          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Correct Match Result</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-slate-500">Final Result Description</Label>
-              <Input 
-                className="font-bold"
-                value={editedResult} 
-                onChange={(e) => setEditedResult(e.target.value)} 
-                placeholder="e.g. Titans won by 5 wickets"
-              />
-              <p className="text-[9px] font-medium text-slate-400 italic">This text is displayed as the primary match outcome.</p>
-            </div>
+             <div className="space-y-4 p-4 border rounded-xl bg-primary/5">
+                <p className="font-black text-xs uppercase tracking-widest text-primary">Innings 1: {getAbbr(getTeamName(match.team1Id))}</p>
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Runs</Label><Input type="number" className="font-black" value={editForm.inn1Score} onChange={(e) => setEditForm({...editForm, inn1Score: parseInt(e.target.value)||0})} /></div>
+                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Wkts</Label><Input type="number" className="font-black" value={editForm.inn1Wickets} onChange={(e) => setEditForm({...editForm, inn1Wickets: parseInt(e.target.value)||0})} /></div>
+                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Overs</Label><Input type="number" className="font-black" value={editForm.inn1Overs} onChange={(e) => setEditForm({...editForm, inn1Overs: parseInt(e.target.value)||0})} /></div>
+                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Balls</Label><Input type="number" max="5" className="font-black" value={editForm.inn1Balls} onChange={(e) => setEditForm({...editForm, inn1Balls: parseInt(e.target.value)||0})} /></div>
+                </div>
+             </div>
+
+             <div className="space-y-4 p-4 border rounded-xl bg-secondary/5">
+                <p className="font-black text-xs uppercase tracking-widest text-secondary">Innings 2: {getAbbr(getTeamName(match.team2Id))}</p>
+                <div className="grid grid-cols-4 gap-2">
+                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Runs</Label><Input type="number" className="font-black" value={editForm.inn2Score} onChange={(e) => setEditForm({...editForm, inn2Score: parseInt(e.target.value)||0})} /></div>
+                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Wkts</Label><Input type="number" className="font-black" value={editForm.inn2Wickets} onChange={(e) => setEditForm({...editForm, inn2Wickets: parseInt(e.target.value)||0})} /></div>
+                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Overs</Label><Input type="number" className="font-black" value={editForm.inn2Overs} onChange={(e) => setEditForm({...editForm, inn2Overs: parseInt(e.target.value)||0})} /></div>
+                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Balls</Label><Input type="number" max="5" className="font-black" value={editForm.inn2Balls} onChange={(e) => setEditForm({...editForm, inn2Balls: parseInt(e.target.value)||0})} /></div>
+                </div>
+             </div>
+
+             <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase text-slate-500">Final Result Description</Label>
+                <Input className="font-bold" value={editForm.resultDescription} onChange={(e) => setEditForm({...editForm, resultDescription: e.target.value})} />
+             </div>
           </div>
-          <DialogFooter>
-            <Button onClick={handleUpdateResult} className="w-full h-12 font-black uppercase tracking-widest shadow-lg">
-              <Save className="w-4 h-4 mr-2" /> Update Result Text
-            </Button>
-          </DialogFooter>
+          <DialogFooter><Button onClick={handleUpdateFullMatch} className="w-full h-12 font-black uppercase tracking-widest shadow-lg"><Save className="w-4 h-4 mr-2" /> COMMIT SCORECARD CHANGES</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -980,11 +842,7 @@ export default function MatchScoreboardPage() {
           <div className="space-y-5 py-4">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500">Batter Dismissed</Label>
-              <select 
-                className="w-full h-12 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold"
-                value={wicketForm.batterOutId} 
-                onChange={(e) => setWicketForm({...wicketForm, batterOutId: e.target.value})}
-              >
+              <select className="w-full h-12 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold" value={wicketForm.batterOutId} onChange={(e) => setWicketForm({...wicketForm, batterOutId: e.target.value})}>
                 <option value="">Who is out?</option>
                 <option value={activeInningData?.strikerPlayerId || ''}>{getPlayerName(activeInningData?.strikerPlayerId || '')} (On Strike)</option>
                 <option value={activeInningData?.nonStrikerPlayerId || ''}>{getPlayerName(activeInningData?.nonStrikerPlayerId || '')} (Non-Striker)</option>
@@ -992,30 +850,15 @@ export default function MatchScoreboardPage() {
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500">Method of Dismissal</Label>
-              <select 
-                className="w-full h-12 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold"
-                value={wicketForm.type} 
-                onChange={(e) => setWicketForm({...wicketForm, type: e.target.value})}
-              >
-                <option value="bowled">Bowled</option>
-                <option value="catch">Caught</option>
-                <option value="lbw">LBW</option>
-                <option value="runout">Run Out</option>
-                <option value="stumping">Stumped</option>
-                <option value="hitwicket">Hit Wicket</option>
+              <select className="w-full h-12 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold" value={wicketForm.type} onChange={(e) => setWicketForm({...wicketForm, type: e.target.value})}>
+                <option value="bowled">Bowled</option><option value="catch">Caught</option><option value="lbw">LBW</option><option value="runout">Run Out</option><option value="stumping">Stumped</option><option value="hitwicket">Hit Wicket</option>
               </select>
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500">Fielder Involved (Optional)</Label>
-              <select 
-                className="w-full h-12 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold"
-                value={wicketForm.fielderId} 
-                onChange={(e) => setWicketForm({...wicketForm, fielderId: e.target.value})}
-              >
+              <select className="w-full h-12 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold" value={wicketForm.fielderId} onChange={(e) => setWicketForm({...wicketForm, fielderId: e.target.value})}>
                 <option value="none">None / Direct</option>
-                {allPlayers?.filter(p => p.teamId === activeInningData?.bowlingTeamId).map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
+                {allPlayers?.filter(p => p.teamId === activeInningData?.bowlingTeamId).map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
               </select>
             </div>
           </div>
@@ -1031,17 +874,9 @@ export default function MatchScoreboardPage() {
              <PenTool className="w-12 h-12 text-primary mx-auto opacity-20" />
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500">Select Bowler for the Over</Label>
-              <select 
-                className="w-full h-14 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold"
-                onChange={(e) => {
-                  updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: e.target.value });
-                  setIsBowlerDialogOpen(false);
-                }}
-              >
+              <select className="w-full h-14 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold" onChange={(e) => { updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: e.target.value }); setIsBowlerDialogOpen(false); }}>
                 <option value="">Choose next bowler</option>
-                {allPlayers?.filter(p => p.teamId === activeInningData?.bowlingTeamId).map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
+                {allPlayers?.filter(p => p.teamId === activeInningData?.bowlingTeamId).map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
               </select>
             </div>
           </div>
@@ -1050,3 +885,4 @@ export default function MatchScoreboardPage() {
     </div>
   );
 }
+
