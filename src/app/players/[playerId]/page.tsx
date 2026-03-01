@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useCollection } from '@/firebase';
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Trophy, Activity, History as HistoryIcon, Target, Star, TrendingUp, User, ShieldCheck, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Trophy, Activity, History as HistoryIcon, Target, Star, TrendingUp, User, ShieldCheck, ChevronRight, Flag, Users } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -26,15 +26,34 @@ export default function PlayerProfilePage() {
   const teamRef = useMemoFirebase(() => player?.teamId ? doc(db, 'teams', player.teamId) : null, [db, player?.teamId]);
   const { data: team } = useDoc(teamRef);
 
+  // Fetch all teams to map names/logos in history
+  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
+  const { data: allTeams } = useCollection(allTeamsQuery);
+
   // Query matches where the player was in the squad
   const matchesQuery = useMemoFirebase(() => 
-    query(collection(db, 'matches'), orderBy('matchDate', 'desc'), limit(10)), 
+    query(collection(db, 'matches'), orderBy('matchDate', 'desc'), limit(20)), 
   [db]);
   const { data: allMatches } = useCollection(matchesQuery);
 
-  const recentMatches = allMatches?.filter(m => 
-    m.team1SquadPlayerIds?.includes(playerId) || m.team2SquadPlayerIds?.includes(playerId)
-  ) || [];
+  const recentMatches = useMemo(() => {
+    return allMatches?.filter(m => 
+      m.team1SquadPlayerIds?.includes(playerId) || m.team2SquadPlayerIds?.includes(playerId)
+    ) || [];
+  }, [allMatches, playerId]);
+
+  // Calculate unique teams the player has played for
+  const representedTeams = useMemo(() => {
+    const teamIds = new Set<string>();
+    if (player?.teamId) teamIds.add(player.teamId);
+    
+    recentMatches.forEach(m => {
+      if (m.team1SquadPlayerIds?.includes(playerId)) teamIds.add(m.team1Id);
+      if (m.team2SquadPlayerIds?.includes(playerId)) teamIds.add(m.team2Id);
+    });
+
+    return allTeams?.filter(t => teamIds.has(t.id)) || [];
+  }, [recentMatches, player?.teamId, allTeams, playerId]);
 
   if (isPlayerLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING PROFILE...</div>;
   if (!player) return <div className="p-20 text-center">Player not found.</div>;
@@ -100,10 +119,11 @@ export default function PlayerProfilePage() {
       </div>
 
       <Tabs defaultValue="batting" className="w-full">
-        <TabsList className="grid w-full grid-cols-4 h-12 bg-slate-100 p-1 rounded-xl">
+        <TabsList className="grid w-full grid-cols-5 h-12 bg-slate-100 p-1 rounded-xl overflow-x-auto">
            <TabsTrigger value="batting" className="font-bold">Batting</TabsTrigger>
            <TabsTrigger value="bowling" className="font-bold">Bowling</TabsTrigger>
            <TabsTrigger value="fielding" className="font-bold">Fielding</TabsTrigger>
+           <TabsTrigger value="teams" className="font-bold">Teams</TabsTrigger>
            <TabsTrigger value="recent" className="font-bold">History</TabsTrigger>
         </TabsList>
 
@@ -117,7 +137,7 @@ export default function PlayerProfilePage() {
                     <TableRow><TableCell className="font-bold">Total Runs</TableCell><TableCell className="text-right font-black">{player.runsScored}</TableCell></TableRow>
                     <TableRow><TableCell className="font-bold">Highest Score</TableCell><TableCell className="text-right font-black">{player.highestScore}</TableCell></TableRow>
                     <TableRow><TableCell className="font-bold">Style</TableCell><TableCell className="text-right font-black">{player.battingStyle}</TableCell></TableRow>
-                    <TableRow><TableCell className="font-bold">Avg / SR</TableCell><TableCell className="text-right font-black text-slate-400">Stat Pending...</TableCell></TableRow>
+                    <TableRow><TableCell className="font-bold">Career Avg</TableCell><TableCell className="text-right font-black text-slate-400">{player.matchesPlayed > 0 ? (player.runsScored / player.matchesPlayed).toFixed(2) : '0.00'}</TableCell></TableRow>
                  </TableBody>
               </Table>
            </Card>
@@ -132,7 +152,7 @@ export default function PlayerProfilePage() {
                  <TableBody>
                     <TableRow><TableCell className="font-bold">Total Wickets</TableCell><TableCell className="text-right font-black text-primary">{player.wicketsTaken}</TableCell></TableRow>
                     <TableRow><TableCell className="font-bold">Best Figures</TableCell><TableCell className="text-right font-black">{player.bestBowlingFigures}</TableCell></TableRow>
-                    <TableRow><TableCell className="font-bold">Recent Economy</TableCell><TableCell className="text-right font-black text-slate-400">---</TableCell></TableRow>
+                    <TableRow><TableCell className="font-bold">Economy Rate</TableCell><TableCell className="text-right font-black text-slate-400">Calculated Per Match</TableCell></TableRow>
                  </TableBody>
               </Table>
            </Card>
@@ -141,8 +161,35 @@ export default function PlayerProfilePage() {
         <TabsContent value="fielding" className="mt-6">
             <Card className="p-8 text-center border-2 border-dashed rounded-xl bg-slate-50/50">
                 <Target className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Fielding metrics coming soon</p>
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Fielding metrics recorded in match details</p>
             </Card>
+        </TabsContent>
+
+        <TabsContent value="teams" className="mt-6 space-y-3">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {representedTeams.length > 0 ? representedTeams.map(t => (
+                <Link key={t.id} href={`/teams/${t.id}`}>
+                  <Card className="hover:border-primary transition-all shadow-sm border-l-4 border-l-secondary cursor-pointer">
+                    <CardContent className="p-4 flex items-center gap-3">
+                      <Avatar className="w-10 h-10 rounded border">
+                        <AvatarImage src={t.logoUrl} />
+                        <AvatarFallback><Flag className="w-4 h-4" /></AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <p className="font-black text-sm">{t.name}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase">{t.id === player.teamId ? 'Current Team' : 'Former Team'}</p>
+                      </div>
+                      <ChevronRight className="ml-auto w-4 h-4 text-slate-300" />
+                    </CardContent>
+                  </Card>
+                </Link>
+              )) : (
+                <div className="col-span-full py-20 text-center border-2 border-dashed rounded-xl bg-slate-50/50">
+                   <Users className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                   <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No team associations found</p>
+                </div>
+              )}
+           </div>
         </TabsContent>
 
         <TabsContent value="recent" className="mt-6 space-y-3">
@@ -151,7 +198,7 @@ export default function PlayerProfilePage() {
                  <CardContent className="p-4 flex items-center justify-between">
                     <div>
                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">{new Date(match.matchDate).toLocaleDateString()}</p>
-                       <p className="font-black text-sm">vs {match.team1Id === player.teamId ? match.team2Name : match.team1Name}</p>
+                       <p className="font-black text-sm">vs {match.team1Id === player.teamId ? (allTeams?.find(t => t.id === match.team2Id)?.name || 'Opponent') : (allTeams?.find(t => t.id === match.team1Id)?.name || 'Opponent')}</p>
                        <p className="text-[10px] font-bold text-primary uppercase">{match.resultDescription}</p>
                     </div>
                     <Button variant="ghost" size="sm" asChild className="text-[10px] font-black uppercase text-primary">
