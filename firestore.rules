@@ -1,49 +1,53 @@
 /**
  * CricMates - ScoresTracker Firestore Security Rules
  *
- * Optimized for robust Collection Group support:
- * - Top-level recursive wildcard allows collectionGroup queries for 'deliveryRecords'.
- * - Explicit read/write rules for all collections.
+ * This configuration ensures that all match-related data is accessible for reading
+ * by everyone, while restricting write access to authenticated umpires.
  */
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Collection Group Rule ---
-    // This allows real-time statistics calculation across all match innings.
-    match /{allPaths=**}/deliveryRecords/{deliveryRecordId} {
+    // --- Collection Group Rules ---
+    // Specifically allows queries across all 'deliveryRecords' collections
+    // This is critical for calculating player career statistics.
+    match /{path=**}/deliveryRecords/{id} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
     // --- Standard Collection Rules ---
 
+    // Umpire profiles are read-only for others
     match /umpires/{umpireId} {
       allow get: if request.auth != null;
       allow list, create, update, delete: if false;
     }
 
+    // Teams can be read by anyone, but modified by umpires
     match /teams/{teamId} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
+    // Player profiles can be read by anyone, but modified by umpires
     match /players/{playerId} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
+    // Match data is public for viewing
     match /matches/{matchId} {
       allow read: if true;
       allow write: if request.auth != null;
 
+      // Inning details within a match
       match /innings/{inningId} {
         allow read: if true;
         allow write: if request.auth != null;
 
-        // Individual ball records are already covered by the collection group rule above,
-        // but this provides additional clarity for direct sub-collection access.
+        // Ball-by-ball delivery records
         match /deliveryRecords/{deliveryRecordId} {
           allow read: if true;
           allow write: if request.auth != null;
