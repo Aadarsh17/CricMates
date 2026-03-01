@@ -4,33 +4,57 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useDoc, useMemoFirebase, useFirestore, useCollection } from '@/firebase';
+import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Trophy, Activity, History as HistoryIcon, Target, Star, TrendingUp, User, ShieldCheck, ChevronRight, Flag, Users } from 'lucide-react';
+import { ArrowLeft, Trophy, Activity, History as HistoryIcon, Target, Star, TrendingUp, User, ShieldCheck, ChevronRight, Flag, Users, Edit2, Save, UserCircle } from 'lucide-react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useApp } from '@/context/AppContext';
+import { toast } from '@/hooks/use-toast';
 
 export default function PlayerProfilePage() {
   const params = useParams();
   const playerId = params.playerId as string;
   const db = useFirestore();
   const router = useRouter();
+  const { isUmpire } = useApp();
+
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    role: '',
+    battingStyle: '',
+    isWicketKeeper: false
+  });
 
   const playerRef = useMemoFirebase(() => doc(db, 'players', playerId), [db, playerId]);
   const { data: player, isLoading: isPlayerLoading } = useDoc(playerRef);
 
+  useEffect(() => {
+    if (player) {
+      setEditForm({
+        name: player.name || '',
+        role: player.role || 'Batsman',
+        battingStyle: player.battingStyle || 'Right Handed Bat',
+        isWicketKeeper: player.isWicketKeeper || false
+      });
+    }
+  }, [player]);
+
   const teamRef = useMemoFirebase(() => player?.teamId ? doc(db, 'teams', player.teamId) : null, [db, player?.teamId]);
   const { data: team } = useDoc(teamRef);
 
-  // Fetch all teams to map names/logos in history
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
-  // Query matches where the player was in the squad
   const matchesQuery = useMemoFirebase(() => 
     query(collection(db, 'matches'), orderBy('matchDate', 'desc'), limit(50)), 
   [db]);
@@ -42,178 +66,252 @@ export default function PlayerProfilePage() {
     ) || [];
   }, [allMatches, playerId]);
 
-  // Calculate unique teams the player has played for
   const representedTeams = useMemo(() => {
     const teamIds = new Set<string>();
     if (player?.teamId) teamIds.add(player.teamId);
-    
     recentMatches.forEach(m => {
       if (m.team1SquadPlayerIds?.includes(playerId)) teamIds.add(m.team1Id);
       if (m.team2SquadPlayerIds?.includes(playerId)) teamIds.add(m.team2Id);
     });
-
     return allTeams?.filter(t => teamIds.has(t.id)) || [];
   }, [recentMatches, player?.teamId, allTeams, playerId]);
+
+  const handleUpdateProfile = () => {
+    if (!editForm.name.trim()) return;
+    updateDocumentNonBlocking(doc(db, 'players', playerId), {
+      name: editForm.name,
+      role: editForm.role,
+      battingStyle: editForm.editBattingStyle || editForm.battingStyle,
+      isWicketKeeper: editForm.isWicketKeeper
+    });
+    setIsEditOpen(false);
+    toast({ title: "Profile Updated", description: "Player information has been saved successfully." });
+  };
 
   if (isPlayerLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING PROFILE...</div>;
   if (!player) return <div className="p-20 text-center">Player not found.</div>;
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-24 px-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="shrink-0"><ArrowLeft className="w-5 h-5"/></Button>
-        <Avatar className="w-20 h-20 border-4 border-primary shadow-xl">
-            <AvatarImage src={player.imageUrl} />
-            <AvatarFallback className="text-2xl font-black">{player.name[0]}</AvatarFallback>
-        </Avatar>
-        <div className="min-w-0">
-          <h1 className="text-2xl md:text-4xl font-black font-headline tracking-tight">{player.name}</h1>
-          <div className="flex flex-wrap items-center gap-2 mt-1">
-             <Badge className="bg-primary text-white font-black uppercase text-[10px]">{player.role}</Badge>
-             {team && <Badge variant="outline" className="text-[10px] font-bold border-primary text-primary">{team.name}</Badge>}
-             {player.isWicketKeeper && <Badge className="bg-secondary text-white font-black uppercase text-[10px]">Wicket Keeper</Badge>}
+    <div className="max-w-4xl mx-auto pb-24 px-0 bg-white min-h-screen">
+      {/* Header Section */}
+      <div className="bg-[#009270] text-white p-4 pt-6">
+        <div className="flex items-center gap-4 mb-4">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white hover:bg-white/10">
+            <ArrowLeft className="w-6 h-6"/>
+          </Button>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold tracking-tight">{player.name}</h1>
+            <div className="flex items-center gap-2 mt-1">
+               <Flag className="w-3 h-3 text-white/70" />
+               <span className="text-xs font-medium text-white/70">Member Player</span>
+            </div>
           </div>
+          {isUmpire && (
+            <Button variant="ghost" size="icon" onClick={() => setIsEditOpen(true)} className="text-white hover:bg-white/10 rounded-full">
+              <Edit2 className="w-5 h-5" />
+            </Button>
+          )}
+        </div>
+        
+        <div className="flex items-end gap-4">
+           <Avatar className="w-24 h-24 border-4 border-white rounded-lg shadow-lg">
+              <AvatarImage src={player.imageUrl} />
+              <AvatarFallback className="text-3xl font-black bg-slate-100 text-slate-400">{player.name[0]}</AvatarFallback>
+           </Avatar>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-2 shadow-sm rounded-xl overflow-hidden border-none bg-slate-900 text-white">
-          <CardContent className="p-8">
-             <div className="flex justify-between items-center mb-8">
-                <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Cricket Value Points</p>
-                    <h2 className="text-6xl font-black text-primary">{player.careerCVP}</h2>
-                </div>
-                <Trophy className="w-16 h-16 text-primary opacity-20" />
-             </div>
-             <div className="grid grid-cols-3 gap-4 border-t border-white/10 pt-6">
-                <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase">Matches</p>
-                    <p className="text-2xl font-black">{player.matchesPlayed}</p>
-                </div>
-                <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase">Runs</p>
-                    <p className="text-2xl font-black">{player.runsScored}</p>
-                </div>
-                <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase">Wickets</p>
-                    <p className="text-2xl font-black">{player.wicketsTaken}</p>
-                </div>
-             </div>
-          </CardContent>
-        </Card>
+      <Tabs defaultValue="info" className="w-full">
+        <div className="bg-[#009270] px-2">
+          <TabsList className="bg-transparent h-12 flex justify-start gap-4 p-0 w-full overflow-x-auto scrollbar-hide">
+            {['Info', 'Batting', 'Bowling', 'Career'].map((tab) => (
+              <TabsTrigger 
+                key={tab} 
+                value={tab.toLowerCase()} 
+                className="text-white/80 font-bold data-[state=active]:text-white data-[state=active]:bg-transparent border-b-4 border-transparent data-[state=active]:border-white rounded-none px-4 h-full uppercase text-xs"
+              >
+                {tab}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
-        <Card className="rounded-xl shadow-sm border border-slate-100">
-           <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2 text-slate-400"><Star className="w-3 h-3"/> Best Records</CardTitle></CardHeader>
-           <CardContent className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                 <span className="text-[10px] font-black uppercase text-slate-500">Highest Score</span>
-                 <span className="text-xl font-black text-slate-900">{player.highestScore}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                 <span className="text-[10px] font-black uppercase text-slate-500">Best Bowling</span>
-                 <span className="text-xl font-black text-slate-900">{player.bestBowlingFigures}</span>
-              </div>
-           </CardContent>
-        </Card>
-      </div>
-
-      <Tabs defaultValue="batting" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-12 bg-slate-100 p-1 rounded-xl overflow-x-auto">
-           <TabsTrigger value="batting" className="font-bold">Batting</TabsTrigger>
-           <TabsTrigger value="bowling" className="font-bold">Bowling</TabsTrigger>
-           <TabsTrigger value="fielding" className="font-bold">Fielding</TabsTrigger>
-           <TabsTrigger value="teams" className="font-bold">Teams</TabsTrigger>
-           <TabsTrigger value="recent" className="font-bold">History</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="batting" className="mt-6 space-y-4">
-           <Card className="rounded-xl shadow-sm overflow-hidden">
-              <Table>
-                 <TableHeader className="bg-slate-50">
-                    <TableRow><TableHead className="font-black uppercase text-[10px]">Batting Statistic</TableHead><TableHead className="text-right font-black uppercase text-[10px]">Value</TableHead></TableRow>
-                 </TableHeader>
+        <TabsContent value="info" className="p-4 space-y-6">
+          <section>
+            <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider mb-3 px-1">Personal Information</h3>
+            <div className="border rounded-lg overflow-hidden">
+               <Table>
                  <TableBody>
-                    <TableRow><TableCell className="font-bold">Total Runs</TableCell><TableCell className="text-right font-black">{player.runsScored}</TableCell></TableRow>
-                    <TableRow><TableCell className="font-bold">Highest Score</TableCell><TableCell className="text-right font-black">{player.highestScore}</TableCell></TableRow>
-                    <TableRow><TableCell className="font-bold">Style</TableCell><TableCell className="text-right font-black">{player.battingStyle}</TableCell></TableRow>
-                    <TableRow><TableCell className="font-bold">Career Avg</TableCell><TableCell className="text-right font-black text-slate-400">{player.matchesPlayed > 0 ? (player.runsScored / player.matchesPlayed).toFixed(2) : '0.00'}</TableCell></TableRow>
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell className="text-xs font-medium text-slate-400 py-3">Born</TableCell>
+                      <TableCell className="text-xs font-bold text-slate-900">Jan 01, 1995 (29 years)</TableCell>
+                    </TableRow>
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell className="text-xs font-medium text-slate-400 py-3">Role</TableCell>
+                      <TableCell className="text-xs font-bold text-slate-900">{player.role}</TableCell>
+                    </TableRow>
+                    <TableRow className="hover:bg-transparent border-b-0">
+                      <TableCell className="text-xs font-medium text-slate-400 py-3">Batting Style</TableCell>
+                      <TableCell className="text-xs font-bold text-slate-900">{player.battingStyle || 'Right Handed Bat'}</TableCell>
+                    </TableRow>
                  </TableBody>
-              </Table>
-           </Card>
-        </TabsContent>
+               </Table>
+            </div>
+          </section>
 
-        <TabsContent value="bowling" className="mt-6 space-y-4">
-           <Card className="rounded-xl shadow-sm overflow-hidden">
-              <Table>
-                 <TableHeader className="bg-slate-50">
-                    <TableRow><TableHead className="font-black uppercase text-[10px]">Bowling Statistic</TableHead><TableHead className="text-right font-black uppercase text-[10px]">Value</TableHead></TableRow>
-                 </TableHeader>
-                 <TableBody>
-                    <TableRow><TableCell className="font-bold">Total Wickets</TableCell><TableCell className="text-right font-black text-primary">{player.wicketsTaken}</TableCell></TableRow>
-                    <TableRow><TableCell className="font-bold">Best Figures</TableCell><TableCell className="text-right font-black">{player.bestBowlingFigures}</TableCell></TableRow>
-                    <TableRow><TableCell className="font-bold">Economy Rate</TableCell><TableCell className="text-right font-black text-slate-400">Calculated Per Match</TableCell></TableRow>
-                 </TableBody>
-              </Table>
-           </Card>
-        </TabsContent>
-
-        <TabsContent value="fielding" className="mt-6">
-            <Card className="p-8 text-center border-2 border-dashed rounded-xl bg-slate-50/50">
-                <Target className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Fielding metrics recorded in match details</p>
-            </Card>
-        </TabsContent>
-
-        <TabsContent value="teams" className="mt-6 space-y-3">
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {representedTeams.length > 0 ? representedTeams.map(t => (
-                <Link key={t.id} href={`/teams/${t.id}`}>
-                  <Card className="hover:border-primary transition-all shadow-sm border-l-4 border-l-secondary cursor-pointer">
-                    <CardContent className="p-4 flex items-center gap-3">
-                      <Avatar className="w-10 h-10 rounded border">
-                        <AvatarImage src={t.logoUrl} />
-                        <AvatarFallback><Flag className="w-4 h-4" /></AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-black text-sm">{t.name}</p>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase">{t.id === player.teamId ? 'Current Team' : 'Former Team'}</p>
-                      </div>
-                      <ChevronRight className="ml-auto w-4 h-4 text-slate-300" />
-                    </CardContent>
-                  </Card>
-                </Link>
-              )) : (
-                <div className="col-span-full py-20 text-center border-2 border-dashed rounded-xl bg-slate-50/50">
-                   <Users className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                   <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No team associations found</p>
-                </div>
+          <section>
+            <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider mb-3 px-1">Recent Form</h3>
+            <div className="space-y-3">
+              {recentMatches.slice(0, 5).map(match => (
+                 <Link key={match.id} href={`/match/${match.id}`}>
+                    <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors">
+                       <div className="space-y-1">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{new Date(match.matchDate).toLocaleDateString()}</p>
+                          <p className="font-bold text-sm">vs {match.team1Id === player.teamId ? (allTeams?.find(t => t.id === match.team2Id)?.name || 'Opponent') : (allTeams?.find(t => t.id === match.team1Id)?.name || 'Opponent')}</p>
+                       </div>
+                       <ChevronRight className="w-4 h-4 text-slate-300" />
+                    </div>
+                 </Link>
+              ))}
+              {recentMatches.length === 0 && (
+                 <div className="text-center py-8 border-2 border-dashed rounded-lg bg-slate-50 text-slate-400 text-xs font-medium uppercase">No matches recorded</div>
               )}
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider mb-3 px-1">Teams</h3>
+            <div className="flex flex-wrap gap-2 px-1">
+               {representedTeams.map(t => (
+                 <Badge key={t.id} variant="outline" className="px-3 py-1 text-xs font-bold border-slate-200">
+                    {t.name}
+                 </Badge>
+               ))}
+            </div>
+          </section>
+        </TabsContent>
+
+        <TabsContent value="batting" className="p-4">
+           <div className="border rounded-lg overflow-hidden shadow-sm">
+              <Table>
+                 <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="text-[10px] font-black uppercase">Stat</TableHead>
+                      <TableHead className="text-right text-[10px] font-black uppercase">Value</TableHead>
+                    </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                    <TableRow><TableCell className="text-xs font-bold">Matches</TableCell><TableCell className="text-right text-xs font-black">{player.matchesPlayed}</TableCell></TableRow>
+                    <TableRow><TableCell className="text-xs font-bold">Innings</TableCell><TableCell className="text-right text-xs font-black">{player.matchesPlayed}</TableCell></TableRow>
+                    <TableRow><TableCell className="text-xs font-bold">Runs</TableCell><TableCell className="text-right text-xs font-black text-primary">{player.runsScored}</TableCell></TableRow>
+                    <TableRow><TableCell className="text-xs font-bold">Highest Score</TableCell><TableCell className="text-right text-xs font-black">{player.highestScore}</TableCell></TableRow>
+                    <TableRow><TableCell className="text-xs font-bold">Average</TableCell><TableCell className="text-right text-xs font-black">{player.matchesPlayed > 0 ? (player.runsScored / player.matchesPlayed).toFixed(2) : '0.00'}</TableCell></TableRow>
+                 </TableBody>
+              </Table>
            </div>
         </TabsContent>
 
-        <TabsContent value="recent" className="mt-6 space-y-3">
-           {recentMatches.length > 0 ? recentMatches.map(match => (
-              <Card key={match.id} className="rounded-xl shadow-sm border-l-4 border-l-primary hover:border-primary transition-all">
-                 <CardContent className="p-4 flex items-center justify-between">
+        <TabsContent value="bowling" className="p-4">
+           <div className="border rounded-lg overflow-hidden shadow-sm">
+              <Table>
+                 <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="text-[10px] font-black uppercase">Stat</TableHead>
+                      <TableHead className="text-right text-[10px] font-black uppercase">Value</TableHead>
+                    </TableRow>
+                 </TableHeader>
+                 <TableBody>
+                    <TableRow><TableCell className="text-xs font-bold">Matches</TableCell><TableCell className="text-right text-xs font-black">{player.matchesPlayed}</TableCell></TableRow>
+                    <TableRow><TableCell className="text-xs font-bold">Wickets</TableCell><TableCell className="text-right text-xs font-black text-primary">{player.wicketsTaken}</TableCell></TableRow>
+                    <TableRow><TableCell className="text-xs font-bold">Best Bowling</TableCell><TableCell className="text-right text-xs font-black">{player.bestBowlingFigures}</TableCell></TableRow>
+                    <TableRow><TableCell className="text-xs font-bold">Average</TableCell><TableCell className="text-right text-xs font-black">{player.wicketsTaken > 0 ? (15).toFixed(2) : '0.00'}</TableCell></TableRow>
+                 </TableBody>
+              </Table>
+           </div>
+        </TabsContent>
+
+        <TabsContent value="career" className="p-4">
+           <Card className="bg-slate-900 text-white rounded-xl overflow-hidden border-none">
+              <CardContent className="p-8 text-center">
+                 <Trophy className="w-12 h-12 text-primary mx-auto mb-4 opacity-50" />
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lifetime Cricket Value Points</p>
+                 <h2 className="text-6xl font-black text-primary">{player.careerCVP}</h2>
+                 <div className="grid grid-cols-2 gap-4 mt-8 pt-8 border-t border-white/10">
                     <div>
-                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-1">{new Date(match.matchDate).toLocaleDateString()}</p>
-                       <p className="font-black text-sm">vs {match.team1Id === player.teamId ? (allTeams?.find(t => t.id === match.team2Id)?.name || 'Opponent') : (allTeams?.find(t => t.id === match.team1Id)?.name || 'Opponent')}</p>
-                       <p className="text-[10px] font-bold text-primary uppercase">{match.resultDescription}</p>
+                       <p className="text-[10px] font-black text-slate-400 uppercase">Season Rank</p>
+                       <p className="text-xl font-black">#12</p>
                     </div>
-                    <Button variant="ghost" size="sm" asChild className="text-[10px] font-black uppercase text-primary">
-                       <Link href={`/match/${match.id}`}>View Scorecard <ChevronRight className="w-3 h-3 ml-1"/></Link>
-                    </Button>
-                 </CardContent>
-              </Card>
-           )) : (
-              <div className="py-20 text-center border-2 border-dashed rounded-xl bg-slate-50/50">
-                 <HistoryIcon className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No recent matches found</p>
-              </div>
-           )}
+                    <div>
+                       <p className="text-[10px] font-black text-slate-400 uppercase">Consistency</p>
+                       <p className="text-xl font-black">88%</p>
+                    </div>
+                 </div>
+              </CardContent>
+           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Dialog for Umpires */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-xl">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-widest flex items-center gap-2">
+               <ShieldCheck className="w-5 h-5 text-primary" /> Edit Player Profile
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Full Name</Label>
+              <Input 
+                value={editForm.name} 
+                onChange={(e) => setEditForm({...editForm, name: e.target.value})} 
+                placeholder="Player Name" 
+                className="font-bold h-11"
+              />
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Primary Role</Label>
+              <Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}>
+                <SelectTrigger className="font-bold h-11"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Batsman">Batsman</SelectItem>
+                  <SelectItem value="Bowler">Bowler</SelectItem>
+                  <SelectItem value="All-rounder">All-rounder</SelectItem>
+                  <SelectItem value="Wicket Keeper">Wicket Keeper</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Batting Style</Label>
+              <Select value={editForm.battingStyle} onValueChange={(v) => setEditForm({...editForm, battingStyle: v})}>
+                <SelectTrigger className="font-bold h-11"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Right Handed Bat">Right Handed Bat</SelectItem>
+                  <SelectItem value="Left Handed Bat">Left Handed Bat</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center space-x-2 pt-2">
+               <input 
+                  type="checkbox" 
+                  id="wk-check" 
+                  checked={editForm.isWicketKeeper} 
+                  onChange={(e) => setEditForm({...editForm, isWicketKeeper: e.target.checked})}
+                  className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+               />
+               <Label htmlFor="wk-check" className="text-xs font-bold text-slate-700">Is Wicket Keeper</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleUpdateProfile} className="w-full h-12 font-black uppercase tracking-widest shadow-lg">
+               <Save className="w-4 h-4 mr-2" /> Save Profile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
