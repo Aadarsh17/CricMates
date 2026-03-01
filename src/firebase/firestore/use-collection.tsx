@@ -29,12 +29,14 @@ export interface UseCollectionResult<T> {
   https://github.com/firebase/firebase-js-sdk/blob/c5f08a9bc5da0d2b0207802c972d53724ccef055/packages/firestore/src/lite-api/reference.ts#L143
 */
 export interface InternalQuery extends Query<DocumentData> {
-  _query: {
-    path: {
+  _query?: {
+    path?: {
       canonicalString(): string;
       toString(): string;
-    }
-  }
+    },
+    collectionId?: string;
+  };
+  type?: string;
 }
 
 /**
@@ -85,24 +87,18 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (error: FirestoreError) => {
-        // This logic extracts the path from either a ref or a query
-        let path: string = 'unknown';
+        // Extract diagnostic path for error reporting
+        let path: string = 'unknown_path';
+        const internalQuery = (memoizedTargetRefOrQuery as unknown as InternalQuery)._query;
         
         if (memoizedTargetRefOrQuery.type === 'collection') {
           path = (memoizedTargetRefOrQuery as CollectionReference).path;
-        } else {
-          // For queries and collectionGroups, attempt to extract the base path
-          const internalQuery = (memoizedTargetRefOrQuery as unknown as InternalQuery)._query;
-          const canonical = internalQuery.path.canonicalString();
-          
-          // If canonical is empty, it's likely a collectionGroup query
-          if (!canonical) {
-            // Attempt to get the collectionId from internal properties if available
-            path = (memoizedTargetRefOrQuery as any)._query?.collectionId 
-              ? `[Collection Group: ${(memoizedTargetRefOrQuery as any)._query.collectionId}]`
-              : '[Collection Group Query]';
+        } else if (internalQuery) {
+          const canonical = internalQuery.path?.canonicalString();
+          if (!canonical && internalQuery.collectionId) {
+            path = `[CollectionGroup: ${internalQuery.collectionId}]`;
           } else {
-            path = canonical;
+            path = canonical || 'unknown_query';
           }
         }
 
@@ -122,8 +118,10 @@ export function useCollection<T = any>(
 
     return () => unsubscribe();
   }, [memoizedTargetRefOrQuery]); // Re-run if the target query/reference changes.
+  
   if(memoizedTargetRefOrQuery && !memoizedTargetRefOrQuery.__memo) {
-    throw new Error(memoizedTargetRefOrQuery + ' was not properly memoized using useMemoFirebase');
+    throw new Error('useCollection target was not properly memoized using useMemoFirebase');
   }
+  
   return { data, isLoading, error };
 }

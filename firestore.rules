@@ -1,18 +1,18 @@
 /**
  * CricMates - ScoresTracker Firestore Security Rules
  *
- * Updated for robust Collection Group support:
+ * Optimized for robust Collection Group support:
  * - Top-level recursive wildcard allows collectionGroup queries for 'deliveryRecords'.
- * - Simplified auth checks using standard request.auth patterns.
- * - Allows any user to read match and player data.
+ * - Explicit read/write rules for all collections.
  */
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Collection Group Rules (Must be top-level for broad support) ---
-    match /{path=**}/deliveryRecords/{document=**} {
+    // --- Collection Group Rule ---
+    // This allows real-time statistics calculation across all match innings.
+    match /{allPaths=**}/deliveryRecords/{deliveryRecordId} {
       allow read: if true;
       allow write: if request.auth != null;
     }
@@ -42,7 +42,8 @@ service cloud.firestore {
         allow read: if true;
         allow write: if request.auth != null;
 
-        // Note: individual deliveryRecords are already covered by the group rule above.
+        // Individual ball records are already covered by the collection group rule above,
+        // but this provides additional clarity for direct sub-collection access.
         match /deliveryRecords/{deliveryRecordId} {
           allow read: if true;
           allow write: if request.auth != null;
