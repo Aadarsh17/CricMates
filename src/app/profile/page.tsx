@@ -1,18 +1,18 @@
 
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ShieldCheck, User, Camera, Save, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
+import { ShieldCheck, User, Camera, Save, ArrowLeft, Loader2, Sparkles, Upload } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
 
@@ -21,6 +21,7 @@ export default function UmpireProfilePage() {
   const { user, isUserLoading } = useUser();
   const { isUmpire, setRole } = useApp();
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isMounted, setIsMounted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -48,13 +49,28 @@ export default function UmpireProfilePage() {
         imageUrl: profile.imageUrl || ''
       });
     } else if (user && !isProfileLoading) {
-      // Default name from anonymous user if available
       setFormData(prev => ({
         ...prev,
         name: prev.name || `Umpire_${user.uid.substring(0, 4)}`
       }));
     }
   }, [profile, user, isProfileLoading]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1024 * 1024) { // 1MB limit for base64 storage
+        toast({ title: "Image too large", description: "Please select an image smaller than 1MB.", variant: "destructive" });
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
+        toast({ title: "Photo selected", description: "Click 'Commit Profile' to save your new photo." });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSave = () => {
     if (!user?.uid) return;
@@ -72,10 +88,9 @@ export default function UmpireProfilePage() {
 
     setDocumentNonBlocking(doc(db, 'umpires', user.uid), updatedData, { merge: true });
     
-    // Optimistic feedback
     setTimeout(() => {
       setIsSaving(false);
-      toast({ title: "Profile Updated", description: "Your umpire credentials have been saved." });
+      toast({ title: "Profile Updated", description: "Your official umpire credentials and photo have been saved." });
     }, 500);
   };
 
@@ -122,14 +137,22 @@ export default function UmpireProfilePage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="md:col-span-1 shadow-sm border-none bg-slate-50 overflow-hidden">
           <CardContent className="pt-8 flex flex-col items-center text-center space-y-4">
-            <div className="relative group">
-              <Avatar className="w-32 h-32 border-4 border-white shadow-xl rounded-3xl">
-                <AvatarImage src={formData.imageUrl || `https://picsum.photos/seed/${user?.uid}/300`} />
+            <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+              <Avatar className="w-32 h-32 border-4 border-white shadow-xl rounded-3xl overflow-hidden">
+                <AvatarImage src={formData.imageUrl || `https://picsum.photos/seed/${user?.uid}/300`} className="object-cover" />
                 <AvatarFallback className="bg-primary text-white text-4xl font-black">{formData.name?.[0] || 'U'}</AvatarFallback>
               </Avatar>
-              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex items-center justify-center cursor-pointer">
-                <Camera className="w-8 h-8 text-white" />
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex flex-col items-center justify-center">
+                <Camera className="w-8 h-8 text-white mb-1" />
+                <span className="text-[8px] text-white font-black uppercase">Change Photo</span>
               </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                className="hidden" 
+                accept="image/*"
+              />
             </div>
             <div>
               <h3 className="font-black text-lg truncate w-full">{formData.name || 'Official Umpire'}</h3>
@@ -180,14 +203,12 @@ export default function UmpireProfilePage() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400">Photo URL (Avatar)</Label>
-                <Input 
-                  value={formData.imageUrl} 
-                  onChange={e => setFormData({...formData, imageUrl: e.target.value})}
-                  placeholder="https://images.unsplash.com/..."
-                  className="font-medium h-12 text-xs"
-                />
-                <p className="text-[9px] text-slate-400 italic">Leave empty to use a randomly generated avatar based on your ID.</p>
+                <Label className="text-[10px] font-black uppercase text-slate-400">Avatar Photo</Label>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 h-12 font-bold" onClick={() => fileInputRef.current?.click()}>
+                    <Upload className="w-4 h-4 mr-2" /> Upload from Phone
+                  </Button>
+                </div>
               </div>
             </div>
 

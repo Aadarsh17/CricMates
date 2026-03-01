@@ -43,6 +43,10 @@ export default function MatchScoreboardPage() {
   const [openOvers, setOpenOvers] = useState<Record<number, boolean>>({});
   const [isDownloading, setIsDownloading] = useState(false);
 
+  // Track who has batted/bowled in THIS session to avoid double incrementing career innings
+  const [battedThisMatch] = useState(new Set<string>());
+  const [bowledThisMatch] = useState(new Set<string>());
+
   const [editForm, setEditForm] = useState({
     status: 'live',
     matchDate: '',
@@ -350,19 +354,32 @@ export default function MatchScoreboardPage() {
       nonStrikerPlayerId: runs % 2 !== 0 ? activeInningData.strikerPlayerId : activeInningData.nonStrikerPlayerId
     });
 
-    // INCREMENTAL CAREER STATS UPDATE
+    // Career stats update logic
     const strikerRef = doc(db, 'players', activeInningData.strikerPlayerId);
     const bowlerRef = doc(db, 'players', activeInningData.currentBowlerPlayerId);
 
-    updateDocumentNonBlocking(strikerRef, {
+    const strikerUpdate: any = {
       runsScored: increment(ballRuns),
       ballsFaced: increment(isLegalBall ? 1 : 0)
-    });
+    };
 
-    updateDocumentNonBlocking(bowlerRef, {
+    // Increment batting innings only if it's the player's first involvement in this match session
+    if (!battedThisMatch.has(activeInningData.strikerPlayerId)) {
+      strikerUpdate.battingInnings = increment(1);
+      battedThisMatch.add(activeInningData.strikerPlayerId);
+    }
+    updateDocumentNonBlocking(strikerRef, strikerUpdate);
+
+    const bowlerUpdate: any = {
       runsConceded: increment(totalRunsOnDelivery),
       ballsBowled: increment(isLegalBall ? 1 : 0)
-    });
+    };
+    // Increment bowling innings only if it's the player's first over/ball in this match session
+    if (!bowledThisMatch.has(activeInningData.currentBowlerPlayerId)) {
+      bowlerUpdate.bowlingInnings = increment(1);
+      bowledThisMatch.add(activeInningData.currentBowlerPlayerId);
+    }
+    updateDocumentNonBlocking(bowlerRef, bowlerUpdate);
 
     if (newBalls === 0 && isLegalBall) {
       setIsPlayerAssignmentOpen(true);
@@ -476,7 +493,6 @@ export default function MatchScoreboardPage() {
       nonStrikerPlayerId: wicketForm.batterOutId === activeInningData.nonStrikerPlayerId ? '' : activeInningData.nonStrikerPlayerId
     });
 
-    // INCREMENTAL CAREER STATS UPDATE (WICKET)
     const bowlerRef = doc(db, 'players', activeInningData.currentBowlerPlayerId);
     if (wicketForm.type !== 'runout') {
         updateDocumentNonBlocking(bowlerRef, {
@@ -606,29 +622,6 @@ export default function MatchScoreboardPage() {
                     </Button>
                  </div>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t">
-                 <div>
-                    <h3 className="font-black text-xs uppercase text-primary mb-3 flex items-center gap-2"><Users className="w-3 h-3"/> {getTeamName(match.team1Id)} Squad</h3>
-                    <div className="flex flex-wrap gap-2">
-                       {match.team1SquadPlayerIds.map(pid => (
-                          <Link key={pid} href={`/players/${pid}`}>
-                            <Badge variant="outline" className="text-[9px] font-bold hover:border-primary transition-colors cursor-pointer">{getPlayerName(pid)}</Badge>
-                          </Link>
-                       ))}
-                    </div>
-                 </div>
-                 <div>
-                    <h3 className="font-black text-xs uppercase text-primary mb-3 flex items-center gap-2"><Users className="w-3 h-3"/> {getTeamName(match.team2Id)} Squad</h3>
-                    <div className="flex flex-wrap gap-2">
-                       {match.team2SquadPlayerIds.map(pid => (
-                          <Link key={pid} href={`/players/${pid}`}>
-                            <Badge variant="outline" className="text-[9px] font-bold hover:border-primary transition-colors cursor-pointer">{getPlayerName(pid)}</Badge>
-                          </Link>
-                       ))}
-                    </div>
-                 </div>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -674,103 +667,6 @@ export default function MatchScoreboardPage() {
               </div>
             )}
           </div>
-        </TabsContent>
-
-        <TabsContent value="scorecard" className="space-y-6 pt-4">
-          {[1, 2].map(innNum => {
-            const inning = innNum === 1 ? inn1 : inn2;
-            if (!inning) return null;
-            const stats = innNum === 1 ? stats1 : stats2;
-            return (
-              <div key={innNum} className="space-y-6">
-                <div className="bg-slate-900 text-white p-4 rounded-xl flex justify-between items-center shadow-lg">
-                  <h3 className="font-black text-xs uppercase tracking-widest">{getTeamName(inning.battingTeamId)} Inning</h3>
-                  <p className="font-black text-xl">{(inning.score || 0)}/{(inning.wickets || 0)} <span className="text-xs text-slate-400 ml-1">({(inning.oversCompleted || 0)}.{(inning.ballsInCurrentOver || 0)})</span></p>
-                </div>
-                
-                <Collapsible defaultOpen>
-                   <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full flex justify-between items-center bg-slate-50 p-4 border rounded-xl hover:bg-slate-100 transition-colors">
-                        <span className="text-xs font-black uppercase text-primary tracking-widest">Batting Statistics</span>
-                        <ChevronDown className="w-4 h-4 text-slate-400" />
-                      </Button>
-                   </CollapsibleTrigger>
-                   <CollapsibleContent className="pt-2">
-                      <Card className="rounded-xl overflow-hidden shadow-sm">
-                        <Table>
-                          <TableHeader className="bg-slate-50">
-                            <TableRow>
-                              <TableHead className="text-[10px] font-black uppercase">Batter</TableHead>
-                              <TableHead className="text-right text-[10px] font-black uppercase">R</TableHead>
-                              <TableHead className="text-right text-[10px] font-black uppercase">B</TableHead>
-                              <TableHead className="text-right text-[10px] font-black uppercase">4s</TableHead>
-                              <TableHead className="text-right text-[10px] font-black uppercase">6s</TableHead>
-                              <TableHead className="text-right text-[10px] font-black uppercase">SR</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                             {stats.batting.map(b => (
-                               <TableRow key={b.id}>
-                                 <TableCell className="text-xs font-bold">
-                                    <Link href={`/players/${b.id}`} className="text-primary hover:underline">{getPlayerName(b.id)}</Link>
-                                    {b.out && <span className="block text-[8px] text-slate-400 uppercase font-black">({b.dismissal})</span>}
-                                 </TableCell>
-                                 <TableCell className="text-right text-xs font-black">{b.runs}</TableCell>
-                                 <TableCell className="text-right text-xs text-slate-500 font-bold">{b.balls}</TableCell>
-                                 <TableCell className="text-right text-xs text-slate-500">{b.fours}</TableCell>
-                                 <TableCell className="text-right text-xs text-slate-500">{b.sixes}</TableCell>
-                                 <TableCell className="text-right text-xs text-slate-400 font-black">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
-                               </TableRow>
-                             ))}
-                          </TableBody>
-                        </Table>
-                      </Card>
-                   </CollapsibleContent>
-                </Collapsible>
-
-                <Collapsible defaultOpen>
-                   <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full flex justify-between items-center bg-slate-50 p-4 border rounded-xl hover:bg-slate-100 transition-colors">
-                        <span className="text-xs font-black uppercase text-primary tracking-widest">Bowling Statistics</span>
-                        <ChevronDown className="w-4 h-4 text-slate-400" />
-                      </Button>
-                   </CollapsibleTrigger>
-                   <CollapsibleContent className="pt-2">
-                      <Card className="rounded-xl overflow-hidden shadow-sm">
-                        <Table>
-                          <TableHeader className="bg-slate-50">
-                            <TableRow>
-                              <TableHead className="text-[10px] font-black uppercase">Bowler</TableHead>
-                              <TableHead className="text-right text-[10px] font-black uppercase">O</TableHead>
-                              <TableHead className="text-right text-[10px] font-black uppercase">M</TableHead>
-                              <TableHead className="text-right text-[10px] font-black uppercase">R</TableHead>
-                              <TableHead className="text-right text-[10px] font-black uppercase">W</TableHead>
-                              <TableHead className="text-right text-[10px] font-black uppercase">Econ</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                             {stats.bowling.map(b => (
-                               <TableRow key={b.id}>
-                                 <TableCell className="text-xs font-bold">
-                                    <Link href={`/players/${b.id}`} className="text-primary hover:underline">{getPlayerName(b.id)}</Link>
-                                 </TableCell>
-                                 <TableCell className="text-right text-xs font-bold">{b.oversDisplay}</TableCell>
-                                 <TableCell className="text-right text-xs font-bold">{b.maidens || 0}</TableCell>
-                                 <TableCell className="text-right text-xs font-black">{b.runs}</TableCell>
-                                 <TableCell className="text-right text-xs font-black text-primary">{b.wickets}</TableCell>
-                                 <TableCell className="text-right text-xs font-black text-slate-400">
-                                    {b.balls > 0 ? (b.runs / (b.balls / 6)).toFixed(2) : '0.00'}
-                                 </TableCell>
-                               </TableRow>
-                             ))}
-                          </TableBody>
-                        </Table>
-                      </Card>
-                   </CollapsibleContent>
-                </Collapsible>
-              </div>
-            );
-          })}
         </TabsContent>
       </Tabs>
 

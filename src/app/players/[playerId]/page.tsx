@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Trophy, Flag, Edit2, ShieldCheck, Star } from 'lucide-react';
+import { ArrowLeft, Trophy, Flag, Edit2, ShieldCheck, Star, PenTool } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -125,6 +125,7 @@ export default function PlayerProfilePage() {
                 <TableBody>
                    {[
                      { label: 'Matches', value: player.matchesPlayed },
+                     { label: 'Innings', value: player.battingInnings || 0 },
                      { label: 'Runs Scored', value: player.runsScored },
                      { label: 'Balls Played', value: player.ballsFaced || 0 },
                      { label: 'Highest Score', value: player.highestScore || 0 },
@@ -146,6 +147,7 @@ export default function PlayerProfilePage() {
                 <TableBody>
                    {[
                      { label: 'Matches', value: player.matchesPlayed },
+                     { label: 'Innings', value: player.bowlingInnings || 0 },
                      { label: 'Wickets', value: player.wicketsTaken },
                      { label: 'Balls Bowled', value: player.ballsBowled || 0 },
                      { label: 'Runs Conceded', value: player.runsConceded || 0 },
@@ -189,6 +191,32 @@ export default function PlayerProfilePage() {
             <div className="space-y-1.5">
                <Label className="text-[10px] font-black uppercase text-slate-400">Full Name</Label>
                <Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="font-bold h-12" />
+            </div>
+            <div className="space-y-1.5">
+               <Label className="text-[10px] font-black uppercase text-slate-400">Role</Label>
+               <Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}>
+                  <SelectTrigger className="font-bold h-12">
+                     <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                     <SelectItem value="Batsman">Batsman</SelectItem>
+                     <SelectItem value="Bowler">Bowler</SelectItem>
+                     <SelectItem value="All-rounder">All-rounder</SelectItem>
+                     <SelectItem value="Wicket Keeper">Wicket Keeper</SelectItem>
+                  </SelectContent>
+               </Select>
+            </div>
+            <div className="space-y-1.5">
+               <Label className="text-[10px] font-black uppercase text-slate-400">Batting Style</Label>
+               <Select value={editForm.battingStyle} onValueChange={(v) => setEditForm({...editForm, battingStyle: v})}>
+                  <SelectTrigger className="font-bold h-12">
+                     <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                     <SelectItem value="Right Handed Bat">Right Handed Bat</SelectItem>
+                     <SelectItem value="Left Handed Bat">Left Handed Bat</SelectItem>
+                  </SelectContent>
+               </Select>
             </div>
           </div>
           <DialogFooter>

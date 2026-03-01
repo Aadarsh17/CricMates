@@ -36,6 +36,8 @@
         "isWicketKeeper": { "type": "boolean" },
         "isRetired": { "type": "boolean" },
         "matchesPlayed": { "type": "number" },
+        "battingInnings": { "type": "number" },
+        "bowlingInnings": { "type": "number" },
         "runsScored": { "type": "number" },
         "ballsFaced": { "type": "number" },
         "wicketsTaken": { "type": "number" },
@@ -103,14 +105,6 @@
     "/matches/{matchId}": {
       "schema": { "$ref": "#/entities/Match" },
       "description": "Match metadata and configuration."
-    },
-    "/matches/{matchId}/innings/{inningId}": {
-      "schema": { "type": "object" },
-      "description": "Specific inning details and live scores."
-    },
-    "/matches/{matchId}/innings/{inningId}/deliveryRecords/{deliveryRecordId}": {
-      "schema": { "type": "object" },
-      "description": "Ball-by-ball delivery records."
     }
   }
 }
