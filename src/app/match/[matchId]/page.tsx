@@ -229,14 +229,11 @@ export default function MatchScoreboardPage() {
     toast({ title: "Generating Report", description: "Calculating all-innings stats..." });
     
     try {
-      // Calculate Stats for both innings
       const stats1 = getExtendedInningStats(inn1Deliveries || []);
       const stats2 = getExtendedInningStats(inn2Deliveries || []);
       
-      // Generate HTML
       const html = generateHTMLReport(match, inn1, inn2, stats1, stats2, allTeams || [], allPlayers || []);
       
-      // Trigger Download
       const blob = new Blob([html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');

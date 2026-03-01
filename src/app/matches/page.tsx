@@ -65,21 +65,17 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
     toast({ title: "Generating Report", description: "Calculating statistics..." });
     
     try {
-      // Fetch Innings Deliveries
       const i1Docs = await getDocs(query(collection(db, 'matches', match.id, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')));
       const i2Docs = await getDocs(query(collection(db, 'matches', match.id, 'innings', 'inning_2', 'deliveryRecords'), orderBy('timestamp', 'asc')));
       
       const d1 = i1Docs.docs.map(d => d.data());
       const d2 = i2Docs.docs.map(d => d.data());
       
-      // Calculate Stats
       const stats1 = getExtendedInningStats(d1);
       const stats2 = getExtendedInningStats(d2);
       
-      // Generate HTML
       const html = generateHTMLReport(match, inn1, inn2, stats1, stats2, teams, allPlayers);
       
-      // Trigger Download
       const blob = new Blob([html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -141,12 +137,19 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
               {match.resultDescription}
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            <Button variant="outline" size="sm" className="h-8 text-secondary border-secondary hover:bg-secondary/5 font-black text-[9px] uppercase px-2" onClick={handleDownloadReport} disabled={isGenerating}>
-              <Download className={cn("w-3 h-3 mr-1.5", isGenerating && "animate-bounce")} /> Download Report
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={handleDownloadReport} 
+              disabled={isGenerating}
+              variant="default" 
+              size="sm" 
+              className="h-8 bg-secondary hover:bg-secondary/90 text-white font-black text-[10px] uppercase px-3 shadow-sm flex items-center gap-2"
+            >
+              <Download className={cn("w-3.5 h-3.5", isGenerating && "animate-bounce")} />
+              <span>Download Report</span>
             </Button>
             {isUmpire && (
-              <>
+              <div className="flex gap-1">
                 <Dialog open={isEditing} onOpenChange={setIsEditing}>
                   <DialogTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>
@@ -178,7 +181,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-              </>
+              </div>
             )}
           </div>
         </div>
