@@ -6,7 +6,7 @@ import { collection, query, orderBy, doc, getDocs } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, Info, Trophy, Download } from 'lucide-react';
+import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, Info, Trophy, Download, FileText } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -19,6 +19,7 @@ import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { generateHTMLReport, getExtendedInningStats } from '@/lib/report-utils';
+import { cn } from '@/lib/utils';
 
 function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { match: any, teams: any[], isUmpire: boolean, isMounted: boolean, allPlayers: any[] }) {
   const db = useFirestore();
@@ -141,8 +142,8 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-secondary" onClick={handleDownloadReport} disabled={isGenerating}>
-              <Download className={cn("w-4 h-4", isGenerating && "animate-bounce")} />
+            <Button variant="outline" size="sm" className="h-8 text-secondary border-secondary hover:bg-secondary/5 font-black text-[9px] uppercase px-2" onClick={handleDownloadReport} disabled={isGenerating}>
+              <Download className={cn("w-3 h-3 mr-1.5", isGenerating && "animate-bounce")} /> Download Report
             </Button>
             {isUmpire && (
               <>

@@ -9,7 +9,7 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2, Download } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2, Download, FileText, Share2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -545,8 +545,10 @@ export default function MatchScoreboardPage() {
             <p className="text-[10px] font-black uppercase text-primary tracking-widest">{match.status === 'completed' ? match.resultDescription : `Innings ${match.currentInningNumber}`}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="ghost" className="h-8 w-8 text-secondary hover:bg-secondary/10" onClick={handleDownloadReport} disabled={isDownloading}>
-              <Download className={cn("w-4 h-4", isDownloading && "animate-bounce")} />
+            <Button size="sm" variant="outline" className="h-8 text-secondary border-secondary hover:bg-secondary/5 font-black text-[10px] uppercase px-3" onClick={handleDownloadReport} disabled={isDownloading}>
+              <Download className={cn("w-3 h-3 mr-1.5", isDownloading && "animate-bounce")} />
+              <span className="hidden sm:inline">Download Report</span>
+              <span className="sm:hidden">Report</span>
             </Button>
             {isUmpire && (
               <Button size="sm" variant="outline" onClick={() => setIsEditFullMatchOpen(true)} className="rounded-full h-8 px-3 font-black text-[10px] uppercase border-primary text-primary hover:bg-primary/5">
@@ -591,6 +593,18 @@ export default function MatchScoreboardPage() {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1"><Trophy className="w-3 h-3" /> Toss</p>
                   <p className="text-xs font-medium">{getTeamName(match.tossWinnerTeamId)} won & chose to {match.tossDecision}</p>
                 </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 border rounded-xl space-y-3">
+                 <p className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-2">
+                    <Share2 className="w-3 h-3" /> Export & Share
+                 </p>
+                 <div className="flex gap-3">
+                    <Button onClick={handleDownloadReport} disabled={isDownloading} className="bg-secondary hover:bg-secondary/90 font-bold text-xs h-10 px-6">
+                       <FileText className="w-4 h-4 mr-2" /> Download Full Scorecard (HTML)
+                    </Button>
+                 </div>
+                 <p className="text-[9px] text-slate-400 font-medium italic">Share the downloaded file via WhatsApp or Email for a professional match report experience.</p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t">
