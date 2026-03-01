@@ -237,14 +237,15 @@ export default function PlayerProfilePage() {
                    { label: 'Innings', value: player.matchesPlayed || 0 },
                    { label: 'Balls', value: '---' },
                    { label: 'Runs', value: '---' },
+                   { label: 'Maidens', value: '---' },
                    { label: 'Wickets', value: player.wicketsTaken || 0 },
+                   { label: 'Avg', value: '---' },
+                   { label: 'Eco', value: '---' },
+                   { label: 'SR', value: '---' },
                    { label: 'BBI', value: player.bestBowlingFigures || '0/0' },
                    { label: 'BBM', value: player.bestBowlingFigures || '0/0' },
-                   { label: 'Econ', value: '---' },
-                   { label: 'Avg', value: '---' },
-                   { label: 'SR', value: '---' },
+                   { label: '4w', value: '---' },
                    { label: '5w', value: '---' },
-                   { label: '10w', value: '---' },
                  ].map((row, idx) => (
                     <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]'}>
                        <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4">{row.label}</TableCell>
