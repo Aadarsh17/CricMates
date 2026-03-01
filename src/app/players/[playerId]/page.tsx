@@ -52,16 +52,16 @@ export default function PlayerProfilePage() {
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
 
-  // Stats Aggregation Engine V3 (Collection Group Queries)
+  // Stats Aggregation Engine V4 (Robust Path Processing)
   const facedQuery = useMemoFirebase(() => 
     playerId ? query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId)) : null
   , [db, playerId]);
-  const { data: ballsFaced } = useCollection(facedQuery);
+  const { data: ballsFaced, isLoading: isFacedLoading } = useCollection(facedQuery);
 
   const bowledQuery = useMemoFirebase(() => 
     playerId ? query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId)) : null
   , [db, playerId]);
-  const { data: ballsBowled } = useCollection(bowledQuery);
+  const { data: ballsBowled, isLoading: isBowledLoading } = useCollection(bowledQuery);
 
   const statsByFormat = useMemo(() => {
     if (!allMatches || !ballsFaced || !ballsBowled) return {};
@@ -70,7 +70,7 @@ export default function PlayerProfilePage() {
 
     // Grouping Batting Data
     ballsFaced.forEach(ball => {
-      // Extract matchId from path: matches/{matchId}/innings/{inningId}/deliveryRecords/{ballId}
+      // Extract matchId from __fullPath: matches/{matchId}/innings/{inningId}/deliveryRecords/{ballId}
       const pathParts = ball.__fullPath?.split('/') || [];
       const matchId = pathParts[1];
       const match = allMatches.find(m => m.id === matchId);
@@ -85,7 +85,7 @@ export default function PlayerProfilePage() {
         formats[format].batting[match.id] = { runs: 0, balls: 0, fours: 0, sixes: 0, out: false };
       }
 
-      // Legal balls for Balls Faced (exclude wides)
+      // Legal balls for Balls Played (exclude wides)
       if (ball.extraType !== 'wide') {
         formats[format].batting[match.id].balls += 1;
         formats[format].batting[match.id].runs += (ball.runsScored || 0);
@@ -181,7 +181,9 @@ export default function PlayerProfilePage() {
     toast({ title: "Profile Updated" });
   };
 
-  if (isPlayerLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING PROFILE...</div>;
+  const isLoading = isPlayerLoading || isFacedLoading || isBowledLoading;
+
+  if (isLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING ANALYTICS...</div>;
   if (!player) return <div className="p-20 text-center">Player not found.</div>;
 
   return (
@@ -241,72 +243,80 @@ export default function PlayerProfilePage() {
         </div>
 
         <TabsContent value="batting" className="p-0 animate-in fade-in duration-300">
-           <div className="overflow-x-auto">
-             <div className="bg-[#f0f4f3] px-4 py-3 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-widest min-w-max border-b">
-                <span className="w-32">Batting Analysis</span>
-                {activeFormats.map(f => (
-                  <span key={f} className="w-20 text-right">{f}OV</span>
-                ))}
+           {activeFormats.length > 0 ? (
+             <div className="overflow-x-auto">
+               <div className="bg-[#f0f4f3] px-4 py-3 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-widest min-w-max border-b">
+                  <span className="w-32">Batting Analysis</span>
+                  {activeFormats.map(f => (
+                    <span key={f} className="w-20 text-right">{f}OV</span>
+                  ))}
+               </div>
+               <Table className="min-w-max">
+                  <TableBody>
+                     {[
+                       { label: 'Matches', field: 'matches' },
+                       { label: 'Innings', field: 'innings' },
+                       { label: 'Runs', field: 'runs' },
+                       { label: 'Balls Played', field: 'ballsPlayed' },
+                       { label: 'Average', field: 'average' },
+                       { label: 'Strike Rate', field: 'sr' },
+                       { label: 'Not Out', field: 'notOut' },
+                       { label: 'Fours', field: 'fours' },
+                       { label: 'Sixes', field: 'sixes' },
+                       { label: '50s / 100s', custom: (f: any) => `${f?.['50s'] || 0} / ${f?.['100s'] || 0}` },
+                     ].map((row, idx) => (
+                        <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]')}>
+                           <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
+                           {activeFormats.map(f => (
+                             <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
+                                {row.custom ? row.custom(statsByFormat[f]) : (statsByFormat[f]?.[row.field!] ?? '---')}
+                             </TableCell>
+                           ))}
+                        </TableRow>
+                     ))}
+                  </TableBody>
+               </Table>
              </div>
-             <Table className="min-w-max">
-                <TableBody>
-                   {[
-                     { label: 'Matches', field: 'matches' },
-                     { label: 'Innings', field: 'innings' },
-                     { label: 'Runs', field: 'runs' },
-                     { label: 'Balls Played', field: 'ballsPlayed' },
-                     { label: 'Average', field: 'average' },
-                     { label: 'Strike Rate', field: 'sr' },
-                     { label: 'Not Out', field: 'notOut' },
-                     { label: 'Fours', field: 'fours' },
-                     { label: 'Sixes', field: 'sixes' },
-                     { label: '50s / 100s', custom: (f: any) => `${f?.['50s'] || 0} / ${f?.['100s'] || 0}` },
-                   ].map((row, idx) => (
-                      <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]')}>
-                         <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
-                         {activeFormats.map(f => (
-                           <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
-                              {row.custom ? row.custom(statsByFormat[f]) : (statsByFormat[f]?.[row.field!] ?? '---')}
-                           </TableCell>
-                         ))}
-                      </TableRow>
-                   ))}
-                </TableBody>
-             </Table>
-           </div>
+           ) : (
+             <div className="py-20 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest">No batting records found</div>
+           )}
         </TabsContent>
 
         <TabsContent value="bowling" className="p-0 animate-in fade-in duration-300">
-           <div className="overflow-x-auto">
-             <div className="bg-[#f0f4f3] px-4 py-3 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-widest min-w-max border-b">
-                <span className="w-32">Bowling Analysis</span>
-                {activeFormats.map(f => (
-                  <span key={f} className="w-20 text-right">{f}OV</span>
-                ))}
+           {activeFormats.length > 0 ? (
+             <div className="overflow-x-auto">
+               <div className="bg-[#f0f4f3] px-4 py-3 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-widest min-w-max border-b">
+                  <span className="w-32">Bowling Analysis</span>
+                  {activeFormats.map(f => (
+                    <span key={f} className="w-20 text-right">{f}OV</span>
+                  ))}
+               </div>
+               <Table className="min-w-max">
+                  <TableBody>
+                     {[
+                       { label: 'Matches', field: 'matches' },
+                       { label: 'Innings', field: 'bowlInnings' },
+                       { label: 'Balls Bowled', field: 'ballsBowled' },
+                       { label: 'Runs', field: 'runsConceded' },
+                       { label: 'Wickets', field: 'wickets' },
+                       { label: 'Economy', field: 'eco' },
+                       { label: 'BBI', field: 'bbi' },
+                     ].map((row, idx) => (
+                        <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]')}>
+                           <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
+                           {activeFormats.map(f => (
+                             <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
+                                {statsByFormat[f]?.[row.field!] ?? '---'}
+                             </TableCell>
+                           ))}
+                        </TableRow>
+                     ))}
+                  </TableBody>
+               </Table>
              </div>
-             <Table className="min-w-max">
-                <TableBody>
-                   {[
-                     { label: 'Matches', field: 'matches' },
-                     { label: 'Innings', field: 'bowlInnings' },
-                     { label: 'Balls Bowled', field: 'ballsBowled' },
-                     { label: 'Runs', field: 'runsConceded' },
-                     { label: 'Wickets', field: 'wickets' },
-                     { label: 'Economy', field: 'eco' },
-                     { label: 'BBI', field: 'bbi' },
-                   ].map((row, idx) => (
-                      <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]')}>
-                         <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
-                         {activeFormats.map(f => (
-                           <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
-                              {statsByFormat[f]?.[row.field!] ?? '---'}
-                           </TableCell>
-                         ))}
-                      </TableRow>
-                   ))}
-                </TableBody>
-             </Table>
-           </div>
+           ) : (
+             <div className="py-20 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest">No bowling records found</div>
+           )}
         </TabsContent>
 
         <TabsContent value="info" className="p-4 space-y-6 animate-in fade-in duration-300">
@@ -372,7 +382,7 @@ export default function PlayerProfilePage() {
             </div>
             <div className="space-y-1.5">
                <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Batting Style</Label>
-               <Select value={editForm.battingStyle} onValueChange={(v) => setEditForm({...editForm, battingStyle: v})}>
+               <Select value={editForm.battingStyle} onValueChange={(v) => setEditForm({...editStyle => setEditForm({...editForm, battingStyle: v})})}>
                   <SelectTrigger className="font-bold h-12 rounded-xl shadow-sm border-slate-200"><SelectValue /></SelectTrigger>
                   <SelectContent>
                      <SelectItem value="Right Handed Bat">Right Handed Bat</SelectItem>

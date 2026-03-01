@@ -1,31 +1,28 @@
-/**
- * CricMates - Professional Cricket Scoring Security Rules
- * 
- * Optimized for broad read access to support collection group queries 
- * and real-time statistics aggregation across all match formats.
- */
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- COLLECTION GROUP AUTHORIZATION ---
-    // Specifically allow group queries for delivery records.
-    // This is required even if a broad recursive wildcard exists.
+    /**
+     * COLLECTION GROUP RULES
+     * These must be defined to allow queries across different match/inning subcollections.
+     */
     match /{path=**}/deliveryRecords/{document} {
       allow read: if true;
-    }
-
-    // --- GLOBAL READ ACCESS ---
-    // This recursive wildcard is the most robust way to allow both 
-    // standard collection reads and deep collection paths.
-    match /{document=**} {
-      allow read: if true;
-      // Writing requires authentication (Umpire role)
       allow write: if request.auth != null;
     }
 
-    // --- PROTECTED ROLES ---
+    /**
+     * GLOBAL RULES
+     * Allows broad read access for scoreboard transparency and specific write access for Umpires.
+     */
+    match /{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    /**
+     * PROTECTED SYSTEM PATHS
+     */
     match /umpires/{umpireId} {
       allow get: if request.auth != null;
       allow list, create, update, delete: if false;
