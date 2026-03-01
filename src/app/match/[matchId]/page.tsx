@@ -64,7 +64,10 @@ export default function MatchScoreboardPage() {
     inn2Wickets: 0,
     inn2Overs: 0,
     inn2Balls: 0,
-    resultDescription: ''
+    resultDescription: '',
+    strikerId: '',
+    nonStrikerId: '',
+    bowlerId: ''
   });
 
   const [wicketForm, setWicketForm] = useState({
@@ -105,10 +108,44 @@ export default function MatchScoreboardPage() {
         inn2Wickets: inn2?.wickets || 0,
         inn2Overs: inn2?.oversCompleted || 0,
         inn2Balls: inn2?.ballsInCurrentOver || 0,
-        resultDescription: match.resultDescription || ''
+        resultDescription: match.resultDescription || '',
+        strikerId: activeInningData?.strikerPlayerId || '',
+        nonStrikerId: activeInningData?.nonStrikerPlayerId || '',
+        bowlerId: activeInningData?.currentBowlerPlayerId || ''
       });
     }
   }, [match, inn1, inn2]);
+
+  // Automatic Result Calculation Logic
+  useEffect(() => {
+    if (!match || !inn1) return;
+    
+    const team1Name = getTeamName(match.team1Id);
+    const team2Name = getTeamName(match.team2Id);
+    
+    if (editForm.inn1Score > 0 || editForm.inn2Score > 0) {
+      let result = '';
+      if (editForm.inn1Score > editForm.inn2Score) {
+        if (editForm.status === 'completed') {
+          result = `${team1Name} won by ${editForm.inn1Score - editForm.inn2Score} runs`;
+        } else {
+          result = `${team1Name} leading by ${editForm.inn1Score - editForm.inn2Score} runs`;
+        }
+      } else if (editForm.inn2Score > editForm.inn1Score) {
+        if (editForm.status === 'completed') {
+          result = `${team2Name} won by ${10 - editForm.inn2Wickets} wickets`;
+        } else {
+          result = `${team2Name} leading by ${editForm.inn2Score - editForm.inn1Score} runs`;
+        }
+      } else if (editForm.inn1Score === editForm.inn2Score && editForm.inn1Score > 0) {
+        result = "Match Drawn / Tied";
+      }
+      
+      if (result && editForm.status === 'completed') {
+        setEditForm(prev => ({ ...prev, resultDescription: result }));
+      }
+    }
+  }, [editForm.inn1Score, editForm.inn2Score, editForm.inn1Wickets, editForm.inn2Wickets, editForm.status]);
 
   const inn1DeliveriesQuery = useMemoFirebase(() => 
     query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
@@ -130,7 +167,7 @@ export default function MatchScoreboardPage() {
 
   const getPlayer = (pid: string) => allPlayers?.find(p => p.id === pid);
   const getPlayerName = (pid: string) => {
-    if (!pid || pid === 'none') return '---';
+    if (!pid || pid === 'none' || pid === '') return '---';
     const p = getPlayer(pid);
     return p ? p.name : 'Unknown Player';
   };
@@ -281,6 +318,14 @@ export default function MatchScoreboardPage() {
         ballsInCurrentOver: editForm.inn2Balls
       });
     }
+
+    // Update current on-field players for the active inning
+    const currentInningId = `inning_${match?.currentInningNumber || 1}`;
+    batch.update(doc(db, 'matches', matchId, 'innings', currentInningId), {
+      strikerPlayerId: editForm.strikerId,
+      nonStrikerPlayerId: editForm.nonStrikerId,
+      currentBowlerPlayerId: editForm.bowlerId
+    });
 
     await batch.commit();
     setIsEditFullMatchOpen(false);
@@ -439,11 +484,11 @@ export default function MatchScoreboardPage() {
       ? (inn1?.bowlingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds)
       : (inn2?.bowlingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds);
 
-    squadIds.forEach(id => {
+    squadIds?.forEach(id => {
       battingMap[id] = { id, name: getPlayerName(id), runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
     });
 
-    opponentSquadIds.forEach(id => {
+    opponentSquadIds?.forEach(id => {
       bowlingMap[id] = { id, name: getPlayerName(id), overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
     });
 
@@ -562,6 +607,17 @@ export default function MatchScoreboardPage() {
 
   if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING SCOREBOARD...</div>;
   if (!match) return <div className="p-20 text-center">Match data missing.</div>;
+
+  const currentBattingSquadIds = match.currentInningNumber === 1 
+    ? (inn1?.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds)
+    : (inn2?.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds);
+
+  const currentBowlingSquadIds = match.currentInningNumber === 1
+    ? (inn1?.bowlingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds)
+    : (inn2?.bowlingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds);
+
+  const battingPlayers = allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id)) || [];
+  const bowlingPlayers = allPlayers?.filter(p => currentBowlingSquadIds?.includes(p.id)) || [];
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
@@ -809,25 +865,140 @@ export default function MatchScoreboardPage() {
              <div className="space-y-4 p-4 border rounded-xl bg-primary/5">
                 <p className="font-black text-xs uppercase tracking-widest text-primary">Innings 1: {getAbbr(getTeamName(match.team1Id))}</p>
                 <div className="grid grid-cols-4 gap-2">
-                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Runs</Label><Input type="number" className="font-black" value={editForm.inn1Score} onChange={(e) => setEditForm({...editForm, inn1Score: parseInt(e.target.value)||0})} /></div>
-                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Wkts</Label><Input type="number" className="font-black" value={editForm.inn1Wickets} onChange={(e) => setEditForm({...editForm, inn1Wickets: parseInt(e.target.value)||0})} /></div>
-                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Overs</Label><Input type="number" className="font-black" value={editForm.inn1Overs} onChange={(e) => setEditForm({...editForm, inn1Overs: parseInt(e.target.value)||0})} /></div>
-                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Balls</Label><Input type="number" max="5" className="font-black" value={editForm.inn1Balls} onChange={(e) => setEditForm({...editForm, inn1Balls: parseInt(e.target.value)||0})} /></div>
+                  <div className="space-y-1">
+                    <Label className="text-[8px] font-black uppercase">Runs</Label>
+                    <Input 
+                      type="number" 
+                      className="font-black" 
+                      value={editForm.inn1Score === 0 ? "" : editForm.inn1Score} 
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setEditForm({...editForm, inn1Score: parseInt(e.target.value)||0})} 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[8px] font-black uppercase">Wkts</Label>
+                    <Input 
+                      type="number" 
+                      className="font-black" 
+                      value={editForm.inn1Wickets === 0 ? "" : editForm.inn1Wickets} 
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setEditForm({...editForm, inn1Wickets: parseInt(e.target.value)||0})} 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[8px] font-black uppercase">Overs</Label>
+                    <Input 
+                      type="number" 
+                      className="font-black" 
+                      value={editForm.inn1Overs === 0 ? "" : editForm.inn1Overs} 
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setEditForm({...editForm, inn1Overs: parseInt(e.target.value)||0})} 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[8px] font-black uppercase">Balls</Label>
+                    <Input 
+                      type="number" 
+                      max="5" 
+                      className="font-black" 
+                      value={editForm.inn1Balls === 0 ? "" : editForm.inn1Balls} 
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setEditForm({...editForm, inn1Balls: parseInt(e.target.value)||0})} 
+                    />
+                  </div>
                 </div>
              </div>
 
              <div className="space-y-4 p-4 border rounded-xl bg-secondary/5">
                 <p className="font-black text-xs uppercase tracking-widest text-secondary">Innings 2: {getAbbr(getTeamName(match.team2Id))}</p>
                 <div className="grid grid-cols-4 gap-2">
-                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Runs</Label><Input type="number" className="font-black" value={editForm.inn2Score} onChange={(e) => setEditForm({...editForm, inn2Score: parseInt(e.target.value)||0})} /></div>
-                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Wkts</Label><Input type="number" className="font-black" value={editForm.inn2Wickets} onChange={(e) => setEditForm({...editForm, inn2Wickets: parseInt(e.target.value)||0})} /></div>
-                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Overs</Label><Input type="number" className="font-black" value={editForm.inn2Overs} onChange={(e) => setEditForm({...editForm, inn2Overs: parseInt(e.target.value)||0})} /></div>
-                  <div className="space-y-1"><Label className="text-[8px] font-black uppercase">Balls</Label><Input type="number" max="5" className="font-black" value={editForm.inn2Balls} onChange={(e) => setEditForm({...editForm, inn2Balls: parseInt(e.target.value)||0})} /></div>
+                  <div className="space-y-1">
+                    <Label className="text-[8px] font-black uppercase">Runs</Label>
+                    <Input 
+                      type="number" 
+                      className="font-black" 
+                      value={editForm.inn2Score === 0 ? "" : editForm.inn2Score} 
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setEditForm({...editForm, inn2Score: parseInt(e.target.value)||0})} 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[8px] font-black uppercase">Wkts</Label>
+                    <Input 
+                      type="number" 
+                      className="font-black" 
+                      value={editForm.inn2Wickets === 0 ? "" : editForm.inn2Wickets} 
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setEditForm({...editForm, inn2Wickets: parseInt(e.target.value)||0})} 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[8px] font-black uppercase">Overs</Label>
+                    <Input 
+                      type="number" 
+                      className="font-black" 
+                      value={editForm.inn2Overs === 0 ? "" : editForm.inn2Overs} 
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setEditForm({...editForm, inn2Overs: parseInt(e.target.value)||0})} 
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[8px] font-black uppercase">Balls</Label>
+                    <Input 
+                      type="number" 
+                      max="5" 
+                      className="font-black" 
+                      value={editForm.inn2Balls === 0 ? "" : editForm.inn2Balls} 
+                      placeholder="0"
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => setEditForm({...editForm, inn2Balls: parseInt(e.target.value)||0})} 
+                    />
+                  </div>
+                </div>
+             </div>
+
+             <div className="space-y-4 p-4 border rounded-xl bg-slate-50">
+                <p className="font-black text-xs uppercase tracking-widest text-slate-400">On-Field Players (Active Inning)</p>
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase">Striker</Label>
+                      <Select value={editForm.strikerId} onValueChange={(v) => setEditForm({...editForm, strikerId: v})}>
+                        <SelectTrigger className="font-bold"><SelectValue placeholder="Pick Striker" /></SelectTrigger>
+                        <SelectContent>
+                          {battingPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                   </div>
+                   <div className="space-y-1">
+                      <Label className="text-[10px] font-black uppercase">Non-Striker</Label>
+                      <Select value={editForm.nonStrikerId} onValueChange={(v) => setEditForm({...editForm, nonStrikerId: v})}>
+                        <SelectTrigger className="font-bold"><SelectValue placeholder="Pick Non-Striker" /></SelectTrigger>
+                        <SelectContent>
+                          {battingPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                   </div>
+                   <div className="space-y-1 col-span-2">
+                      <Label className="text-[10px] font-black uppercase">Current Bowler</Label>
+                      <Select value={editForm.bowlerId} onValueChange={(v) => setEditForm({...editForm, bowlerId: v})}>
+                        <SelectTrigger className="font-bold"><SelectValue placeholder="Pick Bowler" /></SelectTrigger>
+                        <SelectContent>
+                          {bowlingPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                   </div>
                 </div>
              </div>
 
              <div className="space-y-1">
-                <Label className="text-[10px] font-black uppercase text-slate-500">Final Result Description</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-500">Final Result Description (Auto-calculated)</Label>
                 <Input className="font-bold" value={editForm.resultDescription} onChange={(e) => setEditForm({...editForm, resultDescription: e.target.value})} />
              </div>
           </div>
@@ -885,4 +1056,3 @@ export default function MatchScoreboardPage() {
     </div>
   );
 }
-
