@@ -3,17 +3,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * COLLECTION GROUP RULES
-     * These must be defined to allow queries across different match/inning subcollections.
-     */
-    match /{path=**}/deliveryRecords/{document} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-
-    /**
-     * GLOBAL RULES
-     * Allows broad read access for scoreboard transparency and specific write access for Umpires.
+     * GLOBAL READ ACCESS
+     * Allows all users to see scores, rankings, and stats.
+     * This is critical for collectionGroup queries to work across the database.
      */
     match /{document=**} {
       allow read: if true;
@@ -21,7 +13,17 @@ service cloud.firestore {
     }
 
     /**
-     * PROTECTED SYSTEM PATHS
+     * EXPLICIT COLLECTION GROUP: deliveryRecords
+     * Specifically authorizes aggregation of ball-by-ball data for player stats.
+     */
+    match /{path=**}/deliveryRecords/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    /**
+     * SYSTEM PATHS
+     * Restricted write access to maintain league integrity.
      */
     match /umpires/{umpireId} {
       allow get: if request.auth != null;

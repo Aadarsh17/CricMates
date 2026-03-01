@@ -65,19 +65,21 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        // Advanced path extraction for better debugging of group queries
+        // Precise path extraction for better debugging of group queries
         let path: string = 'root_or_group_query';
         try {
           const q = memoizedTargetRefOrQuery as any;
           if (q.path) {
             path = q.path;
-          } else if (q.type === 'collection_group' || !q.path) {
-             // For collection group queries, we try to find the collection ID
+          } else {
+             // For collection group queries, try to extract the collection ID from the internal query object
              const internalQuery = q._query || q;
-             const queryId = internalQuery.collectionGroup || internalQuery.path?.lastSegment() || 'unknown_group';
-             path = `[Collection Group Query: ${queryId}]`;
-          } else if (q._query?.path) {
-            path = q._query.path.canonicalString?.() || q._query.path.toString();
+             const queryPath = internalQuery.path;
+             if (queryPath) {
+                path = `[Collection Group Query: ${queryPath.lastSegment()}]`;
+             } else {
+                path = 'collection_group_query';
+             }
           }
         } catch (e) {
           path = 'collection_group_query';

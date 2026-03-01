@@ -52,7 +52,6 @@ export default function PlayerProfilePage() {
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
 
-  // Stats Aggregation Engine V4 (Robust Path Processing)
   const facedQuery = useMemoFirebase(() => 
     playerId ? query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId)) : null
   , [db, playerId]);
@@ -68,9 +67,7 @@ export default function PlayerProfilePage() {
 
     const formats: Record<number, any> = {};
 
-    // Grouping Batting Data
     ballsFaced.forEach(ball => {
-      // Extract matchId from __fullPath: matches/{matchId}/innings/{inningId}/deliveryRecords/{ballId}
       const pathParts = ball.__fullPath?.split('/') || [];
       const matchId = pathParts[1];
       const match = allMatches.find(m => m.id === matchId);
@@ -85,7 +82,6 @@ export default function PlayerProfilePage() {
         formats[format].batting[match.id] = { runs: 0, balls: 0, fours: 0, sixes: 0, out: false };
       }
 
-      // Legal balls for Balls Played (exclude wides)
       if (ball.extraType !== 'wide') {
         formats[format].batting[match.id].balls += 1;
         formats[format].batting[match.id].runs += (ball.runsScored || 0);
@@ -98,7 +94,6 @@ export default function PlayerProfilePage() {
       }
     });
 
-    // Grouping Bowling Data
     ballsBowled.forEach(ball => {
       const pathParts = ball.__fullPath?.split('/') || [];
       const matchId = pathParts[1];
@@ -118,7 +113,6 @@ export default function PlayerProfilePage() {
       if (ball.isWicket && ball.dismissalType !== 'runout') {
         formats[format].bowling[match.id].wickets += 1;
       }
-      // Legal balls for Overs calculation
       if (ball.extraType !== 'wide' && ball.extraType !== 'noball') {
         formats[format].bowling[match.id].balls += 1;
       }
@@ -151,9 +145,6 @@ export default function PlayerProfilePage() {
         notOut: batList.length - outs,
         fours: batList.reduce((acc: number, curr: any) => acc + curr.fours, 0),
         sixes: batList.reduce((acc: number, curr: any) => acc + curr.sixes, 0),
-        '30s': batList.filter((m: any) => m.runs >= 30 && m.runs < 50).length,
-        '50s': batList.filter((m: any) => m.runs >= 50 && m.runs < 100).length,
-        '100s': batList.filter((m: any) => m.runs >= 100).length,
         
         bowlInnings: bowlList.length,
         ballsBowled: totalBallsBowled,
@@ -263,13 +254,12 @@ export default function PlayerProfilePage() {
                        { label: 'Not Out', field: 'notOut' },
                        { label: 'Fours', field: 'fours' },
                        { label: 'Sixes', field: 'sixes' },
-                       { label: '50s / 100s', custom: (f: any) => `${f?.['50s'] || 0} / ${f?.['100s'] || 0}` },
                      ].map((row, idx) => (
                         <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]')}>
                            <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
                            {activeFormats.map(f => (
                              <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
-                                {row.custom ? row.custom(statsByFormat[f]) : (statsByFormat[f]?.[row.field!] ?? '---')}
+                                {statsByFormat[f]?.[row.field!] ?? '---'}
                              </TableCell>
                            ))}
                         </TableRow>
@@ -278,7 +268,7 @@ export default function PlayerProfilePage() {
                </Table>
              </div>
            ) : (
-             <div className="py-20 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest">No batting records found</div>
+             <div className="py-20 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest">No records available</div>
            )}
         </TabsContent>
 
@@ -315,39 +305,26 @@ export default function PlayerProfilePage() {
                </Table>
              </div>
            ) : (
-             <div className="py-20 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest">No bowling records found</div>
+             <div className="py-20 text-center text-slate-400 text-[10px] font-black uppercase tracking-widest">No records available</div>
            )}
         </TabsContent>
 
-        <TabsContent value="info" className="p-4 space-y-6 animate-in fade-in duration-300">
-           <Card className="rounded-2xl border-none shadow-sm bg-slate-50">
-              <CardContent className="p-6 space-y-6">
-                 <div>
-                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Official Identification</h3>
-                    <div className="grid grid-cols-2 gap-6">
-                       <div className="space-y-1">
-                          <p className="text-[9px] font-black text-slate-400 uppercase">Batting Style</p>
-                          <p className="text-sm font-bold text-slate-900">{player.battingStyle}</p>
-                       </div>
-                       <div className="space-y-1">
-                          <p className="text-[9px] font-black text-slate-400 uppercase">Status</p>
-                          <Badge className={cn("text-[9px] font-black uppercase h-5", player.isRetired ? "bg-slate-200 text-slate-600" : "bg-[#009270] text-white")}>
-                             {player.isRetired ? 'Retired' : 'Active League Member'}
-                          </Badge>
-                       </div>
+        <TabsContent value="info" className="p-4 space-y-6">
+           <Card className="rounded-2xl bg-slate-50 border-none shadow-sm">
+              <CardContent className="p-6">
+                 <div className="grid grid-cols-2 gap-6">
+                    <div>
+                       <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Batting Style</p>
+                       <p className="text-sm font-bold">{player.battingStyle}</p>
                     </div>
-                 </div>
-                 
-                 <div className="pt-6 border-t border-slate-200">
-                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Career Achievements</h3>
-                    <div className="flex flex-wrap gap-3">
-                       <Badge variant="outline" className="rounded-xl py-2 px-3 flex items-center gap-2 border-slate-200 bg-white">
-                          <Trophy className="w-3 h-3 text-amber-500" />
-                          <span className="text-[10px] font-black text-slate-600">{player.careerCVP} Career CVP</span>
-                       </Badge>
-                       <Badge variant="outline" className="rounded-xl py-2 px-3 flex items-center gap-2 border-slate-200 bg-white">
-                          <Activity className="w-3 h-3 text-[#009270]" />
-                          <span className="text-[10px] font-black text-slate-600">{player.runsScored} Career Runs</span>
+                    <div>
+                       <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Wicket Keeper</p>
+                       <p className="text-sm font-bold">{player.isWicketKeeper ? 'Yes' : 'No'}</p>
+                    </div>
+                    <div>
+                       <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Status</p>
+                       <Badge variant={player.isRetired ? "outline" : "default"} className="font-black text-[9px] h-5 uppercase">
+                          {player.isRetired ? 'Retired' : 'Active'}
                        </Badge>
                     </div>
                  </div>
@@ -357,21 +334,19 @@ export default function PlayerProfilePage() {
       </Tabs>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-[#009270] shadow-2xl">
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl">
           <DialogHeader>
-            <DialogTitle className="font-black uppercase tracking-widest flex items-center gap-2 text-[#009270]">
-               <ShieldCheck className="w-5 h-5" /> Professional Editor
-            </DialogTitle>
+            <DialogTitle className="font-black uppercase tracking-widest text-[#009270]">Edit Player Profile</DialogTitle>
           </DialogHeader>
-          <div className="space-y-5 py-4">
+          <div className="space-y-4 py-4">
             <div className="space-y-1.5">
-               <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Full Name</Label>
-               <Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="font-bold h-12 rounded-xl border-slate-200 shadow-sm focus:ring-[#009270]" />
+               <Label className="text-[10px] font-black uppercase text-slate-400">Full Name</Label>
+               <Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="font-bold h-12" />
             </div>
             <div className="space-y-1.5">
-               <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Primary Role</Label>
+               <Label className="text-[10px] font-black uppercase text-slate-400">Primary Role</Label>
                <Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}>
-                  <SelectTrigger className="font-bold h-12 rounded-xl shadow-sm border-slate-200"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
                   <SelectContent>
                      <SelectItem value="Batsman">Batsman</SelectItem>
                      <SelectItem value="Bowler">Bowler</SelectItem>
@@ -380,21 +355,9 @@ export default function PlayerProfilePage() {
                   </SelectContent>
                </Select>
             </div>
-            <div className="space-y-1.5">
-               <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Batting Style</Label>
-               <Select value={editForm.battingStyle} onValueChange={(v) => setEditForm({...editStyle => setEditForm({...editForm, battingStyle: v})})}>
-                  <SelectTrigger className="font-bold h-12 rounded-xl shadow-sm border-slate-200"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                     <SelectItem value="Right Handed Bat">Right Handed Bat</SelectItem>
-                     <SelectItem value="Left Handed Bat">Left Handed Bat</SelectItem>
-                  </SelectContent>
-               </Select>
-            </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleUpdateProfile} className="w-full h-14 font-black uppercase tracking-widest shadow-lg bg-[#009270] hover:bg-[#007a5d] rounded-xl text-lg transition-all active:scale-95">
-               Update Profile
-            </Button>
+            <Button onClick={handleUpdateProfile} className="w-full h-12 font-black uppercase bg-[#009270] hover:bg-[#007a5d]">Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
