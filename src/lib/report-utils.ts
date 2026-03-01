@@ -199,7 +199,7 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
         .header { text-align: center; border-bottom: 2px solid #1e40af; padding-bottom: 4px; margin-bottom: 6px; }
         h1 { margin: 0; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; font-size: 12px; font-weight: 900; }
         .match-summary { background: #f8fafc; padding: 6px; border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 8px; position: relative; }
-        .potm-banner { position: absolute; top: -5px; right: 5px; background: #fbbf24; color: #78350f; font-size: 6px; font-weight: 900; padding: 1px 4px; border-radius: 2px; text-transform: uppercase; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .potm-banner { background: linear-gradient(to right, #fbbf24, #f59e0b); color: #78350f; font-size: 10px; font-weight: 900; padding: 6px 10px; border-radius: 4px; text-transform: uppercase; margin-bottom: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: 1px solid #d97706; }
         .inning-bar { background: #1e40af; color: white; padding: 2px 5px; font-weight: 900; text-transform: uppercase; font-size: 8px; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; margin-top: 8px; border-radius: 2px; }
         .inning-sub-bar { background: #475569; color: white; padding: 2px 5px; font-weight: 800; text-transform: uppercase; font-size: 7px; margin-top: 6px; border-radius: 2px; display: block; clear: both; }
         .result-text { font-size: 10px; font-weight: 900; color: #1e40af; text-align: center; text-transform: uppercase; margin-top: 4px; border-top: 1px solid #e2e8f0; padding-top: 4px; }
@@ -217,9 +217,14 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
           ${new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} | ${match.totalOvers} OVERS MATCH
         </div>
       </div>
+
+      ${potm ? `
+        <div class="potm-banner">
+          🏆 PLAYER OF THE MATCH: ${potm.name} (${match.potmCvpScore?.toFixed(1)} CVP)
+        </div>
+      ` : ''}
       
       <div class="match-summary">
-        ${potm ? `<div class="potm-banner">POTM: ${potm.name} (${match.potmCvpScore?.toFixed(0)} CVP)</div>` : ''}
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
           <div style="text-align: center; flex: 1;">
             <div style="font-weight: 800; font-size: 9px; color: #475569;">${getTeam(match.team1Id)}</div>

@@ -196,21 +196,23 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
               </div>
 
               {match.status === 'completed' && match.potmPlayerId && (
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Player of the Match</p>
-                  <div className="flex items-center gap-3 bg-white p-2 rounded-xl border shadow-sm border-secondary/20 bg-secondary/5">
-                    <Avatar className="h-10 w-10 border-2 border-white shadow-sm">
-                      <AvatarImage src={potm?.imageUrl || `https://picsum.photos/seed/${match.id}/100`} />
-                      <AvatarFallback><Star className="w-4 h-4 text-yellow-500" /></AvatarFallback>
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black text-amber-600 uppercase tracking-[0.2em] flex items-center gap-2 px-1">
+                    <Trophy className="w-3 h-3" /> Player of the Match
+                  </p>
+                  <div className="flex items-center gap-4 bg-amber-50 p-4 rounded-2xl border-2 border-amber-200 shadow-sm">
+                    <Avatar className="h-14 w-14 border-4 border-white shadow-xl">
+                      <AvatarImage src={potm?.imageUrl || `https://picsum.photos/seed/${match.id}/200`} />
+                      <AvatarFallback className="bg-amber-100 text-amber-600 font-black text-xl">{potm?.name[0]}</AvatarFallback>
                     </Avatar>
-                    <div>
-                      <p className="text-sm font-black text-slate-800">{potm?.name || 'Top Performer'}</p>
-                      <div className="flex items-center gap-1">
-                        <Badge variant="secondary" className="text-[8px] h-4 px-1">{potm?.role || 'MVP'}</Badge>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">CVP Score: {match.potmCvpScore?.toFixed(1) || '0.0'}</span>
+                    <div className="flex-1">
+                      <p className="text-lg font-black text-slate-900 leading-tight">{potm?.name || 'Top Performer'}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge variant="secondary" className="bg-amber-500 text-white text-[9px] h-4 px-1.5 border-none">{potm?.role || 'MVP'}</Badge>
+                        <span className="text-[10px] text-amber-700 font-black uppercase tracking-widest">CVP: {match.potmCvpScore?.toFixed(1) || '0.0'}</span>
                       </div>
                     </div>
-                    <Trophy className="ml-auto w-5 h-5 text-secondary mr-2" />
+                    <Trophy className="w-10 h-10 text-amber-300 opacity-50 shrink-0" />
                   </div>
                 </div>
               )}

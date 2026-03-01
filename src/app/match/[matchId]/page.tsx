@@ -459,6 +459,13 @@ export default function MatchScoreboardPage() {
     setIsPlayerAssignmentOpen(true);
   };
 
+  const handleDeleteBall = async (inningId: string, ballId: string) => {
+    if (confirm('Delete this ball record? This will revert the score but you may need to manually fix assignments in Umpire Tools.')) {
+        deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords', ballId));
+        toast({ title: "Ball Deleted" });
+    }
+  };
+
   if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING...</div>;
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
 
@@ -484,8 +491,8 @@ export default function MatchScoreboardPage() {
             <p className="text-[10px] font-black uppercase text-primary tracking-widest">{match.status === 'completed' ? match.resultDescription : `Innings ${match.currentInningNumber} Live`}</p>
             {match.status === 'completed' && match.potmPlayerId && (
                 <div className="mt-1 flex items-center gap-1">
-                    <Trophy className="w-3 h-3 text-secondary" />
-                    <span className="text-[10px] font-black text-secondary uppercase tracking-tighter">POTM: {getPlayerName(match.potmPlayerId)}</span>
+                    <Trophy className="w-3 h-3 text-amber-500" />
+                    <span className="text-[10px] font-black text-amber-600 uppercase tracking-tighter">POTM: {getPlayerName(match.potmPlayerId)}</span>
                 </div>
             )}
           </div>
@@ -521,6 +528,25 @@ export default function MatchScoreboardPage() {
           <Card>
             <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest">Match Details</CardTitle></CardHeader>
             <CardContent className="space-y-6">
+              {match.status === 'completed' && match.potmPlayerId && (
+                <div className="p-6 bg-amber-50 border-2 border-amber-200 rounded-2xl flex flex-col md:flex-row items-center gap-6 shadow-md transform hover:scale-[1.01] transition-transform">
+                    <div className="h-20 w-20 rounded-full bg-amber-100 flex items-center justify-center border-4 border-amber-400 shadow-xl shrink-0">
+                        <Trophy className="w-10 h-10 text-amber-600" />
+                    </div>
+                    <div className="text-center md:text-left">
+                        <p className="text-[12px] font-black text-amber-600 uppercase tracking-[0.2em] mb-1">Player of the Match</p>
+                        <h4 className="font-black text-3xl text-slate-900 leading-tight mb-2">{getPlayerName(match.potmPlayerId)}</h4>
+                        <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-2">
+                           <div className="bg-white px-3 py-1 rounded-full border border-amber-200 shadow-sm flex items-center gap-2">
+                              <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
+                              <span className="text-xs font-black text-amber-700">{match.potmCvpScore?.toFixed(1) || '0.0'} CVP Points</span>
+                           </div>
+                           <div className="bg-amber-600 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">Top Performer</div>
+                        </div>
+                    </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1"><Calendar className="w-3 h-3" /> Date</p>
@@ -539,19 +565,6 @@ export default function MatchScoreboardPage() {
                   <p className="text-xs font-medium">{getTeamName(match.tossWinnerTeamId)} won & chose to {match.tossDecision}</p>
                 </div>
               </div>
-
-              {match.status === 'completed' && match.potmPlayerId && (
-                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-amber-100 flex items-center justify-center border-2 border-amber-400 shadow-sm">
-                        <Trophy className="w-6 h-6 text-amber-600" />
-                    </div>
-                    <div>
-                        <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">Player of the Match</p>
-                        <h4 className="font-black text-lg text-slate-900 leading-tight">{getPlayerName(match.potmPlayerId)}</h4>
-                        <p className="text-[9px] font-bold text-slate-400 uppercase">CVP: {match.potmCvpScore?.toFixed(0)} Points</p>
-                    </div>
-                </div>
-              )}
 
               <div className="p-4 bg-slate-50 border rounded-xl space-y-3">
                  <p className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-2">
@@ -958,6 +971,74 @@ export default function MatchScoreboardPage() {
                 <Save className="w-5 h-5 mr-2" /> SAVE CORRECTIONS
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
+        <DialogContent className="rounded-xl border-t-8 border-t-destructive">
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-widest">Register Wicket</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Wicket Type</Label>
+              <Select value={wicketForm.type} onValueChange={v => setWicketForm({...wicketForm, type: v})}>
+                <SelectTrigger className="font-bold"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {['bowled', 'caught', 'lbw', 'runout', 'stumped', 'hit-wicket'].map(t => <SelectItem key={t} value={t} className="uppercase font-bold text-[10px]">{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Batter Out</Label>
+              <Select value={wicketForm.batterOutId} onValueChange={v => setWicketForm({...wicketForm, batterOutId: v})}>
+                <SelectTrigger className="font-bold"><SelectValue placeholder="Select Batter" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={activeInningData?.strikerPlayerId || 'none'}>{getPlayerName(activeInningData?.strikerPlayerId || '')}</SelectItem>
+                  <SelectItem value={activeInningData?.nonStrikerPlayerId || 'none'}>{getPlayerName(activeInningData?.nonStrikerPlayerId || '')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Fielder (Optional)</Label>
+                <Select value={wicketForm.fielderId} onValueChange={v => setWicketForm({...wicketForm, fielderId: v})}>
+                    <SelectTrigger className="font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        {bowlingPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                </Select>
+            </div>
+          </div>
+          <DialogFooter><Button variant="destructive" onClick={handleWicket} className="w-full h-12 font-black uppercase tracking-widest">Confirm Wicket</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
+        <DialogContent className="rounded-xl">
+          <DialogHeader><DialogTitle className="font-black uppercase">Assignments</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black">Striker</Label>
+              <Select value={activeInningData?.strikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { strikerPlayerId: v })}>
+                <SelectTrigger><SelectValue placeholder="Striker" /></SelectTrigger>
+                <SelectContent>{availableBattingPlayers.filter(p => p.id !== activeInningData?.nonStrikerPlayerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black">Non-Striker</Label>
+              <Select value={activeInningData?.nonStrikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { nonStrikerPlayerId: v })}>
+                <SelectTrigger><SelectValue placeholder="Non-Striker" /></SelectTrigger>
+                <SelectContent>{availableBattingPlayers.filter(p => p.id !== activeInningData?.strikerPlayerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black">Bowler</Label>
+              <Select value={activeInningData?.currentBowlerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: v })}>
+                <SelectTrigger><SelectValue placeholder="Bowler" /></SelectTrigger>
+                <SelectContent>{bowlingPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter><Button onClick={() => setIsPlayerAssignmentOpen(false)} className="w-full h-12 font-black">CONFIRM POSITIONING</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
