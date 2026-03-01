@@ -96,9 +96,9 @@ export default function MatchScoreboardPage() {
     if (match && inn1) {
       setEditForm({
         status: match.status,
-        matchDate: match.matchDate.split('T')[0],
-        tossWinner: match.tossWinnerTeamId,
-        tossDecision: match.tossDecision,
+        matchDate: match.matchDate ? match.matchDate.split('T')[0] : new Date().toISOString().split('T')[0],
+        tossWinner: match.tossWinnerTeamId || '',
+        tossDecision: match.tossDecision || 'bat',
         inn1Score: inn1.score || 0,
         inn1Wickets: inn1.wickets || 0,
         inn1Overs: inn1.oversCompleted || 0,
@@ -114,41 +114,6 @@ export default function MatchScoreboardPage() {
       });
     }
   }, [match, inn1, inn2]);
-
-  // Automatic Result Calculation Logic for Editor
-  useEffect(() => {
-    if (!match || !inn1) return;
-    
-    const team1Name = getTeamName(match.team1Id);
-    const team2Name = getTeamName(match.team2Id);
-    
-    if (editForm.inn1Score > 0 || editForm.inn2Score > 0) {
-      let result = '';
-      if (editForm.inn1Score > editForm.inn2Score) {
-        result = `${team1Name} won by ${editForm.inn1Score - editForm.inn2Score} runs`;
-      } else if (editForm.inn2Score > editForm.inn1Score) {
-        result = `${team2Name} won by ${10 - editForm.inn2Wickets} wickets`;
-      } else if (editForm.inn1Score === editForm.inn2Score && editForm.inn1Score > 0) {
-        result = "Match Tied";
-      }
-      
-      if (result) {
-        setEditForm(prev => ({ ...prev, resultDescription: result }));
-      }
-    }
-  }, [editForm.inn1Score, editForm.inn2Score, editForm.inn1Wickets, editForm.inn2Wickets]);
-
-  const inn1DeliveriesQuery = useMemoFirebase(() => 
-    query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
-    [db, matchId]
-  );
-  const { data: inn1Deliveries } = useCollection(inn1DeliveriesQuery);
-
-  const inn2DeliveriesQuery = useMemoFirebase(() => 
-    query(collection(db, 'matches', matchId, 'innings', 'inning_2', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
-    [db, matchId]
-  );
-  const { data: inn2Deliveries } = useCollection(inn2DeliveriesQuery);
 
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
@@ -170,6 +135,43 @@ export default function MatchScoreboardPage() {
   };
 
   const getAbbr = (name: string) => (name || 'UNK').substring(0, 3).toUpperCase();
+
+  // Automatic Result Calculation Logic for Editor
+  useEffect(() => {
+    if (!match || !allTeams) return;
+    
+    const team1Name = getTeamName(match.team1Id);
+    const team2Name = getTeamName(match.team2Id);
+    
+    if (editForm.inn1Score > 0 || editForm.inn2Score > 0) {
+      let result = '';
+      if (editForm.inn2Score === 0) {
+        result = "Match in Progress";
+      } else if (editForm.inn1Score > editForm.inn2Score && editForm.status === 'completed') {
+        result = `${team1Name} won by ${editForm.inn1Score - editForm.inn2Score} runs`;
+      } else if (editForm.inn2Score > editForm.inn1Score && editForm.status === 'completed') {
+        result = `${team2Name} won by ${10 - editForm.inn2Wickets} wickets`;
+      } else if (editForm.inn1Score === editForm.inn2Score && editForm.inn1Score > 0 && editForm.status === 'completed') {
+        result = "Match Tied";
+      } else {
+        result = "Match in Progress";
+      }
+      
+      setEditForm(prev => ({ ...prev, resultDescription: result }));
+    }
+  }, [editForm.inn1Score, editForm.inn2Score, editForm.inn1Wickets, editForm.inn2Wickets, editForm.status]);
+
+  const inn1DeliveriesQuery = useMemoFirebase(() => 
+    query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
+    [db, matchId]
+  );
+  const { data: inn1Deliveries } = useCollection(inn1DeliveriesQuery);
+
+  const inn2DeliveriesQuery = useMemoFirebase(() => 
+    query(collection(db, 'matches', matchId, 'innings', 'inning_2', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
+    [db, matchId]
+  );
+  const { data: inn2Deliveries } = useCollection(inn2DeliveriesQuery);
 
   const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none') => {
     if (!match || !activeInningData || !isUmpire) return;
@@ -748,6 +750,19 @@ export default function MatchScoreboardPage() {
                 </div>
               </div>
             )}
+            
+            {isUmpire && match.status === 'completed' && (
+              <div className="p-8 text-center border-2 border-dashed rounded-xl bg-slate-50/50 space-y-4">
+                <AlertCircle className="w-12 h-12 text-slate-300 mx-auto" />
+                <div>
+                  <p className="font-black text-slate-900">Match Completed</p>
+                  <p className="text-xs text-slate-500">Need to fix a scoring error? Use the Umpire Tools above to edit the scorecard manually.</p>
+                </div>
+                <Button onClick={() => setIsEditFullMatchOpen(true)} className="bg-primary font-black uppercase tracking-widest">
+                  <Edit2 className="w-4 h-4 mr-2" /> Edit Full Scorecard
+                </Button>
+              </div>
+            )}
           </div>
         </TabsContent>
 
@@ -1061,4 +1076,3 @@ export default function MatchScoreboardPage() {
     </div>
   );
 }
-
