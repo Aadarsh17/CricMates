@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import { Trophy, Star, Medal, Flag } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useMemo } from 'react';
-import { calculatePlayerCVP } from '@/lib/cvp-utils';
 
 export default function RankingsPage() {
   const db = useFirestore();
@@ -24,17 +23,16 @@ export default function RankingsPage() {
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), where('status', '==', 'completed')), [db]);
   const { data: matches = [] } = useCollection(matchesQuery);
 
-  // We need to fetch innings to calculate player stats properly
-  // For a prototype, we'll assume the player careerCVP is updated, 
-  // but to satisfy the user's request of "delete = remove from ranking",
-  // we would ideally calculate CVP from the matches that EXIST.
-  // Since we can't easily fetch every delivery record here, we'll filter players
-  // who belong to the current league matches if needed, but the primary fix
-  // is the TEAM standings which are easy to calculate dynamically.
-
+  /**
+   * Dynamically calculate team standings based on existing completed matches.
+   * This ensures that if a match is deleted, it is removed from the Points Table and NRR.
+   */
   const teamStandings = useMemo(() => {
+    if (!teams || teams.length === 0) return [];
+    
     const standings: Record<string, any> = {};
     
+    // Initialize standings for all existing teams
     teams.forEach(t => {
       standings[t.id] = {
         id: t.id,
@@ -45,41 +43,42 @@ export default function RankingsPage() {
         lost: 0,
         drawn: 0,
         points: 0,
-        runsScored: 0,
-        oversFaced: 0,
-        runsConceded: 0,
-        oversBowled: 0,
         nrr: 0
       };
     });
 
-    matches.forEach(m => {
-      const t1Id = m.team1Id;
-      const t2Id = m.team2Id;
-      
-      if (!standings[t1Id] || !standings[t2Id]) return;
+    // Process only existing matches
+    if (matches && matches.length > 0) {
+      matches.forEach(m => {
+        const t1Id = m.team1Id;
+        const t2Id = m.team2Id;
+        
+        if (!standings[t1Id] || !standings[t2Id]) return;
 
-      standings[t1Id].played += 1;
-      standings[t2Id].played += 1;
+        standings[t1Id].played += 1;
+        standings[t2Id].played += 1;
 
-      // Determine winner from resultDescription or status
-      // In a real app we'd have a winnerTeamId field. 
-      // For now we parse the resultDescription or check scores if available.
-      if (m.resultDescription?.toLowerCase().includes(standings[t1Id].name.toLowerCase()) && m.resultDescription?.toLowerCase().includes('won')) {
-        standings[t1Id].won += 1;
-        standings[t1Id].points += 2;
-        standings[t2Id].lost += 1;
-      } else if (m.resultDescription?.toLowerCase().includes(standings[t2Id].name.toLowerCase()) && m.resultDescription?.toLowerCase().includes('won')) {
-        standings[t2Id].won += 1;
-        standings[t2Id].points += 2;
-        standings[t1Id].lost += 1;
-      } else {
-        standings[t1Id].drawn += 1;
-        standings[t1Id].points += 1;
-        standings[t2Id].drawn += 1;
-        standings[t2Id].points += 1;
-      }
-    });
+        // Determine winner from resultDescription
+        const result = m.resultDescription?.toLowerCase() || '';
+        const t1Name = standings[t1Id].name.toLowerCase();
+        const t2Name = standings[t2Id].name.toLowerCase();
+
+        if (result.includes(t1Name) && result.includes('won')) {
+          standings[t1Id].won += 1;
+          standings[t1Id].points += 2;
+          standings[t2Id].lost += 1;
+        } else if (result.includes(t2Name) && result.includes('won')) {
+          standings[t2Id].won += 1;
+          standings[t2Id].points += 2;
+          standings[t1Id].lost += 1;
+        } else {
+          standings[t1Id].drawn += 1;
+          standings[t1Id].points += 1;
+          standings[t2Id].drawn += 1;
+          standings[t2Id].points += 1;
+        }
+      });
+    }
 
     return Object.values(standings).sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
@@ -89,8 +88,7 @@ export default function RankingsPage() {
   }, [teams, matches]);
 
   const topPlayers = useMemo(() => {
-    // If the user deletes a match, the careerCVP on the player doc might still be old
-    // unless we update it. For the prototype, we'll show the top players from the collection.
+    if (!players) return [];
     return [...players].sort((a, b) => (b.careerCVP || 0) - (a.careerCVP || 0)).slice(0, 10);
   }, [players]);
 
@@ -99,7 +97,7 @@ export default function RankingsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black font-headline tracking-tight">League Leaderboards</h1>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Calculated from {matches.length} valid match records</p>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest">Calculated from {matches?.length || 0} valid match records</p>
         </div>
       </div>
 

@@ -18,7 +18,7 @@ import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import Link from 'next/link';
 
 function TeamMatchHistory({ teamId, matches, teams }: { teamId: string, matches: any[], teams: any[] }) {
-  const teamMatches = matches.filter(m => m.team1Id === teamId || m.team2Id === teamId).slice(0, 5);
+  const teamMatches = matches?.filter(m => m.team1Id === teamId || m.team2Id === teamId).slice(0, 5) || [];
   
   if (teamMatches.length === 0) return (
     <div className="mt-4 p-3 bg-slate-50/50 rounded-lg border border-dashed text-center">
@@ -36,7 +36,7 @@ function TeamMatchHistory({ teamId, matches, teams }: { teamId: string, matches:
         {teamMatches.map(match => {
           const isTeam1 = match.team1Id === teamId;
           const opponentId = isTeam1 ? match.team2Id : match.team1Id;
-          const opponent = teams.find(t => t.id === opponentId);
+          const opponent = teams?.find(t => t.id === opponentId);
           return (
             <div key={match.id} className="flex items-center justify-between bg-white p-2 rounded border shadow-sm hover:border-primary/30 transition-colors">
               <div className="min-w-0 flex-1">
@@ -74,25 +74,31 @@ export default function TeamsPage() {
   // Dynamic calculation for team stats based on current matches
   const teamStats = useMemo(() => {
     const stats: Record<string, any> = {};
-    if (!teams) return stats;
+    if (!teams || teams.length === 0) return stats;
 
     teams.forEach(t => {
       stats[t.id] = { wins: 0, losses: 0, nrr: 0 };
     });
 
-    allMatches.filter(m => m.status === 'completed').forEach(m => {
-      const t1Id = m.team1Id;
-      const t2Id = m.team2Id;
-      if (!stats[t1Id] || !stats[t2Id]) return;
+    if (allMatches && allMatches.length > 0) {
+      allMatches.filter(m => m.status === 'completed').forEach(m => {
+        const t1Id = m.team1Id;
+        const t2Id = m.team2Id;
+        if (!stats[t1Id] || !stats[t2Id]) return;
 
-      if (m.resultDescription?.toLowerCase().includes(teams.find(t => t.id === t1Id)?.name.toLowerCase()) && m.resultDescription?.toLowerCase().includes('won')) {
-        stats[t1Id].wins += 1;
-        stats[t2Id].losses += 1;
-      } else if (m.resultDescription?.toLowerCase().includes(teams.find(t => t.id === t2Id)?.name.toLowerCase()) && m.resultDescription?.toLowerCase().includes('won')) {
-        stats[t2Id].wins += 1;
-        stats[t1Id].losses += 1;
-      }
-    });
+        const result = m.resultDescription?.toLowerCase() || '';
+        const t1Name = teams.find(t => t.id === t1Id)?.name.toLowerCase() || '';
+        const t2Name = teams.find(t => t.id === t2Id)?.name.toLowerCase() || '';
+
+        if (result.includes(t1Name) && result.includes('won')) {
+          stats[t1Id].wins += 1;
+          stats[t2Id].losses += 1;
+        } else if (result.includes(t2Name) && result.includes('won')) {
+          stats[t2Id].wins += 1;
+          stats[t1Id].losses += 1;
+        }
+      });
+    }
 
     return stats;
   }, [teams, allMatches]);
