@@ -3,12 +3,13 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -17,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart as ReBarChart, Bar, ReferenceDot } from "recharts";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart as ReBarChart, Bar } from "recharts";
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
@@ -136,12 +137,28 @@ export default function MatchScoreboardPage() {
   );
   const { data: inn2Deliveries } = useCollection(inn2DeliveriesQuery);
 
-  const getInningStats = (deliveries: any[]) => {
-    if (!deliveries) return { batting: [], bowling: [] };
+  const getExtendedInningStats = (deliveries: any[]) => {
+    if (!deliveries) return { batting: [], bowling: [], fow: [], partnerships: [] };
     const bat: Record<string, any> = {};
     const bowl: Record<string, any> = {};
+    const fow: any[] = [];
+    const partnerships: any[] = [];
 
-    deliveries.forEach(d => {
+    let currentScore = 0;
+    let currentBalls = 0;
+    let currentWickets = 0;
+
+    let currentPartnership = {
+        batter1Id: '',
+        batter2Id: '',
+        runs: 0,
+        balls: 0,
+        batter1Runs: 0,
+        batter2Runs: 0
+    };
+
+    deliveries.forEach((d, idx) => {
+      // Basic Stats
       if (!bat[d.strikerPlayerId]) bat[d.strikerPlayerId] = { id: d.strikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
       if (d.nonStrikerPlayerId && !bat[d.nonStrikerPlayerId]) bat[d.nonStrikerPlayerId] = { id: d.nonStrikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
       
@@ -152,23 +169,66 @@ export default function MatchScoreboardPage() {
         if (d.runsScored === 6) bat[d.strikerPlayerId].sixes += 1;
       }
 
+      currentScore += d.totalRunsOnDelivery;
+      if (d.extraType !== 'wide' && d.extraType !== 'noball') currentBalls += 1;
+
+      // Partnership logic
+      if (!currentPartnership.batter1Id) {
+          currentPartnership.batter1Id = d.strikerPlayerId;
+          currentPartnership.batter2Id = d.nonStrikerPlayerId;
+      }
+
+      currentPartnership.runs += d.totalRunsOnDelivery;
+      if (d.extraType !== 'wide' && d.extraType !== 'noball') currentPartnership.balls += 1;
+      if (d.strikerPlayerId === currentPartnership.batter1Id) {
+          currentPartnership.batter1Runs += d.runsScored;
+      } else {
+          currentPartnership.batter2Runs += d.runsScored;
+      }
+
       if (d.isWicket) {
+        currentWickets += 1;
         const outPid = d.batsmanOutPlayerId || d.strikerPlayerId;
         if (bat[outPid]) {
           bat[outPid].out = true;
           bat[outPid].dismissal = d.dismissalType || 'out';
         }
+        fow.push({
+            wicketNum: currentWickets,
+            score: currentScore,
+            overs: `${Math.floor(currentBalls / 6)}.${currentBalls % 6}`,
+            playerOutId: outPid
+        });
+
+        // Close Partnership
+        partnerships.push({...currentPartnership});
+        currentPartnership = {
+            batter1Id: d.batsmanOutPlayerId === currentPartnership.batter1Id ? '' : currentPartnership.batter1Id,
+            batter2Id: d.batsmanOutPlayerId === currentPartnership.batter2Id ? '' : currentPartnership.batter2Id,
+            runs: 0,
+            balls: 0,
+            batter1Runs: 0,
+            batter2Runs: 0
+        };
       }
 
+      // Bowling
       if (!bowl[d.bowlerPlayerId]) bowl[d.bowlerPlayerId] = { id: d.bowlerPlayerId, overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
       bowl[d.bowlerPlayerId].runs += d.totalRunsOnDelivery;
       if (d.isWicket && d.dismissalType !== 'runout') bowl[d.bowlerPlayerId].wickets += 1;
       if (d.extraType !== 'wide' && d.extraType !== 'noball') bowl[d.bowlerPlayerId].balls += 1;
+
+      // If last ball of innings, add current partnership if not added
+      if (idx === deliveries.length - 1 && currentPartnership.balls > 0) {
+          partnerships.push({...currentPartnership});
+      }
     });
 
     return {
       batting: Object.values(bat),
-      bowling: Object.values(bowl).map(b => ({ ...b, oversDisplay: `${Math.floor(b.balls / 6)}.${b.balls % 6}` }))
+      bowling: Object.values(bowl).map(b => ({ ...b, oversDisplay: `${Math.floor(b.balls / 6)}.${b.balls % 6}` })),
+      fow,
+      partnerships
     };
   };
 
@@ -198,7 +258,7 @@ export default function MatchScoreboardPage() {
         inn2Cum: i === 0 ? 0 : (inn2Deliveries?.some(d => d.overNumber >= i) ? inn2Cum : null),
         inn1Runs,
         inn2Runs,
-        inn1Wkts: inn1Wkts > 0 ? 5 : null, // Marker height
+        inn1Wkts: inn1Wkts > 0 ? 5 : null,
         inn2Wkts: inn2Wkts > 0 ? 5 : null,
       });
     }
@@ -532,18 +592,22 @@ export default function MatchScoreboardPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t">
                  <div>
-                    <h3 className="font-black text-xs uppercase text-primary mb-3">{getTeamName(match.team1Id)} Squad</h3>
+                    <h3 className="font-black text-xs uppercase text-primary mb-3 flex items-center gap-2"><Users className="w-3 h-3"/> {getTeamName(match.team1Id)} Squad</h3>
                     <div className="flex flex-wrap gap-2">
                        {match.team1SquadPlayerIds.map(pid => (
-                          <Badge key={pid} variant="outline" className="text-[9px] font-bold">{getPlayerName(pid)}</Badge>
+                          <Link key={pid} href={`/players/${pid}`}>
+                            <Badge variant="outline" className="text-[9px] font-bold hover:border-primary transition-colors cursor-pointer">{getPlayerName(pid)}</Badge>
+                          </Link>
                        ))}
                     </div>
                  </div>
                  <div>
-                    <h3 className="font-black text-xs uppercase text-primary mb-3">{getTeamName(match.team2Id)} Squad</h3>
+                    <h3 className="font-black text-xs uppercase text-primary mb-3 flex items-center gap-2"><Users className="w-3 h-3"/> {getTeamName(match.team2Id)} Squad</h3>
                     <div className="flex flex-wrap gap-2">
                        {match.team2SquadPlayerIds.map(pid => (
-                          <Badge key={pid} variant="outline" className="text-[9px] font-bold">{getPlayerName(pid)}</Badge>
+                          <Link key={pid} href={`/players/${pid}`}>
+                            <Badge variant="outline" className="text-[9px] font-bold hover:border-primary transition-colors cursor-pointer">{getPlayerName(pid)}</Badge>
+                          </Link>
                        ))}
                     </div>
                  </div>
@@ -607,16 +671,17 @@ export default function MatchScoreboardPage() {
           {[1, 2].map(innNum => {
             const inning = innNum === 1 ? inn1 : inn2;
             if (!inning) return null;
-            const stats = getInningStats(innNum === 1 ? inn1Deliveries || [] : inn2Deliveries || []);
+            const stats = getExtendedInningStats(innNum === 1 ? inn1Deliveries || [] : inn2Deliveries || []);
             return (
-              <Card key={innNum} className="overflow-hidden">
-                <div className="bg-slate-50 p-4 border-b flex justify-between items-center">
-                  <h3 className="font-black text-sm uppercase tracking-widest">{getTeamName(inning.battingTeamId)} Inning</h3>
-                  <p className="font-black text-lg">{(inning.score || 0)}/{(inning.wickets || 0)} <span className="text-xs text-slate-400">({(inning.oversCompleted || 0)}.{(inning.ballsInCurrentOver || 0)})</span></p>
+              <Card key={innNum} className="overflow-hidden border-none shadow-none space-y-6">
+                <div className="bg-slate-900 text-white p-4 rounded-xl flex justify-between items-center shadow-lg">
+                  <h3 className="font-black text-xs uppercase tracking-widest">{getTeamName(inning.battingTeamId)} Inning</h3>
+                  <p className="font-black text-xl">{(inning.score || 0)}/{(inning.wickets || 0)} <span className="text-xs text-slate-400 ml-1">({(inning.oversCompleted || 0)}.{(inning.ballsInCurrentOver || 0)})</span></p>
                 </div>
-                <CardContent className="p-0">
+                
+                <Card className="rounded-xl overflow-hidden shadow-sm">
                   <Table>
-                    <TableHeader className="bg-slate-50/50">
+                    <TableHeader className="bg-slate-50">
                       <TableRow>
                         <TableHead className="text-[10px] font-black uppercase">Batter</TableHead>
                         <TableHead className="text-right text-[10px] font-black uppercase">R</TableHead>
@@ -628,21 +693,77 @@ export default function MatchScoreboardPage() {
                        {stats.batting.map(b => (
                          <TableRow key={b.id}>
                            <TableCell className="text-xs font-bold">
-                              {getPlayerName(b.id)}
-                              {b.out && <span className="block text-[8px] text-slate-400 uppercase font-bold">({b.dismissal})</span>}
+                              <Link href={`/players/${b.id}`} className="text-primary hover:underline">{getPlayerName(b.id)}</Link>
+                              {b.out && <span className="block text-[8px] text-slate-400 uppercase font-black">({b.dismissal})</span>}
                            </TableCell>
                            <TableCell className="text-right text-xs font-black">{b.runs}</TableCell>
                            <TableCell className="text-right text-xs text-slate-500 font-bold">{b.balls}</TableCell>
                            <TableCell className="text-right text-xs text-slate-400">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
                          </TableRow>
                        ))}
-                       {stats.batting.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-[10px] font-bold text-slate-400 uppercase">Waiting to Bat</TableCell></TableRow>}
                     </TableBody>
                   </Table>
+                </Card>
 
-                  <div className="border-t">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Fall of Wickets */}
+                    <Card className="rounded-xl overflow-hidden shadow-sm">
+                        <CardHeader className="bg-slate-50 py-3 px-4 border-b">
+                            <CardTitle className="text-[10px] font-black uppercase tracking-widest">Fall of Wickets</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableBody>
+                                    {stats.fow.map((f, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell className="text-[10px] font-black text-slate-400 w-8">{f.wicketNum}</TableCell>
+                                            <TableCell className="text-xs font-bold">{f.score}/{f.wicketNum} <span className="text-slate-400 font-medium">({f.overs} ov)</span></TableCell>
+                                            <TableCell className="text-right text-[10px] font-black text-primary">{getPlayerName(f.playerOutId)}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {stats.fow.length === 0 && <TableRow><TableCell className="text-center py-6 text-[10px] font-bold text-slate-400 uppercase">No wickets fallen</TableCell></TableRow>}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+
+                    {/* Partnerships */}
+                    <Card className="rounded-xl overflow-hidden shadow-sm">
+                        <CardHeader className="bg-slate-50 py-3 px-4 border-b">
+                            <CardTitle className="text-[10px] font-black uppercase tracking-widest">Partnerships</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Table>
+                                <TableBody>
+                                    {stats.partnerships.map((p, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell className="py-3">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className="text-[10px] font-bold truncate max-w-[80px]">{getPlayerName(p.batter1Id)}</span>
+                                                    <span className="text-[10px] font-black text-primary">{p.runs} ({p.balls})</span>
+                                                    <span className="text-[10px] font-bold truncate max-w-[80px] text-right">{getPlayerName(p.batter2Id)}</span>
+                                                </div>
+                                                <div className="flex gap-0.5 h-1.5 rounded-full overflow-hidden bg-slate-100">
+                                                    <div className="bg-primary h-full" style={{ width: `${(p.batter1Runs / (p.runs || 1)) * 100}%` }} />
+                                                    <div className="bg-secondary h-full" style={{ width: `${(p.batter2Runs / (p.runs || 1)) * 100}%` }} />
+                                                </div>
+                                                <div className="flex justify-between mt-1 text-[8px] font-black text-slate-400 uppercase">
+                                                    <span>{p.batter1Runs} runs</span>
+                                                    <span>{p.batter2Runs} runs</span>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                    {stats.partnerships.length === 0 && <TableRow><TableCell className="text-center py-6 text-[10px] font-bold text-slate-400 uppercase">No partnerships recorded</TableCell></TableRow>}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </div>
+
+                <Card className="rounded-xl overflow-hidden shadow-sm">
                     <Table>
-                      <TableHeader className="bg-slate-50/50">
+                      <TableHeader className="bg-slate-50">
                         <TableRow>
                           <TableHead className="text-[10px] font-black uppercase">Bowler</TableHead>
                           <TableHead className="text-right text-[10px] font-black uppercase">O</TableHead>
@@ -653,17 +774,17 @@ export default function MatchScoreboardPage() {
                       <TableBody>
                          {stats.bowling.map(b => (
                            <TableRow key={b.id}>
-                             <TableCell className="text-xs font-bold">{getPlayerName(b.id)}</TableCell>
+                             <TableCell className="text-xs font-bold">
+                                <Link href={`/players/${b.id}`} className="text-primary hover:underline">{getPlayerName(b.id)}</Link>
+                             </TableCell>
                              <TableCell className="text-right text-xs font-bold">{b.oversDisplay}</TableCell>
                              <TableCell className="text-right text-xs font-black">{b.runs}</TableCell>
                              <TableCell className="text-right text-xs font-black text-primary">{b.wickets}</TableCell>
                            </TableRow>
                          ))}
-                         {stats.bowling.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-[10px] font-bold text-slate-400 uppercase">Waiting to Bowl</TableCell></TableRow>}
                       </TableBody>
                     </Table>
-                  </div>
-                </CardContent>
+                </Card>
               </Card>
             );
           })}
@@ -685,7 +806,7 @@ export default function MatchScoreboardPage() {
                  
                  <div className="space-y-2">
                     {(activeInningView === 1 ? inn1Deliveries : inn2Deliveries)?.slice().reverse().map((d, idx) => (
-                       <Card key={d.id} className={cn("border-l-4", d.isWicket ? "border-l-red-500" : (d.runsScored >= 4 ? "border-l-secondary" : "border-l-primary"))}>
+                       <Card key={d.id} className={cn("border-l-4 rounded-xl", d.isWicket ? "border-l-red-500" : (d.runsScored >= 4 ? "border-l-secondary" : "border-l-primary"))}>
                           <CardContent className="p-3 flex items-center justify-between">
                              <div className="flex items-center gap-3">
                                 <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center font-black text-[10px]">{d.overNumber-1}.{d.ballNumberInOver}</div>
@@ -710,9 +831,9 @@ export default function MatchScoreboardPage() {
         </TabsContent>
 
         <TabsContent value="charts" className="pt-4 space-y-6">
-           <Card>
-              <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Worm Graph (Cumulative Progress)</CardTitle></CardHeader>
-              <CardContent>
+           <Card className="rounded-xl overflow-hidden shadow-sm">
+              <CardHeader className="bg-slate-50 py-3 px-4 border-b"><CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Worm Graph (Cumulative Progress)</CardTitle></CardHeader>
+              <CardContent className="pt-6">
                  <ChartContainer config={chartConfig} className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                        <LineChart data={chartData}>
@@ -729,9 +850,9 @@ export default function MatchScoreboardPage() {
               </CardContent>
            </Card>
 
-           <Card>
-              <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><BarChart className="w-4 h-4 text-primary" /> Manhattan Chart (Runs Per Over)</CardTitle></CardHeader>
-              <CardContent>
+           <Card className="rounded-xl overflow-hidden shadow-sm">
+              <CardHeader className="bg-slate-50 py-3 px-4 border-b"><CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><BarChart className="w-4 h-4 text-primary" /> Manhattan Chart (Runs Per Over)</CardTitle></CardHeader>
+              <CardContent className="pt-6">
                  <ChartContainer config={chartConfig} className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                        <ReBarChart data={chartData}>
