@@ -4,6 +4,7 @@
  * Updated for prototype efficiency:
  * - Allows any authenticated user to perform CRUD on core entities.
  * - This ensures Umpires can manage records without complex ownership checks.
+ * - Added collectionGroup rules for deliveryRecords to support player stats.
  */
 
 rules_version = '2';
@@ -47,6 +48,12 @@ service cloud.firestore {
           allow create, update, delete: if isSignedIn();
         }
       }
+    }
+
+    // --- Collection Group Rules ---
+    // Needed for aggregate stats across all matches/innings
+    match /{path=**}/deliveryRecords/{deliveryRecordId} {
+      allow get, list: if true;
     }
   }
 }
