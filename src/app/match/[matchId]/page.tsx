@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -16,6 +16,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart as ReBarChart, Bar, ReferenceDot } from "recharts";
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
@@ -134,25 +136,76 @@ export default function MatchScoreboardPage() {
   );
   const { data: inn2Deliveries } = useCollection(inn2DeliveriesQuery);
 
-  // Auto result logic for editor
-  useEffect(() => {
-    if (!match || !allTeams) return;
-    const team1Name = getTeamName(match.team1Id);
-    const team2Name = getTeamName(match.team2Id);
-    
-    let result = '';
-    if (editForm.status === 'live') {
-        result = "Match in Progress";
-    } else {
-        if (editForm.inn1Score > editForm.inn2Score) result = `${team1Name} won by ${editForm.inn1Score - editForm.inn2Score} runs`;
-        else if (editForm.inn2Score > editForm.inn1Score) result = `${team2Name} won by ${10 - editForm.inn2Wickets} wickets`;
-        else if (editForm.inn1Score === editForm.inn2Score && editForm.inn1Score > 0) result = "Match Tied";
-        else result = match.resultDescription || "Match in Progress";
-    }
-    
-    setEditForm(prev => ({ ...prev, resultDescription: result }));
-  }, [editForm.inn1Score, editForm.inn2Score, editForm.inn1Wickets, editForm.inn2Wickets, editForm.status]);
+  // Stats Logic
+  const getInningStats = (deliveries: any[]) => {
+    if (!deliveries) return { batting: [], bowling: [] };
+    const bat: Record<string, any> = {};
+    const bowl: Record<string, any> = {};
 
+    deliveries.forEach(d => {
+      // Batting
+      if (!bat[d.strikerPlayerId]) bat[d.strikerPlayerId] = { id: d.strikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
+      if (!bat[d.nonStrikerPlayerId]) bat[d.nonStrikerPlayerId] = { id: d.nonStrikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
+      
+      if (d.extraType !== 'wide') {
+        bat[d.strikerPlayerId].balls += 1;
+        bat[d.strikerPlayerId].runs += d.runsScored;
+        if (d.runsScored === 4) bat[d.strikerPlayerId].fours += 1;
+        if (d.runsScored === 6) bat[d.strikerPlayerId].sixes += 1;
+      }
+
+      if (d.isWicket) {
+        bat[d.batsmanOutPlayerId || d.strikerPlayerId].out = true;
+        bat[d.batsmanOutPlayerId || d.strikerPlayerId].dismissal = d.dismissalType || 'out';
+      }
+
+      // Bowling
+      if (!bowl[d.bowlerPlayerId]) bowl[d.bowlerPlayerId] = { id: d.bowlerPlayerId, overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
+      bowl[d.bowlerPlayerId].runs += d.totalRunsOnDelivery;
+      if (d.isWicket && d.dismissalType !== 'runout') bowl[d.bowlerPlayerId].wickets += 1;
+      if (d.extraType !== 'wide' && d.extraType !== 'noball') bowl[d.bowlerPlayerId].balls += 1;
+    });
+
+    return {
+      batting: Object.values(bat),
+      bowling: Object.values(bowl).map(b => ({ ...b, oversDisplay: `${Math.floor(b.balls / 6)}.${b.balls % 6}` }))
+    };
+  };
+
+  const chartData = useMemo(() => {
+    const data: any[] = [];
+    const maxOvers = match?.totalOvers || 20;
+    
+    let inn1Cum = 0;
+    let inn2Cum = 0;
+
+    for (let i = 0; i <= maxOvers; i++) {
+      const inn1Over = inn1Deliveries?.filter(d => d.overNumber === i);
+      const inn2Over = inn2Deliveries?.filter(d => d.overNumber === i);
+
+      const inn1Runs = inn1Over?.reduce((acc, curr) => acc + curr.totalRunsOnDelivery, 0) || 0;
+      const inn2Runs = inn2Over?.reduce((acc, curr) => acc + curr.totalRunsOnDelivery, 0) || 0;
+
+      const inn1Wkts = inn1Over?.filter(d => d.isWicket).length || 0;
+      const inn2Wkts = inn2Over?.filter(d => d.isWicket).length || 0;
+
+      inn1Cum += inn1Runs;
+      inn2Cum += inn2Runs;
+
+      data.push({
+        over: i,
+        inn1Cum: i === 0 ? 0 : (inn1Deliveries?.some(d => d.overNumber >= i) ? inn1Cum : null),
+        inn2Cum: i === 0 ? 0 : (inn2Deliveries?.some(d => d.overNumber >= i) ? inn2Cum : null),
+        inn1Runs,
+        inn2Runs,
+        inn1Wkts: inn1Wkts > 0 ? inn1Runs : null,
+        inn2Wkts: inn2Wkts > 0 ? inn2Runs : null,
+      });
+    }
+    return data;
+  }, [inn1Deliveries, inn2Deliveries, match]);
+
+  // Scoring Logic
   const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none') => {
     if (!match || !activeInningData || !isUmpire) return;
 
@@ -395,6 +448,16 @@ export default function MatchScoreboardPage() {
     }
   };
 
+  const handleSwapBatsmen = () => {
+    if (!match || !activeInningData || !isUmpire) return;
+    const currentInningId = `inning_${match.currentInningNumber}`;
+    updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), {
+        strikerPlayerId: activeInningData.nonStrikerPlayerId,
+        nonStrikerPlayerId: activeInningData.strikerPlayerId
+    });
+    toast({ title: "Batsmen Swapped" });
+  };
+
   if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING...</div>;
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
 
@@ -428,8 +491,8 @@ export default function MatchScoreboardPage() {
       <div className="sticky top-16 z-50 bg-white border-b shadow-sm overflow-x-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="flex w-full justify-start rounded-none bg-transparent h-auto p-0 scrollbar-hide">
-            {['Info', 'Live', 'Scorecard', 'Overs'].map(t => (
-              <TabsTrigger key={t} value={t.toLowerCase()} className="flex-1 px-4 py-4 text-xs font-black rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:text-secondary uppercase tracking-widest">
+            {['Info', 'Live', 'Scorecard', 'Overs', 'Charts'].map(t => (
+              <TabsTrigger key={t} value={t.toLowerCase()} className="flex-1 px-4 py-4 text-xs font-black rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:text-secondary uppercase tracking-widest whitespace-nowrap">
                 {t}
               </TabsTrigger>
             ))}
@@ -441,7 +504,7 @@ export default function MatchScoreboardPage() {
         <TabsContent value="info" className="space-y-4 pt-4">
           <Card>
             <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest">Match Details</CardTitle></CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1"><Calendar className="w-3 h-3" /> Date</p>
@@ -459,6 +522,25 @@ export default function MatchScoreboardPage() {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1"><Trophy className="w-3 h-3" /> Toss</p>
                   <p className="text-xs font-medium">{getTeamName(match.tossWinnerTeamId)} won & chose to {match.tossDecision}</p>
                 </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t">
+                 <div>
+                    <h3 className="font-black text-xs uppercase text-primary mb-3">{getTeamName(match.team1Id)} Squad</h3>
+                    <div className="flex flex-wrap gap-2">
+                       {match.team1SquadPlayerIds.map(pid => (
+                          <Badge key={pid} variant="outline" className="text-[9px] font-bold">{getPlayerName(pid)}</Badge>
+                       ))}
+                    </div>
+                 </div>
+                 <div>
+                    <h3 className="font-black text-xs uppercase text-primary mb-3">{getTeamName(match.team2Id)} Squad</h3>
+                    <div className="flex flex-wrap gap-2">
+                       {match.team2SquadPlayerIds.map(pid => (
+                          <Badge key={pid} variant="outline" className="text-[9px] font-bold">{getPlayerName(pid)}</Badge>
+                       ))}
+                    </div>
+                 </div>
               </div>
             </CardContent>
           </Card>
@@ -519,6 +601,7 @@ export default function MatchScoreboardPage() {
           {[1, 2].map(innNum => {
             const inning = innNum === 1 ? inn1 : inn2;
             if (!inning) return null;
+            const stats = getInningStats(innNum === 1 ? inn1Deliveries : inn2Deliveries);
             return (
               <Card key={innNum} className="overflow-hidden">
                 <div className="bg-slate-50 p-4 border-b flex justify-between items-center">
@@ -536,10 +619,44 @@ export default function MatchScoreboardPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                       {/* Simplified scorecard for prototype - normally you'd map playerStats here */}
-                       <TableRow><TableCell className="text-xs font-bold italic text-slate-400" colSpan={4}>Full scorecard mapping available in production analytics mode.</TableCell></TableRow>
+                       {stats.batting.map(b => (
+                         <TableRow key={b.id}>
+                           <TableCell className="text-xs font-bold">
+                              {getPlayerName(b.id)}
+                              {b.out && <span className="block text-[8px] text-slate-400 uppercase font-bold">({b.dismissal})</span>}
+                           </TableCell>
+                           <TableCell className="text-right text-xs font-black">{b.runs}</TableCell>
+                           <TableCell className="text-right text-xs text-slate-500 font-bold">{b.balls}</TableCell>
+                           <TableCell className="text-right text-xs text-slate-400">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
+                         </TableRow>
+                       ))}
+                       {stats.batting.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-[10px] font-bold text-slate-400 uppercase">Waiting to Bat</TableCell></TableRow>}
                     </TableBody>
                   </Table>
+
+                  <div className="border-t">
+                    <Table>
+                      <TableHeader className="bg-slate-50/50">
+                        <TableRow>
+                          <TableHead className="text-[10px] font-black uppercase">Bowler</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase">O</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase">R</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase">W</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                         {stats.bowling.map(b => (
+                           <TableRow key={b.id}>
+                             <TableCell className="text-xs font-bold">{getPlayerName(b.id)}</TableCell>
+                             <TableCell className="text-right text-xs font-bold">{b.oversDisplay}</TableCell>
+                             <TableCell className="text-right text-xs font-black">{b.runs}</TableCell>
+                             <TableCell className="text-right text-xs font-black text-primary">{b.wickets}</TableCell>
+                           </TableRow>
+                         ))}
+                         {stats.bowling.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-8 text-[10px] font-bold text-slate-400 uppercase">Waiting to Bowl</TableCell></TableRow>}
+                      </TableBody>
+                    </Table>
+                  </div>
                 </CardContent>
               </Card>
             );
@@ -584,6 +701,46 @@ export default function MatchScoreboardPage() {
                  </div>
               </div>
            )}
+        </TabsContent>
+
+        <TabsContent value="charts" className="pt-4 space-y-6">
+           <Card>
+              <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Worm Graph (Cumulative Progress)</CardTitle></CardHeader>
+              <CardContent>
+                 <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <LineChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="over" label={{ value: 'Overs', position: 'insideBottom', offset: -5 }} />
+                          <YAxis label={{ value: 'Runs', angle: -90, position: 'insideLeft' }} />
+                          <Tooltip content={<ChartTooltipContent />} />
+                          <Legend />
+                          <Line type="monotone" dataKey="inn1Cum" name={getTeamName(match.team1Id)} stroke="hsl(var(--primary))" strokeWidth={3} dot={false} connectNulls />
+                          <Line type="monotone" dataKey="inn2Cum" name={getTeamName(match.team2Id)} stroke="hsl(var(--secondary))" strokeWidth={3} dot={false} connectNulls />
+                       </LineChart>
+                    </ResponsiveContainer>
+                 </div>
+              </CardContent>
+           </Card>
+
+           <Card>
+              <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><BarChart className="w-4 h-4 text-primary" /> Manhattan Chart (Runs Per Over)</CardTitle></CardHeader>
+              <CardContent>
+                 <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <ReBarChart data={chartData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="over" />
+                          <YAxis />
+                          <Tooltip content={<ChartTooltipContent />} />
+                          <Legend />
+                          <Bar dataKey="inn1Runs" name={getTeamName(match.team1Id)} fill="hsl(var(--primary))" />
+                          <Bar dataKey="inn2Runs" name={getTeamName(match.team2Id)} fill="hsl(var(--secondary))" />
+                       </ReBarChart>
+                    </ResponsiveContainer>
+                 </div>
+              </CardContent>
+           </Card>
         </TabsContent>
       </Tabs>
 
@@ -720,14 +877,4 @@ export default function MatchScoreboardPage() {
       </Dialog>
     </div>
   );
-
-  function handleSwapBatsmen() {
-    if (!match || !activeInningData || !isUmpire) return;
-    const currentInningId = `inning_${match.currentInningNumber}`;
-    updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), {
-        strikerPlayerId: activeInningData.nonStrikerPlayerId,
-        nonStrikerPlayerId: activeInningData.strikerPlayerId
-    });
-    toast({ title: "Batsmen Swapped" });
-  }
 }
