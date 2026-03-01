@@ -93,7 +93,17 @@ export function useCollection<T = any>(
         } else {
           // For queries and collectionGroups, attempt to extract the base path
           const internalQuery = (memoizedTargetRefOrQuery as unknown as InternalQuery)._query;
-          path = internalQuery.path.canonicalString() || '[Collection Group Query]';
+          const canonical = internalQuery.path.canonicalString();
+          
+          // If canonical is empty, it's likely a collectionGroup query
+          if (!canonical) {
+            // Attempt to get the collectionId from internal properties if available
+            path = (memoizedTargetRefOrQuery as any)._query?.collectionId 
+              ? `[Collection Group: ${(memoizedTargetRefOrQuery as any)._query.collectionId}]`
+              : '[Collection Group Query]';
+          } else {
+            path = canonical;
+          }
         }
 
         const contextualError = new FirestorePermissionError({

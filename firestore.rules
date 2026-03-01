@@ -1,59 +1,51 @@
 /**
  * CricMates - ScoresTracker Firestore Security Rules
  *
- * Updated for prototype efficiency and Collection Group support:
- * - Explicitly allows collectionGroup queries for 'deliveryRecords' at the top level.
- * - Allows any authenticated user to perform CRUD on core entities.
- * - This ensures Umpires can manage records without complex ownership checks.
+ * Updated for robust Collection Group support:
+ * - Top-level recursive wildcard allows collectionGroup queries for 'deliveryRecords'.
+ * - Simplified auth checks using standard request.auth patterns.
+ * - Allows any user to read match and player data.
  */
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Global Helper Functions ---
-
-    function isSignedIn() {
-      return request.auth != null;
-    }
-
-    // --- Collection Group Rules ---
-    // These MUST be defined with a recursive wildcard {path=**} to support collectionGroup() queries.
-    // This allows the player profile statistics engine to scan all match deliveries.
-    match /{path=**}/deliveryRecords/{deliveryRecordId} {
+    // --- Collection Group Rules (Must be top-level for broad support) ---
+    match /{path=**}/deliveryRecords/{document=**} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if request.auth != null;
     }
 
     // --- Standard Collection Rules ---
 
     match /umpires/{umpireId} {
-      allow get: if isSignedIn();
-      allow list: if false;
-      allow create, update, delete: if false;
+      allow get: if request.auth != null;
+      allow list, create, update, delete: if false;
     }
 
     match /teams/{teamId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if request.auth != null;
     }
 
     match /players/{playerId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if request.auth != null;
     }
 
     match /matches/{matchId} {
       allow read: if true;
-      allow write: if isSignedIn();
+      allow write: if request.auth != null;
 
       match /innings/{inningId} {
         allow read: if true;
-        allow write: if isSignedIn();
+        allow write: if request.auth != null;
 
+        // Note: individual deliveryRecords are already covered by the group rule above.
         match /deliveryRecords/{deliveryRecordId} {
           allow read: if true;
-          allow write: if isSignedIn();
+          allow write: if request.auth != null;
         }
       }
     }
