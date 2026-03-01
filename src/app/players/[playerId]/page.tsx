@@ -81,7 +81,7 @@ export default function PlayerProfilePage() {
     updateDocumentNonBlocking(doc(db, 'players', playerId), {
       name: editForm.name,
       role: editForm.role,
-      battingStyle: editForm.editBattingStyle || editForm.battingStyle,
+      battingStyle: editForm.battingStyle,
       isWicketKeeper: editForm.isWicketKeeper
     });
     setIsEditOpen(false);
@@ -94,41 +94,43 @@ export default function PlayerProfilePage() {
   return (
     <div className="max-w-4xl mx-auto pb-24 px-0 bg-white min-h-screen">
       {/* Header Section */}
-      <div className="bg-[#009270] text-white p-4 pt-6">
+      <div className="bg-[#009270] text-white p-4 pt-8">
         <div className="flex items-center gap-4 mb-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white hover:bg-white/10">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white hover:bg-white/10 shrink-0">
             <ArrowLeft className="w-6 h-6"/>
           </Button>
           <div className="flex-1">
-            <h1 className="text-2xl font-bold tracking-tight">{player.name}</h1>
-            <div className="flex items-center gap-2 mt-1">
+             <div className="flex items-center gap-2">
+                <span className="font-bold text-xl tracking-tight">{player.name}</span>
+                {isUmpire && (
+                  <Button variant="ghost" size="icon" onClick={() => setIsEditOpen(true)} className="text-white hover:bg-white/10 rounded-full h-8 w-8">
+                    <Edit2 className="w-4 h-4" />
+                  </Button>
+                )}
+             </div>
+            <div className="flex items-center gap-2 mt-0.5">
                <Flag className="w-3 h-3 text-white/70" />
-               <span className="text-xs font-medium text-white/70">Member Player</span>
+               <span className="text-xs font-medium text-white/70">League Player</span>
             </div>
           </div>
-          {isUmpire && (
-            <Button variant="ghost" size="icon" onClick={() => setIsEditOpen(true)} className="text-white hover:bg-white/10 rounded-full">
-              <Edit2 className="w-5 h-5" />
-            </Button>
-          )}
         </div>
         
-        <div className="flex items-end gap-4">
-           <Avatar className="w-24 h-24 border-4 border-white rounded-lg shadow-lg">
-              <AvatarImage src={player.imageUrl} />
-              <AvatarFallback className="text-3xl font-black bg-slate-100 text-slate-400">{player.name[0]}</AvatarFallback>
+        <div className="flex items-end gap-6 pb-2">
+           <Avatar className="w-24 h-24 border-2 border-white/20 rounded-xl shadow-lg shrink-0">
+              <AvatarImage src={player.imageUrl} className="object-cover" />
+              <AvatarFallback className="text-3xl font-black bg-white/10 text-white/50">{player.name[0]}</AvatarFallback>
            </Avatar>
         </div>
       </div>
 
       <Tabs defaultValue="info" className="w-full">
-        <div className="bg-[#009270] px-2">
-          <TabsList className="bg-transparent h-12 flex justify-start gap-4 p-0 w-full overflow-x-auto scrollbar-hide">
+        <div className="bg-[#009270] px-2 border-t border-white/10 sticky top-16 z-40">
+          <TabsList className="bg-transparent h-12 flex justify-start gap-2 p-0 w-full overflow-x-auto scrollbar-hide">
             {['Info', 'Batting', 'Bowling', 'Career'].map((tab) => (
               <TabsTrigger 
                 key={tab} 
                 value={tab.toLowerCase()} 
-                className="text-white/80 font-bold data-[state=active]:text-white data-[state=active]:bg-transparent border-b-4 border-transparent data-[state=active]:border-white rounded-none px-4 h-full uppercase text-xs"
+                className="text-white/60 font-bold data-[state=active]:text-white data-[state=active]:bg-transparent border-b-4 border-transparent data-[state=active]:border-white rounded-none px-4 h-full uppercase text-[11px] tracking-wider transition-all"
               >
                 {tab}
               </TabsTrigger>
@@ -136,23 +138,23 @@ export default function PlayerProfilePage() {
           </TabsList>
         </div>
 
-        <TabsContent value="info" className="p-4 space-y-6">
+        <TabsContent value="info" className="p-4 space-y-6 animate-in fade-in duration-300">
           <section>
-            <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider mb-3 px-1">Personal Information</h3>
-            <div className="border rounded-lg overflow-hidden">
+            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Personal Information</h3>
+            <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
                <Table>
                  <TableBody>
-                    <TableRow className="hover:bg-transparent">
-                      <TableCell className="text-xs font-medium text-slate-400 py-3">Born</TableCell>
-                      <TableCell className="text-xs font-bold text-slate-900">Jan 01, 1995 (29 years)</TableCell>
+                    <TableRow className="hover:bg-transparent border-slate-100">
+                      <TableCell className="text-[11px] font-medium text-slate-400 py-3 w-1/3">Role</TableCell>
+                      <TableCell className="text-[11px] font-bold text-slate-900">{player.role}</TableCell>
                     </TableRow>
-                    <TableRow className="hover:bg-transparent">
-                      <TableCell className="text-xs font-medium text-slate-400 py-3">Role</TableCell>
-                      <TableCell className="text-xs font-bold text-slate-900">{player.role}</TableCell>
+                    <TableRow className="hover:bg-transparent border-slate-100">
+                      <TableCell className="text-[11px] font-medium text-slate-400 py-3">Batting Style</TableCell>
+                      <TableCell className="text-[11px] font-bold text-slate-900">{player.battingStyle || 'Right Handed Bat'}</TableCell>
                     </TableRow>
                     <TableRow className="hover:bg-transparent border-b-0">
-                      <TableCell className="text-xs font-medium text-slate-400 py-3">Batting Style</TableCell>
-                      <TableCell className="text-xs font-bold text-slate-900">{player.battingStyle || 'Right Handed Bat'}</TableCell>
+                      <TableCell className="text-[11px] font-medium text-slate-400 py-3">Matches Played</TableCell>
+                      <TableCell className="text-[11px] font-bold text-slate-900">{player.matchesPlayed || 0}</TableCell>
                     </TableRow>
                  </TableBody>
                </Table>
@@ -160,30 +162,30 @@ export default function PlayerProfilePage() {
           </section>
 
           <section>
-            <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider mb-3 px-1">Recent Form</h3>
-            <div className="space-y-3">
+            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Recent Form</h3>
+            <div className="space-y-2">
               {recentMatches.slice(0, 5).map(match => (
                  <Link key={match.id} href={`/match/${match.id}`}>
-                    <div className="flex items-center justify-between p-4 border rounded-lg hover:bg-slate-50 transition-colors">
+                    <div className="flex items-center justify-between p-4 border rounded-xl hover:bg-slate-50 transition-all shadow-sm bg-white">
                        <div className="space-y-1">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{new Date(match.matchDate).toLocaleDateString()}</p>
-                          <p className="font-bold text-sm">vs {match.team1Id === player.teamId ? (allTeams?.find(t => t.id === match.team2Id)?.name || 'Opponent') : (allTeams?.find(t => t.id === match.team1Id)?.name || 'Opponent')}</p>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                          <p className="font-bold text-sm text-slate-900">vs {match.team1Id === player.teamId ? (allTeams?.find(t => t.id === match.team2Id)?.name || 'Opponent') : (allTeams?.find(t => t.id === match.team1Id)?.name || 'Opponent')}</p>
                        </div>
                        <ChevronRight className="w-4 h-4 text-slate-300" />
                     </div>
                  </Link>
               ))}
               {recentMatches.length === 0 && (
-                 <div className="text-center py-8 border-2 border-dashed rounded-lg bg-slate-50 text-slate-400 text-xs font-medium uppercase">No matches recorded</div>
+                 <div className="text-center py-10 border-2 border-dashed rounded-xl bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest">No matches recorded in the vault</div>
               )}
             </div>
           </section>
 
           <section>
-            <h3 className="text-xs font-black uppercase text-slate-900 tracking-wider mb-3 px-1">Teams</h3>
+            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Franchises</h3>
             <div className="flex flex-wrap gap-2 px-1">
                {representedTeams.map(t => (
-                 <Badge key={t.id} variant="outline" className="px-3 py-1 text-xs font-bold border-slate-200">
+                 <Badge key={t.id} variant="outline" className="px-3 py-1.5 text-[10px] font-bold border-slate-200 bg-white shadow-sm">
                     {t.name}
                  </Badge>
                ))}
@@ -191,59 +193,85 @@ export default function PlayerProfilePage() {
           </section>
         </TabsContent>
 
-        <TabsContent value="batting" className="p-4">
-           <div className="border rounded-lg overflow-hidden shadow-sm">
-              <Table>
-                 <TableHeader className="bg-slate-50">
-                    <TableRow>
-                      <TableHead className="text-[10px] font-black uppercase">Stat</TableHead>
-                      <TableHead className="text-right text-[10px] font-black uppercase">Value</TableHead>
-                    </TableRow>
-                 </TableHeader>
-                 <TableBody>
-                    <TableRow><TableCell className="text-xs font-bold">Matches</TableCell><TableCell className="text-right text-xs font-black">{player.matchesPlayed}</TableCell></TableRow>
-                    <TableRow><TableCell className="text-xs font-bold">Innings</TableCell><TableCell className="text-right text-xs font-black">{player.matchesPlayed}</TableCell></TableRow>
-                    <TableRow><TableCell className="text-xs font-bold">Runs</TableCell><TableCell className="text-right text-xs font-black text-primary">{player.runsScored}</TableCell></TableRow>
-                    <TableRow><TableCell className="text-xs font-bold">Highest Score</TableCell><TableCell className="text-right text-xs font-black">{player.highestScore}</TableCell></TableRow>
-                    <TableRow><TableCell className="text-xs font-bold">Average</TableCell><TableCell className="text-right text-xs font-black">{player.matchesPlayed > 0 ? (player.runsScored / player.matchesPlayed).toFixed(2) : '0.00'}</TableCell></TableRow>
-                 </TableBody>
-              </Table>
+        <TabsContent value="batting" className="p-0 animate-in fade-in duration-300">
+           <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider">
+              <span>Statistic</span>
+              <span>League</span>
            </div>
+           <Table>
+              <TableBody>
+                 {[
+                   { label: 'Matches', value: player.matchesPlayed || 0 },
+                   { label: 'Innings', value: player.matchesPlayed || 0 },
+                   { label: 'Runs', value: player.runsScored || 0 },
+                   { label: 'Balls', value: '---' },
+                   { label: 'Highest', value: player.highestScore || 0 },
+                   { label: 'Average', value: player.matchesPlayed > 0 ? (player.runsScored / player.matchesPlayed).toFixed(2) : '0.00' },
+                   { label: 'SR', value: '---' },
+                   { label: 'Not Out', value: '---' },
+                   { label: 'Fours', value: '---' },
+                   { label: 'Sixes', value: '---' },
+                   { label: 'Ducks', value: '---' },
+                   { label: '30s', value: '---' },
+                   { label: '50s', value: '---' },
+                   { label: '100s', value: '---' },
+                 ].map((row, idx) => (
+                    <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]'}>
+                       <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4">{row.label}</TableCell>
+                       <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                    </TableRow>
+                 ))}
+              </TableBody>
+           </Table>
         </TabsContent>
 
-        <TabsContent value="bowling" className="p-4">
-           <div className="border rounded-lg overflow-hidden shadow-sm">
-              <Table>
-                 <TableHeader className="bg-slate-50">
-                    <TableRow>
-                      <TableHead className="text-[10px] font-black uppercase">Stat</TableHead>
-                      <TableHead className="text-right text-[10px] font-black uppercase">Value</TableHead>
-                    </TableRow>
-                 </TableHeader>
-                 <TableBody>
-                    <TableRow><TableCell className="text-xs font-bold">Matches</TableCell><TableCell className="text-right text-xs font-black">{player.matchesPlayed}</TableCell></TableRow>
-                    <TableRow><TableCell className="text-xs font-bold">Wickets</TableCell><TableCell className="text-right text-xs font-black text-primary">{player.wicketsTaken}</TableCell></TableRow>
-                    <TableRow><TableCell className="text-xs font-bold">Best Bowling</TableCell><TableCell className="text-right text-xs font-black">{player.bestBowlingFigures}</TableCell></TableRow>
-                    <TableRow><TableCell className="text-xs font-bold">Average</TableCell><TableCell className="text-right text-xs font-black">{player.wicketsTaken > 0 ? (15).toFixed(2) : '0.00'}</TableCell></TableRow>
-                 </TableBody>
-              </Table>
+        <TabsContent value="bowling" className="p-0 animate-in fade-in duration-300">
+           <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider">
+              <span>Statistic</span>
+              <span>League</span>
            </div>
+           <Table>
+              <TableBody>
+                 {[
+                   { label: 'Matches', value: player.matchesPlayed || 0 },
+                   { label: 'Innings', value: player.matchesPlayed || 0 },
+                   { label: 'Balls', value: '---' },
+                   { label: 'Runs', value: '---' },
+                   { label: 'Wickets', value: player.wicketsTaken || 0 },
+                   { label: 'BBI', value: player.bestBowlingFigures || '0/0' },
+                   { label: 'BBM', value: player.bestBowlingFigures || '0/0' },
+                   { label: 'Econ', value: '---' },
+                   { label: 'Avg', value: '---' },
+                   { label: 'SR', value: '---' },
+                   { label: '5w', value: '---' },
+                   { label: '10w', value: '---' },
+                 ].map((row, idx) => (
+                    <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]'}>
+                       <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4">{row.label}</TableCell>
+                       <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                    </TableRow>
+                 ))}
+              </TableBody>
+           </Table>
         </TabsContent>
 
-        <TabsContent value="career" className="p-4">
-           <Card className="bg-slate-900 text-white rounded-xl overflow-hidden border-none">
-              <CardContent className="p-8 text-center">
-                 <Trophy className="w-12 h-12 text-primary mx-auto mb-4 opacity-50" />
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Lifetime Cricket Value Points</p>
-                 <h2 className="text-6xl font-black text-primary">{player.careerCVP}</h2>
-                 <div className="grid grid-cols-2 gap-4 mt-8 pt-8 border-t border-white/10">
-                    <div>
-                       <p className="text-[10px] font-black text-slate-400 uppercase">Season Rank</p>
-                       <p className="text-xl font-black">#12</p>
+        <TabsContent value="career" className="p-4 animate-in fade-in duration-300">
+           <Card className="bg-slate-900 text-white rounded-2xl overflow-hidden border-none shadow-xl transform hover:scale-[1.01] transition-transform">
+              <CardContent className="p-10 text-center relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Trophy className="w-32 h-32" />
+                 </div>
+                 <Trophy className="w-14 h-14 text-[#fbbf24] mx-auto mb-4" />
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Cumulative Cricket Value Points</p>
+                 <h2 className="text-7xl font-black text-white">{player.careerCVP}</h2>
+                 <div className="grid grid-cols-2 gap-8 mt-10 pt-10 border-t border-white/10">
+                    <div className="text-left">
+                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Global Rank</p>
+                       <p className="text-2xl font-black text-[#009270]">#12</p>
                     </div>
-                    <div>
-                       <p className="text-[10px] font-black text-slate-400 uppercase">Consistency</p>
-                       <p className="text-xl font-black">88%</p>
+                    <div className="text-right">
+                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">League Impact</p>
+                       <p className="text-2xl font-black text-[#009270]">Elite</p>
                     </div>
                  </div>
               </CardContent>
@@ -253,27 +281,27 @@ export default function PlayerProfilePage() {
 
       {/* Edit Dialog for Umpires */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-xl">
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-[#009270]">
           <DialogHeader>
-            <DialogTitle className="font-black uppercase tracking-widest flex items-center gap-2">
-               <ShieldCheck className="w-5 h-5 text-primary" /> Edit Player Profile
+            <DialogTitle className="font-black uppercase tracking-widest flex items-center gap-2 text-[#009270]">
+               <ShieldCheck className="w-5 h-5" /> Edit Professional Profile
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-1">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Full Name</Label>
+          <div className="space-y-5 py-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Full Name</Label>
               <Input 
                 value={editForm.name} 
                 onChange={(e) => setEditForm({...editForm, name: e.target.value})} 
                 placeholder="Player Name" 
-                className="font-bold h-11"
+                className="font-bold h-12 rounded-xl focus:ring-[#009270]"
               />
             </div>
             
-            <div className="space-y-1">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Primary Role</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Primary Role</Label>
               <Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}>
-                <SelectTrigger className="font-bold h-11"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="font-bold h-12 rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Batsman">Batsman</SelectItem>
                   <SelectItem value="Bowler">Bowler</SelectItem>
@@ -283,10 +311,10 @@ export default function PlayerProfilePage() {
               </Select>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Batting Style</Label>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Batting Style</Label>
               <Select value={editForm.battingStyle} onValueChange={(v) => setEditForm({...editForm, battingStyle: v})}>
-                <SelectTrigger className="font-bold h-11"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="font-bold h-12 rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Right Handed Bat">Right Handed Bat</SelectItem>
                   <SelectItem value="Left Handed Bat">Left Handed Bat</SelectItem>
@@ -294,20 +322,20 @@ export default function PlayerProfilePage() {
               </Select>
             </div>
 
-            <div className="flex items-center space-x-2 pt-2">
+            <div className="flex items-center space-x-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
                <input 
                   type="checkbox" 
                   id="wk-check" 
                   checked={editForm.isWicketKeeper} 
                   onChange={(e) => setEditForm({...editForm, isWicketKeeper: e.target.checked})}
-                  className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                  className="w-5 h-5 rounded border-slate-300 text-[#009270] focus:ring-[#009270]"
                />
-               <Label htmlFor="wk-check" className="text-xs font-bold text-slate-700">Is Wicket Keeper</Label>
+               <Label htmlFor="wk-check" className="text-xs font-bold text-slate-700 cursor-pointer">Active Wicket Keeper</Label>
             </div>
           </div>
-          <DialogFooter>
-            <Button onClick={handleUpdateProfile} className="w-full h-12 font-black uppercase tracking-widest shadow-lg">
-               <Save className="w-4 h-4 mr-2" /> Save Profile
+          <DialogFooter className="pt-2">
+            <Button onClick={handleUpdateProfile} className="w-full h-14 font-black uppercase tracking-widest shadow-lg bg-[#009270] hover:bg-[#007a5d] rounded-xl text-lg">
+               <Save className="w-5 h-5 mr-2" /> Update Registry
             </Button>
           </DialogFooter>
         </DialogContent>
