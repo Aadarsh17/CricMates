@@ -9,7 +9,7 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -280,6 +280,28 @@ export default function MatchScoreboardPage() {
     inn2Runs: { label: getTeamName(match?.team2Id || ''), color: "hsl(var(--secondary))" },
   } satisfies ChartConfig;
 
+  const calculateResult = (i1?: any, i2?: any) => {
+    const data1 = i1 || inn1;
+    const data2 = i2 || inn2;
+    if (!data1 || !data2) return "Match in Progress";
+    
+    const score1 = data1.score || 0;
+    const score2 = data2.score || 0;
+    const wickets2 = data2.wickets || 0;
+    
+    const team1Name = getTeamName(data1.battingTeamId);
+    const team2Name = getTeamName(data2.battingTeamId);
+
+    if (score1 > score2) {
+      return `${team1Name} won by ${score1 - score2} runs`;
+    } else if (score2 > score1) {
+      const wicketsLeft = 10 - wickets2;
+      return `${team2Name} won by ${wicketsLeft} wickets`;
+    } else {
+      return "Match Tied";
+    }
+  };
+
   const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none') => {
     if (!match || !activeInningData || !isUmpire) return;
 
@@ -516,9 +538,13 @@ export default function MatchScoreboardPage() {
 
   const handleEndMatch = async () => {
     if (!match || !isUmpire) return;
-    if (confirm("End match and finalize result?")) {
-        updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed' });
-        toast({ title: "Match Completed" });
+    const resStr = calculateResult();
+    if (confirm(`End match and finalize result: "${resStr}"?`)) {
+        updateDocumentNonBlocking(doc(db, 'matches', matchId), { 
+          status: 'completed',
+          resultDescription: resStr
+        });
+        toast({ title: "Match Completed", description: resStr });
     }
   };
 
@@ -977,9 +1003,12 @@ export default function MatchScoreboardPage() {
                 </div>
               </div>
             ))}
-            <div className="space-y-1">
-              <Label className="text-[10px] font-black">Calculated Result Description</Label>
-              <Input value={editForm.resultDescription} onChange={e => setEditForm({...editForm, resultDescription: e.target.value})} className="font-bold text-primary" />
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black">Result Description</Label>
+              <div className="flex gap-2">
+                <Input value={editForm.resultDescription} onChange={e => setEditForm({...editForm, resultDescription: e.target.value})} className="font-bold text-primary" />
+                <Button variant="outline" size="icon" onClick={() => setEditForm({...editForm, resultDescription: calculateResult({score: editForm.inn1Score, battingTeamId: inn1?.battingTeamId}, {score: editForm.inn2Score, battingTeamId: inn2?.battingTeamId, wickets: editForm.inn2Wickets})})} title="Recalculate Result"><RefreshCw className="w-4 h-4" /></Button>
+              </div>
             </div>
           </div>
           <DialogFooter><Button onClick={handleUpdateFullMatch} className="w-full h-12 font-black uppercase tracking-widest"><Save className="w-4 h-4 mr-2" /> Save Corrections</Button></DialogFooter>
@@ -1054,4 +1083,3 @@ export default function MatchScoreboardPage() {
     </div>
   );
 }
-
