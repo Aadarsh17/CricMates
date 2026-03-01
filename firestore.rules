@@ -1,10 +1,10 @@
 /**
  * CricMates - ScoresTracker Firestore Security Rules
  *
- * Updated for prototype efficiency:
+ * Updated for prototype efficiency and Collection Group support:
+ * - Explicitly allows collectionGroup queries for 'deliveryRecords' at the top level.
  * - Allows any authenticated user to perform CRUD on core entities.
  * - This ensures Umpires can manage records without complex ownership checks.
- * - Added collectionGroup rules for deliveryRecords to support player stats.
  */
 
 rules_version = '2';
@@ -17,7 +17,15 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // --- Collection Rules ---
+    // --- Collection Group Rules ---
+    // These MUST be defined with a recursive wildcard {path=**} to support collectionGroup() queries.
+    // This allows the player profile statistics engine to scan all match deliveries.
+    match /{path=**}/deliveryRecords/{deliveryRecordId} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+
+    // --- Standard Collection Rules ---
 
     match /umpires/{umpireId} {
       allow get: if isSignedIn();
@@ -26,34 +34,28 @@ service cloud.firestore {
     }
 
     match /teams/{teamId} {
-      allow get, list: if true;
-      allow create, update, delete: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     match /players/{playerId} {
-      allow get, list: if true;
-      allow create, update, delete: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
     }
 
     match /matches/{matchId} {
-      allow get, list: if true;
-      allow create, update, delete: if isSignedIn();
+      allow read: if true;
+      allow write: if isSignedIn();
 
       match /innings/{inningId} {
-        allow get, list: if true;
-        allow create, update, delete: if isSignedIn();
+        allow read: if true;
+        allow write: if isSignedIn();
 
         match /deliveryRecords/{deliveryRecordId} {
-          allow get, list: if true;
-          allow create, update, delete: if isSignedIn();
+          allow read: if true;
+          allow write: if isSignedIn();
         }
       }
-    }
-
-    // --- Collection Group Rules ---
-    // Needed for aggregate stats across all matches/innings
-    match /{path=**}/deliveryRecords/{deliveryRecordId} {
-      allow get, list: if true;
     }
   }
 }
