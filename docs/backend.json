@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "Team": {
@@ -36,7 +37,10 @@
         "isRetired": { "type": "boolean" },
         "matchesPlayed": { "type": "number" },
         "runsScored": { "type": "number" },
+        "ballsFaced": { "type": "number" },
         "wicketsTaken": { "type": "number" },
+        "ballsBowled": { "type": "number" },
+        "runsConceded": { "type": "number" },
         "highestScore": { "type": "number" },
         "bestBowlingFigures": { "type": "string" },
         "careerCVP": { "type": "number" }
@@ -72,27 +76,27 @@
   },
   "firestore": {
     "/umpires/{umpireId}": {
-      "schema": "UmpireRole",
+      "schema": { "title": "Umpire" },
       "description": "Umpire role assignments."
     },
     "/teams/{teamId}": {
-      "schema": "Team",
+      "schema": { "$ref": "#/entities/Team" },
       "description": "Team definitions and seasonal totals."
     },
     "/players/{playerId}": {
-      "schema": "Player",
+      "schema": { "$ref": "#/entities/Player" },
       "description": "Player career profiles and statistics."
     },
     "/matches/{matchId}": {
-      "schema": "Match",
+      "schema": { "$ref": "#/entities/Match" },
       "description": "Match metadata and configuration."
     },
     "/matches/{matchId}/innings/{inningId}": {
-      "schema": "object",
+      "schema": { "type": "object" },
       "description": "Specific inning details and live scores."
     },
     "/matches/{matchId}/innings/{inningId}/deliveryRecords/{deliveryRecordId}": {
-      "schema": "object",
+      "schema": { "type": "object" },
       "description": "Ball-by-ball delivery records."
     }
   }

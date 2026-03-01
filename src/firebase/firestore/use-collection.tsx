@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -65,14 +66,12 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        // Precise path extraction for better debugging of group queries
         let path: string = 'root_or_group_query';
         try {
           const q = memoizedTargetRefOrQuery as any;
           if (q.path) {
             path = q.path;
           } else {
-             // For collection group queries, try to extract the collection ID from the internal query object
              const internalQuery = q._query || q;
              const queryPath = internalQuery.path;
              if (queryPath) {
@@ -94,7 +93,6 @@ export function useCollection<T = any>(
         setData(null);
         setIsLoading(false);
 
-        // Standardized global propagation
         errorEmitter.emit('permission-error', contextualError);
       }
     );
