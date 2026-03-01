@@ -2,11 +2,11 @@
 'use client';
 
 import { useCollection, useMemoFirebase, useFirestore, useDoc, deleteDocumentNonBlocking, useUser, updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, doc, limit } from 'firebase/firestore';
+import { collection, query, orderBy, doc, getDocs } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, Info, Trophy } from 'lucide-react';
+import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, Info, Trophy, Download } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -18,12 +18,14 @@ import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
+import { generateHTMLReport, getExtendedInningStats } from '@/lib/report-utils';
 
 function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { match: any, teams: any[], isUmpire: boolean, isMounted: boolean, allPlayers: any[] }) {
   const db = useFirestore();
   const [isEditing, setIsEditing] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [editedResult, setEditedResult] = useState(match.resultDescription);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const inn1Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_1'), [db, match.id]);
   const { data: inn1 } = useDoc(inn1Ref);
@@ -54,6 +56,46 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
     updateDocumentNonBlocking(doc(db, 'matches', match.id), { resultDescription: editedResult });
     setIsEditing(false);
     toast({ title: "Result Updated" });
+  };
+
+  const handleDownloadReport = async () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    toast({ title: "Generating Report", description: "Calculating statistics..." });
+    
+    try {
+      // Fetch Innings Deliveries
+      const i1Docs = await getDocs(query(collection(db, 'matches', match.id, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')));
+      const i2Docs = await getDocs(query(collection(db, 'matches', match.id, 'innings', 'inning_2', 'deliveryRecords'), orderBy('timestamp', 'asc')));
+      
+      const d1 = i1Docs.docs.map(d => d.data());
+      const d2 = i2Docs.docs.map(d => d.data());
+      
+      // Calculate Stats
+      const stats1 = getExtendedInningStats(d1);
+      const stats2 = getExtendedInningStats(d2);
+      
+      // Generate HTML
+      const html = generateHTMLReport(match, inn1, inn2, stats1, stats2, teams, allPlayers);
+      
+      // Trigger Download
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CricMates_MatchReport_${match.id}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({ title: "Report Downloaded", description: "Share the HTML file with your friends." });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Download Failed", description: "Could not generate report.", variant: "destructive" });
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const renderInningRow = (inning: any) => {
@@ -98,41 +140,46 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
               {match.resultDescription}
             </div>
           </div>
-          {isUmpire && (
-            <div className="flex items-center gap-1">
-              <Dialog open={isEditing} onOpenChange={setIsEditing}>
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
-                  <DialogHeader><DialogTitle>Edit Match Result</DialogTitle></DialogHeader>
-                  <div className="py-4 space-y-4">
-                    <div className="space-y-2">
-                      <Label>Result Description</Label>
-                      <Input value={editedResult} onChange={(e) => setEditedResult(e.target.value)} placeholder="e.g. Team A won by 5 runs" />
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-secondary" onClick={handleDownloadReport} disabled={isGenerating}>
+              <Download className={cn("w-4 h-4", isGenerating && "animate-bounce")} />
+            </Button>
+            {isUmpire && (
+              <>
+                <Dialog open={isEditing} onOpenChange={setIsEditing}>
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
+                    <DialogHeader><DialogTitle>Edit Match Result</DialogTitle></DialogHeader>
+                    <div className="py-4 space-y-4">
+                      <div className="space-y-2">
+                        <Label>Result Description</Label>
+                        <Input value={editedResult} onChange={(e) => setEditedResult(e.target.value)} placeholder="e.g. Team A won by 5 runs" />
+                      </div>
                     </div>
-                  </div>
-                  <DialogFooter><Button onClick={handleUpdateResult} className="w-full">Save Changes</Button></DialogFooter>
-                </DialogContent>
-              </Dialog>
-              
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete this Match?</AlertDialogTitle>
-                    <AlertDialogDescription>This action cannot be undone. All delivery records and stats for this match will be lost.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Match</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          )}
+                    <DialogFooter><Button onClick={handleUpdateResult} className="w-full">Save Changes</Button></DialogFooter>
+                  </DialogContent>
+                </Dialog>
+                
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete this Match?</AlertDialogTitle>
+                      <AlertDialogDescription>This action cannot be undone. All delivery records and stats for this match will be lost.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Match</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
+          </div>
         </div>
 
         <div className="space-y-1 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
@@ -256,7 +303,7 @@ export default function MatchHistoryPage() {
               <PlayCircle className="w-12 h-12 text-slate-200 mx-auto mb-3" />
               <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">No active matches found</p>
               <Button asChild variant="link" className="mt-2 text-primary">
-                <Link href="/match/new">Setup a Match</Link>
+                <Link href="/match/new">Start a match as Umpire</Link>
               </Button>
             </div>
           )}

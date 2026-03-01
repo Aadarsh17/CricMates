@@ -5,11 +5,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, limit } from 'firebase/firestore';
+import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, limit, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2 } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2, Download } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -23,6 +23,7 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
+import { generateHTMLReport, getExtendedInningStats } from '@/lib/report-utils';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -39,6 +40,7 @@ export default function MatchScoreboardPage() {
   const [activeTab, setActiveTab] = useState<string>('live');
   const [activeInningView, setActiveInningView] = useState<number>(1);
   const [openOvers, setOpenOvers] = useState<Record<number, boolean>>({});
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const [editForm, setEditForm] = useState({
     status: 'live',
@@ -150,96 +152,6 @@ export default function MatchScoreboardPage() {
     return grouped;
   }, [activeInningView, inn1Deliveries, inn2Deliveries]);
 
-  const getExtendedInningStats = (deliveries: any[]) => {
-    if (!deliveries) return { batting: [], bowling: [], fow: [], partnerships: [] };
-    const bat: Record<string, any> = {};
-    const bowl: Record<string, any> = {};
-    const fow: any[] = [];
-    const partnerships: any[] = [];
-
-    let currentScore = 0;
-    let currentBalls = 0;
-    let currentWickets = 0;
-
-    let currentPartnership = {
-        batter1Id: '',
-        batter2Id: '',
-        runs: 0,
-        balls: 0,
-        batter1Runs: 0,
-        batter2Runs: 0
-    };
-
-    deliveries.forEach((d, idx) => {
-      if (!bat[d.strikerPlayerId]) bat[d.strikerPlayerId] = { id: d.strikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
-      if (d.nonStrikerPlayerId && !bat[d.nonStrikerPlayerId]) bat[d.nonStrikerPlayerId] = { id: d.nonStrikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
-      
-      if (d.extraType !== 'wide') {
-        bat[d.strikerPlayerId].balls += 1;
-        bat[d.strikerPlayerId].runs += d.runsScored;
-        if (d.runsScored === 4) bat[d.strikerPlayerId].fours += 1;
-        if (d.runsScored === 6) bat[d.strikerPlayerId].sixes += 1;
-      }
-
-      currentScore += d.totalRunsOnDelivery;
-      if (d.extraType !== 'wide' && d.extraType !== 'noball') currentBalls += 1;
-
-      if (!currentPartnership.batter1Id) {
-          currentPartnership.batter1Id = d.strikerPlayerId;
-          currentPartnership.batter2Id = d.nonStrikerPlayerId;
-      }
-
-      currentPartnership.runs += d.totalRunsOnDelivery;
-      if (d.extraType !== 'wide' && d.extraType !== 'noball') currentPartnership.balls += 1;
-      if (d.strikerPlayerId === currentPartnership.batter1Id) {
-          currentPartnership.batter1Runs += d.runsScored;
-      } else {
-          currentPartnership.batter2Runs += d.runsScored;
-      }
-
-      if (d.isWicket) {
-        currentWickets += 1;
-        const outPid = d.batsmanOutPlayerId || d.strikerPlayerId;
-        if (bat[outPid]) {
-          bat[outPid].out = true;
-          bat[outPid].dismissal = d.dismissalType || 'out';
-        }
-        fow.push({
-            wicketNum: currentWickets,
-            score: currentScore,
-            overs: `${Math.floor(currentBalls / 6)}.${currentBalls % 6}`,
-            playerOutId: outPid
-        });
-
-        partnerships.push({...currentPartnership});
-        currentPartnership = {
-            batter1Id: d.batsmanOutPlayerId === currentPartnership.batter1Id ? '' : currentPartnership.batter1Id,
-            batter2Id: d.batsmanOutPlayerId === currentPartnership.batter2Id ? '' : currentPartnership.batter2Id,
-            runs: 0,
-            balls: 0,
-            batter1Runs: 0,
-            batter2Runs: 0
-        };
-      }
-
-      if (!bowl[d.bowlerPlayerId]) bowl[d.bowlerPlayerId] = { id: d.bowlerPlayerId, overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
-      bowl[d.bowlerPlayerId].runs += d.totalRunsOnDelivery;
-      if (d.isWicket && d.dismissalType !== 'runout') bowl[d.bowlerPlayerId].wickets += 1;
-      if (d.extraType !== 'wide' && d.extraType !== 'noball') bowl[d.bowlerPlayerId].balls += 1;
-
-      if (idx === deliveries.length - 1 && currentPartnership.balls > 0) {
-          partnerships.push({...currentPartnership});
-      }
-    });
-
-    return {
-      batting: Object.values(bat),
-      bowling: Object.values(bowl).map(b => ({ ...b, oversDisplay: `${Math.floor(b.balls / 6)}.${b.balls % 6}` })),
-      fow,
-      partnerships
-    };
-  };
-
   const currentInningStats = useMemo(() => {
     const deliveries = match?.currentInningNumber === 1 ? inn1Deliveries || [] : inn2Deliveries || [];
     return getExtendedInningStats(deliveries);
@@ -308,6 +220,39 @@ export default function MatchScoreboardPage() {
       return `${team2Name} won by ${wicketsLeft} wickets`;
     } else {
       return "Match Tied";
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    if (isDownloading) return;
+    setIsDownloading(true);
+    toast({ title: "Generating Report", description: "Calculating all-innings stats..." });
+    
+    try {
+      // Calculate Stats for both innings
+      const stats1 = getExtendedInningStats(inn1Deliveries || []);
+      const stats2 = getExtendedInningStats(inn2Deliveries || []);
+      
+      // Generate HTML
+      const html = generateHTMLReport(match, inn1, inn2, stats1, stats2, allTeams || [], allPlayers || []);
+      
+      // Trigger Download
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CricMates_Report_${match?.id}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({ title: "Report Ready", description: "Match details exported successfully." });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Error", description: "Could not export report.", variant: "destructive" });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -599,11 +544,16 @@ export default function MatchScoreboardPage() {
             <h1 className="text-xl md:text-2xl font-black">{getTeamName(match.team1Id)} <span className="text-slate-300">VS</span> {getTeamName(match.team2Id)}</h1>
             <p className="text-[10px] font-black uppercase text-primary tracking-widest">{match.status === 'completed' ? match.resultDescription : `Innings ${match.currentInningNumber}`}</p>
           </div>
-          {isUmpire && (
-            <Button size="sm" variant="outline" onClick={() => setIsEditFullMatchOpen(true)} className="rounded-full h-8 px-3 font-black text-[10px] uppercase border-primary text-primary hover:bg-primary/5">
-              <ShieldCheck className="w-3 h-3 mr-1" /> Umpire Tools
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="ghost" className="h-8 w-8 text-secondary hover:bg-secondary/10" onClick={handleDownloadReport} disabled={isDownloading}>
+              <Download className={cn("w-4 h-4", isDownloading && "animate-bounce")} />
             </Button>
-          )}
+            {isUmpire && (
+              <Button size="sm" variant="outline" onClick={() => setIsEditFullMatchOpen(true)} className="rounded-full h-8 px-3 font-black text-[10px] uppercase border-primary text-primary hover:bg-primary/5">
+                <ShieldCheck className="w-3 h-3 mr-1" /> Umpire Tools
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
