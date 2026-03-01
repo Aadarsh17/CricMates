@@ -69,6 +69,19 @@
         "potmCvpScore": { "type": "number" }
       },
       "required": ["id", "team1Id", "team2Id", "status", "totalOvers", "matchDate"]
+    },
+    "Umpire": {
+      "title": "Umpire",
+      "type": "object",
+      "description": "Details about a match official (Umpire).",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "style": { "type": "string", "description": "Umpire's officiating style or experience level." },
+        "matchesOfficiated": { "type": "number" }
+      },
+      "required": ["id", "name"]
     }
   },
   "auth": {
@@ -76,8 +89,8 @@
   },
   "firestore": {
     "/umpires/{umpireId}": {
-      "schema": { "title": "Umpire" },
-      "description": "Umpire role assignments."
+      "schema": { "$ref": "#/entities/Umpire" },
+      "description": "Umpire profile information."
     },
     "/teams/{teamId}": {
       "schema": { "$ref": "#/entities/Team" },

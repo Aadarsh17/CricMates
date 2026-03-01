@@ -1,0 +1,212 @@
+
+"use client"
+
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useDoc, useMemoFirebase, useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { ShieldCheck, User, Camera, Save, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { useApp } from '@/context/AppContext';
+
+export default function UmpireProfilePage() {
+  const db = useFirestore();
+  const { user, isUserLoading } = useUser();
+  const { isUmpire, setRole } = useApp();
+  const router = useRouter();
+
+  const [isMounted, setIsMounted] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    style: 'Elite Panel',
+    imageUrl: ''
+  });
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const umpireRef = useMemoFirebase(() => 
+    user?.uid ? doc(db, 'umpires', user.uid) : null, 
+  [db, user?.uid]);
+  
+  const { data: profile, isLoading: isProfileLoading } = useDoc(umpireRef);
+
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        name: profile.name || '',
+        style: profile.style || 'Elite Panel',
+        imageUrl: profile.imageUrl || ''
+      });
+    } else if (user && !isProfileLoading) {
+      // Default name from anonymous user if available
+      setFormData(prev => ({
+        ...prev,
+        name: prev.name || `Umpire_${user.uid.substring(0, 4)}`
+      }));
+    }
+  }, [profile, user, isProfileLoading]);
+
+  const handleSave = () => {
+    if (!user?.uid) return;
+    if (!formData.name.trim()) {
+      toast({ title: "Name Required", variant: "destructive" });
+      return;
+    }
+
+    setIsSaving(true);
+    const updatedData = {
+      id: user.uid,
+      ...formData,
+      updatedAt: new Date().toISOString()
+    };
+
+    setDocumentNonBlocking(doc(db, 'umpires', user.uid), updatedData, { merge: true });
+    
+    // Optimistic feedback
+    setTimeout(() => {
+      setIsSaving(false);
+      toast({ title: "Profile Updated", description: "Your umpire credentials have been saved." });
+    }, 500);
+  };
+
+  if (!isMounted) return null;
+
+  if (isUserLoading) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+      <Loader2 className="w-12 h-12 text-primary animate-spin" />
+      <p className="font-black uppercase tracking-widest text-slate-400 text-xs">Syncing Official Identity...</p>
+    </div>
+  );
+
+  if (!isUmpire) {
+    return (
+      <Card className="max-w-md mx-auto mt-12 border-t-8 border-t-primary shadow-2xl">
+        <CardContent className="pt-8 text-center space-y-6">
+          <div className="bg-primary/10 w-20 h-20 rounded-full flex items-center justify-center mx-auto">
+            <ShieldCheck className="w-10 h-10 text-primary" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black uppercase tracking-tight">Access Restricted</h2>
+            <p className="text-slate-500 text-sm font-medium">You must be in Umpire Mode to manage an official profile.</p>
+          </div>
+          <Button onClick={() => setRole('umpire')} className="w-full font-black uppercase tracking-widest h-12">
+            Switch to Umpire Mode
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto pb-24 space-y-6">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full">
+          <ArrowLeft className="w-6 h-6" />
+        </Button>
+        <div>
+          <h1 className="text-3xl font-black font-headline tracking-tighter uppercase text-slate-900">Official Profile</h1>
+          <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Officiating Credentials</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="md:col-span-1 shadow-sm border-none bg-slate-50 overflow-hidden">
+          <CardContent className="pt-8 flex flex-col items-center text-center space-y-4">
+            <div className="relative group">
+              <Avatar className="w-32 h-32 border-4 border-white shadow-xl rounded-3xl">
+                <AvatarImage src={formData.imageUrl || `https://picsum.photos/seed/${user?.uid}/300`} />
+                <AvatarFallback className="bg-primary text-white text-4xl font-black">{formData.name?.[0] || 'U'}</AvatarFallback>
+              </Avatar>
+              <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex items-center justify-center cursor-pointer">
+                <Camera className="w-8 h-8 text-white" />
+              </div>
+            </div>
+            <div>
+              <h3 className="font-black text-lg truncate w-full">{formData.name || 'Official Umpire'}</h3>
+              <Badge variant="secondary" className="bg-primary text-white font-black text-[9px] uppercase mt-1">
+                {formData.style}
+              </Badge>
+            </div>
+            <div className="pt-4 w-full border-t space-y-2">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Digital Identity</p>
+              <code className="text-[8px] block bg-white p-2 rounded border border-slate-200 truncate">
+                ID: {user?.uid}
+              </code>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-2 shadow-xl border-t-4 border-t-primary">
+          <CardHeader>
+            <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" /> Edit Credentials
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Official Name</Label>
+                <Input 
+                  value={formData.name} 
+                  onChange={e => setFormData({...formData, name: e.target.value})}
+                  placeholder="Enter your full name"
+                  className="font-bold h-12"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Officiating Style</Label>
+                <Select value={formData.style} onValueChange={v => setFormData({...formData, style: v})}>
+                  <SelectTrigger className="font-bold h-12">
+                    <SelectValue placeholder="Select Style" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Elite Panel" className="font-bold">Elite Panel</SelectItem>
+                    <SelectItem value="State Level" className="font-bold">State Level</SelectItem>
+                    <SelectItem value="Club Official" className="font-bold">Club Official</SelectItem>
+                    <SelectItem value="Gully Specialist" className="font-bold">Gully Specialist</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Photo URL (Avatar)</Label>
+                <Input 
+                  value={formData.imageUrl} 
+                  onChange={e => setFormData({...formData, imageUrl: e.target.value})}
+                  placeholder="https://images.unsplash.com/..."
+                  className="font-medium h-12 text-xs"
+                />
+                <p className="text-[9px] text-slate-400 italic">Leave empty to use a randomly generated avatar based on your ID.</p>
+              </div>
+            </div>
+
+            <Button 
+              onClick={handleSave} 
+              disabled={isSaving}
+              className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-lg transform hover:scale-[1.02] transition-all"
+            >
+              {isSaving ? (
+                <Loader2 className="w-6 h-6 animate-spin" />
+              ) : (
+                <>
+                  <Save className="w-6 h-6 mr-2" /> Commit Profile
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}

@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { Trophy, Users, LayoutDashboard, ShieldCheck, User, Menu, X, Play, UserCircle, History } from 'lucide-react';
+import { Trophy, Users, LayoutDashboard, ShieldCheck, User, Menu, X, Play, UserCircle, History, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -40,12 +40,21 @@ export default function Navbar() {
                 <span>{link.name}</span>
               </Link>
             ))}
+            
             <div className="border-l border-primary-foreground/20 h-6 mx-2" />
+            
+            {isUmpire && (
+              <Link href="/profile" className="flex items-center space-x-1 hover:text-secondary transition-colors text-sm font-medium">
+                <UserCog className="w-4 h-4" />
+                <span className="hidden lg:inline">Official Profile</span>
+              </Link>
+            )}
+
             <Button 
               variant={isUmpire ? "secondary" : "outline"} 
               size="sm"
               onClick={() => setRole(isUmpire ? 'guest' : 'umpire')}
-              className={cn("flex items-center space-x-2", !isUmpire && "bg-transparent text-white border-white hover:bg-white/10")}
+              className={cn("flex items-center space-x-2 ml-2", !isUmpire && "bg-transparent text-white border-white hover:bg-white/10")}
             >
               {isUmpire ? <ShieldCheck className="w-4 h-4" /> : <User className="w-4 h-4" />}
               <span>{isUmpire ? "Umpire" : "Guest"}</span>
@@ -75,6 +84,18 @@ export default function Navbar() {
               <span>{link.name}</span>
             </Link>
           ))}
+          
+          {isUmpire && (
+            <Link 
+              href="/profile" 
+              onClick={() => setIsOpen(false)}
+              className="flex items-center space-x-3 p-3 rounded-lg hover:bg-white/10 transition-colors"
+            >
+              <UserCog className="w-5 h-5" />
+              <span>Official Profile</span>
+            </Link>
+          )}
+
           <div className="pt-2 border-t border-white/20">
             <Button 
               variant={isUmpire ? "secondary" : "outline"} 
