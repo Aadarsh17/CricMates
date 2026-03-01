@@ -84,7 +84,7 @@ export function useCollection<T = any>(
           } else if (q._query) {
             const internalPath = q._query.path?.canonicalString?.() || q._query.path?.toString?.();
             const collectionId = q._query.collectionId;
-            path = internalPath && internalPath !== '/' ? internalPath : (collectionId ? `[Group Query: ${collectionId}]` : 'root_or_group_query');
+            path = internalPath && internalPath !== '/' ? internalPath : (collectionId ? `collection_group_query_${collectionId}` : 'collection_group_query');
           }
         } catch (e) {
           path = 'error_resolving_query_path';

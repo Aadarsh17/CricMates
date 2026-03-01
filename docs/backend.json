@@ -1,286 +1,99 @@
-
 {
   "entities": {
     "Team": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Team",
       "type": "object",
       "description": "Represents a cricket team participating in matches and leagues.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Team entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The official name of the cricket team."
-        },
-        "logoUrl": {
-          "type": "string",
-          "description": "URL or base64 string for the team's logo image."
-        },
-        "ownerId": {
-          "type": "string",
-          "description": "The unique identifier (UID) of the user who created this team."
-        },
-        "matchesWon": {
-          "type": "number",
-          "description": "Total number of matches won by the team."
-        },
-        "matchesLost": {
-          "type": "number",
-          "description": "Total number of matches lost by the team."
-        },
-        "matchesDrawn": {
-          "type": "number",
-          "description": "Total number of matches drawn by the team."
-        },
-        "totalRunsScored": {
-          "type": "number",
-          "description": "Aggregate total runs scored by the team."
-        },
-        "totalRunsConceded": {
-          "type": "number",
-          "description": "Aggregate total runs conceded by the team."
-        },
-        "totalBallsFaced": {
-          "type": "number",
-          "description": "Total legal balls faced by the team."
-        },
-        "totalBallsBowled": {
-          "type": "number",
-          "description": "Total legal balls bowled by the team."
-        },
-        "totalWicketsTaken": {
-          "type": "number",
-          "description": "Aggregate total wickets taken by the team."
-        },
-        "netRunRate": {
-          "type": "number",
-          "description": "The team's Net Run Rate (NRR)."
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "matchesWon": { "type": "number" },
+        "matchesLost": { "type": "number" },
+        "matchesDrawn": { "type": "number" },
+        "totalRunsScored": { "type": "number" },
+        "totalRunsConceded": { "type": "number" },
+        "totalBallsFaced": { "type": "number" },
+        "totalBallsBowled": { "type": "number" },
+        "totalWicketsTaken": { "type": "number" },
+        "netRunRate": { "type": "number" }
       },
-      "required": [
-        "id",
-        "name",
-        "ownerId",
-        "matchesWon",
-        "matchesLost",
-        "matchesDrawn",
-        "totalRunsScored",
-        "totalWicketsTaken",
-        "netRunRate",
-        "totalBallsFaced",
-        "totalBallsBowled"
-      ]
+      "required": ["id", "name", "ownerId", "matchesWon", "matchesLost", "matchesDrawn", "totalRunsScored", "totalWicketsTaken", "netRunRate", "totalBallsFaced", "totalBallsBowled"]
     },
     "Player": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Player",
       "type": "object",
       "description": "Details about an individual cricket player.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the Player entity."
-        },
-        "name": {
-          "type": "string",
-          "description": "The full name of the player."
-        },
-        "imageUrl": {
-          "type": "string",
-          "description": "URL for the player's profile image."
-        },
-        "teamId": {
-          "type": "string",
-          "description": "Reference to the Team the player belongs to."
-        },
-        "role": {
-          "type": "string",
-          "description": "Primary role."
-        },
-        "battingStyle": {
-          "type": "string",
-          "description": "Batting style."
-        },
-        "isWicketKeeper": {
-          "type": "boolean",
-          "description": "Is a wicket-keeper."
-        },
-        "isRetired": {
-          "type": "boolean",
-          "description": "Is retired."
-        },
-        "matchesPlayed": {
-          "type": "number",
-          "description": "Matches played."
-        },
-        "runsScored": {
-          "type": "number",
-          "description": "Total runs scored."
-        },
-        "wicketsTaken": {
-          "type": "number",
-          "description": "Total wickets taken."
-        },
-        "highestScore": {
-          "type": "number",
-          "description": "Highest score."
-        },
-        "bestBowlingFigures": {
-          "type": "string",
-          "description": "Best bowling figures."
-        },
-        "careerCVP": {
-          "type": "number",
-          "description": "Cumulative Cricket Value Points."
-        }
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "teamId": { "type": "string" },
+        "role": { "type": "string" },
+        "battingStyle": { "type": "string" },
+        "isWicketKeeper": { "type": "boolean" },
+        "isRetired": { "type": "boolean" },
+        "matchesPlayed": { "type": "number" },
+        "runsScored": { "type": "number" },
+        "wicketsTaken": { "type": "number" },
+        "highestScore": { "type": "number" },
+        "bestBowlingFigures": { "type": "string" },
+        "careerCVP": { "type": "number" }
       },
-      "required": [
-        "id",
-        "name",
-        "teamId",
-        "role",
-        "battingStyle",
-        "isWicketKeeper",
-        "isRetired",
-        "matchesPlayed",
-        "runsScored",
-        "wicketsTaken",
-        "highestScore",
-        "bestBowlingFigures",
-        "careerCVP"
-      ]
+      "required": ["id", "name", "role", "battingStyle", "matchesPlayed", "runsScored", "wicketsTaken", "careerCVP"]
     },
     "Match": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Match",
       "type": "object",
       "description": "Details about a specific match.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier."
-        },
-        "team1Id": {
-          "type": "string",
-          "description": "Team 1 ID."
-        },
-        "team2Id": {
-          "type": "string",
-          "description": "Team 2 ID."
-        },
-        "team1SquadPlayerIds": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "team2SquadPlayerIds": {
-          "type": "array",
-          "items": { "type": "string" }
-        },
-        "totalOvers": {
-          "type": "number"
-        },
-        "status": {
-          "type": "string"
-        },
-        "tossWinnerTeamId": {
-          "type": "string"
-        },
-        "tossDecision": {
-          "type": "string"
-        },
-        "currentInningNumber": {
-          "type": "number"
-        },
-        "resultDescription": {
-          "type": "string"
-        },
-        "matchDate": {
-          "type": "string",
-          "format": "date-time"
-        },
-        "umpireId": {
-          "type": "string"
-        },
-        "potmPlayerId": {
-          "type": "string",
-          "description": "Player of the Match unique ID."
-        },
-        "potmCvpScore": {
-          "type": "number",
-          "description": "CVP score earned in this match by the POTM."
-        }
+        "id": { "type": "string" },
+        "team1Id": { "type": "string" },
+        "team2Id": { "type": "string" },
+        "team1SquadPlayerIds": { "type": "array", "items": { "type": "string" } },
+        "team2SquadPlayerIds": { "type": "array", "items": { "type": "string" } },
+        "totalOvers": { "type": "number" },
+        "status": { "type": "string" },
+        "tossWinnerTeamId": { "type": "string" },
+        "tossDecision": { "type": "string" },
+        "currentInningNumber": { "type": "number" },
+        "resultDescription": { "type": "string" },
+        "matchDate": { "type": "string", "format": "date-time" },
+        "umpireId": { "type": "string" },
+        "potmPlayerId": { "type": "string" },
+        "potmCvpScore": { "type": "number" }
       },
-      "required": [
-        "id",
-        "team1Id",
-        "team2Id",
-        "team1SquadPlayerIds",
-        "team2SquadPlayerIds",
-        "totalOvers",
-        "status",
-        "tossWinnerTeamId",
-        "tossDecision",
-        "matchDate"
-      ]
+      "required": ["id", "team1Id", "team2Id", "status", "totalOvers", "matchDate"]
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
-    "structure": [
-      {
-        "path": "/umpires/{umpireId}",
-        "definition": {
-          "entityName": "UmpireRole",
-          "schema": { "$ref": "#/backend/entities/UmpireRole" },
-          "description": "Role-based access document."
-        }
-      },
-      {
-        "path": "/teams/{teamId}",
-        "definition": {
-          "entityName": "Team",
-          "schema": { "$ref": "#/backend/entities/Team" },
-          "description": "Team metadata and cumulative stats."
-        }
-      },
-      {
-        "path": "/players/{playerId}",
-        "definition": {
-          "entityName": "Player",
-          "schema": { "$ref": "#/backend/entities/Player" },
-          "description": "Player metadata and career stats."
-        }
-      },
-      {
-        "path": "/matches/{matchId}",
-        "definition": {
-          "entityName": "Match",
-          "schema": { "$ref": "#/backend/entities/Match" },
-          "description": "Match metadata."
-        }
-      },
-      {
-        "path": "/matches/{matchId}/innings/{inningId}",
-        "definition": {
-          "entityName": "Inning",
-          "description": "Inning details."
-        }
-      },
-      {
-        "path": "/matches/{matchId}/innings/{inningId}/deliveryRecords/{deliveryRecordId}",
-        "definition": {
-          "entityName": "DeliveryRecord",
-          "description": "Ball-by-ball records."
-        }
-      }
-    ]
+    "/umpires/{umpireId}": {
+      "schema": "UmpireRole",
+      "description": "Umpire role assignments."
+    },
+    "/teams/{teamId}": {
+      "schema": "Team",
+      "description": "Team definitions and seasonal totals."
+    },
+    "/players/{playerId}": {
+      "schema": "Player",
+      "description": "Player career profiles and statistics."
+    },
+    "/matches/{matchId}": {
+      "schema": "Match",
+      "description": "Match metadata and configuration."
+    },
+    "/matches/{matchId}/innings/{inningId}": {
+      "schema": "object",
+      "description": "Specific inning details and live scores."
+    },
+    "/matches/{matchId}/innings/{inningId}/deliveryRecords/{deliveryRecordId}": {
+      "schema": "object",
+      "description": "Ball-by-ball delivery records."
+    }
   }
 }
