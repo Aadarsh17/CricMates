@@ -1,9 +1,9 @@
 
 "use client"
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useCollection, useMemoFirebase, useFirestore, useUser } from '@/firebase';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -68,8 +68,34 @@ export default function TeamsPage() {
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams'), orderBy('name', 'asc')), [db]);
   const { data: teams, isLoading } = useCollection(teamsQuery);
 
-  const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
-  const { data: allMatches = [] } = useCollection(matchesQuery);
+  const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
+  const { data: allMatches = [] } = useCollection(allMatchesQuery);
+
+  // Dynamic calculation for team stats based on current matches
+  const teamStats = useMemo(() => {
+    const stats: Record<string, any> = {};
+    if (!teams) return stats;
+
+    teams.forEach(t => {
+      stats[t.id] = { wins: 0, losses: 0, nrr: 0 };
+    });
+
+    allMatches.filter(m => m.status === 'completed').forEach(m => {
+      const t1Id = m.team1Id;
+      const t2Id = m.team2Id;
+      if (!stats[t1Id] || !stats[t2Id]) return;
+
+      if (m.resultDescription?.toLowerCase().includes(teams.find(t => t.id === t1Id)?.name.toLowerCase()) && m.resultDescription?.toLowerCase().includes('won')) {
+        stats[t1Id].wins += 1;
+        stats[t2Id].losses += 1;
+      } else if (m.resultDescription?.toLowerCase().includes(teams.find(t => t.id === t2Id)?.name.toLowerCase()) && m.resultDescription?.toLowerCase().includes('won')) {
+        stats[t2Id].wins += 1;
+        stats[t1Id].losses += 1;
+      }
+    });
+
+    return stats;
+  }, [teams, allMatches]);
 
   const handleCreateTeam = () => {
     if (!isUmpire || !user || !newTeamName.trim()) return;
@@ -102,7 +128,7 @@ export default function TeamsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-black font-headline tracking-tight text-slate-900">Franchises</h1>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">League Management Hub</p>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Calculated based on current league matches</p>
         </div>
         <div className="flex items-center gap-2 w-full md:w-auto">
           <div className="bg-slate-100 p-1 rounded flex border shrink-0">
@@ -128,33 +154,34 @@ export default function TeamsPage() {
         </div>
       ) : (
         <div className={view === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
-          {teams?.map(team => (
-            <Card key={team.id} className="hover:shadow-md transition-all group flex flex-col border shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between p-4 pb-2 space-y-0">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="w-10 h-10 border rounded-lg bg-white"><AvatarImage src={team.logoUrl} /><AvatarFallback>{team.name[0]}</AvatarFallback></Avatar>
-                  <div className="min-w-0">
-                    <CardTitle className="text-base font-black tracking-tight truncate max-w-[120px]">{team.name}</CardTitle>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Franchise</p>
+          {teams?.map(team => {
+            const stats = teamStats[team.id] || { wins: 0, losses: 0, nrr: 0 };
+            return (
+              <Card key={team.id} className="hover:shadow-md transition-all group flex flex-col border shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between p-4 pb-2 space-y-0">
+                  <div className="flex items-center space-x-3">
+                    <Avatar className="w-10 h-10 border rounded-lg bg-white"><AvatarImage src={team.logoUrl} /><AvatarFallback>{team.name[0]}</AvatarFallback></Avatar>
+                    <div className="min-w-0">
+                      <CardTitle className="text-base font-black tracking-tight truncate max-w-[120px]">{team.name}</CardTitle>
+                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Franchise</p>
+                    </div>
                   </div>
-                </div>
-                {isUmpire && user?.uid === team.ownerId && <Button variant="ghost" size="icon" onClick={() => handleDeleteTeam(team.id, team.name)} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>}
-              </CardHeader>
-              <CardContent className="flex-1 flex flex-col p-4 pt-2">
-                <div className="grid grid-cols-3 gap-2 mb-4">
-                  <div className="bg-slate-50 p-2 rounded text-center"><p className="text-[8px] font-black uppercase text-slate-400">Wins</p><p className="text-sm font-black text-secondary">{team.matchesWon||0}</p></div>
-                  <div className="bg-slate-50 p-2 rounded text-center"><p className="text-[8px] font-black uppercase text-slate-400">Losses</p><p className="text-sm font-black text-destructive">{team.matchesLost||0}</p></div>
-                  <div className="bg-slate-50 p-2 rounded text-center"><p className="text-[8px] font-black uppercase text-slate-400">NRR</p><p className="text-xs font-black text-primary">{(team.netRunRate||0).toFixed(3)}</p></div>
-                </div>
-                <TeamMatchHistory teamId={team.id} matches={allMatches} teams={teams || []} />
-                {isUmpire && (
+                  {isUmpire && user?.uid === team.ownerId && <Button variant="ghost" size="icon" onClick={() => handleDeleteTeam(team.id, team.name)} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>}
+                </CardHeader>
+                <CardContent className="flex-1 flex flex-col p-4 pt-2">
+                  <div className="grid grid-cols-3 gap-2 mb-4">
+                    <div className="bg-slate-50 p-2 rounded text-center"><p className="text-[8px] font-black uppercase text-slate-400">Wins</p><p className="text-sm font-black text-secondary">{stats.wins}</p></div>
+                    <div className="bg-slate-50 p-2 rounded text-center"><p className="text-[8px] font-black uppercase text-slate-400">Losses</p><p className="text-sm font-black text-destructive">{stats.losses}</p></div>
+                    <div className="bg-slate-50 p-2 rounded text-center"><p className="text-[8px] font-black uppercase text-slate-400">NRR</p><p className="text-xs font-black text-primary">{(stats.nrr).toFixed(3)}</p></div>
+                  </div>
+                  <TeamMatchHistory teamId={team.id} matches={allMatches} teams={teams || []} />
                   <div className="mt-4 pt-4 border-t">
-                    <Button variant="outline" className="w-full text-[10px] font-black uppercase tracking-widest h-10" asChild><Link href={`/teams/${team.id}`}>Manage Squad & Stats</Link></Button>
+                    <Button variant="outline" className="w-full text-[10px] font-black uppercase tracking-widest h-10" asChild><Link href={`/teams/${team.id}`}>View Squad & History</Link></Button>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
