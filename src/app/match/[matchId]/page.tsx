@@ -113,7 +113,7 @@ export default function MatchScoreboardPage() {
         bowlerId: activeInningData?.currentBowlerPlayerId || ''
       });
     }
-  }, [match, inn1, inn2]);
+  }, [match, inn1, inn2, activeInningData]);
 
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
@@ -153,15 +153,15 @@ export default function MatchScoreboardPage() {
     if (!match || !allTeams) return;
     const team1Name = getTeamName(match.team1Id);
     const team2Name = getTeamName(match.team2Id);
-    if (editForm.inn1Score > 0 || editForm.inn2Score > 0) {
-      let result = '';
-      if (editForm.inn2Score === 0) result = "Match in Progress";
-      else if (editForm.inn1Score > editForm.inn2Score && editForm.status === 'completed') result = `${team1Name} won by ${editForm.inn1Score - editForm.inn2Score} runs`;
-      else if (editForm.inn2Score > editForm.inn1Score && editForm.status === 'completed') result = `${team2Name} won by ${10 - editForm.inn2Wickets} wickets`;
-      else if (editForm.inn1Score === editForm.inn2Score && editForm.status === 'completed') result = "Match Tied";
-      else result = "Match in Progress";
-      setEditForm(prev => ({ ...prev, resultDescription: result }));
-    }
+    
+    let result = '';
+    if (editForm.inn2Score === 0 && editForm.inn1Score > 0) result = "Match in Progress";
+    else if (editForm.inn1Score > editForm.inn2Score && editForm.status === 'completed') result = `${team1Name} won by ${editForm.inn1Score - editForm.inn2Score} runs`;
+    else if (editForm.inn2Score > editForm.inn1Score && editForm.status === 'completed') result = `${team2Name} won by ${10 - editForm.inn2Wickets} wickets`;
+    else if (editForm.inn1Score === editForm.inn2Score && editForm.status === 'completed' && editForm.inn2Score > 0) result = "Match Tied";
+    else result = match.resultDescription || "Match in Progress";
+    
+    setEditForm(prev => ({ ...prev, resultDescription: result }));
   }, [editForm.inn1Score, editForm.inn2Score, editForm.inn1Wickets, editForm.inn2Wickets, editForm.status]);
 
   const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none') => {
@@ -274,7 +274,7 @@ export default function MatchScoreboardPage() {
   };
 
   const handleWicket = async () => {
-    if (!match || !activeInningData || !isUmpire) return;
+    if (!match || !activeInningData || !isUmpire || !wicketForm.batterOutId) return;
 
     const currentInningId = `inning_${match.currentInningNumber}`;
     const inningRef = doc(db, 'matches', matchId, 'innings', currentInningId);
@@ -388,11 +388,6 @@ export default function MatchScoreboardPage() {
 
   const handleEndMatch = async () => {
     if (!match || !inn1 || !allTeams) return;
-    const i1Score = inn1.score;
-    const i1Balls = (inn1.oversCompleted * 6) + (inn1.ballsInCurrentOver || 0);
-    const i2Score = inn2?.score || 0;
-    const i2Balls = inn2 ? (inn2.oversCompleted * 6) + (inn2.ballsInCurrentOver || 0) : 0;
-    let winnerId = i1Score > i2Score ? match.team1Id : (i2Score > i1Score ? match.team2Id : '');
     const batch = writeBatch(db);
     batch.update(doc(db, 'matches', matchId), { status: 'completed' });
     await batch.commit();
@@ -542,6 +537,32 @@ export default function MatchScoreboardPage() {
               <div className="space-y-1"><Label className="text-[10px] font-black">Status</Label><Select value={editForm.status} onValueChange={v => setEditForm({...editForm, status: v})}><SelectTrigger className="font-bold"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="live">Live</SelectItem><SelectItem value="completed">Completed</SelectItem></SelectContent></Select></div>
               <div className="space-y-1"><Label className="text-[10px] font-black">Match Date</Label><Input type="date" value={editForm.matchDate} onChange={e => setEditForm({...editForm, matchDate: e.target.value})} className="font-bold" /></div>
             </div>
+            <div className="p-4 border rounded-xl bg-slate-50">
+              <p className="text-[10px] font-black mb-3 text-slate-500 uppercase">On-Field Assignment</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-[8px] font-black">Striker</Label>
+                  <Select value={editForm.strikerId} onValueChange={v => setEditForm({...editForm, strikerId: v})}>
+                    <SelectTrigger className="font-bold text-xs h-9"><SelectValue placeholder="Striker" /></SelectTrigger>
+                    <SelectContent>{battingPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[8px] font-black">Non-Striker</Label>
+                  <Select value={editForm.nonStrikerId} onValueChange={v => setEditForm({...editForm, nonStrikerId: v})}>
+                    <SelectTrigger className="font-bold text-xs h-9"><SelectValue placeholder="Non-Striker" /></SelectTrigger>
+                    <SelectContent>{battingPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-[8px] font-black">Bowler</Label>
+                  <Select value={editForm.bowlerId} onValueChange={v => setEditForm({...editForm, bowlerId: v})}>
+                    <SelectTrigger className="font-bold text-xs h-9"><SelectValue placeholder="Bowler" /></SelectTrigger>
+                    <SelectContent>{bowlingPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
             {[{idx: 1, s: editForm.inn1Score, w: editForm.inn1Wickets, o: editForm.inn1Overs, b: editForm.inn1Balls}, {idx: 2, s: editForm.inn2Score, w: editForm.inn2Wickets, o: editForm.inn2Overs, b: editForm.inn2Balls}].map(i => (
               <div key={i.idx} className="p-4 border rounded-xl bg-slate-50">
                 <p className="text-[10px] font-black mb-3 text-slate-500 uppercase">Innings {i.idx} Manual Override</p>
@@ -553,6 +574,10 @@ export default function MatchScoreboardPage() {
                 </div>
               </div>
             ))}
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black">Final Result Description (Calculated)</Label>
+              <Input value={editForm.resultDescription} onChange={e => setEditForm({...editForm, resultDescription: e.target.value})} className="font-bold text-primary" />
+            </div>
           </div>
           <DialogFooter><Button onClick={handleUpdateFullMatch} className="w-full h-12 font-black uppercase tracking-widest"><Save className="w-4 h-4 mr-2" /> Save Corrections</Button></DialogFooter>
         </DialogContent>
@@ -564,7 +589,7 @@ export default function MatchScoreboardPage() {
           <div className="space-y-4 py-6">
             <div className="space-y-2">
               <Label className="text-[10px] font-black">Current Bowler</Label>
-              <Select value={activeInningData?.currentBowlerPlayerId} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: v })}>
+              <Select value={activeInningData?.currentBowlerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: v })}>
                 <SelectTrigger className="font-bold h-12"><SelectValue placeholder="Choose Bowler" /></SelectTrigger>
                 <SelectContent>{bowlingPlayers.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
               </Select>
@@ -596,11 +621,24 @@ export default function MatchScoreboardPage() {
         <DialogContent className="max-w-md rounded-xl">
           <DialogHeader><DialogTitle className="font-black uppercase">Record Wicket</DialogTitle></DialogHeader>
           <div className="space-y-5 py-4">
-            <div><Label className="text-[10px] font-black">Batter Out</Label><Select onValueChange={v => setWicketForm({...wicketForm, batterOutId: v})}><SelectTrigger><SelectValue placeholder="Who is out?" /></SelectTrigger><SelectContent><SelectItem value={activeInningData?.strikerPlayerId || ''}>{getPlayerName(activeInningData?.strikerPlayerId || '')}</SelectItem><SelectItem value={activeInningData?.nonStrikerPlayerId || ''}>{getPlayerName(activeInningData?.nonStrikerPlayerId || '')}</SelectItem></SelectContent></Select></div>
+            <div>
+              <Label className="text-[10px] font-black">Batter Out</Label>
+              <Select onValueChange={v => setWicketForm({...wicketForm, batterOutId: v})}>
+                <SelectTrigger><SelectValue placeholder="Who is out?" /></SelectTrigger>
+                <SelectContent>
+                  {activeInningData?.strikerPlayerId && (
+                    <SelectItem value={activeInningData.strikerPlayerId}>{getPlayerName(activeInningData.strikerPlayerId)}</SelectItem>
+                  )}
+                  {activeInningData?.nonStrikerPlayerId && (
+                    <SelectItem value={activeInningData.nonStrikerPlayerId}>{getPlayerName(activeInningData.nonStrikerPlayerId)}</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label className="text-[10px] font-black">Dismissal Type</Label><Select value={wicketForm.type} onValueChange={v => setWicketForm({...wicketForm, type: v})}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="catch">Caught</SelectItem><SelectItem value="lbw">LBW</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumping">Stumped</SelectItem></SelectContent></Select></div>
             <div><Label className="text-[10px] font-black">Fielder (Optional)</Label><Select onValueChange={v => setWicketForm({...wicketForm, fielderId: v})}><SelectTrigger><SelectValue placeholder="None" /></SelectTrigger><SelectContent><SelectItem value="none">None</SelectItem>{allPlayers?.filter(p => p.teamId === activeInningData?.bowlingTeamId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
           </div>
-          <DialogFooter><Button onClick={handleWicket} className="w-full h-12 font-black uppercase tracking-widest">Confirm OUT</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleWicket} className="w-full h-12 font-black uppercase tracking-widest" disabled={!wicketForm.batterOutId}>Confirm OUT</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
