@@ -12,8 +12,8 @@ import {
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
-/** Utility type to add an 'id' field to a given type T. */
-export type WithId<T> = T & { id: string };
+/** Utility type to add an 'id' field and path to a given type T. */
+export type WithId<T> = T & { id: string; __fullPath?: string };
 
 /**
  * Interface for the return value of the useCollection hook.
@@ -29,8 +29,8 @@ export interface UseCollectionResult<T> {
 export interface InternalQuery extends Query<DocumentData> {
   _query?: {
     path?: {
-      canonicalString(): string;
-      toString(): string;
+      canonicalString?(): string;
+      toString?(): string;
     },
     collectionId?: string;
   };
@@ -68,7 +68,11 @@ export function useCollection<T = any>(
       (snapshot: QuerySnapshot<DocumentData>) => {
         const results: ResultItemType[] = [];
         for (const doc of snapshot.docs) {
-          results.push({ ...(doc.data() as T), id: doc.id });
+          results.push({ 
+            ...(doc.data() as T), 
+            id: doc.id,
+            __fullPath: doc.ref.path 
+          });
         }
         setData(results);
         setError(null);
@@ -93,7 +97,7 @@ export function useCollection<T = any>(
             } else if (canonicalPath) {
               path = canonicalPath;
             } else {
-              path = 'root_or_group_query';
+              path = 'collection_group_query';
             }
           }
         } catch (e) {

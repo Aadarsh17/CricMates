@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
@@ -72,20 +71,10 @@ export default function PlayerProfilePage() {
 
     const formats: Record<number, any> = {};
 
-    // Helper to get match totalOvers
-    const getMatchOvers = (mId: string) => allMatches.find(m => m.id === mId)?.totalOvers || 20;
-
     // Batting Aggregation
     ballsFaced.forEach(ball => {
-      const matchId = ball.id.split('/')[1]; // Approximate if path structure is consistent
-      // Better: In our app, deliveryRecords are subcollections of innings, which are subcollections of matches
-      // But collectionGroup returns docs. We need to associate them with matches.
-      // Let's find the match from the delivery data if matchId was stored, otherwise we'll have to skip or infer.
-      // Assuming our addRecordBall stored matchId or similar. If not, we'll use a safer approach.
-      
-      // Let's assume the deliveryRecord has matchId. If not, we'll try to get it from the parent paths if possible.
-      // For this prototype, let's assume allMatches covers the relevant matches.
-      const match = allMatches.find(m => ball.id.includes(m.id));
+      const ballPath = ball.__fullPath || '';
+      const match = allMatches.find(m => ballPath.includes(m.id));
       if (!match) return;
 
       const format = match.totalOvers;
@@ -107,7 +96,8 @@ export default function PlayerProfilePage() {
 
     // Mark Outs
     wicketsLost?.forEach(w => {
-        const match = allMatches.find(m => w.id.includes(m.id));
+        const wPath = w.__fullPath || '';
+        const match = allMatches.find(m => wPath.includes(m.id));
         if (match) {
             const format = match.totalOvers;
             if (formats[format]?.batting[match.id]) {
@@ -118,7 +108,8 @@ export default function PlayerProfilePage() {
 
     // Bowling Aggregation
     ballsBowled.forEach(ball => {
-      const match = allMatches.find(m => ball.id.includes(m.id));
+      const ballPath = ball.__fullPath || '';
+      const match = allMatches.find(m => ballPath.includes(m.id));
       if (!match) return;
 
       const format = match.totalOvers;
@@ -127,7 +118,7 @@ export default function PlayerProfilePage() {
       formats[format].matches.add(match.id);
 
       if (!formats[format].bowling[match.id]) {
-        formats[format].bowling[match.id] = { runs: 0, balls: 0, wickets: 0, maidens: 0 };
+        formats[format].bowling[match.id] = { runs: 0, balls: 0, wickets: 0, maidens: 0, bbiRuns: 0, bbiWickets: 0 };
       }
 
       formats[format].bowling[match.id].runs += (ball.totalRunsOnDelivery || 0);
@@ -136,6 +127,15 @@ export default function PlayerProfilePage() {
       }
       if (ball.extraType !== 'wide' && ball.extraType !== 'noball') {
         formats[format].bowling[match.id].balls += 1;
+      }
+
+      // Track BBI (Best Bowling in Inning) - simplified for format level
+      // This would ideally be per-match, but we'll show the best across the format
+      const matchBowling = formats[format].bowling[match.id];
+      if (matchBowling.wickets > formats[format].bowling[match.id].bbiWickets || 
+         (matchBowling.wickets === formats[format].bowling[match.id].bbiWickets && matchBowling.runs < formats[format].bowling[match.id].bbiRuns)) {
+          formats[format].bowling[match.id].bbiWickets = matchBowling.wickets;
+          formats[format].bowling[match.id].bbiRuns = matchBowling.runs;
       }
     });
 
@@ -156,6 +156,10 @@ export default function PlayerProfilePage() {
       const totalWickets = bowlMatches.reduce((acc: number, curr: any) => acc + curr.wickets, 0);
       const totalRunsConceded = bowlMatches.reduce((acc: number, curr: any) => acc + curr.runs, 0);
       const totalBallsBowled = bowlMatches.reduce((acc: number, curr: any) => acc + curr.balls, 0);
+
+      // Best Bowling in Format
+      const bestMatch = bowlMatches.sort((a: any, b: any) => b.wickets - a.wickets || a.runs - b.runs)[0];
+      const bbi = bestMatch ? `${bestMatch.wickets}/${bestMatch.runs}` : '---';
 
       finalStats[fNum] = {
         matches: f.matches.size,
@@ -181,6 +185,8 @@ export default function PlayerProfilePage() {
         bowlAvg: totalWickets > 0 ? (totalRunsConceded / totalWickets).toFixed(2) : '0.00',
         eco: totalBallsBowled > 0 ? (totalRunsConceded / (totalBallsBowled / 6)).toFixed(2) : '0.00',
         bowlSr: totalWickets > 0 ? (totalBallsBowled / totalWickets).toFixed(2) : '0.00',
+        bbi: bbi,
+        bbm: bbi, // For limited overs formats, BBI and BBM are often same
         '1w': bowlMatches.filter((m: any) => m.wickets === 1).length,
         '2w': bowlMatches.filter((m: any) => m.wickets === 2).length,
         '3w': bowlMatches.filter((m: any) => m.wickets === 3).length,
@@ -361,7 +367,7 @@ export default function PlayerProfilePage() {
                        <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4 w-32">{row.label}</TableCell>
                        {activeFormats.map(f => (
                          <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
-                            {statsByFormat[f]?.[row.field] ?? statsByFormat[f]?.[row.label.toLowerCase().replace(' ', '')] ?? '---'}
+                            {statsByFormat[f]?.[row.field] ?? '---'}
                          </TableCell>
                        ))}
                     </TableRow>
@@ -389,6 +395,8 @@ export default function PlayerProfilePage() {
                    { label: 'Avg', field: 'bowlAvg' },
                    { label: 'Eco', field: 'eco' },
                    { label: 'SR', field: 'bowlSr' },
+                   { label: 'BBI', field: 'bbi' },
+                   { label: 'BBM', field: 'bbm' },
                    { label: '1w', field: '1w' },
                    { label: '2w', field: '2w' },
                    { label: '3w', field: '3w' },
