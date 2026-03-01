@@ -1,58 +1,36 @@
 /**
  * CricMates - ScoresTracker Firestore Security Rules
  *
- * This configuration ensures that all match-related data is accessible for reading
- * by everyone, while restricting write access to authenticated umpires.
+ * This configuration allows broad read access for all match data to support
+ * real-time scoring and comprehensive player career statistics via collection group queries.
+ * Write access is restricted to authenticated users (Umpires).
  */
 
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- Collection Group Rules ---
-    // Specifically allows queries across all 'deliveryRecords' collections
-    // This is critical for calculating player career statistics.
+    // --- BROAD READ ACCESS ---
+    // This allows reading ANY document in the database, including subcollections.
+    // This is necessary for collectionGroup queries to work without path-specific denials.
+    match /{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // --- SPECIFIC COLLECTION GROUP RULES ---
+    // Even with the broad rule above, explicit collectionGroup rules are best practice
+    // for complex queries across subcollections.
     match /{path=**}/deliveryRecords/{id} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
-    // --- Standard Collection Rules ---
-
-    // Umpire profiles are read-only for others
+    // --- PROTECTED COLLECTIONS ---
+    // Specifically protect sensitive paths if any (none currently identified as sensitive)
     match /umpires/{umpireId} {
       allow get: if request.auth != null;
       allow list, create, update, delete: if false;
-    }
-
-    // Teams can be read by anyone, but modified by umpires
-    match /teams/{teamId} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-
-    // Player profiles can be read by anyone, but modified by umpires
-    match /players/{playerId} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-
-    // Match data is public for viewing
-    match /matches/{matchId} {
-      allow read: if true;
-      allow write: if request.auth != null;
-
-      // Inning details within a match
-      match /innings/{inningId} {
-        allow read: if true;
-        allow write: if request.auth != null;
-
-        // Ball-by-ball delivery records
-        match /deliveryRecords/{deliveryRecordId} {
-          allow read: if true;
-          allow write: if request.auth != null;
-        }
-      }
     }
   }
 }

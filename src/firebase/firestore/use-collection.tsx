@@ -25,9 +25,7 @@ export interface UseCollectionResult<T> {
   error: FirestoreError | Error | null; // Error object, or null.
 }
 
-/* Internal implementation of Query:
-  https://github.com/firebase/firebase-js-sdk/blob/c5f08a9bc5da0d2b0207802c972d53724ccef055/packages/firestore/src/lite-api/reference.ts#L143
-*/
+/* Internal implementation of Query for path extraction */
 export interface InternalQuery extends Query<DocumentData> {
   _query?: {
     path?: {
@@ -37,6 +35,7 @@ export interface InternalQuery extends Query<DocumentData> {
     collectionId?: string;
   };
   type?: string;
+  path?: string;
 }
 
 /**
@@ -76,14 +75,16 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (error: FirestoreError) => {
-        // Extract diagnostic path for error reporting
+        // Enhanced diagnostic path extraction
         let path: string = 'unknown_query';
         try {
-          const internalQuery = (memoizedTargetRefOrQuery as any)._query;
-          if (memoizedTargetRefOrQuery.type === 'collection') {
-            path = (memoizedTargetRefOrQuery as CollectionReference).path;
-          } else if (internalQuery) {
-            path = internalQuery.path?.canonicalString() || internalQuery.collectionId || 'collection_group_query';
+          const q = memoizedTargetRefOrQuery as any;
+          if (q.type === 'collection' && q.path) {
+            path = q.path;
+          } else if (q._query) {
+            const internalPath = q._query.path?.canonicalString?.() || q._query.path?.toString?.();
+            const collectionId = q._query.collectionId;
+            path = internalPath && internalPath !== '/' ? internalPath : (collectionId ? `[Group Query: ${collectionId}]` : 'root_or_group_query');
           }
         } catch (e) {
           path = 'error_resolving_query_path';
