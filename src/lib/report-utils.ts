@@ -160,9 +160,9 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
   `;
 
   const renderFowSummary = (fow: any[]) => `
-    <div style="padding: 3px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 2px; height: 100%;">
-      <div style="font-size: 7px; font-weight: 900; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; margin-bottom: 2px; padding-bottom: 1px;">Fall of Wickets</div>
-      <div style="font-size: 7px; color: #334155; display: flex; flex-wrap: wrap; gap: 4px;">
+    <div style="padding: 4px; background: #f8fafc; border: 1px solid #f1f5f9; border-radius: 2px;">
+      <div style="font-size: 7px; font-weight: 900; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; margin-bottom: 3px; padding-bottom: 1px;">Fall of Wickets</div>
+      <div style="font-size: 7px; color: #334155; display: flex; flex-wrap: wrap; gap: 5px;">
         ${fow.map(f => `<span style="white-space: nowrap;"><strong>${f.wicketNum}-${f.scoreAtWicket}</strong> <span style="font-size: 6px; color: #64748b;">(${getPlayer(f.playerOutId).split(' ')[0]} ${f.playerRuns}, ${f.overs})</span></span>`).join('')}
         ${fow.length === 0 ? '<span style="color: #cbd5e1; font-style: italic; font-size: 7px;">None</span>' : ''}
       </div>
@@ -170,8 +170,8 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
   `;
 
   const renderPartnershipsCompact = (partnerships: any[]) => `
-    <div style="padding: 3px; border: 1px solid #f1f5f9; border-radius: 2px; height: 100%;">
-      <div style="font-size: 7px; font-weight: 900; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; margin-bottom: 2px; padding-bottom: 1px;">Top Partnerships</div>
+    <div style="padding: 4px; border: 1px solid #f1f5f9; border-radius: 2px;">
+      <div style="font-size: 7px; font-weight: 900; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; margin-bottom: 3px; padding-bottom: 1px;">Top Partnerships</div>
       <table style="width:100%; border-collapse: collapse;">
         ${partnerships.slice(0, 4).map(p => `
           <tr style="border-bottom: 1px dashed #f1f5f9;">
@@ -192,43 +192,44 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Report - ${getTeam(match.team1Id)} vs ${getTeam(match.team2Id)}</title>
       <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; line-height: 1.1; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 4px; background-color: #fff; font-size: 8px; }
-        .header { text-align: center; border-bottom: 1.5px solid #1e40af; padding-bottom: 2px; margin-bottom: 4px; }
-        h1 { margin: 0; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px; font-weight: 900; }
-        .match-summary { background: #f8fafc; padding: 4px; border-radius: 3px; border: 1px solid #e2e8f0; margin-bottom: 4px; }
-        .inning-bar { background: #1e40af; color: white; padding: 1.5px 4px; font-weight: 900; text-transform: uppercase; font-size: 7px; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
-        .inning-sub-bar { background: #475569; color: white; padding: 1.5px 4px; font-weight: 800; text-transform: uppercase; font-size: 7px; margin-top: 1px; }
-        .result-text { font-size: 9px; font-weight: 900; color: #1e40af; text-align: center; text-transform: uppercase; margin-top: 2px; border-top: 1px solid #e2e8f0; padding-top: 2px; }
-        .toss-small { font-size: 7px; color: #94a3b8; font-weight: 600; text-align: center; margin-top: 1px; }
-        .side-by-side { display: flex; gap: 4px; margin: 3px 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; line-height: 1.2; color: #1e293b; max-width: 600px; margin: 0 auto; padding: 6px; background-color: #fff; font-size: 8px; }
+        .header { text-align: center; border-bottom: 2px solid #1e40af; padding-bottom: 4px; margin-bottom: 6px; }
+        h1 { margin: 0; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; font-size: 12px; font-weight: 900; }
+        .match-summary { background: #f8fafc; padding: 6px; border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 8px; }
+        .inning-bar { background: #1e40af; color: white; padding: 2px 5px; font-weight: 900; text-transform: uppercase; font-size: 8px; letter-spacing: 0.5px; display: flex; justify-content: space-between; align-items: center; margin-top: 8px; border-radius: 2px; }
+        .inning-sub-bar { background: #475569; color: white; padding: 2px 5px; font-weight: 800; text-transform: uppercase; font-size: 7px; margin-top: 6px; border-radius: 2px; display: block; clear: both; }
+        .result-text { font-size: 10px; font-weight: 900; color: #1e40af; text-align: center; text-transform: uppercase; margin-top: 4px; border-top: 1px solid #e2e8f0; padding-top: 4px; }
+        .toss-small { font-size: 7px; color: #94a3b8; font-weight: 600; text-align: center; margin-top: 2px; }
+        .side-by-side { display: flex; gap: 6px; margin: 6px 0; align-items: stretch; clear: both; }
         .side-by-side > div { flex: 1; }
-        footer { margin-top: 6px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 2px; color: #cbd5e1; font-size: 6px; font-weight: 700; }
+        .inning-section { margin-bottom: 12px; clear: both; }
+        footer { margin-top: 10px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 4px; color: #cbd5e1; font-size: 6px; font-weight: 700; text-transform: uppercase; }
       </style>
     </head>
     <body>
       <div class="header">
         <h1>CRICMATES OFFICIAL SCORECARD</h1>
-        <div style="font-weight: 700; color: #94a3b8; font-size: 7px; text-transform: uppercase;">
-          ${new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} | ${match.totalOvers} OVERS
+        <div style="font-weight: 700; color: #94a3b8; font-size: 8px; text-transform: uppercase;">
+          ${new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} | ${match.totalOvers} OVERS MATCH
         </div>
       </div>
       
       <div class="match-summary">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
           <div style="text-align: center; flex: 1;">
-            <div style="font-weight: 800; font-size: 8px;">${getTeam(match.team1Id)}</div>
-            <div style="font-size: 13px; font-weight: 900; color: #1e40af;">${inn1?.score || 0}/${inn1?.wickets || 0}</div>
-            <div style="font-size: 7px; color: #64748b; font-weight: 700;">${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver || 0} OV</div>
+            <div style="font-weight: 800; font-size: 9px; color: #475569;">${getTeam(match.team1Id)}</div>
+            <div style="font-size: 16px; font-weight: 900; color: #1e40af;">${inn1?.score || 0}/${inn1?.wickets || 0}</div>
+            <div style="font-size: 8px; color: #94a3b8; font-weight: 700;">${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver || 0} OV</div>
           </div>
-          <div style="font-weight: 900; font-size: 9px; color: #cbd5e1; padding: 0 4px;">VS</div>
+          <div style="font-weight: 900; font-size: 10px; color: #cbd5e1; padding: 0 8px;">VS</div>
           <div style="text-align: center; flex: 1;">
-            <div style="font-weight: 800; font-size: 8px;">${getTeam(match.team2Id)}</div>
-            <div style="font-size: 13px; font-weight: 900; color: #1e40af;">${inn2?.score || 0}/${inn2?.wickets || 0}</div>
-            <div style="font-size: 7px; color: #64748b; font-weight: 700;">${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver || 0} OV</div>
+            <div style="font-weight: 800; font-size: 9px; color: #475569;">${getTeam(match.team2Id)}</div>
+            <div style="font-size: 16px; font-weight: 900; color: #1e40af;">${inn2?.score || 0}/${inn2?.wickets || 0}</div>
+            <div style="font-size: 8px; color: #94a3b8; font-weight: 700;">${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver || 0} OV</div>
           </div>
         </div>
         <div class="result-text">${match.resultDescription}</div>
-        <div class="toss-small">Toss: ${getTeam(match.tossWinnerTeamId)} chose to ${match.tossDecision}</div>
+        <div class="toss-small">TOSS: ${getTeam(match.tossWinnerTeamId)} WON & CHOSE TO ${match.tossDecision.toUpperCase()}</div>
       </div>
 
       <div class="inning-section">
