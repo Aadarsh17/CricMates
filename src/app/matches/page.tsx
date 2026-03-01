@@ -6,7 +6,7 @@ import { collection, query, orderBy, doc, getDocs } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, Info, Trophy, Download, FileText } from 'lucide-react';
+import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, Info, Trophy, Download, FileText, Share2 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -59,7 +59,9 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
     toast({ title: "Result Updated" });
   };
 
-  const handleDownloadReport = async () => {
+  const handleDownloadReport = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (isGenerating) return;
     setIsGenerating(true);
     toast({ title: "Generating Report", description: "Calculating statistics..." });
@@ -86,7 +88,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      toast({ title: "Report Downloaded", description: "Share the HTML file with your friends." });
+      toast({ title: "Report Downloaded", description: "Share the HTML file for a professional experience." });
     } catch (e) {
       console.error(e);
       toast({ title: "Download Failed", description: "Could not generate report.", variant: "destructive" });
@@ -138,23 +140,13 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button 
-              onClick={handleDownloadReport} 
-              disabled={isGenerating}
-              variant="default" 
-              size="sm" 
-              className="h-8 bg-secondary hover:bg-secondary/90 text-white font-black text-[10px] uppercase px-3 shadow-sm flex items-center gap-2"
-            >
-              <Download className={cn("w-3.5 h-3.5", isGenerating && "animate-bounce")} />
-              <span>Download Report</span>
-            </Button>
             {isUmpire && (
               <div className="flex gap-1">
                 <Dialog open={isEditing} onOpenChange={setIsEditing}>
                   <DialogTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
+                  <DialogContent className="max-w-[90vw] sm:max-w-md">
                     <DialogHeader><DialogTitle>Edit Match Result</DialogTitle></DialogHeader>
                     <div className="py-4 space-y-4">
                       <div className="space-y-2">
@@ -170,7 +162,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
                   <AlertDialogTrigger asChild>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                   </AlertDialogTrigger>
-                  <AlertDialogContent className="max-w-[90vw] sm:max-w-md max-h-[85vh] overflow-y-auto">
+                  <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete this Match?</AlertDialogTitle>
                       <AlertDialogDescription>This action cannot be undone. All delivery records and stats for this match will be lost.</AlertDialogDescription>
@@ -224,12 +216,21 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
               )}
             </div>
             
-            <div className="flex items-center gap-3 pt-2">
-              <Button asChild className="flex-1 bg-primary font-bold h-9">
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              <Button asChild className="w-full sm:flex-1 bg-primary font-bold h-10 shadow-sm">
                 <Link href={`/match/${match.id}`}>Full Scorecard</Link>
               </Button>
+              <Button 
+                onClick={handleDownloadReport} 
+                disabled={isGenerating} 
+                variant="outline" 
+                className="w-full sm:flex-1 border-secondary text-secondary hover:bg-secondary/5 font-black uppercase text-[10px] h-10 shadow-sm"
+              >
+                <Download className={cn("w-4 h-4 mr-2", isGenerating && "animate-bounce")} />
+                {isGenerating ? "Generating..." : "Download Report"}
+              </Button>
               {match.status === 'completed' && (
-                <Button asChild variant="outline" className="flex-1 border-secondary text-secondary hover:bg-secondary/5 font-bold h-9">
+                <Button asChild variant="ghost" className="w-full sm:flex-1 text-slate-500 hover:bg-slate-50 font-bold h-10">
                   <Link href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}`}>
                     <RefreshCcw className="w-3 h-3 mr-2" /> Play Again
                   </Link>
@@ -239,11 +240,11 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
           </CollapsibleContent>
 
           <CollapsibleTrigger asChild>
-            <Button variant="ghost" className="w-full mt-2 h-8 text-slate-400 hover:bg-slate-50 hover:text-primary transition-colors">
+            <Button variant="ghost" className="w-full mt-2 h-10 text-slate-400 hover:bg-slate-50 hover:text-primary transition-colors">
               {isOpen ? (
                 <div className="flex items-center gap-1 text-[10px] font-bold uppercase"><ChevronUp className="w-3 h-3" /> Show Less</div>
               ) : (
-                <div className="flex items-center gap-1 text-[10px] font-bold uppercase"><ChevronDown className="w-3 h-3" /> View Details</div>
+                <div className="flex items-center gap-1 text-[10px] font-bold uppercase"><ChevronDown className="w-3 h-3" /> View Details & Export</div>
               )}
             </Button>
           </CollapsibleTrigger>
