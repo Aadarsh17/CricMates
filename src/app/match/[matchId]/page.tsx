@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc } 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -31,8 +31,7 @@ import {
   Tooltip, 
   ResponsiveContainer, 
   Legend, 
-  Cell,
-  ReferenceDot
+  Cell
 } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
@@ -116,7 +115,7 @@ export default function MatchScoreboardPage() {
     }
   }, [match, inn1, inn2]);
 
-  // Automatic Result Calculation Logic
+  // Automatic Result Calculation Logic for Editor
   useEffect(() => {
     if (!match || !inn1) return;
     
@@ -126,26 +125,18 @@ export default function MatchScoreboardPage() {
     if (editForm.inn1Score > 0 || editForm.inn2Score > 0) {
       let result = '';
       if (editForm.inn1Score > editForm.inn2Score) {
-        if (editForm.status === 'completed') {
-          result = `${team1Name} won by ${editForm.inn1Score - editForm.inn2Score} runs`;
-        } else {
-          result = `${team1Name} leading by ${editForm.inn1Score - editForm.inn2Score} runs`;
-        }
+        result = `${team1Name} won by ${editForm.inn1Score - editForm.inn2Score} runs`;
       } else if (editForm.inn2Score > editForm.inn1Score) {
-        if (editForm.status === 'completed') {
-          result = `${team2Name} won by ${10 - editForm.inn2Wickets} wickets`;
-        } else {
-          result = `${team2Name} leading by ${editForm.inn2Score - editForm.inn1Score} runs`;
-        }
+        result = `${team2Name} won by ${10 - editForm.inn2Wickets} wickets`;
       } else if (editForm.inn1Score === editForm.inn2Score && editForm.inn1Score > 0) {
-        result = "Match Drawn / Tied";
+        result = "Match Tied";
       }
       
-      if (result && editForm.status === 'completed') {
+      if (result) {
         setEditForm(prev => ({ ...prev, resultDescription: result }));
       }
     }
-  }, [editForm.inn1Score, editForm.inn2Score, editForm.inn1Wickets, editForm.inn2Wickets, editForm.status]);
+  }, [editForm.inn1Score, editForm.inn2Score, editForm.inn1Wickets, editForm.inn2Wickets]);
 
   const inn1DeliveriesQuery = useMemoFirebase(() => 
     query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
@@ -285,7 +276,7 @@ export default function MatchScoreboardPage() {
       wickets: newWickets,
       oversCompleted: newOvers,
       ballsInCurrentOver: newBalls,
-      strikerPlayerId: 'none' 
+      strikerPlayerId: '' // Need to pick a new batter
     });
 
     setIsWicketDialogOpen(false);
@@ -332,6 +323,39 @@ export default function MatchScoreboardPage() {
     toast({ title: "Match Updated", description: "Corrections have been saved." });
   };
 
+  const handleStart2ndInnings = async () => {
+    if (!match || !inn1 || !isUmpire) return;
+
+    const inn2Id = 'inning_2';
+    const battingTeamId = inn1.bowlingTeamId;
+    const bowlingTeamId = inn1.battingTeamId;
+
+    const inningData = {
+      id: inn2Id,
+      matchId: matchId,
+      inningNumber: 2,
+      battingTeamId,
+      bowlingTeamId,
+      score: 0,
+      wickets: 0,
+      oversCompleted: 0,
+      ballsInCurrentOver: 0,
+      strikerPlayerId: '',
+      nonStrikerPlayerId: '',
+      currentBowlerPlayerId: '',
+      umpireId: user?.uid || 'anonymous',
+      matchStatus: 'live'
+    };
+
+    const batch = writeBatch(db);
+    batch.set(doc(db, 'matches', matchId, 'innings', inn2Id), inningData);
+    batch.update(doc(db, 'matches', matchId), { currentInningNumber: 2 });
+    
+    await batch.commit();
+    setIsBowlerDialogOpen(true); // Pick bowlers and openers
+    toast({ title: "2nd Innings Started", description: "Please assign openers and bowler." });
+  };
+
   const handleEndMatch = async () => {
     if (!match || !inn1 || !allTeams) return;
     
@@ -357,9 +381,10 @@ export default function MatchScoreboardPage() {
       winnerId = team2Id;
       loserId = team1Id;
     } else {
-      result = "Match Drawn";
+      result = "Match Tied";
     }
 
+    // Statistics aggregation for CVP and Team Standing
     const allDeliveries = [...(inn1Deliveries || []), ...(inn2Deliveries || [])];
     const perfMap: Record<string, PlayerMatchStats> = {};
 
@@ -628,7 +653,7 @@ export default function MatchScoreboardPage() {
               {getTeamName(match.team1Id)} <span className="text-slate-300 mx-1">VS</span> {getTeamName(match.team2Id)}
             </h1>
             <p className="text-[10px] font-black uppercase text-primary tracking-widest mt-1">
-              {match.status === 'completed' ? match.resultDescription : 'Match In Progress'}
+              {match.status === 'completed' ? match.resultDescription : `Innings ${match.currentInningNumber} in Progress`}
             </p>
           </div>
           {isUmpire && (
@@ -663,9 +688,11 @@ export default function MatchScoreboardPage() {
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y text-xs">
-                <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Venue</span><span className="font-black text-slate-900">League Grounds</span></div>
                 <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Date</span><span className="font-medium text-slate-900">{new Date(match.matchDate).toLocaleDateString()}</span></div>
                 <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Toss</span><span className="font-medium text-slate-900">{match.tossWinnerTeamId ? `${getTeamName(match.tossWinnerTeamId)} won & opt to ${match.tossDecision}` : '---'}</span></div>
+                {match.status === 'completed' && (
+                  <div className="flex p-4"><span className="w-32 font-bold text-slate-500">Result</span><span className="font-black text-secondary">{match.resultDescription}</span></div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -674,8 +701,8 @@ export default function MatchScoreboardPage() {
         <TabsContent value="live" className="mt-4 space-y-6">
           <div className="bg-white p-4 md:p-6 rounded-lg border shadow-sm space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {inn1 && <div className={cn("p-4 rounded-xl border flex justify-between items-center transition-all", match.currentInningNumber === 1 ? "bg-primary/5 border-primary shadow-sm ring-1 ring-primary/20" : "bg-slate-50 opacity-60")}><div className="space-y-1"><p className="text-[10px] font-black uppercase text-slate-400">1st Innings</p><h4 className="font-black text-xl">{getAbbr(getTeamName(match.team1Id))} {inn1.score}/{inn1.wickets}</h4></div><div className="text-right"><p className="text-[10px] font-black uppercase text-slate-400">Overs</p><h4 className="font-bold">{inn1.oversCompleted}.{inn1.ballsInCurrentOver}</h4></div></div>}
-              {inn2 && <div className={cn("p-4 rounded-xl border flex justify-between items-center transition-all", match.currentInningNumber === 2 ? "bg-primary/5 border-primary shadow-sm ring-1 ring-primary/20" : "bg-slate-50 opacity-60")}><div className="space-y-1"><p className="text-[10px] font-black uppercase text-slate-400">2nd Innings</p><h4 className="font-black text-xl">{getAbbr(getTeamName(match.team2Id))} {inn2.score}/{inn2.wickets}</h4></div><div className="text-right"><p className="text-[10px] font-black uppercase text-slate-400">Overs</p><h4 className="font-bold">{inn2.oversCompleted}.{inn2.ballsInCurrentOver}</h4></div></div>}
+              {inn1 && <div className={cn("p-4 rounded-xl border flex justify-between items-center transition-all", match.currentInningNumber === 1 ? "bg-primary/5 border-primary shadow-sm ring-1 ring-primary/20" : "bg-slate-50 opacity-60")}><div className="space-y-1"><p className="text-[10px] font-black uppercase text-slate-400">{getTeamName(inn1.battingTeamId)}</p><h4 className="font-black text-xl">{inn1.score}/{inn1.wickets}</h4></div><div className="text-right"><p className="text-[10px] font-black uppercase text-slate-400">Overs</p><h4 className="font-bold">{inn1.oversCompleted}.{inn1.ballsInCurrentOver}</h4></div></div>}
+              {inn2 && <div className={cn("p-4 rounded-xl border flex justify-between items-center transition-all", match.currentInningNumber === 2 ? "bg-primary/5 border-primary shadow-sm ring-1 ring-primary/20" : "bg-slate-50 opacity-60")}><div className="space-y-1"><p className="text-[10px] font-black uppercase text-slate-400">{getTeamName(inn2.battingTeamId)}</p><h4 className="font-black text-xl">{inn2.score}/{inn2.wickets}</h4></div><div className="text-right"><p className="text-[10px] font-black uppercase text-slate-400">Overs</p><h4 className="font-bold">{inn2.oversCompleted}.{inn2.ballsInCurrentOver}</h4></div></div>}
             </div>
 
             {isUmpire && match.status === 'live' && activeInningData && (
@@ -693,6 +720,7 @@ export default function MatchScoreboardPage() {
                     <p className="text-sm font-black text-secondary">{match.currentInningNumber === 2 && inn1 ? inn1.score + 1 : '---'}</p>
                   </div>
                 </div>
+
                 <div className="grid grid-cols-3 gap-3">
                   {[0, 1, 2, 3, 4, 6].map(runs => (
                     <Button key={runs} onClick={() => handleRecordBall(runs)} className="h-16 font-black text-2xl bg-white text-slate-900 border-2 border-slate-200 hover:bg-slate-50 hover:border-primary/50 shadow-sm transition-all active:scale-95">
@@ -700,15 +728,24 @@ export default function MatchScoreboardPage() {
                     </Button>
                   ))}
                 </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-14 font-black border-amber-200 text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">WIDE</Button>
                   <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-14 font-black border-amber-200 text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">NO BALL</Button>
                   <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-14 font-black border-red-200 text-red-700 bg-red-50 uppercase tracking-widest text-xs">OUT / WICKET</Button>
-                  <Button variant="outline" onClick={() => setIsBowlerDialogOpen(true)} className="h-14 font-black border-slate-200 text-slate-600 uppercase tracking-widest text-xs">NEW BOWLER</Button>
+                  <Button variant="outline" onClick={() => setIsBowlerDialogOpen(true)} className="h-14 font-black border-slate-200 text-slate-600 uppercase tracking-widest text-xs">CHANGE BOWLER</Button>
                 </div>
-                <Button onClick={handleEndMatch} variant="destructive" className="w-full font-black uppercase text-sm h-14 tracking-widest mt-4 shadow-xl">
-                  <CheckCircle2 className="w-5 h-5 mr-2" /> FINISH & SAVE MATCH
-                </Button>
+
+                <div className="pt-4 space-y-3">
+                  {match.currentInningNumber === 1 && (
+                    <Button onClick={handleStart2ndInnings} className="w-full h-14 bg-secondary font-black uppercase tracking-widest shadow-lg">
+                      <PlayCircle className="w-5 h-5 mr-2" /> Start 2nd Innings
+                    </Button>
+                  )}
+                  <Button onClick={handleEndMatch} variant="destructive" className="w-full font-black uppercase text-sm h-14 tracking-widest shadow-xl">
+                    <CheckCircle2 className="w-5 h-5 mr-2" /> FINISH & SAVE MATCH
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -763,15 +800,6 @@ export default function MatchScoreboardPage() {
                 </Table>
               </CardContent>
             </Card>
-
-            {isUmpire && (
-              <div className="p-4 bg-slate-50 border-y border-dashed space-y-3">
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Administrative Tools</p>
-                 <Button variant="outline" onClick={() => setIsEditFullMatchOpen(true)} className="w-full h-12 font-black text-[10px] uppercase tracking-widest bg-white">
-                   <PenTool className="w-3 h-3 mr-2" /> Correct Full Scorecard & Meta
-                 </Button>
-              </div>
-            )}
           </div>
         </TabsContent>
 
@@ -839,39 +867,15 @@ export default function MatchScoreboardPage() {
                 </div>
              </div>
 
-             <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label className="text-[10px] font-black uppercase text-slate-500">Toss Winner</Label>
-                  <Select value={editForm.tossWinner} onValueChange={(v) => setEditForm({...editForm, tossWinner: v})}>
-                    <SelectTrigger className="font-bold"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={match.team1Id}>{getTeamName(match.team1Id)}</SelectItem>
-                      <SelectItem value={match.team2Id}>{getTeamName(match.team2Id)}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-[10px] font-black uppercase text-slate-500">Toss Decision</Label>
-                  <Select value={editForm.tossDecision} onValueChange={(v) => setEditForm({...editForm, tossDecision: v})}>
-                    <SelectTrigger className="font-bold"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bat">Elect to Bat</SelectItem>
-                      <SelectItem value="bowl">Elect to Bowl</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-             </div>
-
              <div className="space-y-4 p-4 border rounded-xl bg-primary/5">
-                <p className="font-black text-xs uppercase tracking-widest text-primary">Innings 1: {getAbbr(getTeamName(match.team1Id))}</p>
+                <p className="font-black text-xs uppercase tracking-widest text-primary">Innings 1: {getAbbr(getTeamName(inn1?.battingTeamId || ''))}</p>
                 <div className="grid grid-cols-4 gap-2">
                   <div className="space-y-1">
                     <Label className="text-[8px] font-black uppercase">Runs</Label>
                     <Input 
                       type="number" 
                       className="font-black" 
-                      value={editForm.inn1Score === 0 ? "" : editForm.inn1Score} 
-                      placeholder="0"
+                      value={editForm.inn1Score} 
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => setEditForm({...editForm, inn1Score: parseInt(e.target.value)||0})} 
                     />
@@ -881,8 +885,7 @@ export default function MatchScoreboardPage() {
                     <Input 
                       type="number" 
                       className="font-black" 
-                      value={editForm.inn1Wickets === 0 ? "" : editForm.inn1Wickets} 
-                      placeholder="0"
+                      value={editForm.inn1Wickets} 
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => setEditForm({...editForm, inn1Wickets: parseInt(e.target.value)||0})} 
                     />
@@ -892,8 +895,7 @@ export default function MatchScoreboardPage() {
                     <Input 
                       type="number" 
                       className="font-black" 
-                      value={editForm.inn1Overs === 0 ? "" : editForm.inn1Overs} 
-                      placeholder="0"
+                      value={editForm.inn1Overs} 
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => setEditForm({...editForm, inn1Overs: parseInt(e.target.value)||0})} 
                     />
@@ -904,8 +906,7 @@ export default function MatchScoreboardPage() {
                       type="number" 
                       max="5" 
                       className="font-black" 
-                      value={editForm.inn1Balls === 0 ? "" : editForm.inn1Balls} 
-                      placeholder="0"
+                      value={editForm.inn1Balls} 
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => setEditForm({...editForm, inn1Balls: parseInt(e.target.value)||0})} 
                     />
@@ -914,15 +915,14 @@ export default function MatchScoreboardPage() {
              </div>
 
              <div className="space-y-4 p-4 border rounded-xl bg-secondary/5">
-                <p className="font-black text-xs uppercase tracking-widest text-secondary">Innings 2: {getAbbr(getTeamName(match.team2Id))}</p>
+                <p className="font-black text-xs uppercase tracking-widest text-secondary">Innings 2: {getAbbr(getTeamName(inn2?.battingTeamId || ''))}</p>
                 <div className="grid grid-cols-4 gap-2">
                   <div className="space-y-1">
                     <Label className="text-[8px] font-black uppercase">Runs</Label>
                     <Input 
                       type="number" 
                       className="font-black" 
-                      value={editForm.inn2Score === 0 ? "" : editForm.inn2Score} 
-                      placeholder="0"
+                      value={editForm.inn2Score} 
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => setEditForm({...editForm, inn2Score: parseInt(e.target.value)||0})} 
                     />
@@ -932,8 +932,7 @@ export default function MatchScoreboardPage() {
                     <Input 
                       type="number" 
                       className="font-black" 
-                      value={editForm.inn2Wickets === 0 ? "" : editForm.inn2Wickets} 
-                      placeholder="0"
+                      value={editForm.inn2Wickets} 
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => setEditForm({...editForm, inn2Wickets: parseInt(e.target.value)||0})} 
                     />
@@ -943,8 +942,7 @@ export default function MatchScoreboardPage() {
                     <Input 
                       type="number" 
                       className="font-black" 
-                      value={editForm.inn2Overs === 0 ? "" : editForm.inn2Overs} 
-                      placeholder="0"
+                      value={editForm.inn2Overs} 
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => setEditForm({...editForm, inn2Overs: parseInt(e.target.value)||0})} 
                     />
@@ -955,8 +953,7 @@ export default function MatchScoreboardPage() {
                       type="number" 
                       max="5" 
                       className="font-black" 
-                      value={editForm.inn2Balls === 0 ? "" : editForm.inn2Balls} 
-                      placeholder="0"
+                      value={editForm.inn2Balls} 
                       onFocus={(e) => e.target.select()}
                       onChange={(e) => setEditForm({...editForm, inn2Balls: parseInt(e.target.value)||0})} 
                     />
@@ -1002,7 +999,7 @@ export default function MatchScoreboardPage() {
                 <Input className="font-bold" value={editForm.resultDescription} onChange={(e) => setEditForm({...editForm, resultDescription: e.target.value})} />
              </div>
           </div>
-          <DialogFooter><Button onClick={handleUpdateFullMatch} className="w-full h-12 font-black uppercase tracking-widest shadow-lg"><Save className="w-4 h-4 mr-2" /> COMMIT SCORECARD CHANGES</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleUpdateFullMatch} className="w-full h-12 font-black uppercase tracking-widest shadow-lg"><Save className="w-4 h-4 mr-2" /> COMMIT CHANGES</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1022,7 +1019,7 @@ export default function MatchScoreboardPage() {
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500">Method of Dismissal</Label>
               <select className="w-full h-12 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold" value={wicketForm.type} onChange={(e) => setWicketForm({...wicketForm, type: e.target.value})}>
-                <option value="bowled">Bowled</option><option value="catch">Caught</option><option value="lbw">LBW</option><option value="runout">Run Out</option><option value="stumping">Stumped</option><option value="hitwicket">Hit Wicket</option>
+                <option value="bowled">Bowled</option><option value="catch">Caught</option><option value="lbw">LBW</option><option value="runout">Run Out</option><option value="stumping">Stumped</option>
               </select>
             </div>
             <div className="space-y-2">
@@ -1040,19 +1037,28 @@ export default function MatchScoreboardPage() {
       {/* Bowler Dialog */}
       <Dialog open={isBowlerDialogOpen} onOpenChange={setIsBowlerDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[80vh] overflow-y-auto rounded-xl">
-          <DialogHeader><DialogTitle className="font-black uppercase">Change Bowler</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-6 text-center">
-             <PenTool className="w-12 h-12 text-primary mx-auto opacity-20" />
+          <DialogHeader><DialogTitle className="font-black uppercase">Assign Players</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-6">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-slate-500">Select Bowler for the Over</Label>
+              <Label className="text-[10px] font-black uppercase text-slate-500">Pick Bowler for this Over</Label>
               <select className="w-full h-14 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold" onChange={(e) => { updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: e.target.value }); setIsBowlerDialogOpen(false); }}>
-                <option value="">Choose next bowler</option>
+                <option value="">Choose bowler</option>
                 {allPlayers?.filter(p => p.teamId === activeInningData?.bowlingTeamId).map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
               </select>
             </div>
+            {(activeInningData?.strikerPlayerId === '' || activeInningData?.strikerPlayerId === 'none') && (
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-500">Assign New Batter (On-Strike)</Label>
+                <select className="w-full h-14 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold" onChange={(e) => { updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { strikerPlayerId: e.target.value }); }}>
+                  <option value="">Choose batter</option>
+                  {battingPlayers.map(p => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                </select>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
+
