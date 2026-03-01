@@ -118,7 +118,7 @@ export default function TeamsPage() {
   };
 
   const handleDeleteTeam = (id: string, name: string) => {
-    if (confirm(`Delete ${name}?`)) {
+    if (confirm(`Delete ${name}? This will remove the team permanently.`)) {
       deleteDocumentNonBlocking(doc(db, 'teams', id));
       toast({ title: "Team Deleted" });
     }
@@ -169,7 +169,9 @@ export default function TeamsPage() {
                       <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Franchise</p>
                     </div>
                   </div>
-                  {isUmpire && user?.uid === team.ownerId && <Button variant="ghost" size="icon" onClick={() => handleDeleteTeam(team.id, team.name)} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>}
+                  {isUmpire && (
+                    <Button variant="ghost" size="icon" onClick={() => handleDeleteTeam(team.id, team.name)} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>
+                  )}
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col p-4 pt-2">
                   <div className="grid grid-cols-3 gap-2 mb-4">
@@ -209,4 +211,3 @@ export default function TeamsPage() {
     </div>
   );
 }
-

@@ -648,7 +648,10 @@ export default function MatchScoreboardPage() {
                         <p className="text-sm font-black">{getPlayerName(activeInningData.currentBowlerPlayerId)}</p>
                     </div>
                   </div>
-                  <Button size="sm" variant="ghost" onClick={handleSwapBatsmen} className="absolute left-1/2 -translate-x-1/2 bottom-2 text-primary hover:text-primary/80 hover:bg-white/5 h-7 px-2 font-black text-[9px] uppercase"><ArrowLeftRight className="w-3 h-3 mr-1" /> Swap Batsmen</Button>
+                  <div className="flex justify-center gap-2">
+                    <Button size="sm" variant="ghost" onClick={handleSwapBatsmen} className="text-primary hover:text-primary/80 hover:bg-white/5 h-7 px-2 font-black text-[9px] uppercase"><ArrowLeftRight className="w-3 h-3 mr-1" /> Swap Batsmen</Button>
+                    <Button size="sm" variant="ghost" onClick={() => setIsEditFullMatchOpen(true)} className="text-amber-500 hover:text-amber-400 hover:bg-white/5 h-7 px-2 font-black text-[9px] uppercase"><Edit2 className="w-3 h-3 mr-1" /> Quick Edit</Button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-3">
