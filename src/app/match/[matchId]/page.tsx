@@ -8,7 +8,7 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc } 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -20,6 +20,21 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
 import { calculatePlayerCVP, type PlayerMatchStats } from '@/lib/cvp-utils';
+import { 
+  LineChart, 
+  Line, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Legend, 
+  Cell,
+  ReferenceDot
+} from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -38,7 +53,6 @@ export default function MatchScoreboardPage() {
   const [activeInningView, setActiveInningView] = useState<number>(1);
   const [editedResult, setEditedResult] = useState('');
 
-  // Form states for full scorecard editing
   const [editForm, setEditForm] = useState({
     inn1Score: 0,
     inn1Wickets: 0,
@@ -453,6 +467,69 @@ export default function MatchScoreboardPage() {
     return Object.values(oversMap).sort((a, b) => b.overNumber - a.overNumber);
   }, [activeInningView, inn1Deliveries, inn2Deliveries]);
 
+  // Chart Data Processing
+  const chartData = useMemo(() => {
+    if (!inn1Deliveries || !match) return { worm: [], manhattan: [] };
+
+    const totalOvers = match.totalOvers;
+    const worm: any[] = [{ over: 0, inn1: 0, inn2: 0 }];
+    const manhattan: any[] = [];
+
+    // Initialize data for each over
+    for (let i = 1; i <= totalOvers; i++) {
+      worm.push({ over: i, inn1: null, inn2: null });
+      manhattan.push({ 
+        over: i, 
+        inn1Runs: 0, 
+        inn1Wickets: 0, 
+        inn2Runs: 0, 
+        inn2Wickets: 0 
+      });
+    }
+
+    // Process Inning 1
+    let cumulative1 = 0;
+    const inn1OversMap: Record<number, { runs: number, wickets: number }> = {};
+    inn1Deliveries.forEach(d => {
+      if (!inn1OversMap[d.overNumber]) inn1OversMap[d.overNumber] = { runs: 0, wickets: 0 };
+      inn1OversMap[d.overNumber].runs += d.totalRunsOnDelivery;
+      if (d.isWicket) inn1OversMap[d.overNumber].wickets += 1;
+    });
+
+    Object.entries(inn1OversMap).forEach(([oStr, stats]) => {
+      const o = parseInt(oStr);
+      cumulative1 += stats.runs;
+      if (worm[o]) worm[o].inn1 = cumulative1;
+      if (manhattan[o-1]) {
+        manhattan[o-1].inn1Runs = stats.runs;
+        manhattan[o-1].inn1Wickets = stats.wickets;
+      }
+    });
+
+    // Process Inning 2
+    if (inn2Deliveries) {
+      let cumulative2 = 0;
+      const inn2OversMap: Record<number, { runs: number, wickets: number }> = {};
+      inn2Deliveries.forEach(d => {
+        if (!inn2OversMap[d.overNumber]) inn2OversMap[d.overNumber] = { runs: 0, wickets: 0 };
+        inn2OversMap[d.overNumber].runs += d.totalRunsOnDelivery;
+        if (d.isWicket) inn2OversMap[d.overNumber].wickets += 1;
+      });
+
+      Object.entries(inn2OversMap).forEach(([oStr, stats]) => {
+        const o = parseInt(oStr);
+        cumulative2 += stats.runs;
+        if (worm[o]) worm[o].inn2 = cumulative2;
+        if (manhattan[o-1]) {
+          manhattan[o-1].inn2Runs = stats.runs;
+          manhattan[o-1].inn2Wickets = stats.wickets;
+        }
+      });
+    }
+
+    return { worm, manhattan };
+  }, [inn1Deliveries, inn2Deliveries, match]);
+
   if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING SCOREBOARD...</div>;
   if (!match) return <div className="p-20 text-center">Match data missing.</div>;
 
@@ -479,7 +556,7 @@ export default function MatchScoreboardPage() {
       <div className="sticky top-16 z-50 bg-white border-b shadow-sm">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="flex w-full justify-start overflow-x-auto rounded-none bg-transparent h-auto p-0 scrollbar-hide">
-            {['Info', 'Live', 'Scorecard', 'Overs'].map((tab) => (
+            {['Info', 'Live', 'Scorecard', 'Overs', 'Charts'].map((tab) => (
               <TabsTrigger 
                 key={tab}
                 value={tab.toLowerCase()} 
@@ -676,6 +753,129 @@ export default function MatchScoreboardPage() {
             </div>
           )}
         </TabsContent>
+
+        <TabsContent value="charts" className="mt-4 space-y-6">
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                <LineChartIcon className="w-4 h-4 text-primary" /> Worm Graph (Runs Progress)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px] w-full mt-4">
+                <ChartContainer config={{ 
+                  inn1: { label: getAbbr(getTeamName(match.team1Id)), color: "hsl(var(--primary))" },
+                  inn2: { label: getAbbr(getTeamName(match.team2Id)), color: "hsl(var(--accent))" }
+                }}>
+                  <LineChart data={chartData.worm} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis 
+                      dataKey="over" 
+                      fontSize={10} 
+                      tickLine={false} 
+                      axisLine={false} 
+                      label={{ value: 'Overs', position: 'insideBottomRight', offset: -10, fontSize: 10, fontWeight: 'bold' }}
+                    />
+                    <YAxis 
+                      fontSize={10} 
+                      tickLine={false} 
+                      axisLine={false} 
+                      label={{ value: 'Runs', angle: -90, position: 'insideLeft', offset: 10, fontSize: 10, fontWeight: 'bold' }}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
+                    <Line 
+                      type="monotone" 
+                      dataKey="inn1" 
+                      stroke="hsl(var(--primary))" 
+                      strokeWidth={3} 
+                      dot={false} 
+                      activeDot={{ r: 4 }} 
+                      name={getAbbr(getTeamName(match.team1Id))}
+                      connectNulls
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="inn2" 
+                      stroke="hsl(var(--accent))" 
+                      strokeWidth={3} 
+                      dot={false} 
+                      activeDot={{ r: 4 }} 
+                      name={getAbbr(getTeamName(match.team2Id))}
+                      connectNulls
+                    />
+                  </LineChart>
+                </ChartContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-secondary" /> Manhattan Chart (Runs Per Over)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[300px] w-full mt-4">
+                <ChartContainer config={{ 
+                  inn1Runs: { label: `${getAbbr(getTeamName(match.team1Id))} Runs`, color: "hsl(var(--primary))" },
+                  inn2Runs: { label: `${getAbbr(getTeamName(match.team2Id))} Runs`, color: "hsl(var(--accent))" }
+                }}>
+                  <BarChart data={chartData.manhattan} margin={{ top: 20, right: 10, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
+                    <XAxis dataKey="over" fontSize={10} tickLine={false} axisLine={false} />
+                    <YAxis fontSize={10} tickLine={false} axisLine={false} />
+                    <ChartTooltip 
+                      cursor={{ fill: 'hsl(var(--muted))', opacity: 0.4 }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div className="bg-white p-2 border rounded shadow-sm text-[10px] font-bold">
+                              <p className="border-b pb-1 mb-1">Over {payload[0].payload.over}</p>
+                              {payload.map((p: any, i: number) => (
+                                <div key={i} className="flex justify-between gap-4 py-0.5" style={{ color: p.color }}>
+                                  <span>{p.name}:</span>
+                                  <span>{p.value} {p.payload[`${p.dataKey.replace('Runs', 'Wickets')}`] > 0 ? `(${p.payload[`${p.dataKey.replace('Runs', 'Wickets')}`]}W)` : ''}</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
+                    <Bar dataKey="inn1Runs" name={getAbbr(getTeamName(match.team1Id))} fill="hsl(var(--primary))" radius={[2, 2, 0, 0]}>
+                      {chartData.manhattan.map((entry, index) => (
+                        <Cell key={`cell-1-${index}`} fill="hsl(var(--primary))" />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="inn2Runs" name={getAbbr(getTeamName(match.team2Id))} fill="hsl(var(--accent))" radius={[2, 2, 0, 0]}>
+                      {chartData.manhattan.map((entry, index) => (
+                        <Cell key={`cell-2-${index}`} fill="hsl(var(--accent))" />
+                      ))}
+                    </Bar>
+                    {/* Wicket Markers */}
+                    {chartData.manhattan.map((entry, index) => {
+                      const markers = [];
+                      if (entry.inn1Wickets > 0) {
+                        markers.push(<ReferenceDot key={`w1-${index}`} x={entry.over} y={entry.inn1Runs + 1} r={3} fill="#ef4444" stroke="none" />);
+                      }
+                      if (entry.inn2Wickets > 0) {
+                        markers.push(<ReferenceDot key={`w2-${index}`} x={entry.over} y={entry.inn2Runs + 1} r={3} fill="#ef4444" stroke="none" />);
+                      }
+                      return markers;
+                    })}
+                  </BarChart>
+                </ChartContainer>
+                <div className="flex items-center justify-center gap-4 mt-2">
+                   <div className="flex items-center gap-1.5"><div className="w-2 h-2 rounded-full bg-red-500" /><span className="text-[8px] font-black uppercase text-slate-400">Wicket Fallen</span></div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Full Scorecard Editor Dialog */}
@@ -780,39 +980,43 @@ export default function MatchScoreboardPage() {
           <div className="space-y-5 py-4">
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500">Batter Dismissed</Label>
-              <Select value={wicketForm.batterOutId} onValueChange={(v) => setWicketForm({...wicketForm, batterOutId: v})}>
-                <SelectTrigger className="font-bold h-12"><SelectValue placeholder="Who is out?" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={activeInningData?.strikerPlayerId || 'none'}>{getPlayerName(activeInningData?.strikerPlayerId || '')} (On Strike)</SelectItem>
-                  <SelectItem value={activeInningData?.nonStrikerPlayerId || 'none'}>{getPlayerName(activeInningData?.nonStrikerPlayerId || '')} (Non-Striker)</SelectItem>
-                </SelectContent>
-              </Select>
+              <select 
+                className="w-full h-12 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold"
+                value={wicketForm.batterOutId} 
+                onChange={(e) => setWicketForm({...wicketForm, batterOutId: e.target.value})}
+              >
+                <option value="">Who is out?</option>
+                <option value={activeInningData?.strikerPlayerId || ''}>{getPlayerName(activeInningData?.strikerPlayerId || '')} (On Strike)</option>
+                <option value={activeInningData?.nonStrikerPlayerId || ''}>{getPlayerName(activeInningData?.nonStrikerPlayerId || '')} (Non-Striker)</option>
+              </select>
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500">Method of Dismissal</Label>
-              <Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}>
-                <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bowled">Bowled</SelectItem>
-                  <SelectItem value="catch">Caught</SelectItem>
-                  <SelectItem value="lbw">LBW</SelectItem>
-                  <SelectItem value="runout">Run Out</SelectItem>
-                  <SelectItem value="stumping">Stumped</SelectItem>
-                  <SelectItem value="hitwicket">Hit Wicket</SelectItem>
-                </SelectContent>
-              </Select>
+              <select 
+                className="w-full h-12 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold"
+                value={wicketForm.type} 
+                onChange={(e) => setWicketForm({...wicketForm, type: e.target.value})}
+              >
+                <option value="bowled">Bowled</option>
+                <option value="catch">Caught</option>
+                <option value="lbw">LBW</option>
+                <option value="runout">Run Out</option>
+                <option value="stumping">Stumped</option>
+                <option value="hitwicket">Hit Wicket</option>
+              </select>
             </div>
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500">Fielder Involved (Optional)</Label>
-              <Select value={wicketForm.fielderId} onValueChange={(v) => setWicketForm({...wicketForm, fielderId: v})}>
-                <SelectTrigger className="font-bold h-12"><SelectValue placeholder="Select Fielder" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None / Direct</SelectItem>
-                  {allPlayers?.filter(p => p.teamId === activeInningData?.bowlingTeamId).map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select 
+                className="w-full h-12 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold"
+                value={wicketForm.fielderId} 
+                onChange={(e) => setWicketForm({...wicketForm, fielderId: e.target.value})}
+              >
+                <option value="none">None / Direct</option>
+                {allPlayers?.filter(p => p.teamId === activeInningData?.bowlingTeamId).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
           </div>
           <DialogFooter><Button onClick={handleWicket} className="w-full h-14 font-black uppercase tracking-widest shadow-xl">Confirm Wicket</Button></DialogFooter>
@@ -827,17 +1031,18 @@ export default function MatchScoreboardPage() {
              <PenTool className="w-12 h-12 text-primary mx-auto opacity-20" />
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-500">Select Bowler for the Over</Label>
-              <Select onValueChange={(v) => {
-                updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: v });
-                setIsBowlerDialogOpen(false);
-              }}>
-                <SelectTrigger className="font-bold h-14"><SelectValue placeholder="Choose next bowler" /></SelectTrigger>
-                <SelectContent>
-                  {allPlayers?.filter(p => p.teamId === activeInningData?.bowlingTeamId).map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <select 
+                className="w-full h-14 rounded-md border border-input bg-background px-3 py-2 text-sm font-bold"
+                onChange={(e) => {
+                  updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: e.target.value });
+                  setIsBowlerDialogOpen(false);
+                }}
+              >
+                <option value="">Choose next bowler</option>
+                {allPlayers?.filter(p => p.teamId === activeInningData?.bowlingTeamId).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
           </div>
         </DialogContent>
