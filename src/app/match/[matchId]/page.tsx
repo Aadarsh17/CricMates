@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart as ReBarChart, Bar, ReferenceDot } from "recharts";
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -136,16 +136,14 @@ export default function MatchScoreboardPage() {
   );
   const { data: inn2Deliveries } = useCollection(inn2DeliveriesQuery);
 
-  // Stats Logic
   const getInningStats = (deliveries: any[]) => {
     if (!deliveries) return { batting: [], bowling: [] };
     const bat: Record<string, any> = {};
     const bowl: Record<string, any> = {};
 
     deliveries.forEach(d => {
-      // Batting
       if (!bat[d.strikerPlayerId]) bat[d.strikerPlayerId] = { id: d.strikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
-      if (!bat[d.nonStrikerPlayerId]) bat[d.nonStrikerPlayerId] = { id: d.nonStrikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
+      if (d.nonStrikerPlayerId && !bat[d.nonStrikerPlayerId]) bat[d.nonStrikerPlayerId] = { id: d.nonStrikerPlayerId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
       
       if (d.extraType !== 'wide') {
         bat[d.strikerPlayerId].balls += 1;
@@ -155,11 +153,13 @@ export default function MatchScoreboardPage() {
       }
 
       if (d.isWicket) {
-        bat[d.batsmanOutPlayerId || d.strikerPlayerId].out = true;
-        bat[d.batsmanOutPlayerId || d.strikerPlayerId].dismissal = d.dismissalType || 'out';
+        const outPid = d.batsmanOutPlayerId || d.strikerPlayerId;
+        if (bat[outPid]) {
+          bat[outPid].out = true;
+          bat[outPid].dismissal = d.dismissalType || 'out';
+        }
       }
 
-      // Bowling
       if (!bowl[d.bowlerPlayerId]) bowl[d.bowlerPlayerId] = { id: d.bowlerPlayerId, overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
       bowl[d.bowlerPlayerId].runs += d.totalRunsOnDelivery;
       if (d.isWicket && d.dismissalType !== 'runout') bowl[d.bowlerPlayerId].wickets += 1;
@@ -198,14 +198,20 @@ export default function MatchScoreboardPage() {
         inn2Cum: i === 0 ? 0 : (inn2Deliveries?.some(d => d.overNumber >= i) ? inn2Cum : null),
         inn1Runs,
         inn2Runs,
-        inn1Wkts: inn1Wkts > 0 ? inn1Runs : null,
-        inn2Wkts: inn2Wkts > 0 ? inn2Runs : null,
+        inn1Wkts: inn1Wkts > 0 ? 5 : null, // Marker height
+        inn2Wkts: inn2Wkts > 0 ? 5 : null,
       });
     }
     return data;
   }, [inn1Deliveries, inn2Deliveries, match]);
 
-  // Scoring Logic
+  const chartConfig = {
+    inn1Cum: { label: getTeamName(match?.team1Id || ''), color: "hsl(var(--primary))" },
+    inn2Cum: { label: getTeamName(match?.team2Id || ''), color: "hsl(var(--secondary))" },
+    inn1Runs: { label: getTeamName(match?.team1Id || ''), color: "hsl(var(--primary))" },
+    inn2Runs: { label: getTeamName(match?.team2Id || ''), color: "hsl(var(--secondary))" },
+  } satisfies ChartConfig;
+
   const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none') => {
     if (!match || !activeInningData || !isUmpire) return;
 
@@ -549,8 +555,8 @@ export default function MatchScoreboardPage() {
         <TabsContent value="live" className="space-y-6">
           <div className="bg-white p-4 md:p-6 rounded-lg border shadow-sm space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {inn1 && <div className={cn("p-4 rounded-xl border flex justify-between", match.currentInningNumber === 1 ? "bg-primary/5 border-primary shadow-sm" : "bg-slate-50 opacity-60")}><div><p className="text-[10px] font-black text-slate-400 uppercase">{getTeamName(inn1.battingTeamId)}</p><h4 className="font-black text-xl">{inn1.score}/{inn1.wickets}</h4></div><div className="text-right"><p className="text-[10px] font-black text-slate-400 uppercase">Overs</p><h4 className="font-bold">{inn1.oversCompleted}.{inn1.ballsInCurrentOver}</h4></div></div>}
-              {inn2 && <div className={cn("p-4 rounded-xl border flex justify-between", match.currentInningNumber === 2 ? "bg-primary/5 border-primary shadow-sm" : "bg-slate-50 opacity-60")}><div><p className="text-[10px] font-black text-slate-400 uppercase">{getTeamName(inn2.battingTeamId)}</p><h4 className="font-black text-xl">{inn2.score}/{inn2.wickets}</h4></div><div className="text-right"><p className="text-[10px] font-black text-slate-400 uppercase">Overs</p><h4 className="font-bold">{inn2.oversCompleted}.{inn2.ballsInCurrentOver}</h4></div></div>}
+              {inn1 && <div className={cn("p-4 rounded-xl border flex justify-between", match.currentInningNumber === 1 ? "bg-primary/5 border-primary shadow-sm" : "bg-slate-50 opacity-60")}><div><p className="text-[10px] font-black text-slate-400 uppercase">{getTeamName(inn1.battingTeamId)}</p><h4 className="font-black text-xl">{inn1.score || 0}/{inn1.wickets || 0}</h4></div><div className="text-right"><p className="text-[10px] font-black text-slate-400 uppercase">Overs</p><h4 className="font-bold">{(inn1.oversCompleted || 0)}.{(inn1.ballsInCurrentOver || 0)}</h4></div></div>}
+              {inn2 && <div className={cn("p-4 rounded-xl border flex justify-between", match.currentInningNumber === 2 ? "bg-primary/5 border-primary shadow-sm" : "bg-slate-50 opacity-60")}><div><p className="text-[10px] font-black text-slate-400 uppercase">{getTeamName(inn2.battingTeamId)}</p><h4 className="font-black text-xl">{inn2.score || 0}/{inn2.wickets || 0}</h4></div><div className="text-right"><p className="text-[10px] font-black text-slate-400 uppercase">Overs</p><h4 className="font-bold">{(inn2.oversCompleted || 0)}.{(inn2.ballsInCurrentOver || 0)}</h4></div></div>}
             </div>
 
             {isUmpire && match.status === 'live' && activeInningData && (
@@ -601,12 +607,12 @@ export default function MatchScoreboardPage() {
           {[1, 2].map(innNum => {
             const inning = innNum === 1 ? inn1 : inn2;
             if (!inning) return null;
-            const stats = getInningStats(innNum === 1 ? inn1Deliveries : inn2Deliveries);
+            const stats = getInningStats(innNum === 1 ? inn1Deliveries || [] : inn2Deliveries || []);
             return (
               <Card key={innNum} className="overflow-hidden">
                 <div className="bg-slate-50 p-4 border-b flex justify-between items-center">
                   <h3 className="font-black text-sm uppercase tracking-widest">{getTeamName(inning.battingTeamId)} Inning</h3>
-                  <p className="font-black text-lg">{inning.score}/{inning.wickets} <span className="text-xs text-slate-400">({inning.oversCompleted}.{inning.ballsInCurrentOver})</span></p>
+                  <p className="font-black text-lg">{(inning.score || 0)}/{(inning.wickets || 0)} <span className="text-xs text-slate-400">({(inning.oversCompleted || 0)}.{(inning.ballsInCurrentOver || 0)})</span></p>
                 </div>
                 <CardContent className="p-0">
                   <Table>
@@ -707,38 +713,38 @@ export default function MatchScoreboardPage() {
            <Card>
               <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Worm Graph (Cumulative Progress)</CardTitle></CardHeader>
               <CardContent>
-                 <div className="h-[300px] w-full">
+                 <ChartContainer config={chartConfig} className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                        <LineChart data={chartData}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="over" label={{ value: 'Overs', position: 'insideBottom', offset: -5 }} />
-                          <YAxis label={{ value: 'Runs', angle: -90, position: 'insideLeft' }} />
-                          <Tooltip content={<ChartTooltipContent />} />
+                          <XAxis dataKey="over" />
+                          <YAxis />
+                          <ChartTooltip content={<ChartTooltipContent />} />
                           <Legend />
-                          <Line type="monotone" dataKey="inn1Cum" name={getTeamName(match.team1Id)} stroke="hsl(var(--primary))" strokeWidth={3} dot={false} connectNulls />
-                          <Line type="monotone" dataKey="inn2Cum" name={getTeamName(match.team2Id)} stroke="hsl(var(--secondary))" strokeWidth={3} dot={false} connectNulls />
+                          <Line type="monotone" dataKey="inn1Cum" name={getTeamName(match?.team1Id || '')} stroke="var(--color-inn1Cum)" strokeWidth={3} dot={false} connectNulls />
+                          <Line type="monotone" dataKey="inn2Cum" name={getTeamName(match?.team2Id || '')} stroke="var(--color-inn2Cum)" strokeWidth={3} dot={false} connectNulls />
                        </LineChart>
                     </ResponsiveContainer>
-                 </div>
+                 </ChartContainer>
               </CardContent>
            </Card>
 
            <Card>
               <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><BarChart className="w-4 h-4 text-primary" /> Manhattan Chart (Runs Per Over)</CardTitle></CardHeader>
               <CardContent>
-                 <div className="h-[300px] w-full">
+                 <ChartContainer config={chartConfig} className="h-[300px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
                        <ReBarChart data={chartData}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} />
                           <XAxis dataKey="over" />
                           <YAxis />
-                          <Tooltip content={<ChartTooltipContent />} />
+                          <ChartTooltip content={<ChartTooltipContent />} />
                           <Legend />
-                          <Bar dataKey="inn1Runs" name={getTeamName(match.team1Id)} fill="hsl(var(--primary))" />
-                          <Bar dataKey="inn2Runs" name={getTeamName(match.team2Id)} fill="hsl(var(--secondary))" />
+                          <Bar dataKey="inn1Runs" name={getTeamName(match?.team1Id || '')} fill="var(--color-inn1Runs)" />
+                          <Bar dataKey="inn2Runs" name={getTeamName(match?.team2Id || '')} fill="var(--color-inn2Runs)" />
                        </ReBarChart>
                     </ResponsiveContainer>
-                 </div>
+                 </ChartContainer>
               </CardContent>
            </Card>
         </TabsContent>
