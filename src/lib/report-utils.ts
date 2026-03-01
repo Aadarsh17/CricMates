@@ -1,5 +1,6 @@
 /**
- * @fileOverview Utility functions for calculating match statistics and generating HTML reports.
+ * @fileOverview Utility functions for calculating match statistics and generating professional HTML reports.
+ * Refined for high-density information display and minimal whitespace.
  */
 
 export const getExtendedInningStats = (deliveries: any[]) => {
@@ -25,6 +26,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
   deliveries.forEach((d, idx) => {
     const sId = d.strikerPlayerId;
     const nsId = d.nonStrikerPlayerId;
+    
     if (!bat[sId]) bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
     if (nsId && !bat[nsId]) bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
     
@@ -57,12 +59,16 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       if (bat[outPid]) {
         bat[outPid].out = true;
         bat[outPid].dismissal = d.dismissalType || 'out';
+        // Capture individual score at dismissal
+        bat[outPid].scoreAtDismissal = bat[outPid].runs;
       }
+      
       fow.push({
         wicketNum: currentWickets,
-        score: currentScore,
+        scoreAtWicket: currentScore,
         overs: `${Math.floor(currentBalls / 6)}.${currentBalls % 6}`,
-        playerOutId: outPid
+        playerOutId: outPid,
+        playerRuns: bat[outPid]?.runs || 0
       });
 
       partnerships.push({...currentPartnership});
@@ -99,26 +105,29 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
   const getPlayer = (id: string) => players.find(p => p.id === id)?.name || 'Unknown Player';
 
   const renderBattingTable = (batting: any[]) => `
-    <table style="width:100%; border-collapse: collapse; margin-bottom: 20px;">
+    <table style="width:100%; border-collapse: collapse; margin-bottom: 12px;">
       <thead>
-        <tr style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-          <th style="padding: 10px; text-align: left; font-size: 11px; text-transform: uppercase;">Batter</th>
-          <th style="padding: 10px; text-align: right; font-size: 11px; text-transform: uppercase;">R</th>
-          <th style="padding: 10px; text-align: right; font-size: 11px; text-transform: uppercase;">B</th>
-          <th style="padding: 10px; text-align: right; font-size: 11px; text-transform: uppercase;">4s</th>
-          <th style="padding: 10px; text-align: right; font-size: 11px; text-transform: uppercase;">6s</th>
-          <th style="padding: 10px; text-align: right; font-size: 11px; text-transform: uppercase;">SR</th>
+        <tr style="background-color: #f1f5f9; border-bottom: 1px solid #cbd5e1;">
+          <th style="padding: 6px 8px; text-align: left; font-size: 10px; text-transform: uppercase; color: #475569;">Batter</th>
+          <th style="padding: 6px 8px; text-align: right; font-size: 10px; text-transform: uppercase; color: #475569;">R</th>
+          <th style="padding: 6px 8px; text-align: right; font-size: 10px; text-transform: uppercase; color: #475569;">B</th>
+          <th style="padding: 6px 8px; text-align: right; font-size: 10px; text-transform: uppercase; color: #475569;">4s</th>
+          <th style="padding: 6px 8px; text-align: right; font-size: 10px; text-transform: uppercase; color: #475569;">6s</th>
+          <th style="padding: 6px 8px; text-align: right; font-size: 10px; text-transform: uppercase; color: #475569;">SR</th>
         </tr>
       </thead>
       <tbody>
         ${batting.map(b => `
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px; font-size: 13px;">${getPlayer(b.id)}<br><small style="color: #888;">${b.out ? b.dismissal : 'not out'}</small></td>
-            <td style="padding: 10px; text-align: right; font-weight: bold; font-size: 13px;">${b.runs}</td>
-            <td style="padding: 10px; text-align: right; font-size: 13px;">${b.balls}</td>
-            <td style="padding: 10px; text-align: right; font-size: 13px;">${b.fours}</td>
-            <td style="padding: 10px; text-align: right; font-size: 13px;">${b.sixes}</td>
-            <td style="padding: 10px; text-align: right; font-size: 13px;">${b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</td>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 6px 8px; font-size: 12px; font-weight: 500;">
+              ${getPlayer(b.id)} 
+              <span style="font-size: 9px; color: #94a3b8; font-weight: normal; margin-left: 4px;">(${b.out ? b.dismissal : 'not out'})</span>
+            </td>
+            <td style="padding: 6px 8px; text-align: right; font-weight: 700; font-size: 12px;">${b.runs}</td>
+            <td style="padding: 6px 8px; text-align: right; font-size: 12px; color: #64748b;">${b.balls}</td>
+            <td style="padding: 6px 8px; text-align: right; font-size: 12px; color: #64748b;">${b.fours}</td>
+            <td style="padding: 6px 8px; text-align: right; font-size: 12px; color: #64748b;">${b.sixes}</td>
+            <td style="padding: 6px 8px; text-align: right; font-size: 11px; color: #94a3b8; font-weight: 600;">${b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -126,26 +135,26 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
   `;
 
   const renderBowlingTable = (bowling: any[]) => `
-    <table style="width:100%; border-collapse: collapse; margin-bottom: 20px;">
+    <table style="width:100%; border-collapse: collapse; margin-bottom: 12px;">
       <thead>
-        <tr style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
-          <th style="padding: 10px; text-align: left; font-size: 11px; text-transform: uppercase;">Bowler</th>
-          <th style="padding: 10px; text-align: right; font-size: 11px; text-transform: uppercase;">O</th>
-          <th style="padding: 10px; text-align: right; font-size: 11px; text-transform: uppercase;">M</th>
-          <th style="padding: 10px; text-align: right; font-size: 11px; text-transform: uppercase;">R</th>
-          <th style="padding: 10px; text-align: right; font-size: 11px; text-transform: uppercase;">W</th>
-          <th style="padding: 10px; text-align: right; font-size: 11px; text-transform: uppercase;">Econ</th>
+        <tr style="background-color: #f1f5f9; border-bottom: 1px solid #cbd5e1;">
+          <th style="padding: 6px 8px; text-align: left; font-size: 10px; text-transform: uppercase; color: #475569;">Bowler</th>
+          <th style="padding: 6px 8px; text-align: right; font-size: 10px; text-transform: uppercase; color: #475569;">O</th>
+          <th style="padding: 6px 8px; text-align: right; font-size: 10px; text-transform: uppercase; color: #475569;">M</th>
+          <th style="padding: 6px 8px; text-align: right; font-size: 10px; text-transform: uppercase; color: #475569;">R</th>
+          <th style="padding: 6px 8px; text-align: right; font-size: 10px; text-transform: uppercase; color: #475569;">W</th>
+          <th style="padding: 6px 8px; text-align: right; font-size: 10px; text-transform: uppercase; color: #475569;">Econ</th>
         </tr>
       </thead>
       <tbody>
         ${bowling.map(b => `
-          <tr style="border-bottom: 1px solid #eee;">
-            <td style="padding: 10px; font-size: 13px;">${getPlayer(b.id)}</td>
-            <td style="padding: 10px; text-align: right; font-size: 13px;">${b.oversDisplay}</td>
-            <td style="padding: 10px; text-align: right; font-size: 13px;">${b.maidens || 0}</td>
-            <td style="padding: 10px; text-align: right; font-size: 13px;">${b.runs}</td>
-            <td style="padding: 10px; text-align: right; font-weight: bold; color: #d9534f; font-size: 13px;">${b.wickets}</td>
-            <td style="padding: 10px; text-align: right; font-size: 13px;">${b.balls > 0 ? (b.runs / (b.balls / 6)).toFixed(2) : '0.00'}</td>
+          <tr style="border-bottom: 1px solid #f1f5f9;">
+            <td style="padding: 6px 8px; font-size: 12px; font-weight: 500;">${getPlayer(b.id)}</td>
+            <td style="padding: 6px 8px; text-align: right; font-size: 12px;">${b.oversDisplay}</td>
+            <td style="padding: 6px 8px; text-align: right; font-size: 12px;">${b.maidens || 0}</td>
+            <td style="padding: 6px 8px; text-align: right; font-size: 12px; font-weight: 600;">${b.runs}</td>
+            <td style="padding: 6px 8px; text-align: right; font-weight: 700; color: #ef4444; font-size: 12px;">${b.wickets}</td>
+            <td style="padding: 6px 8px; text-align: right; font-size: 11px; color: #94a3b8;">${b.balls > 0 ? (b.runs / (b.balls / 6)).toFixed(2) : '0.00'}</td>
           </tr>
         `).join('')}
       </tbody>
@@ -153,99 +162,110 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
   `;
 
   const renderFowTable = (fow: any[]) => `
-    <div style="margin-bottom: 20px;">
-      <h4 style="font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">Fall of Wickets</h4>
-      <div style="font-size: 12px; color: #333;">
-        ${fow.map(f => `<strong>${f.wicketNum}-${f.score}</strong> (${getPlayer(f.playerOutId)}, ${f.overs} ov)${f.wicketNum < fow.length ? ', ' : ''}`).join('')}
-        ${fow.length === 0 ? 'No wickets fallen' : ''}
+    <div style="margin-bottom: 12px; padding: 10px; background: #fafafa; border-radius: 6px; border: 1px solid #f1f5f9;">
+      <h4 style="font-size: 9px; text-transform: uppercase; color: #64748b; margin: 0 0 6px 0; letter-spacing: 0.5px;">Fall of Wickets (Score-Wicket)</h4>
+      <div style="font-size: 11px; color: #1e293b; line-height: 1.5;">
+        ${fow.map(f => `<strong>${f.wicketNum}-${f.scoreAtWicket}</strong> (${getPlayer(f.playerOutId)} ${f.playerRuns}, ${f.overs} ov)${f.wicketNum < fow.length ? ' <span style="color:#cbd5e1; margin: 0 4px;">|</span> ' : ''}`).join('')}
+        ${fow.length === 0 ? '<span style="color: #94a3b8; font-style: italic;">No wickets fallen</span>' : ''}
       </div>
     </div>
   `;
 
   const renderPartnershipsTable = (partnerships: any[]) => `
-    <div style="margin-bottom: 20px;">
-      <h4 style="font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 10px; border-bottom: 1px solid #eee; padding-bottom: 5px;">Partnerships</h4>
+    <div style="margin-bottom: 15px;">
+      <h4 style="font-size: 9px; text-transform: uppercase; color: #64748b; margin: 0 0 8px 0; letter-spacing: 0.5px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px;">Significant Partnerships</h4>
       <table style="width:100%; border-collapse: collapse;">
         ${partnerships.map(p => `
-          <tr style="border-bottom: 1px dashed #eee; font-size: 12px;">
-            <td style="padding: 8px 0; color: #666;">${getPlayer(p.batter1Id)} <span style="font-weight: bold; color: #333;">${p.batter1Runs}</span></td>
-            <td style="padding: 8px 0; text-align: center; font-weight: black; color: #0056b3;">${p.runs} (${p.balls})</td>
-            <td style="padding: 8px 0; text-align: right; color: #666;"><span style="font-weight: bold; color: #333;">${p.batter2Runs}</span> ${getPlayer(p.batter2Id)}</td>
+          <tr style="border-bottom: 1px dashed #f1f5f9;">
+            <td style="padding: 5px 0; font-size: 11px; width: 35%; color: #334155;">${getPlayer(p.batter1Id)} <span style="font-weight: 700; color: #1e293b;">${p.batter1Runs}</span></td>
+            <td style="padding: 5px 0; text-align: center; font-weight: 800; color: #2563eb; font-size: 12px;">${p.runs} <span style="font-weight: 400; font-size: 9px; color: #94a3b8;">(${p.balls}b)</span></td>
+            <td style="padding: 5px 0; text-align: right; font-size: 11px; width: 35%; color: #334155;"><span style="font-weight: 700; color: #1e293b;">${p.batter2Runs}</span> ${getPlayer(p.batter2Id)}</td>
           </tr>
         `).join('')}
-        ${partnerships.length === 0 ? '<tr><td colspan="3" style="text-align:center; padding: 10px; color: #888;">No partnerships recorded</td></tr>' : ''}
       </table>
     </div>
   `;
 
   return `
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
       <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
       <title>Match Report - ${getTeam(match.team1Id)} vs ${getTeam(match.team2Id)}</title>
       <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 30px; border: 1px solid #eee; background-color: #fff; }
-        .header { text-align: center; border-bottom: 3px solid #0056b3; padding-bottom: 20px; margin-bottom: 30px; }
-        h1 { margin: 0; color: #0056b3; text-transform: uppercase; letter-spacing: 2px; font-size: 24px; }
-        .match-info { background: #f4f7f6; padding: 25px; border-radius: 12px; margin-bottom: 30px; border: 1px solid #e1e8e6; }
-        .inning-section { margin-top: 40px; }
-        .inning-header { background: #0056b3; color: white; padding: 12px 15px; border-radius: 6px; margin-bottom: 15px; font-weight: bold; text-transform: uppercase; font-size: 12px; letter-spacing: 1px; }
-        .result { font-size: 1.6em; font-weight: 800; color: #d9534f; margin-top: 20px; border-top: 2px dashed #ccc; padding-top: 15px; text-transform: uppercase; }
-        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        @media print { body { padding: 0; border: none; } .match-info { border: 1px solid #ccc; } }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.4; color: #1e293b; max-width: 700px; margin: 0 auto; padding: 20px; background-color: #fff; }
+        .header { text-align: center; border-bottom: 4px solid #1e40af; padding-bottom: 12px; margin-bottom: 20px; }
+        h1 { margin: 0; color: #1e40af; text-transform: uppercase; letter-spacing: 1px; font-size: 20px; font-weight: 900; }
+        .match-card { background: #f8fafc; padding: 16px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .inning-header { background: #1e40af; color: white; padding: 8px 12px; border-radius: 4px; margin: 24px 0 12px 0; font-weight: 800; text-transform: uppercase; font-size: 11px; letter-spacing: 1.5px; display: flex; justify-content: space-between; align-items: center; }
+        .result-bar { font-size: 16px; font-weight: 900; color: #dc2626; margin-top: 12px; border-top: 1px dashed #cbd5e1; padding-top: 10px; text-transform: uppercase; letter-spacing: 0.5px; text-align: center; }
+        .team-score-title { font-size: 14px; font-weight: 800; color: #334155; margin-bottom: 2px; }
+        .team-score-value { font-size: 24px; font-weight: 900; color: #1e40af; }
+        .toss-info { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; margin-top: 8px; text-align: center; }
+        footer { margin-top: 40px; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px; color: #94a3b8; font-size: 10px; }
+        @media print { body { padding: 0; } .match-card { border: 1px solid #cbd5e1; box-shadow: none; } }
       </style>
     </head>
     <body>
       <div class="header">
-        <h1>CricMates Match Report</h1>
-        <p style="margin: 8px 0; font-weight: bold; color: #555;">${new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-        <p style="margin: 0; color: #888; font-size: 12px; text-transform: uppercase; font-weight: bold;">${match.totalOvers} Overs Match</p>
+        <h1>CRICMATES OFFICIAL SCORECARD</h1>
+        <div style="margin-top: 4px; font-weight: 700; color: #64748b; font-size: 11px; text-transform: uppercase;">
+          ${new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}
+          <span style="margin: 0 8px; color: #cbd5e1;">|</span>
+          ${match.totalOvers} OVERS MATCH
+        </div>
       </div>
       
-      <div class="match-info">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+      <div class="match-card">
+        <div style="display: flex; justify-content: space-around; align-items: center;">
           <div style="text-align: center; flex: 1;">
-            <h2 style="margin:0; color: #333; font-size: 18px;">${getTeam(match.team1Id)}</h2>
-            <h3 style="margin:8px 0; font-size: 28px; font-weight: 900; color: #0056b3;">${inn1?.score || 0}/${inn1?.wickets || 0}</h3>
-            <p style="margin:0; font-size: 12px; color: #888; font-weight: bold;">${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver || 0} Overs</p>
+            <div class="team-score-title">${getTeam(match.team1Id)}</div>
+            <div class="team-score-value">${inn1?.score || 0}/${inn1?.wickets || 0}</div>
+            <div style="font-size: 11px; color: #64748b; font-weight: 700;">${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver || 0} OV</div>
           </div>
-          <div style="font-weight: 900; font-size: 24px; color: #ddd; padding: 0 20px;">VS</div>
+          <div style="font-weight: 900; font-size: 16px; color: #e2e8f0;">VS</div>
           <div style="text-align: center; flex: 1;">
-            <h2 style="margin:0; color: #333; font-size: 18px;">${getTeam(match.team2Id)}</h2>
-            <h3 style="margin:8px 0; font-size: 28px; font-weight: 900; color: #0056b3;">${inn2?.score || 0}/${inn2?.wickets || 0}</h3>
-            <p style="margin:0; font-size: 12px; color: #888; font-weight: bold;">${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver || 0} Overs</p>
+            <div class="team-score-title">${getTeam(match.team2Id)}</div>
+            <div class="team-score-value">${inn2?.score || 0}/${inn2?.wickets || 0}</div>
+            <div style="font-size: 11px; color: #64748b; font-weight: 700;">${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver || 0} OV</div>
           </div>
         </div>
-        <div class="result" style="text-align: center;">${match.resultDescription}</div>
-        <p style="text-align: center; font-size: 12px; color: #666; margin-top: 15px; border-top: 1px solid #e1e8e6; pt: 10px;">
-          <strong>Toss:</strong> ${getTeam(match.tossWinnerTeamId)} won and elected to ${match.tossDecision}
-        </p>
+        <div class="result-bar">${match.resultDescription}</div>
+        <div class="toss-info">
+          Toss: ${getTeam(match.tossWinnerTeamId)} won & elected to ${match.tossDecision}
+        </div>
       </div>
 
       <div class="inning-section">
-        <div class="inning-header">1st Innings: ${getTeam(inn1?.battingTeamId)} Batting</div>
+        <div class="inning-header">
+          <span>1ST INNINGS: ${getTeam(inn1?.battingTeamId)}</span>
+          <span style="opacity: 0.9;">${inn1?.score}/${inn1?.wickets} (${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver})</span>
+        </div>
         ${renderBattingTable(stats1.batting)}
         ${renderFowTable(stats1.fow)}
         ${renderPartnershipsTable(stats1.partnerships)}
         
-        <div class="inning-header">1st Innings: ${getTeam(inn1?.bowlingTeamId)} Bowling</div>
+        <div class="inning-header" style="background: #334155;">1ST INNINGS BOWLING: ${getTeam(inn1?.bowlingTeamId)}</div>
         ${renderBowlingTable(stats1.bowling)}
       </div>
 
       <div class="inning-section">
-        <div class="inning-header">2nd Innings: ${getTeam(inn2?.battingTeamId)} Batting</div>
+        <div class="inning-header">
+          <span>2ND INNINGS: ${getTeam(inn2?.battingTeamId)}</span>
+          <span style="opacity: 0.9;">${inn2?.score}/${inn2?.wickets} (${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver})</span>
+        </div>
         ${renderBattingTable(stats2.batting)}
         ${renderFowTable(stats2.fow)}
         ${renderPartnershipsTable(stats2.partnerships)}
         
-        <div class="inning-header">2nd Innings: ${getTeam(inn2?.bowlingTeamId)} Bowling</div>
+        <div class="inning-header" style="background: #334155;">2ND INNINGS BOWLING: ${getTeam(inn2?.bowlingTeamId)}</div>
         ${renderBowlingTable(stats2.bowling)}
       </div>
 
-      <footer style="margin-top: 60px; text-align: center; border-top: 1px solid #eee; padding-top: 25px; color: #bbb; font-size: 11px;">
-        <p style="margin-bottom: 5px;">This report was generated automatically by <strong>CricMates Professional Scoring Suite</strong>.</p>
-        <p style="margin: 0;">&copy; ${new Date().getFullYear()} CricMates. All Rights Reserved.</p>
+      <footer>
+        <p style="margin-bottom: 2px; font-weight: 700;">Generated by CricMates Professional Scoring Suite</p>
+        <p style="margin: 0;">&copy; ${new Date().getFullYear()} CricMates Digital. Ball-by-Ball Precision Records.</p>
       </footer>
     </body>
     </html>
