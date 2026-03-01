@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, limit } from 'firebase/firestore';
+import { doc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApp } from '@/context/AppContext';
 import { toast } from '@/hooks/use-toast';
+import { getExtendedInningStats } from '@/lib/report-utils';
 
 export default function PlayerProfilePage() {
   const params = useParams();
@@ -49,14 +50,11 @@ export default function PlayerProfilePage() {
     }
   }, [player]);
 
-  const teamRef = useMemoFirebase(() => player?.teamId ? doc(db, 'teams', player.teamId) : null, [db, player?.teamId]);
-  const { data: team } = useDoc(teamRef);
-
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
   const matchesQuery = useMemoFirebase(() => 
-    query(collection(db, 'matches'), orderBy('matchDate', 'desc'), limit(50)), 
+    query(collection(db, 'matches'), orderBy('matchDate', 'desc'), limit(100)), 
   [db]);
   const { data: allMatches } = useCollection(matchesQuery);
 
@@ -65,6 +63,17 @@ export default function PlayerProfilePage() {
       m.team1SquadPlayerIds?.includes(playerId) || m.team2SquadPlayerIds?.includes(playerId)
     ) || [];
   }, [allMatches, playerId]);
+
+  // Dynamic Formats based on unique totalOvers in player's history
+  const activeFormats = useMemo(() => {
+    const overs = new Set<number>();
+    recentMatches.forEach(m => {
+      if (m.totalOvers) overs.add(m.totalOvers);
+    });
+    // Default to include 20 if no matches yet for structure
+    if (overs.size === 0) return [20];
+    return Array.from(overs).sort((a, b) => a - b);
+  }, [recentMatches]);
 
   const representedTeams = useMemo(() => {
     const teamIds = new Set<string>();
@@ -90,6 +99,8 @@ export default function PlayerProfilePage() {
 
   if (isPlayerLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING PROFILE...</div>;
   if (!player) return <div className="p-20 text-center">Player not found.</div>;
+
+  const formatHeader = (overs: number) => `${overs}OF`;
 
   return (
     <div className="max-w-4xl mx-auto pb-24 px-0 bg-white min-h-screen">
@@ -170,6 +181,7 @@ export default function PlayerProfilePage() {
                        <div className="space-y-1">
                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                           <p className="font-bold text-sm text-slate-900">vs {match.team1Id === player.teamId ? (allTeams?.find(t => t.id === match.team2Id)?.name || 'Opponent') : (allTeams?.find(t => t.id === match.team1Id)?.name || 'Opponent')}</p>
+                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{match.totalOvers} Overs Format</p>
                        </div>
                        <ChevronRight className="w-4 h-4 text-slate-300" />
                     </div>
@@ -193,63 +205,79 @@ export default function PlayerProfilePage() {
           </section>
         </TabsContent>
 
-        <TabsContent value="batting" className="p-0 animate-in fade-in duration-300">
-           <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider">
-              <span>Statistic</span>
-              <span>League</span>
+        <TabsContent value="batting" className="p-0 animate-in fade-in duration-300 overflow-x-auto">
+           <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
+              <span className="w-32">Statistic</span>
+              {activeFormats.map(f => (
+                <span key={f} className="w-16 text-right">{formatHeader(f)}</span>
+              ))}
            </div>
-           <Table>
+           <Table className="min-w-max">
               <TableBody>
                  {[
-                   { label: 'Matches', value: player.matchesPlayed || 0 },
-                   { label: 'Innings', value: player.matchesPlayed || 0 },
-                   { label: 'Runs', value: player.runsScored || 0 },
-                   { label: 'Balls', value: '---' },
-                   { label: 'Highest', value: player.highestScore || 0 },
-                   { label: 'Average', value: player.matchesPlayed > 0 ? (player.runsScored / player.matchesPlayed).toFixed(2) : '0.00' },
-                   { label: 'SR', value: '---' },
-                   { label: 'Not Out', value: '---' },
-                   { label: 'Fours', value: '---' },
-                   { label: 'Sixes', value: '---' },
-                   { label: 'Ducks', value: '---' },
-                   { label: '30s', value: '---' },
-                   { label: '50s', value: '---' },
-                   { label: '100s', value: '---' },
+                   { label: 'Matches', field: 'matchesPlayed' },
+                   { label: 'Innings', field: 'matchesPlayed' },
+                   { label: 'Runs', field: 'runsScored' },
+                   { label: 'Balls Played', field: 'ballsPlayed' },
+                   { label: 'Highest', field: 'highestScore' },
+                   { label: 'Average', field: 'average' },
+                   { label: 'SR', field: 'strikeRate' },
+                   { label: 'Not Out', field: 'notOut' },
+                   { label: 'Fours', field: 'fours' },
+                   { label: 'Sixes', field: 'sixes' },
+                   { label: 'Ducks', field: 'ducks' },
+                   { label: '30s', field: '30s' },
+                   { label: '50s', field: '50s' },
+                   { label: '100s', field: '100s' },
                  ].map((row, idx) => (
                     <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]'}>
-                       <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4">{row.label}</TableCell>
-                       <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                       <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4 w-32">{row.label}</TableCell>
+                       {activeFormats.map(f => (
+                         <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-16">
+                            {/* In a real app, these values would be aggregated per format. Using '---' for calculated fields not currently in player doc */}
+                            {row.label === 'Matches' ? recentMatches.filter(m => m.totalOvers === f).length : (row.label === 'Runs' ? player.runsScored : '---')}
+                         </TableCell>
+                       ))}
                     </TableRow>
                  ))}
               </TableBody>
            </Table>
         </TabsContent>
 
-        <TabsContent value="bowling" className="p-0 animate-in fade-in duration-300">
-           <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider">
-              <span>Statistic</span>
-              <span>League</span>
+        <TabsContent value="bowling" className="p-0 animate-in fade-in duration-300 overflow-x-auto">
+           <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
+              <span className="w-32">Statistic</span>
+              {activeFormats.map(f => (
+                <span key={f} className="w-16 text-right">{formatHeader(f)}</span>
+              ))}
            </div>
-           <Table>
+           <Table className="min-w-max">
               <TableBody>
                  {[
-                   { label: 'Matches', value: player.matchesPlayed || 0 },
-                   { label: 'Innings', value: player.matchesPlayed || 0 },
-                   { label: 'Balls', value: '---' },
-                   { label: 'Runs', value: '---' },
-                   { label: 'Maidens', value: '---' },
-                   { label: 'Wickets', value: player.wicketsTaken || 0 },
-                   { label: 'Avg', value: '---' },
-                   { label: 'Eco', value: '---' },
-                   { label: 'SR', value: '---' },
-                   { label: 'BBI', value: player.bestBowlingFigures || '0/0' },
-                   { label: 'BBM', value: player.bestBowlingFigures || '0/0' },
-                   { label: '4w', value: '---' },
-                   { label: '5w', value: '---' },
+                   { label: 'Matches', field: 'matchesPlayed' },
+                   { label: 'Innings', field: 'matchesPlayed' },
+                   { label: 'Balls Bowled', field: 'ballsBowled' },
+                   { label: 'Runs', field: 'runsConceded' },
+                   { label: 'Maidens', field: 'maidens' },
+                   { label: 'Wickets', field: 'wicketsTaken' },
+                   { label: 'Avg', field: 'average' },
+                   { label: 'Eco', field: 'economy' },
+                   { label: 'SR', field: 'strikeRate' },
+                   { label: 'BBI', field: 'bbi' },
+                   { label: 'BBM', field: 'bbm' },
+                   { label: '1w', field: '1w' },
+                   { label: '2w', field: '2w' },
+                   { label: '3w', field: '3w' },
+                   { label: '4w', field: '4w' },
+                   { label: '5w', field: '5w' },
                  ].map((row, idx) => (
                     <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]'}>
-                       <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4">{row.label}</TableCell>
-                       <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                       <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4 w-32">{row.label}</TableCell>
+                       {activeFormats.map(f => (
+                         <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-16">
+                            {row.label === 'Matches' ? recentMatches.filter(m => m.totalOvers === f).length : (row.label === 'Wickets' ? player.wicketsTaken : '---')}
+                         </TableCell>
+                       ))}
                     </TableRow>
                  ))}
               </TableBody>
