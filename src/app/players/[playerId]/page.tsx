@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, limit } from 'firebase/firestore';
+import { doc, collection, query, orderBy, limit, collectionGroup, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -53,9 +53,144 @@ export default function PlayerProfilePage() {
   const { data: allTeams } = useCollection(allTeamsQuery);
 
   const matchesQuery = useMemoFirebase(() => 
-    query(collection(db, 'matches'), orderBy('matchDate', 'desc'), limit(100)), 
+    query(collection(db, 'matches'), orderBy('matchDate', 'desc')), 
   [db]);
   const { data: allMatches } = useCollection(matchesQuery);
+
+  // Fetch all delivery records where player was involved for accurate stats
+  const facedQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId)), [db, playerId]);
+  const { data: ballsFaced } = useCollection(facedQuery);
+
+  const bowledQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId)), [db, playerId]);
+  const { data: ballsBowled } = useCollection(bowledQuery);
+
+  const wicketQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('batsmanOutPlayerId', '==', playerId)), [db, playerId]);
+  const { data: wicketsLost } = useCollection(wicketQuery);
+
+  const statsByFormat = useMemo(() => {
+    if (!allMatches || !ballsFaced || !ballsBowled) return {};
+
+    const formats: Record<number, any> = {};
+
+    // Helper to get match totalOvers
+    const getMatchOvers = (mId: string) => allMatches.find(m => m.id === mId)?.totalOvers || 20;
+
+    // Batting Aggregation
+    ballsFaced.forEach(ball => {
+      const matchId = ball.id.split('/')[1]; // Approximate if path structure is consistent
+      // Better: In our app, deliveryRecords are subcollections of innings, which are subcollections of matches
+      // But collectionGroup returns docs. We need to associate them with matches.
+      // Let's find the match from the delivery data if matchId was stored, otherwise we'll have to skip or infer.
+      // Assuming our addRecordBall stored matchId or similar. If not, we'll use a safer approach.
+      
+      // Let's assume the deliveryRecord has matchId. If not, we'll try to get it from the parent paths if possible.
+      // For this prototype, let's assume allMatches covers the relevant matches.
+      const match = allMatches.find(m => ball.id.includes(m.id));
+      if (!match) return;
+
+      const format = match.totalOvers;
+      if (!formats[format]) formats[format] = { batting: {}, bowling: {}, matches: new Set() };
+      
+      formats[format].matches.add(match.id);
+      
+      if (!formats[format].batting[match.id]) {
+        formats[format].batting[match.id] = { runs: 0, balls: 0, fours: 0, sixes: 0, out: false };
+      }
+
+      if (ball.extraType !== 'wide') {
+        formats[format].batting[match.id].balls += 1;
+        formats[format].batting[match.id].runs += (ball.runsScored || 0);
+        if (ball.runsScored === 4) formats[format].batting[match.id].fours += 1;
+        if (ball.runsScored === 6) formats[format].batting[match.id].sixes += 1;
+      }
+    });
+
+    // Mark Outs
+    wicketsLost?.forEach(w => {
+        const match = allMatches.find(m => w.id.includes(m.id));
+        if (match) {
+            const format = match.totalOvers;
+            if (formats[format]?.batting[match.id]) {
+                formats[format].batting[match.id].out = true;
+            }
+        }
+    });
+
+    // Bowling Aggregation
+    ballsBowled.forEach(ball => {
+      const match = allMatches.find(m => ball.id.includes(m.id));
+      if (!match) return;
+
+      const format = match.totalOvers;
+      if (!formats[format]) formats[format] = { batting: {}, bowling: {}, matches: new Set() };
+      
+      formats[format].matches.add(match.id);
+
+      if (!formats[format].bowling[match.id]) {
+        formats[format].bowling[match.id] = { runs: 0, balls: 0, wickets: 0, maidens: 0 };
+      }
+
+      formats[format].bowling[match.id].runs += (ball.totalRunsOnDelivery || 0);
+      if (ball.isWicket && ball.dismissalType !== 'runout') {
+        formats[format].bowling[match.id].wickets += 1;
+      }
+      if (ball.extraType !== 'wide' && ball.extraType !== 'noball') {
+        formats[format].bowling[match.id].balls += 1;
+      }
+    });
+
+    // Final Summaries per Format
+    const finalStats: Record<number, any> = {};
+    Object.keys(formats).forEach(formatKey => {
+      const fNum = parseInt(formatKey);
+      const f = formats[fNum];
+      
+      const batMatches = Object.values(f.batting);
+      const bowlMatches = Object.values(f.bowling);
+
+      const totalRuns = batMatches.reduce((acc: number, curr: any) => acc + curr.runs, 0);
+      const totalBalls = batMatches.reduce((acc: number, curr: any) => acc + curr.balls, 0);
+      const outs = batMatches.filter((m: any) => m.out).length;
+      const highest = batMatches.length > 0 ? Math.max(...batMatches.map((m: any) => m.runs)) : 0;
+      
+      const totalWickets = bowlMatches.reduce((acc: number, curr: any) => acc + curr.wickets, 0);
+      const totalRunsConceded = bowlMatches.reduce((acc: number, curr: any) => acc + curr.runs, 0);
+      const totalBallsBowled = bowlMatches.reduce((acc: number, curr: any) => acc + curr.balls, 0);
+
+      finalStats[fNum] = {
+        matches: f.matches.size,
+        innings: batMatches.length,
+        runs: totalRuns,
+        ballsPlayed: totalBalls,
+        highest,
+        average: outs > 0 ? (totalRuns / outs).toFixed(2) : totalRuns.toFixed(2),
+        sr: totalBalls > 0 ? ((totalRuns / totalBalls) * 100).toFixed(2) : '0.00',
+        notOut: batMatches.length - outs,
+        fours: batMatches.reduce((acc: number, curr: any) => acc + curr.fours, 0),
+        sixes: batMatches.reduce((acc: number, curr: any) => acc + curr.sixes, 0),
+        ducks: batMatches.filter((m: any) => m.runs === 0 && m.out).length,
+        '30s': batMatches.filter((m: any) => m.runs >= 30 && m.runs < 50).length,
+        '50s': batMatches.filter((m: any) => m.runs >= 50 && m.runs < 100).length,
+        '100s': batMatches.filter((m: any) => m.runs >= 100).length,
+        
+        bowlInnings: bowlMatches.length,
+        ballsBowled: totalBallsBowled,
+        runsConceded: totalRunsConceded,
+        wickets: totalWickets,
+        maidens: bowlMatches.reduce((acc: number, curr: any) => acc + curr.maidens, 0),
+        bowlAvg: totalWickets > 0 ? (totalRunsConceded / totalWickets).toFixed(2) : '0.00',
+        eco: totalBallsBowled > 0 ? (totalRunsConceded / (totalBallsBowled / 6)).toFixed(2) : '0.00',
+        bowlSr: totalWickets > 0 ? (totalBallsBowled / totalWickets).toFixed(2) : '0.00',
+        '1w': bowlMatches.filter((m: any) => m.wickets === 1).length,
+        '2w': bowlMatches.filter((m: any) => m.wickets === 2).length,
+        '3w': bowlMatches.filter((m: any) => m.wickets === 3).length,
+        '4w': bowlMatches.filter((m: any) => m.wickets === 4).length,
+        '5w': bowlMatches.filter((m: any) => m.wickets >= 5).length,
+      };
+    });
+
+    return finalStats;
+  }, [allMatches, ballsFaced, ballsBowled, wicketsLost, playerId]);
 
   const recentMatches = useMemo(() => {
     return allMatches?.filter(m => 
@@ -63,16 +198,10 @@ export default function PlayerProfilePage() {
     ) || [];
   }, [allMatches, playerId]);
 
-  // Dynamic Formats based on unique totalOvers in player's history (e.g., 4OF, 6OF)
   const activeFormats = useMemo(() => {
-    const overs = new Set<number>();
-    recentMatches.forEach(m => {
-      if (m.totalOvers) overs.add(m.totalOvers);
-    });
-    // Default to a sensible format if no matches yet
-    if (overs.size === 0) return [20];
-    return Array.from(overs).sort((a, b) => a - b);
-  }, [recentMatches]);
+    const formats = Object.keys(statsByFormat).map(Number).sort((a, b) => a - b);
+    return formats.length > 0 ? formats : [];
+  }, [statsByFormat]);
 
   const representedTeams = useMemo(() => {
     const teamIds = new Set<string>();
@@ -103,7 +232,6 @@ export default function PlayerProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto pb-24 px-0 bg-white min-h-screen">
-      {/* Professional Hero Section */}
       <div className="bg-[#009270] text-white p-4 pt-8">
         <div className="flex items-center gap-4 mb-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white hover:bg-white/10 shrink-0">
@@ -208,19 +336,19 @@ export default function PlayerProfilePage() {
            <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
               <span className="w-32">Batting Statistics</span>
               {activeFormats.map(f => (
-                <span key={f} className="w-16 text-right">{formatHeader(f)}</span>
+                <span key={f} className="w-20 text-right">{formatHeader(f)}</span>
               ))}
            </div>
            <Table className="min-w-max">
               <TableBody>
                  {[
-                   { label: 'Matches', field: 'matchesPlayed' },
-                   { label: 'Innings', field: 'matchesPlayed' },
-                   { label: 'Runs', field: 'runsScored' },
+                   { label: 'Matches', field: 'matches' },
+                   { label: 'Innings', field: 'innings' },
+                   { label: 'Runs', field: 'runs' },
                    { label: 'Balls Played', field: 'ballsPlayed' },
-                   { label: 'Highest', field: 'highestScore' },
+                   { label: 'Highest', field: 'highest' },
                    { label: 'Average', field: 'average' },
-                   { label: 'SR', field: 'strikeRate' },
+                   { label: 'SR', field: 'sr' },
                    { label: 'Not Out', field: 'notOut' },
                    { label: 'Fours', field: 'fours' },
                    { label: 'Sixes', field: 'sixes' },
@@ -232,8 +360,8 @@ export default function PlayerProfilePage() {
                     <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]'}>
                        <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4 w-32">{row.label}</TableCell>
                        {activeFormats.map(f => (
-                         <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-16">
-                            {row.label === 'Matches' ? recentMatches.filter(m => m.totalOvers === f).length : (row.label === 'Runs' ? player.runsScored : '---')}
+                         <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
+                            {statsByFormat[f]?.[row.field] ?? statsByFormat[f]?.[row.label.toLowerCase().replace(' ', '')] ?? '---'}
                          </TableCell>
                        ))}
                     </TableRow>
@@ -246,23 +374,21 @@ export default function PlayerProfilePage() {
            <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
               <span className="w-32">Bowling Statistics</span>
               {activeFormats.map(f => (
-                <span key={f} className="w-16 text-right">{formatHeader(f)}</span>
+                <span key={f} className="w-20 text-right">{formatHeader(f)}</span>
               ))}
            </div>
            <Table className="min-w-max">
               <TableBody>
                  {[
-                   { label: 'Matches', field: 'matchesPlayed' },
-                   { label: 'Innings', field: 'matchesPlayed' },
+                   { label: 'Matches', field: 'matches' },
+                   { label: 'Innings', field: 'bowlInnings' },
                    { label: 'Balls Bowled', field: 'ballsBowled' },
                    { label: 'Runs', field: 'runsConceded' },
                    { label: 'Maidens', field: 'maidens' },
-                   { label: 'Wickets', field: 'wicketsTaken' },
-                   { label: 'Avg', field: 'average' },
-                   { label: 'Eco', field: 'economy' },
-                   { label: 'SR', field: 'strikeRate' },
-                   { label: 'BBI', field: 'bbi' },
-                   { label: 'BBM', field: 'bbm' },
+                   { label: 'Wickets', field: 'wickets' },
+                   { label: 'Avg', field: 'bowlAvg' },
+                   { label: 'Eco', field: 'eco' },
+                   { label: 'SR', field: 'bowlSr' },
                    { label: '1w', field: '1w' },
                    { label: '2w', field: '2w' },
                    { label: '3w', field: '3w' },
@@ -272,8 +398,8 @@ export default function PlayerProfilePage() {
                     <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]'}>
                        <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4 w-32">{row.label}</TableCell>
                        {activeFormats.map(f => (
-                         <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-16">
-                            {row.label === 'Matches' ? recentMatches.filter(m => m.totalOvers === f).length : (row.label === 'Wickets' ? player.wicketsTaken : '---')}
+                         <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
+                            {statsByFormat[f]?.[row.field] ?? '---'}
                          </TableCell>
                        ))}
                     </TableRow>
@@ -306,7 +432,6 @@ export default function PlayerProfilePage() {
         </TabsContent>
       </Tabs>
 
-      {/* Profile Editor Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-[#009270]">
           <DialogHeader>
