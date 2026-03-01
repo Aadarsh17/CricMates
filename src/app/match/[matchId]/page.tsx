@@ -9,7 +9,7 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -372,6 +372,14 @@ export default function MatchScoreboardPage() {
     }
   };
 
+  const handleDeleteBall = async (inningId: string, ballId: string) => {
+    if (!isUmpire) return;
+    if (confirm("Permanently delete this delivery record? Correct scores manually in Umpire Tools after deletion.")) {
+        deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords', ballId));
+        toast({ title: "Ball Record Deleted" });
+    }
+  };
+
   const handleUndo = async () => {
     if (!match || !isUmpire) return;
 
@@ -710,37 +718,92 @@ export default function MatchScoreboardPage() {
             if (!inning) return null;
             const stats = getExtendedInningStats(innNum === 1 ? inn1Deliveries || [] : inn2Deliveries || []);
             return (
-              <Card key={innNum} className="overflow-hidden border-none shadow-none space-y-6">
+              <div key={innNum} className="space-y-6">
                 <div className="bg-slate-900 text-white p-4 rounded-xl flex justify-between items-center shadow-lg">
                   <h3 className="font-black text-xs uppercase tracking-widest">{getTeamName(inning.battingTeamId)} Inning</h3>
                   <p className="font-black text-xl">{(inning.score || 0)}/{(inning.wickets || 0)} <span className="text-xs text-slate-400 ml-1">({(inning.oversCompleted || 0)}.{(inning.ballsInCurrentOver || 0)})</span></p>
                 </div>
                 
-                <Card className="rounded-xl overflow-hidden shadow-sm">
-                  <Table>
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="text-[10px] font-black uppercase">Batter</TableHead>
-                        <TableHead className="text-right text-[10px] font-black uppercase">R</TableHead>
-                        <TableHead className="text-right text-[10px] font-black uppercase">B</TableHead>
-                        <TableHead className="text-right text-[10px] font-black uppercase">SR</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                       {stats.batting.map(b => (
-                         <TableRow key={b.id}>
-                           <TableCell className="text-xs font-bold">
-                              <Link href={`/players/${b.id}`} className="text-primary hover:underline">{getPlayerName(b.id)}</Link>
-                              {b.out && <span className="block text-[8px] text-slate-400 uppercase font-black">({b.dismissal})</span>}
-                           </TableCell>
-                           <TableCell className="text-right text-xs font-black">{b.runs}</TableCell>
-                           <TableCell className="text-right text-xs text-slate-500 font-bold">{b.balls}</TableCell>
-                           <TableCell className="text-right text-xs text-slate-400">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
-                         </TableRow>
-                       ))}
-                    </TableBody>
-                  </Table>
-                </Card>
+                <Collapsible defaultOpen>
+                   <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="w-full flex justify-between items-center bg-slate-50 p-4 border rounded-xl hover:bg-slate-100 transition-colors">
+                        <span className="text-xs font-black uppercase text-primary tracking-widest">Batting Statistics</span>
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                      </Button>
+                   </CollapsibleTrigger>
+                   <CollapsibleContent className="pt-2">
+                      <Card className="rounded-xl overflow-hidden shadow-sm">
+                        <Table>
+                          <TableHeader className="bg-slate-50">
+                            <TableRow>
+                              <TableHead className="text-[10px] font-black uppercase">Batter</TableHead>
+                              <TableHead className="text-right text-[10px] font-black uppercase">R</TableHead>
+                              <TableHead className="text-right text-[10px] font-black uppercase">B</TableHead>
+                              <TableHead className="text-right text-[10px] font-black uppercase">4s</TableHead>
+                              <TableHead className="text-right text-[10px] font-black uppercase">6s</TableHead>
+                              <TableHead className="text-right text-[10px] font-black uppercase">SR</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                             {stats.batting.map(b => (
+                               <TableRow key={b.id}>
+                                 <TableCell className="text-xs font-bold">
+                                    <Link href={`/players/${b.id}`} className="text-primary hover:underline">{getPlayerName(b.id)}</Link>
+                                    {b.out && <span className="block text-[8px] text-slate-400 uppercase font-black">({b.dismissal})</span>}
+                                 </TableCell>
+                                 <TableCell className="text-right text-xs font-black">{b.runs}</TableCell>
+                                 <TableCell className="text-right text-xs text-slate-500 font-bold">{b.balls}</TableCell>
+                                 <TableCell className="text-right text-xs text-slate-500">{b.fours}</TableCell>
+                                 <TableCell className="text-right text-xs text-slate-500">{b.sixes}</TableCell>
+                                 <TableCell className="text-right text-xs text-slate-400 font-black">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
+                               </TableRow>
+                             ))}
+                          </TableBody>
+                        </Table>
+                      </Card>
+                   </CollapsibleContent>
+                </Collapsible>
+
+                <Collapsible defaultOpen>
+                   <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="w-full flex justify-between items-center bg-slate-50 p-4 border rounded-xl hover:bg-slate-100 transition-colors">
+                        <span className="text-xs font-black uppercase text-primary tracking-widest">Bowling Statistics</span>
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                      </Button>
+                   </CollapsibleTrigger>
+                   <CollapsibleContent className="pt-2">
+                      <Card className="rounded-xl overflow-hidden shadow-sm">
+                        <Table>
+                          <TableHeader className="bg-slate-50">
+                            <TableRow>
+                              <TableHead className="text-[10px] font-black uppercase">Bowler</TableHead>
+                              <TableHead className="text-right text-[10px] font-black uppercase">O</TableHead>
+                              <TableHead className="text-right text-[10px] font-black uppercase">M</TableHead>
+                              <TableHead className="text-right text-[10px] font-black uppercase">R</TableHead>
+                              <TableHead className="text-right text-[10px] font-black uppercase">W</TableHead>
+                              <TableHead className="text-right text-[10px] font-black uppercase">Econ</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                             {stats.bowling.map(b => (
+                               <TableRow key={b.id}>
+                                 <TableCell className="text-xs font-bold">
+                                    <Link href={`/players/${b.id}`} className="text-primary hover:underline">{getPlayerName(b.id)}</Link>
+                                 </TableCell>
+                                 <TableCell className="text-right text-xs font-bold">{b.oversDisplay}</TableCell>
+                                 <TableCell className="text-right text-xs font-bold">{b.maidens || 0}</TableCell>
+                                 <TableCell className="text-right text-xs font-black">{b.runs}</TableCell>
+                                 <TableCell className="text-right text-xs font-black text-primary">{b.wickets}</TableCell>
+                                 <TableCell className="text-right text-xs font-black text-slate-400">
+                                    {b.balls > 0 ? (b.runs / (b.balls / 6)).toFixed(2) : '0.00'}
+                                 </TableCell>
+                               </TableRow>
+                             ))}
+                          </TableBody>
+                        </Table>
+                      </Card>
+                   </CollapsibleContent>
+                </Collapsible>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Card className="rounded-xl overflow-hidden shadow-sm">
@@ -795,32 +858,7 @@ export default function MatchScoreboardPage() {
                         </CardContent>
                     </Card>
                 </div>
-
-                <Card className="rounded-xl overflow-hidden shadow-sm">
-                    <Table>
-                      <TableHeader className="bg-slate-50">
-                        <TableRow>
-                          <TableHead className="text-[10px] font-black uppercase">Bowler</TableHead>
-                          <TableHead className="text-right text-[10px] font-black uppercase">O</TableHead>
-                          <TableHead className="text-right text-[10px] font-black uppercase">R</TableHead>
-                          <TableHead className="text-right text-[10px] font-black uppercase">W</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                         {stats.bowling.map(b => (
-                           <TableRow key={b.id}>
-                             <TableCell className="text-xs font-bold">
-                                <Link href={`/players/${b.id}`} className="text-primary hover:underline">{getPlayerName(b.id)}</Link>
-                             </TableCell>
-                             <TableCell className="text-right text-xs font-bold">{b.oversDisplay}</TableCell>
-                             <TableCell className="text-right text-xs font-black">{b.runs}</TableCell>
-                             <TableCell className="text-right text-xs font-black text-primary">{b.wickets}</TableCell>
-                           </TableRow>
-                         ))}
-                      </TableBody>
-                    </Table>
-                </Card>
-              </Card>
+              </div>
             );
           })}
         </TabsContent>
@@ -889,6 +927,11 @@ export default function MatchScoreboardPage() {
                                                     {d.totalRunsOnDelivery}
                                                 </div>
                                             )}
+                                            {isUmpire && (
+                                                <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-300 hover:text-destructive" onClick={() => handleDeleteBall(`inning_${activeInningView}`, d.id)}>
+                                                    <Trash2 className="w-3 h-3" />
+                                                </Button>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
@@ -946,43 +989,61 @@ export default function MatchScoreboardPage() {
         </TabsContent>
       </Tabs>
 
-      {/* FULL CORRECTION EDITOR */}
+      {/* FULL CORRECTION EDITOR V1.0 */}
       <Dialog open={isEditFullMatchOpen} onOpenChange={setIsEditFullMatchOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl">
-          <DialogHeader><DialogTitle className="font-black uppercase">Correction Engine v1.0</DialogTitle></DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1"><Label className="text-[10px] font-black">Match Status</Label><Select value={editForm.status} onValueChange={v => setEditForm({...editForm, status: v})}><SelectTrigger className="font-bold"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="live">Live</SelectItem><SelectItem value="completed">Completed</SelectItem></SelectContent></Select></div>
-              <div className="space-y-1"><Label className="text-[10px] font-black">Date</Label><Input type="date" value={editForm.matchDate} onChange={e => setEditForm({...editForm, matchDate: e.target.value})} className="font-bold" /></div>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl border-t-8 border-t-primary">
+          <DialogHeader className="border-b pb-4">
+            <DialogTitle className="font-black uppercase text-xl flex items-center gap-2">
+                <ShieldCheck className="w-6 h-6 text-primary" /> CORRECTION ENGINE V1.0
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6 py-6">
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Match Status</Label>
+                  <Select value={editForm.status} onValueChange={v => setEditForm({...editForm, status: v})}>
+                      <SelectTrigger className="font-bold h-12 shadow-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                          <SelectItem value="live">Live</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                      </SelectContent>
+                  </Select>
+              </div>
+              <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Match Date</Label>
+                  <Input type="date" value={editForm.matchDate} onChange={e => setEditForm({...editForm, matchDate: e.target.value})} className="font-bold h-12 shadow-sm" />
+              </div>
             </div>
 
-            <div className="p-4 border rounded-xl bg-slate-50">
-              <p className="text-[10px] font-black mb-3 text-slate-500 uppercase">On-Field Assignment</p>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div>
-                  <Label className="text-[8px] font-black">Striker</Label>
+            <div className="p-6 border rounded-2xl bg-slate-50/50 shadow-inner space-y-4">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <PenTool className="w-3 h-3" /> ON-FIELD ASSIGNMENT
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <Label className="text-[8px] font-black uppercase">Striker</Label>
                   <Select value={editForm.strikerId || "none"} onValueChange={v => setEditForm({...editForm, strikerId: v})}>
-                    <SelectTrigger className="font-bold text-xs h-9"><SelectValue placeholder="Striker" /></SelectTrigger>
+                    <SelectTrigger className="font-bold text-xs h-10 shadow-sm"><SelectValue placeholder="Striker" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Not Set</SelectItem>
                       {battingPlayers.map(p => p.id && <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label className="text-[8px] font-black">Non-Striker</Label>
+                <div className="space-y-1">
+                  <Label className="text-[8px] font-black uppercase">Non-Striker</Label>
                   <Select value={editForm.nonStrikerId || "none"} onValueChange={v => setEditForm({...editForm, nonStrikerId: v})}>
-                    <SelectTrigger className="font-bold text-xs h-9"><SelectValue placeholder="Non-Striker" /></SelectTrigger>
+                    <SelectTrigger className="font-bold text-xs h-10 shadow-sm"><SelectValue placeholder="Non-Striker" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Not Set</SelectItem>
                       {battingPlayers.map(p => p.id && <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label className="text-[8px] font-black">Bowler</Label>
+                <div className="space-y-1">
+                  <Label className="text-[8px] font-black uppercase">Bowler</Label>
                   <Select value={editForm.bowlerId || "none"} onValueChange={v => setEditForm({...editForm, bowlerId: v})}>
-                    <SelectTrigger className="font-bold text-xs h-9"><SelectValue placeholder="Bowler" /></SelectTrigger>
+                    <SelectTrigger className="font-bold text-xs h-10 shadow-sm"><SelectValue placeholder="Bowler" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="none">Not Set</SelectItem>
                       {bowlingPlayers.map(p => p.id && <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
@@ -992,26 +1053,41 @@ export default function MatchScoreboardPage() {
               </div>
             </div>
 
-            {[{idx: 1, s: editForm.inn1Score, w: editForm.inn1Wickets, o: editForm.inn1Overs, b: editForm.inn1Balls}, {idx: 2, s: editForm.inn2Score, w: editForm.inn2Wickets, o: editForm.inn2Overs, b: editForm.inn2Balls}].map(i => (
-              <div key={i.idx} className="p-4 border rounded-xl bg-slate-50">
-                <p className="text-[10px] font-black mb-3 text-slate-500 uppercase">Innings {i.idx} Totals</p>
-                <div className="grid grid-cols-4 gap-2">
-                  <div><Label className="text-[8px] font-black">Runs</Label><Input type="number" onFocus={e => e.target.select()} value={i.s} onChange={e => setEditForm({...editForm, [`inn${i.idx}Score`]: parseInt(e.target.value)||0})} className="font-black" /></div>
-                  <div><Label className="text-[8px] font-black">Wkts</Label><Input type="number" onFocus={e => e.target.select()} value={i.w} onChange={e => setEditForm({...editForm, [`inn${i.idx}Wickets`]: parseInt(e.target.value)||0})} className="font-black" /></div>
-                  <div><Label className="text-[8px] font-black">Overs</Label><Input type="number" onFocus={e => e.target.select()} value={i.o} onChange={e => setEditForm({...editForm, [`inn${i.idx}Overs`]: parseInt(e.target.value)||0})} className="font-black" /></div>
-                  <div><Label className="text-[8px] font-black">Balls</Label><Input type="number" onFocus={e => e.target.select()} value={i.b} onChange={e => setEditForm({...editForm, [`inn${i.idx}Balls`]: parseInt(e.target.value)||0})} className="font-black" /></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="p-5 border rounded-2xl bg-white shadow-sm border-l-4 border-l-primary space-y-4">
+                    <p className="text-[10px] font-black text-primary uppercase tracking-widest">Innings 1 Totals</p>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1"><Label className="text-[8px] font-black">Runs</Label><Input type="number" onFocus={e => e.target.select()} value={editForm.inn1Score} onChange={e => setEditForm({...editForm, inn1Score: parseInt(e.target.value)||0})} className="font-black h-12 text-lg" /></div>
+                        <div className="space-y-1"><Label className="text-[8px] font-black">Wkts</Label><Input type="number" onFocus={e => e.target.select()} value={editForm.inn1Wickets} onChange={e => setEditForm({...editForm, inn1Wickets: parseInt(e.target.value)||0})} className="font-black h-12 text-lg" /></div>
+                        <div className="space-y-1"><Label className="text-[8px] font-black">Overs</Label><Input type="number" onFocus={e => e.target.select()} value={editForm.inn1Overs} onChange={e => setEditForm({...editForm, inn1Overs: parseInt(e.target.value)||0})} className="font-black h-12 text-lg" /></div>
+                        <div className="space-y-1"><Label className="text-[8px] font-black">Balls</Label><Input type="number" onFocus={e => e.target.select()} value={editForm.inn1Balls} onChange={e => setEditForm({...editForm, inn1Balls: parseInt(e.target.value)||0})} className="font-black h-12 text-lg" /></div>
+                    </div>
                 </div>
-              </div>
-            ))}
+
+                <div className="p-5 border rounded-2xl bg-white shadow-sm border-l-4 border-l-secondary space-y-4">
+                    <p className="text-[10px] font-black text-secondary uppercase tracking-widest">Innings 2 Totals</p>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1"><Label className="text-[8px] font-black">Runs</Label><Input type="number" onFocus={e => e.target.select()} value={editForm.inn2Score} onChange={e => setEditForm({...editForm, inn2Score: parseInt(e.target.value)||0})} className="font-black h-12 text-lg" /></div>
+                        <div className="space-y-1"><Label className="text-[8px] font-black">Wkts</Label><Input type="number" onFocus={e => e.target.select()} value={editForm.inn2Wickets} onChange={e => setEditForm({...editForm, inn2Wickets: parseInt(e.target.value)||0})} className="font-black h-12 text-lg" /></div>
+                        <div className="space-y-1"><Label className="text-[8px] font-black">Overs</Label><Input type="number" onFocus={e => e.target.select()} value={editForm.inn2Overs} onChange={e => setEditForm({...editForm, inn2Overs: parseInt(e.target.value)||0})} className="font-black h-12 text-lg" /></div>
+                        <div className="space-y-1"><Label className="text-[8px] font-black">Balls</Label><Input type="number" onFocus={e => e.target.select()} value={editForm.inn2Balls} onChange={e => setEditForm({...editForm, inn2Balls: parseInt(e.target.value)||0})} className="font-black h-12 text-lg" /></div>
+                    </div>
+                </div>
+            </div>
+
             <div className="space-y-2">
-              <Label className="text-[10px] font-black">Result Description</Label>
+              <Label className="text-[10px] font-black uppercase text-slate-400">Result Description</Label>
               <div className="flex gap-2">
-                <Input value={editForm.resultDescription} onChange={e => setEditForm({...editForm, resultDescription: e.target.value})} className="font-bold text-primary" />
-                <Button variant="outline" size="icon" onClick={() => setEditForm({...editForm, resultDescription: calculateResult({score: editForm.inn1Score, battingTeamId: inn1?.battingTeamId}, {score: editForm.inn2Score, battingTeamId: inn2?.battingTeamId, wickets: editForm.inn2Wickets})})} title="Recalculate Result"><RefreshCw className="w-4 h-4" /></Button>
+                <Input value={editForm.resultDescription} onChange={e => setEditForm({...editForm, resultDescription: e.target.value})} className="font-bold text-primary h-12 shadow-sm" />
+                <Button variant="outline" size="icon" className="h-12 w-12" onClick={() => setEditForm({...editForm, resultDescription: calculateResult({score: editForm.inn1Score, battingTeamId: inn1?.battingTeamId}, {score: editForm.inn2Score, battingTeamId: inn2?.battingTeamId, wickets: editForm.inn2Wickets})})} title="Recalculate Result"><RefreshCw className="w-5 h-5" /></Button>
               </div>
             </div>
           </div>
-          <DialogFooter><Button onClick={handleUpdateFullMatch} className="w-full h-12 font-black uppercase tracking-widest"><Save className="w-4 h-4 mr-2" /> Save Corrections</Button></DialogFooter>
+          <DialogFooter className="pt-4 border-t">
+            <Button onClick={handleUpdateFullMatch} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl">
+                <Save className="w-5 h-5 mr-2" /> SAVE CORRECTIONS
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
