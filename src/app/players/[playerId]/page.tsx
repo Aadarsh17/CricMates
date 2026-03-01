@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useCollection } from '@/firebase';
-import { doc, collection, query, where, orderBy, limit } from 'firebase/firestore';
+import { doc, collection, query, orderBy, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -32,7 +32,7 @@ export default function PlayerProfilePage() {
 
   // Query matches where the player was in the squad
   const matchesQuery = useMemoFirebase(() => 
-    query(collection(db, 'matches'), orderBy('matchDate', 'desc'), limit(20)), 
+    query(collection(db, 'matches'), orderBy('matchDate', 'desc'), limit(50)), 
   [db]);
   const { data: allMatches } = useCollection(matchesQuery);
 

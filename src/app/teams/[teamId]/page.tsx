@@ -16,6 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { cn } from '@/lib/utils';
 
 export default function TeamDetailsPage() {
   const params = useParams();
@@ -74,10 +75,20 @@ export default function TeamDetailsPage() {
         {[
           { label: 'Won', value: team.matchesWon, icon: Trophy, color: 'text-secondary' },
           { label: 'Lost', value: team.matchesLost, icon: Activity, color: 'text-destructive' },
-          { label: 'NRR', value: team.netRunRate.toFixed(3), icon: HistoryIcon },
+          { label: 'NRR', value: (team.netRunRate || 0).toFixed(3), icon: HistoryIcon },
           { label: 'Played', value: (team.matchesWon||0)+(team.matchesLost||0)+(team.matchesDrawn||0), icon: HistoryIcon },
         ].map((stat, i) => (
-          <Card key={i} className="shadow-none border"><CardContent className="p-3 flex items-center gap-3"><div className="p-1.5 bg-slate-50 rounded"><stat.icon className={cn("w-4 h-4", stat.color)}/></div><div><p className="text-[9px] font-black text-slate-400 uppercase">{stat.label}</p><p className="text-lg font-black">{stat.value}</p></div></CardContent></Card>
+          <Card key={i} className="shadow-none border">
+            <CardContent className="p-3 flex items-center gap-3">
+              <div className="p-1.5 bg-slate-50 rounded">
+                <stat.icon className={cn("w-4 h-4", stat.color)}/>
+              </div>
+              <div>
+                <p className="text-[9px] font-black text-slate-400 uppercase">{stat.label}</p>
+                <p className="text-lg font-black">{stat.value}</p>
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
@@ -98,16 +109,16 @@ export default function TeamDetailsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {players?.map(player => (
-          <Card key={player.id} className="border-l-4 border-l-primary shadow-sm">
+          <Card key={player.id} className="border-l-4 border-l-primary shadow-sm hover:border-primary transition-all">
             <CardContent className="p-4">
               <div className="flex justify-between items-start">
-                <div className="flex items-center gap-3">
+                <Link href={`/players/${player.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                   <Avatar className="w-10 h-10"><AvatarImage src={player.imageUrl} /><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
                   <div className="min-w-0">
                     <p className="font-bold text-sm truncate max-w-[120px]">{player.name}</p>
                     <Badge variant="outline" className="text-[8px] font-black uppercase">{player.role}</Badge>
                   </div>
-                </div>
+                </Link>
                 {user?.uid === player.ownerId && <Button variant="ghost" size="icon" onClick={() => handleDeletePlayer(player.id, player.name)} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>}
               </div>
               <div className="mt-4 grid grid-cols-3 gap-2 border-t pt-3 text-center">
