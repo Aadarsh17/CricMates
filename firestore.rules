@@ -9,9 +9,16 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // --- COLLECTION GROUP AUTHORIZATION ---
+    // Specifically allow group queries for delivery records.
+    // This is required even if a broad recursive wildcard exists.
+    match /{path=**}/deliveryRecords/{document} {
+      allow read: if true;
+    }
+
     // --- GLOBAL READ ACCESS ---
     // This recursive wildcard is the most robust way to allow both 
-    // standard collection reads and deep Collection Group queries.
+    // standard collection reads and deep collection paths.
     match /{document=**} {
       allow read: if true;
       // Writing requires authentication (Umpire role)
@@ -19,8 +26,6 @@ service cloud.firestore {
     }
 
     // --- PROTECTED ROLES ---
-    // Specific paths can still have targeted logic if needed, 
-    // but the global read above covers the stats engine needs.
     match /umpires/{umpireId} {
       allow get: if request.auth != null;
       allow list, create, update, delete: if false;

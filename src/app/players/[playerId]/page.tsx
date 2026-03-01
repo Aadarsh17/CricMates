@@ -52,11 +52,15 @@ export default function PlayerProfilePage() {
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
 
-  // Stats Aggregation Engine V2 (Explicitly accurate)
-  const facedQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId)), [db, playerId]);
+  // Stats Aggregation Engine V3 (Collection Group Queries)
+  const facedQuery = useMemoFirebase(() => 
+    playerId ? query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId)) : null
+  , [db, playerId]);
   const { data: ballsFaced } = useCollection(facedQuery);
 
-  const bowledQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId)), [db, playerId]);
+  const bowledQuery = useMemoFirebase(() => 
+    playerId ? query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId)) : null
+  , [db, playerId]);
   const { data: ballsBowled } = useCollection(bowledQuery);
 
   const statsByFormat = useMemo(() => {
@@ -66,8 +70,9 @@ export default function PlayerProfilePage() {
 
     // Grouping Batting Data
     ballsFaced.forEach(ball => {
-      // Extract matchId from path: /matches/{matchId}/innings/{inningId}/deliveryRecords/{ballId}
-      const matchId = ball.__fullPath?.split('/')[1];
+      // Extract matchId from path: matches/{matchId}/innings/{inningId}/deliveryRecords/{ballId}
+      const pathParts = ball.__fullPath?.split('/') || [];
+      const matchId = pathParts[1];
       const match = allMatches.find(m => m.id === matchId);
       if (!match) return;
 
@@ -95,7 +100,8 @@ export default function PlayerProfilePage() {
 
     // Grouping Bowling Data
     ballsBowled.forEach(ball => {
-      const matchId = ball.__fullPath?.split('/')[1];
+      const pathParts = ball.__fullPath?.split('/') || [];
+      const matchId = pathParts[1];
       const match = allMatches.find(m => m.id === matchId);
       if (!match) return;
 
@@ -207,11 +213,11 @@ export default function PlayerProfilePage() {
               <AvatarFallback className="text-3xl font-black bg-white/10 text-white/50">{player.name[0]}</AvatarFallback>
            </Avatar>
            <div className="flex-1 grid grid-cols-2 gap-2 mb-2">
-              <div className="bg-white/10 p-2 rounded-xl backdrop-blur-sm">
+              <div className="bg-white/10 p-2 rounded-xl backdrop-blur-sm text-center">
                  <p className="text-[8px] font-black uppercase text-white/50">CVP Points</p>
                  <p className="text-xl font-black">{player.careerCVP || 0}</p>
               </div>
-              <div className="bg-white/10 p-2 rounded-xl backdrop-blur-sm">
+              <div className="bg-white/10 p-2 rounded-xl backdrop-blur-sm text-center">
                  <p className="text-[8px] font-black uppercase text-white/50">Style</p>
                  <p className="text-xs font-bold leading-tight truncate">{player.battingStyle}</p>
               </div>
