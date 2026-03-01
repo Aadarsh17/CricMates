@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { doc, collection, query, orderBy, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -19,7 +19,6 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApp } from '@/context/AppContext';
 import { toast } from '@/hooks/use-toast';
-import { getExtendedInningStats } from '@/lib/report-utils';
 
 export default function PlayerProfilePage() {
   const params = useParams();
@@ -64,13 +63,13 @@ export default function PlayerProfilePage() {
     ) || [];
   }, [allMatches, playerId]);
 
-  // Dynamic Formats based on unique totalOvers in player's history
+  // Dynamic Formats based on unique totalOvers in player's history (e.g., 4OF, 6OF)
   const activeFormats = useMemo(() => {
     const overs = new Set<number>();
     recentMatches.forEach(m => {
       if (m.totalOvers) overs.add(m.totalOvers);
     });
-    // Default to include 20 if no matches yet for structure
+    // Default to a sensible format if no matches yet
     if (overs.size === 0) return [20];
     return Array.from(overs).sort((a, b) => a - b);
   }, [recentMatches]);
@@ -104,7 +103,7 @@ export default function PlayerProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto pb-24 px-0 bg-white min-h-screen">
-      {/* Header Section */}
+      {/* Professional Hero Section */}
       <div className="bg-[#009270] text-white p-4 pt-8">
         <div className="flex items-center gap-4 mb-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white hover:bg-white/10 shrink-0">
@@ -112,7 +111,7 @@ export default function PlayerProfilePage() {
           </Button>
           <div className="flex-1">
              <div className="flex items-center gap-2">
-                <span className="font-bold text-xl tracking-tight">{player.name}</span>
+                <span className="font-bold text-xl tracking-tight uppercase">{player.name}</span>
                 {isUmpire && (
                   <Button variant="ghost" size="icon" onClick={() => setIsEditOpen(true)} className="text-white hover:bg-white/10 rounded-full h-8 w-8">
                     <Edit2 className="w-4 h-4" />
@@ -121,14 +120,14 @@ export default function PlayerProfilePage() {
              </div>
             <div className="flex items-center gap-2 mt-0.5">
                <Flag className="w-3 h-3 text-white/70" />
-               <span className="text-xs font-medium text-white/70">League Player</span>
+               <span className="text-[10px] font-black text-white/70 uppercase tracking-widest">League Registered</span>
             </div>
           </div>
         </div>
         
         <div className="flex items-end gap-6 pb-2">
-           <Avatar className="w-24 h-24 border-2 border-white/20 rounded-xl shadow-lg shrink-0">
-              <AvatarImage src={player.imageUrl} className="object-cover" />
+           <Avatar className="w-24 h-24 border-4 border-white/20 rounded-xl shadow-lg shrink-0 overflow-hidden">
+              <AvatarImage src={player.imageUrl || `https://picsum.photos/seed/${playerId}/300`} className="object-cover" />
               <AvatarFallback className="text-3xl font-black bg-white/10 text-white/50">{player.name[0]}</AvatarFallback>
            </Avatar>
         </div>
@@ -141,7 +140,7 @@ export default function PlayerProfilePage() {
               <TabsTrigger 
                 key={tab} 
                 value={tab.toLowerCase()} 
-                className="text-white/60 font-bold data-[state=active]:text-white data-[state=active]:bg-transparent border-b-4 border-transparent data-[state=active]:border-white rounded-none px-4 h-full uppercase text-[11px] tracking-wider transition-all"
+                className="text-white/60 font-black data-[state=active]:text-white data-[state=active]:bg-transparent border-b-4 border-transparent data-[state=active]:border-white rounded-none px-4 h-full uppercase text-[11px] tracking-widest transition-all"
               >
                 {tab}
               </TabsTrigger>
@@ -151,20 +150,20 @@ export default function PlayerProfilePage() {
 
         <TabsContent value="info" className="p-4 space-y-6 animate-in fade-in duration-300">
           <section>
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Personal Information</h3>
+            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Personal Details</h3>
             <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
                <Table>
                  <TableBody>
                     <TableRow className="hover:bg-transparent border-slate-100">
-                      <TableCell className="text-[11px] font-medium text-slate-400 py-3 w-1/3">Role</TableCell>
+                      <TableCell className="text-[11px] font-black text-slate-400 py-3 w-1/3 uppercase">Role</TableCell>
                       <TableCell className="text-[11px] font-bold text-slate-900">{player.role}</TableCell>
                     </TableRow>
                     <TableRow className="hover:bg-transparent border-slate-100">
-                      <TableCell className="text-[11px] font-medium text-slate-400 py-3">Batting Style</TableCell>
+                      <TableCell className="text-[11px] font-black text-slate-400 py-3 uppercase">Batting Style</TableCell>
                       <TableCell className="text-[11px] font-bold text-slate-900">{player.battingStyle || 'Right Handed Bat'}</TableCell>
                     </TableRow>
                     <TableRow className="hover:bg-transparent border-b-0">
-                      <TableCell className="text-[11px] font-medium text-slate-400 py-3">Matches Played</TableCell>
+                      <TableCell className="text-[11px] font-black text-slate-400 py-3 uppercase">Matches</TableCell>
                       <TableCell className="text-[11px] font-bold text-slate-900">{player.matchesPlayed || 0}</TableCell>
                     </TableRow>
                  </TableBody>
@@ -173,7 +172,7 @@ export default function PlayerProfilePage() {
           </section>
 
           <section>
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Recent Form</h3>
+            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Recent Match Log</h3>
             <div className="space-y-2">
               {recentMatches.slice(0, 5).map(match => (
                  <Link key={match.id} href={`/match/${match.id}`}>
@@ -188,16 +187,16 @@ export default function PlayerProfilePage() {
                  </Link>
               ))}
               {recentMatches.length === 0 && (
-                 <div className="text-center py-10 border-2 border-dashed rounded-xl bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest">No matches recorded in the vault</div>
+                 <div className="text-center py-10 border-2 border-dashed rounded-xl bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest">No match records found</div>
               )}
             </div>
           </section>
 
           <section>
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Franchises</h3>
+            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Active Franchises</h3>
             <div className="flex flex-wrap gap-2 px-1">
                {representedTeams.map(t => (
-                 <Badge key={t.id} variant="outline" className="px-3 py-1.5 text-[10px] font-bold border-slate-200 bg-white shadow-sm">
+                 <Badge key={t.id} variant="outline" className="px-3 py-1.5 text-[10px] font-bold border-slate-200 bg-white shadow-sm uppercase tracking-wider">
                     {t.name}
                  </Badge>
                ))}
@@ -207,7 +206,7 @@ export default function PlayerProfilePage() {
 
         <TabsContent value="batting" className="p-0 animate-in fade-in duration-300 overflow-x-auto">
            <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
-              <span className="w-32">Statistic</span>
+              <span className="w-32">Batting Statistics</span>
               {activeFormats.map(f => (
                 <span key={f} className="w-16 text-right">{formatHeader(f)}</span>
               ))}
@@ -234,7 +233,6 @@ export default function PlayerProfilePage() {
                        <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4 w-32">{row.label}</TableCell>
                        {activeFormats.map(f => (
                          <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-16">
-                            {/* In a real app, these values would be aggregated per format. Using '---' for calculated fields not currently in player doc */}
                             {row.label === 'Matches' ? recentMatches.filter(m => m.totalOvers === f).length : (row.label === 'Runs' ? player.runsScored : '---')}
                          </TableCell>
                        ))}
@@ -246,7 +244,7 @@ export default function PlayerProfilePage() {
 
         <TabsContent value="bowling" className="p-0 animate-in fade-in duration-300 overflow-x-auto">
            <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
-              <span className="w-32">Statistic</span>
+              <span className="w-32">Bowling Statistics</span>
               {activeFormats.map(f => (
                 <span key={f} className="w-16 text-right">{formatHeader(f)}</span>
               ))}
@@ -291,16 +289,16 @@ export default function PlayerProfilePage() {
                     <Trophy className="w-32 h-32" />
                  </div>
                  <Trophy className="w-14 h-14 text-[#fbbf24] mx-auto mb-4" />
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Cumulative Cricket Value Points</p>
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Cricket Value Points</p>
                  <h2 className="text-7xl font-black text-white">{player.careerCVP}</h2>
                  <div className="grid grid-cols-2 gap-8 mt-10 pt-10 border-t border-white/10">
                     <div className="text-left">
-                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Global Rank</p>
+                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Global Ranking</p>
                        <p className="text-2xl font-black text-[#009270]">#12</p>
                     </div>
                     <div className="text-right">
-                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">League Impact</p>
-                       <p className="text-2xl font-black text-[#009270]">Elite</p>
+                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">League Standing</p>
+                       <p className="text-2xl font-black text-[#009270]">Pro Elite</p>
                     </div>
                  </div>
               </CardContent>
@@ -308,12 +306,12 @@ export default function PlayerProfilePage() {
         </TabsContent>
       </Tabs>
 
-      {/* Edit Dialog for Umpires */}
+      {/* Profile Editor Dialog */}
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-[#009270]">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-widest flex items-center gap-2 text-[#009270]">
-               <ShieldCheck className="w-5 h-5" /> Edit Professional Profile
+               <ShieldCheck className="w-5 h-5" /> Professional Profile Editor
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-5 py-4">
@@ -322,7 +320,7 @@ export default function PlayerProfilePage() {
               <Input 
                 value={editForm.name} 
                 onChange={(e) => setEditForm({...editForm, name: e.target.value})} 
-                placeholder="Player Name" 
+                placeholder="Name" 
                 className="font-bold h-12 rounded-xl focus:ring-[#009270]"
               />
             </div>
@@ -359,12 +357,12 @@ export default function PlayerProfilePage() {
                   onChange={(e) => setEditForm({...editForm, isWicketKeeper: e.target.checked})}
                   className="w-5 h-5 rounded border-slate-300 text-[#009270] focus:ring-[#009270]"
                />
-               <Label htmlFor="wk-check" className="text-xs font-bold text-slate-700 cursor-pointer">Active Wicket Keeper</Label>
+               <Label htmlFor="wk-check" className="text-xs font-bold text-slate-700 cursor-pointer">Official Wicket Keeper</Label>
             </div>
           </div>
           <DialogFooter className="pt-2">
             <Button onClick={handleUpdateProfile} className="w-full h-14 font-black uppercase tracking-widest shadow-lg bg-[#009270] hover:bg-[#007a5d] rounded-xl text-lg">
-               <Save className="w-5 h-5 mr-2" /> Update Registry
+               <Save className="w-5 h-5 mr-2" /> Commit Profile Updates
             </Button>
           </DialogFooter>
         </DialogContent>
