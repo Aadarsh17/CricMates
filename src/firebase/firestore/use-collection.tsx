@@ -65,17 +65,18 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        // Robust path extraction for diagnostics
+        // Advanced path extraction for collection group queries and standard queries
         let path: string = 'root_or_group_query';
         try {
           const q = memoizedTargetRefOrQuery as any;
           if (q.path) {
             path = q.path;
           } else if (q._query?.path) {
+            // Internal extraction for complex query objects
             path = q._query.path.canonicalString?.() || q._query.path.toString();
-          } else {
-             // Collection Group Query fallback
-             path = "collection_group_query";
+          } else if (memoizedTargetRefOrQuery.type === 'collection_group') {
+             // Identifying group query failures
+             path = `Collection Group: ${ (memoizedTargetRefOrQuery as any)._queryId || 'unknown' }`;
           }
         } catch (e) {
           path = 'collection_group_query';
@@ -90,7 +91,7 @@ export function useCollection<T = any>(
         setData(null);
         setIsLoading(false);
 
-        // Global propagation
+        // Standardized global propagation
         errorEmitter.emit('permission-error', contextualError);
       }
     );
