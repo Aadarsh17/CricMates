@@ -13,21 +13,21 @@ service cloud.firestore {
     }
 
     /**
+     * COLLECTION GROUP: deliveryRecords
+     * Specifically authorizes aggregation of ball-by-ball data for career analytics.
+     */
+    match /{path=**}/deliveryRecords/{document} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    /**
      * UMPIRE PROFILES
      * Allow umpires to update their own profiles.
      */
     match /umpires/{umpireId} {
       allow get: if true;
       allow write: if request.auth != null && request.auth.uid == umpireId;
-    }
-
-    /**
-     * COLLECTION GROUP: deliveryRecords
-     * Specifically authorizes aggregation of ball-by-ball data for historical analysis.
-     */
-    match /{path=**}/deliveryRecords/{document} {
-      allow read: if true;
-      allow write: if request.auth != null;
     }
   }
 }

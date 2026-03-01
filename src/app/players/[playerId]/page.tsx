@@ -1,15 +1,15 @@
 
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useDoc, useMemoFirebase, useFirestore, updateDocumentNonBlocking } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useDoc, useMemoFirebase, useFirestore, updateDocumentNonBlocking, useCollection } from '@/firebase';
+import { doc, collectionGroup, query, where } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Flag, Edit2, ShieldCheck, Star } from 'lucide-react';
+import { ArrowLeft, Flag, Edit2, ShieldCheck, Star, Info as InfoIcon, Loader2 } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -35,8 +35,20 @@ export default function PlayerProfilePage() {
     isWicketKeeper: false
   });
 
+  // Fetch basic player profile
   const playerRef = useMemoFirebase(() => doc(db, 'players', playerId), [db, playerId]);
-  const { data: player, isLoading } = useDoc(playerRef);
+  const { data: player, isLoading: isPlayerLoading } = useDoc(playerRef);
+
+  // FETCH ALL HISTORY-BASED DATA
+  // We fetch all delivery records where this player was involved to calculate stats dynamically
+  const battingQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId)), [db, playerId]);
+  const { data: battingDeliveries, isLoading: isBattingLoading } = useCollection(battingQuery);
+
+  const bowlingQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId)), [db, playerId]);
+  const { data: bowlingDeliveries, isLoading: isBowlingLoading } = useCollection(bowlingQuery);
+
+  const dismissalQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('batsmanOutPlayerId', '==', playerId)), [db, playerId]);
+  const { data: dismissals, isLoading: isDismissalLoading } = useCollection(dismissalQuery);
 
   useEffect(() => {
     if (player) {
@@ -48,6 +60,71 @@ export default function PlayerProfilePage() {
       });
     }
   }, [player]);
+
+  // CALCULATE LIVE STATS FROM HISTORY
+  const historyStats = useMemo(() => {
+    const stats = {
+      runs: 0,
+      ballsFaced: 0,
+      fours: 0,
+      sixes: 0,
+      battingInnings: new Set<string>(),
+      matchesPlayed: new Set<string>(),
+      
+      wickets: 0,
+      ballsBowled: 0,
+      runsConceded: 0,
+      bowlingInnings: new Set<string>(),
+      maidens: 0,
+      
+      catches: 0,
+      stumpings: 0,
+      runOuts: 0
+    };
+
+    if (battingDeliveries) {
+      battingDeliveries.forEach(d => {
+        stats.runs += d.runsScored || 0;
+        if (d.extraType !== 'wide') stats.ballsFaced += 1;
+        if (d.runsScored === 4) stats.fours += 1;
+        if (d.runsScored === 6) stats.sixes += 1;
+        
+        // Extract matchId and inningId from path to count unique participation
+        if (d.__fullPath) {
+          const parts = d.__fullPath.split('/');
+          const matchId = parts[1];
+          const inningId = parts[3];
+          stats.battingInnings.add(`${matchId}-${inningId}`);
+          stats.matchesPlayed.add(matchId);
+        }
+      });
+    }
+
+    if (bowlingDeliveries) {
+      bowlingDeliveries.forEach(d => {
+        stats.runsConceded += d.totalRunsOnDelivery || 0;
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') stats.ballsBowled += 1;
+        if (d.isWicket && d.dismissalType !== 'runout') stats.wickets += 1;
+        
+        if (d.__fullPath) {
+          const parts = d.__fullPath.split('/');
+          const matchId = parts[1];
+          const inningId = parts[3];
+          stats.bowlingInnings.add(`${matchId}-${inningId}`);
+          stats.matchesPlayed.add(matchId);
+        }
+      });
+    }
+
+    return {
+      ...stats,
+      battingInningsCount: stats.battingInnings.size,
+      bowlingInningsCount: stats.bowlingInnings.size,
+      matchesPlayedCount: stats.matchesPlayed.size,
+      strikeRate: stats.ballsFaced > 0 ? ((stats.runs / stats.ballsFaced) * 100).toFixed(2) : '0.00',
+      economy: stats.ballsBowled > 0 ? (stats.runsConceded / (stats.ballsBowled / 6)).toFixed(2) : '0.00'
+    };
+  }, [battingDeliveries, bowlingDeliveries]);
 
   const handleUpdateProfile = () => {
     if (!editForm.name.trim()) return;
@@ -61,11 +138,16 @@ export default function PlayerProfilePage() {
     toast({ title: "Profile Updated" });
   };
 
-  if (isLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING ANALYTICS...</div>;
-  if (!player) return <div className="p-20 text-center">Player not found.</div>;
+  const isLoading = isPlayerLoading || isBattingLoading || isBowlingLoading || isDismissalLoading;
 
-  const sr = player.ballsFaced > 0 ? ((player.runsScored / player.ballsFaced) * 100).toFixed(2) : '0.00';
-  const eco = player.ballsBowled > 0 ? (player.runsConceded / (player.ballsBowled / 6)).toFixed(2) : '0.00';
+  if (isLoading) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+      <Loader2 className="w-10 h-10 text-[#009270] animate-spin" />
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Syncing Match History...</p>
+    </div>
+  );
+
+  if (!player) return <div className="p-20 text-center">Player not found.</div>;
 
   return (
     <div className="max-w-4xl mx-auto pb-24 px-0 bg-white min-h-screen">
@@ -102,7 +184,7 @@ export default function PlayerProfilePage() {
               </div>
               <div className="bg-white/10 p-2 rounded-xl backdrop-blur-sm text-center">
                  <p className="text-[8px] font-black uppercase text-white/50">Style</p>
-                 <p className="text-xs font-bold leading-tight truncate">{player.battingStyle}</p>
+                 <p className="text-[10px] font-bold leading-tight truncate uppercase">{player.battingStyle}</p>
               </div>
            </div>
         </div>
@@ -124,12 +206,12 @@ export default function PlayerProfilePage() {
              <Table className="min-w-max">
                 <TableBody>
                    {[
-                     { label: 'Matches', value: player.matchesPlayed },
-                     { label: 'Innings', value: player.battingInnings || 0 },
-                     { label: 'Runs Scored', value: player.runsScored },
-                     { label: 'Balls Played', value: player.ballsFaced || 0 },
-                     { label: 'Highest Score', value: player.highestScore || 0 },
-                     { label: 'Strike Rate', value: sr },
+                     { label: 'Matches', value: historyStats.matchesPlayedCount },
+                     { label: 'Innings', value: historyStats.battingInningsCount },
+                     { label: 'Runs Scored', value: historyStats.runs },
+                     { label: 'Balls Played', value: historyStats.ballsFaced },
+                     { label: 'Strike Rate', value: historyStats.strikeRate },
+                     { label: 'Boundaries', value: `${historyStats.fours}x4, ${historyStats.sixes}x6` },
                    ].map((row, idx) => (
                       <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]')}>
                          <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
@@ -146,13 +228,12 @@ export default function PlayerProfilePage() {
              <Table className="min-w-max">
                 <TableBody>
                    {[
-                     { label: 'Matches', value: player.matchesPlayed },
-                     { label: 'Innings', value: player.bowlingInnings || 0 },
-                     { label: 'Wickets', value: player.wicketsTaken },
-                     { label: 'Balls Bowled', value: player.ballsBowled || 0 },
-                     { label: 'Runs Conceded', value: player.runsConceded || 0 },
-                     { label: 'Economy', value: eco },
-                     { label: 'Best Bowling', value: player.bestBowlingFigures || '---' },
+                     { label: 'Matches', value: historyStats.matchesPlayedCount },
+                     { label: 'Innings', value: historyStats.bowlingInningsCount },
+                     { label: 'Wickets', value: historyStats.wickets },
+                     { label: 'Balls Bowled', value: historyStats.ballsBowled },
+                     { label: 'Runs Conceded', value: historyStats.runsConceded },
+                     { label: 'Economy', value: historyStats.economy },
                    ].map((row, idx) => (
                       <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]')}>
                          <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
@@ -227,3 +308,4 @@ export default function PlayerProfilePage() {
     </div>
   );
 }
+

@@ -72,6 +72,7 @@ export function useCollection<T = any>(
           if (q.path) {
             path = q.path;
           } else {
+             // For collection group queries, try to extract the collection ID
              const internalQuery = q._query || q;
              const queryPath = internalQuery.path;
              if (queryPath) {
@@ -106,3 +107,4 @@ export function useCollection<T = any>(
   
   return { data, isLoading, error };
 }
+
