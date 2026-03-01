@@ -4,13 +4,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, where, collectionGroup } from 'firebase/firestore';
+import { doc, collection, query, where, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Trophy, ChevronRight, Flag, Edit2, Save, ShieldCheck } from 'lucide-react';
-import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
+import { ArrowLeft, Trophy, Flag, Edit2, ShieldCheck, Star } from 'lucide-react';
+import { Table, TableBody, TableCell, TableRow, TableHead, TableHeader } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApp } from '@/context/AppContext';
 import { toast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 export default function PlayerProfilePage() {
   const params = useParams();
@@ -48,18 +49,15 @@ export default function PlayerProfilePage() {
     }
   }, [player]);
 
-  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
-  const { data: allTeams } = useCollection(allTeamsQuery);
-
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
 
-  // Accurate Data Aggregation via Collection Groups
+  // Group Queries for accurate stats aggregation
   const facedQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId)), [db, playerId]);
-  const { data: ballsFaced, error: facedError } = useCollection(facedQuery);
+  const { data: ballsFaced } = useCollection(facedQuery);
 
   const bowledQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId)), [db, playerId]);
-  const { data: ballsBowled, error: bowledError } = useCollection(bowledQuery);
+  const { data: ballsBowled } = useCollection(bowledQuery);
 
   const statsByFormat = useMemo(() => {
     if (!allMatches || !ballsFaced || !ballsBowled) return {};
@@ -183,7 +181,7 @@ export default function PlayerProfilePage() {
     toast({ title: "Profile Updated" });
   };
 
-  if (isPlayerLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING PROFILE...</div>;
+  if (isPlayerLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING...</div>;
   if (!player) return <div className="p-20 text-center">Player not found.</div>;
 
   return (
@@ -204,7 +202,7 @@ export default function PlayerProfilePage() {
              </div>
             <div className="flex items-center gap-2 mt-0.5">
                <Flag className="w-3 h-3 text-white/70" />
-               <span className="text-[10px] font-black text-white/70 uppercase tracking-widest">League Registered</span>
+               <span className="text-[10px] font-black text-white/70 uppercase tracking-widest">Official Player Profile</span>
             </div>
           </div>
         </div>
@@ -217,10 +215,10 @@ export default function PlayerProfilePage() {
         </div>
       </div>
 
-      <Tabs defaultValue="info" className="w-full">
+      <Tabs defaultValue="batting" className="w-full">
         <div className="bg-[#009270] px-2 border-t border-white/10 sticky top-16 z-40">
           <TabsList className="bg-transparent h-12 flex justify-start gap-2 p-0 w-full overflow-x-auto scrollbar-hide">
-            {['Info', 'Batting', 'Bowling', 'Career'].map((tab) => (
+            {['Batting', 'Bowling', 'Info', 'Career'].map((tab) => (
               <TabsTrigger 
                 key={tab} 
                 value={tab.toLowerCase()} 
@@ -232,117 +230,123 @@ export default function PlayerProfilePage() {
           </TabsList>
         </div>
 
+        <TabsContent value="batting" className="p-0">
+           <div className="overflow-x-auto">
+             <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
+                <span className="w-32">Batting Analysis</span>
+                {activeFormats.map(f => (
+                  <span key={f} className="w-20 text-right">{f}OV</span>
+                ))}
+             </div>
+             <Table className="min-w-max">
+                <TableBody>
+                   {[
+                     { label: 'Matches', field: 'matches' },
+                     { label: 'Innings', field: 'innings' },
+                     { label: 'Runs', field: 'runs' },
+                     { label: 'Balls Played', field: 'ballsPlayed' },
+                     { label: 'Highest', field: 'highest' },
+                     { label: 'Average', field: 'average' },
+                     { label: 'SR', field: 'sr' },
+                     { label: 'Not Out', field: 'notOut' },
+                     { label: 'Fours', field: 'fours' },
+                     { label: 'Sixes', field: 'sixes' },
+                     { label: 'Ducks', field: 'ducks' },
+                     { label: '30s', field: '30s' },
+                     { label: '50s', field: '50s' },
+                     { label: '100s', field: '100s' },
+                   ].map((row, idx) => (
+                      <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]'}>
+                         <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4 w-32">{row.label}</TableCell>
+                         {activeFormats.map(f => (
+                           <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
+                              {statsByFormat[f]?.[row.field] ?? '---'}
+                           </TableCell>
+                         ))}
+                      </TableRow>
+                   ))}
+                </TableBody>
+             </Table>
+           </div>
+        </TabsContent>
+
+        <TabsContent value="bowling" className="p-0">
+           <div className="overflow-x-auto">
+             <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
+                <span className="w-32">Bowling Analysis</span>
+                {activeFormats.map(f => (
+                  <span key={f} className="w-20 text-right">{f}OV</span>
+                ))}
+             </div>
+             <Table className="min-w-max">
+                <TableBody>
+                   {[
+                     { label: 'Matches', field: 'matches' },
+                     { label: 'Innings', field: 'bowlInnings' },
+                     { label: 'Balls Bowled', field: 'ballsBowled' },
+                     { label: 'Runs', field: 'runsConceded' },
+                     { label: 'Wickets', field: 'wickets' },
+                     { label: 'Maidens', field: 'maidens' },
+                     { label: 'Avg', field: 'bowlAvg' },
+                     { label: 'Eco', field: 'eco' },
+                     { label: 'SR', field: 'bowlSr' },
+                     { label: 'BBI', field: 'bbi' },
+                     { label: '1w', field: '1w' },
+                     { label: '2w', field: '2w' },
+                     { label: '3w', field: '3w' },
+                     { label: '4w', field: '4w' },
+                     { label: '5w', field: '5w' },
+                   ].map((row, idx) => (
+                      <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]'}>
+                         <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4 w-32">{row.label}</TableCell>
+                         {activeFormats.map(f => (
+                           <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
+                              {statsByFormat[f]?.[row.field] ?? '---'}
+                           </TableCell>
+                         ))}
+                      </TableRow>
+                   ))}
+                </TableBody>
+             </Table>
+           </div>
+        </TabsContent>
+
         <TabsContent value="info" className="p-4 space-y-6">
-          <section>
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Personal Details</h3>
-            <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
-               <Table>
-                 <TableBody>
-                    <TableRow className="hover:bg-transparent border-slate-100">
-                      <TableCell className="text-[11px] font-black text-slate-400 py-3 w-1/3 uppercase">Role</TableCell>
-                      <TableCell className="text-[11px] font-bold text-slate-900">{player.role}</TableCell>
-                    </TableRow>
-                    <TableRow className="hover:bg-transparent border-slate-100">
-                      <TableCell className="text-[11px] font-black text-slate-400 py-3 uppercase">Batting Style</TableCell>
-                      <TableCell className="text-[11px] font-bold text-slate-900">{player.battingStyle || 'Right Handed Bat'}</TableCell>
-                    </TableRow>
-                    <TableRow className="hover:bg-transparent border-b-0">
-                      <TableCell className="text-[11px] font-black text-slate-400 py-3 uppercase">Matches</TableCell>
-                      <TableCell className="text-[11px] font-bold text-slate-900">{player.matchesPlayed || 0}</TableCell>
-                    </TableRow>
-                 </TableBody>
-               </Table>
-            </div>
-          </section>
-        </TabsContent>
-
-        <TabsContent value="batting" className="p-0 overflow-x-auto">
-           {(facedError) && <div className="p-4 text-center text-xs text-slate-400">Detailed stats temporarily unavailable due to permission sync. Please try again in a few moments.</div>}
-           <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
-              <span className="w-32">Batting Statistics</span>
-              {activeFormats.map(f => (
-                <span key={f} className="w-20 text-right">{f}OF</span>
-              ))}
-           </div>
-           <Table className="min-w-max">
-              <TableBody>
-                 {[
-                   { label: 'Matches', field: 'matches' },
-                   { label: 'Innings', field: 'innings' },
-                   { label: 'Runs', field: 'runs' },
-                   { label: 'Balls Played', field: 'ballsPlayed' },
-                   { label: 'Highest', field: 'highest' },
-                   { label: 'Average', field: 'average' },
-                   { label: 'SR', field: 'sr' },
-                   { label: 'Not Out', field: 'notOut' },
-                   { label: 'Fours', field: 'fours' },
-                   { label: 'Sixes', field: 'sixes' },
-                   { label: 'Ducks', field: 'ducks' },
-                   { label: '30s', field: '30s' },
-                   { label: '50s', field: '50s' },
-                   { label: '100s', field: '100s' },
-                 ].map((row, idx) => (
-                    <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]'}>
-                       <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4 w-32">{row.label}</TableCell>
-                       {activeFormats.map(f => (
-                         <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
-                            {statsByFormat[f]?.[row.field] ?? '---'}
-                         </TableCell>
-                       ))}
-                    </TableRow>
-                 ))}
-              </TableBody>
-           </Table>
-        </TabsContent>
-
-        <TabsContent value="bowling" className="p-0 overflow-x-auto">
-           {(bowledError) && <div className="p-4 text-center text-xs text-slate-400">Detailed stats temporarily unavailable due to permission sync. Please try again in a few moments.</div>}
-           <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
-              <span className="w-32">Bowling Statistics</span>
-              {activeFormats.map(f => (
-                <span key={f} className="w-20 text-right">{f}OF</span>
-              ))}
-           </div>
-           <Table className="min-w-max">
-              <TableBody>
-                 {[
-                   { label: 'Matches', field: 'matches' },
-                   { label: 'Innings', field: 'bowlInnings' },
-                   { label: 'Balls Bowled', field: 'ballsBowled' },
-                   { label: 'Runs', field: 'runsConceded' },
-                   { label: 'Maidens', field: 'maidens' },
-                   { label: 'Wickets', field: 'wickets' },
-                   { label: 'Avg', field: 'bowlAvg' },
-                   { label: 'Eco', field: 'eco' },
-                   { label: 'SR', field: 'bowlSr' },
-                   { label: 'BBI', field: 'bbi' },
-                   { label: '1w', field: '1w' },
-                   { label: '2w', field: '2w' },
-                   { label: '3w', field: '3w' },
-                   { label: '4w', field: '4w' },
-                   { label: '5w', field: '5w' },
-                 ].map((row, idx) => (
-                    <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]'}>
-                       <TableCell className="text-[11px] font-medium text-slate-600 py-3 pl-4 w-32">{row.label}</TableCell>
-                       {activeFormats.map(f => (
-                         <TableCell key={f} className="text-right text-[11px] font-black text-slate-900 pr-4 w-20">
-                            {statsByFormat[f]?.[row.field] ?? '---'}
-                         </TableCell>
-                       ))}
-                    </TableRow>
-                 ))}
-              </TableBody>
-           </Table>
+           <section>
+              <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Profile Overview</h3>
+              <div className="border rounded-xl overflow-hidden bg-white shadow-sm">
+                 <Table>
+                    <TableBody>
+                       <TableRow className="border-slate-100">
+                          <TableCell className="text-[11px] font-black text-slate-400 py-4 uppercase">Role</TableCell>
+                          <TableCell className="text-[11px] font-bold text-slate-900">{player.role}</TableCell>
+                       </TableRow>
+                       <TableRow className="border-slate-100">
+                          <TableCell className="text-[11px] font-black text-slate-400 py-4 uppercase">Batting</TableCell>
+                          <TableCell className="text-[11px] font-bold text-slate-900">{player.battingStyle}</TableCell>
+                       </TableRow>
+                       <TableRow className="border-b-0">
+                          <TableCell className="text-[11px] font-black text-slate-400 py-4 uppercase">Status</TableCell>
+                          <TableCell className="text-[11px] font-bold text-slate-900">{player.isRetired ? 'Retired' : 'Active'}</TableCell>
+                       </TableRow>
+                    </TableBody>
+                 </Table>
+              </div>
+           </section>
         </TabsContent>
 
         <TabsContent value="career" className="p-4">
-           <Card className="bg-slate-900 text-white rounded-2xl overflow-hidden border-none shadow-xl">
-              <CardContent className="p-10 text-center">
-                 <Trophy className="w-14 h-14 text-[#fbbf24] mx-auto mb-4" />
-                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Cricket Value Points</p>
-                 <h2 className="text-7xl font-black text-white">{player.careerCVP}</h2>
-              </CardContent>
-           </Card>
+           <div className="bg-slate-900 text-white p-8 rounded-3xl text-center shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                 <Trophy className="w-32 h-32" />
+              </div>
+              <div className="relative z-10">
+                 <Trophy className="w-12 h-12 text-[#fbbf24] mx-auto mb-4" />
+                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Cricket Value Points</p>
+                 <h2 className="text-7xl font-black text-white">{player.careerCVP || 0}</h2>
+                 <p className="text-[9px] text-slate-500 font-bold uppercase mt-4 tracking-tighter">Ranked in top 5% of league players</p>
+              </div>
+           </div>
         </TabsContent>
       </Tabs>
 
@@ -350,7 +354,7 @@ export default function PlayerProfilePage() {
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-[#009270]">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-widest flex items-center gap-2 text-[#009270]">
-               <ShieldCheck className="w-5 h-5" /> Professional Profile Editor
+               <ShieldCheck className="w-5 h-5" /> Professional Editor
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-5 py-4">
@@ -362,7 +366,7 @@ export default function PlayerProfilePage() {
                <Label htmlFor="wk-check" className="text-xs font-bold text-slate-700 cursor-pointer">Official Wicket Keeper</Label>
             </div>
           </div>
-          <DialogFooter><Button onClick={handleUpdateProfile} className="w-full h-14 font-black uppercase tracking-widest shadow-lg bg-[#009270] hover:bg-[#007a5d] rounded-xl text-lg">Save Profile</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleUpdateProfile} className="w-full h-14 font-black uppercase tracking-widest shadow-lg bg-[#009270] hover:bg-[#007a5d] rounded-xl text-lg">Update Profile</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

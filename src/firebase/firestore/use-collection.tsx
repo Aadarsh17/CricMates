@@ -53,13 +53,13 @@ export function useCollection<T = any>(
       memoizedTargetRefOrQuery,
       (snapshot: QuerySnapshot<DocumentData>) => {
         const results: ResultItemType[] = [];
-        for (const doc of snapshot.docs) {
+        snapshot.docs.forEach((doc) => {
           results.push({ 
             ...(doc.data() as T), 
             id: doc.id,
             __fullPath: doc.ref.path 
           });
-        }
+        });
         setData(results);
         setError(null);
         setIsLoading(false);
@@ -73,6 +73,9 @@ export function useCollection<T = any>(
             path = q.path;
           } else if (q._query?.path) {
             path = q._query.path.canonicalString?.() || q._query.path.toString();
+          } else {
+             // Collection Group Query fallback
+             path = "collection_group_query";
           }
         } catch (e) {
           path = 'collection_group_query';
@@ -83,8 +86,6 @@ export function useCollection<T = any>(
           path,
         });
 
-        // Only set error locally and emit if it's not a common group-query permission issue
-        // during development to prevent total app crashes.
         setError(contextualError);
         setData(null);
         setIsLoading(false);
