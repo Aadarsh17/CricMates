@@ -203,6 +203,14 @@
         },
         "umpireId": {
           "type": "string"
+        },
+        "potmPlayerId": {
+          "type": "string",
+          "description": "Player of the Match unique ID."
+        },
+        "potmCvpScore": {
+          "type": "number",
+          "description": "CVP score earned in this match by the POTM."
         }
       },
       "required": [
