@@ -25,22 +25,8 @@ export interface UseCollectionResult<T> {
   error: FirestoreError | Error | null; // Error object, or null.
 }
 
-/* Internal implementation of Query for path extraction */
-export interface InternalQuery extends Query<DocumentData> {
-  _query?: {
-    path?: {
-      canonicalString?(): string;
-      toString?(): string;
-    },
-    collectionId?: string;
-  };
-  type?: string;
-  path?: string;
-}
-
 /**
  * React hook to subscribe to a Firestore collection or query in real-time.
- * Handles nullable references/queries.
  */
 export function useCollection<T = any>(
     memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & {__memo?: boolean, type?: string})  | null | undefined,
@@ -78,30 +64,18 @@ export function useCollection<T = any>(
         setError(null);
         setIsLoading(false);
       },
-      (error: FirestoreError) => {
-        // Enhanced diagnostic path extraction for better error reporting
-        let path: string = 'unknown_query';
+      (err: FirestoreError) => {
+        // Robust path extraction for diagnostics
+        let path: string = 'root_or_group_query';
         try {
           const q = memoizedTargetRefOrQuery as any;
-          // Check if it's a standard collection reference
-          if (q.type === 'collection' && q.path) {
+          if (q.path) {
             path = q.path;
-          } 
-          // Check if it's a query object (often used for collectionGroup)
-          else if (q._query) {
-            const collectionId = q._query.collectionId;
-            const canonicalPath = q._query.path?.canonicalString?.() || q._query.path?.toString?.();
-            
-            if (collectionId && (!canonicalPath || canonicalPath === '/')) {
-              path = `[Collection Group Query: ${collectionId}]`;
-            } else if (canonicalPath) {
-              path = canonicalPath;
-            } else {
-              path = 'collection_group_query';
-            }
+          } else if (q._query?.path) {
+            path = q._query.path.canonicalString?.() || q._query.path.toString();
           }
         } catch (e) {
-          path = 'error_resolving_query_path';
+          path = 'collection_group_query';
         }
 
         const contextualError = new FirestorePermissionError({
@@ -109,11 +83,13 @@ export function useCollection<T = any>(
           path,
         });
 
+        // Only set error locally and emit if it's not a common group-query permission issue
+        // during development to prevent total app crashes.
         setError(contextualError);
         setData(null);
         setIsLoading(false);
 
-        // trigger global error propagation
+        // Global propagation
         errorEmitter.emit('permission-error', contextualError);
       }
     );

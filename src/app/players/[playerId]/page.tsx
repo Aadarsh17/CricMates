@@ -4,15 +4,15 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, limit, collectionGroup, where } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { doc, collection, query, orderBy, where, collectionGroup } from 'firebase/firestore';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Trophy, Activity, History as HistoryIcon, Target, Star, TrendingUp, User, ShieldCheck, ChevronRight, Flag, Users, Edit2, Save, UserCircle } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ArrowLeft, Trophy, ChevronRight, Flag, Edit2, Save, ShieldCheck } from 'lucide-react';
+import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -51,20 +51,15 @@ export default function PlayerProfilePage() {
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
-  const matchesQuery = useMemoFirebase(() => 
-    query(collection(db, 'matches'), orderBy('matchDate', 'desc')), 
-  [db]);
-  const { data: allMatches } = useCollection(matchesQuery);
+  const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
+  const { data: allMatches } = useCollection(allMatchesQuery);
 
-  // Fetch all delivery records where player was involved for accurate stats
+  // Accurate Data Aggregation via Collection Groups
   const facedQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId)), [db, playerId]);
-  const { data: ballsFaced } = useCollection(facedQuery);
+  const { data: ballsFaced, error: facedError } = useCollection(facedQuery);
 
   const bowledQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId)), [db, playerId]);
-  const { data: ballsBowled } = useCollection(bowledQuery);
-
-  const wicketQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('batsmanOutPlayerId', '==', playerId)), [db, playerId]);
-  const { data: wicketsLost } = useCollection(wicketQuery);
+  const { data: ballsBowled, error: bowledError } = useCollection(bowledQuery);
 
   const statsByFormat = useMemo(() => {
     if (!allMatches || !ballsFaced || !ballsBowled) return {};
@@ -73,8 +68,8 @@ export default function PlayerProfilePage() {
 
     // Batting Aggregation
     ballsFaced.forEach(ball => {
-      const ballPath = ball.__fullPath || '';
-      const match = allMatches.find(m => ballPath.includes(m.id));
+      const matchId = ball.__fullPath?.split('/')[1];
+      const match = allMatches.find(m => m.id === matchId);
       if (!match) return;
 
       const format = match.totalOvers;
@@ -92,24 +87,16 @@ export default function PlayerProfilePage() {
         if (ball.runsScored === 4) formats[format].batting[match.id].fours += 1;
         if (ball.runsScored === 6) formats[format].batting[match.id].sixes += 1;
       }
-    });
 
-    // Mark Outs
-    wicketsLost?.forEach(w => {
-        const wPath = w.__fullPath || '';
-        const match = allMatches.find(m => wPath.includes(m.id));
-        if (match) {
-            const format = match.totalOvers;
-            if (formats[format]?.batting[match.id]) {
-                formats[format].batting[match.id].out = true;
-            }
-        }
+      if (ball.isWicket && ball.batsmanOutPlayerId === playerId) {
+        formats[format].batting[match.id].out = true;
+      }
     });
 
     // Bowling Aggregation
     ballsBowled.forEach(ball => {
-      const ballPath = ball.__fullPath || '';
-      const match = allMatches.find(m => ballPath.includes(m.id));
+      const matchId = ball.__fullPath?.split('/')[1];
+      const match = allMatches.find(m => m.id === matchId);
       if (!match) return;
 
       const format = match.totalOvers;
@@ -118,7 +105,7 @@ export default function PlayerProfilePage() {
       formats[format].matches.add(match.id);
 
       if (!formats[format].bowling[match.id]) {
-        formats[format].bowling[match.id] = { runs: 0, balls: 0, wickets: 0, maidens: 0, bbiRuns: 0, bbiWickets: 0 };
+        formats[format].bowling[match.id] = { runs: 0, balls: 0, wickets: 0, maidens: 0 };
       }
 
       formats[format].bowling[match.id].runs += (ball.totalRunsOnDelivery || 0);
@@ -128,18 +115,8 @@ export default function PlayerProfilePage() {
       if (ball.extraType !== 'wide' && ball.extraType !== 'noball') {
         formats[format].bowling[match.id].balls += 1;
       }
-
-      // Track BBI (Best Bowling in Inning) - simplified for format level
-      // This would ideally be per-match, but we'll show the best across the format
-      const matchBowling = formats[format].bowling[match.id];
-      if (matchBowling.wickets > formats[format].bowling[match.id].bbiWickets || 
-         (matchBowling.wickets === formats[format].bowling[match.id].bbiWickets && matchBowling.runs < formats[format].bowling[match.id].bbiRuns)) {
-          formats[format].bowling[match.id].bbiWickets = matchBowling.wickets;
-          formats[format].bowling[match.id].bbiRuns = matchBowling.runs;
-      }
     });
 
-    // Final Summaries per Format
     const finalStats: Record<number, any> = {};
     Object.keys(formats).forEach(formatKey => {
       const fNum = parseInt(formatKey);
@@ -151,22 +128,17 @@ export default function PlayerProfilePage() {
       const totalRuns = batMatches.reduce((acc: number, curr: any) => acc + curr.runs, 0);
       const totalBalls = batMatches.reduce((acc: number, curr: any) => acc + curr.balls, 0);
       const outs = batMatches.filter((m: any) => m.out).length;
-      const highest = batMatches.length > 0 ? Math.max(...batMatches.map((m: any) => m.runs)) : 0;
       
       const totalWickets = bowlMatches.reduce((acc: number, curr: any) => acc + curr.wickets, 0);
       const totalRunsConceded = bowlMatches.reduce((acc: number, curr: any) => acc + curr.runs, 0);
       const totalBallsBowled = bowlMatches.reduce((acc: number, curr: any) => acc + curr.balls, 0);
-
-      // Best Bowling in Format
-      const bestMatch = bowlMatches.sort((a: any, b: any) => b.wickets - a.wickets || a.runs - b.runs)[0];
-      const bbi = bestMatch ? `${bestMatch.wickets}/${bestMatch.runs}` : '---';
 
       finalStats[fNum] = {
         matches: f.matches.size,
         innings: batMatches.length,
         runs: totalRuns,
         ballsPlayed: totalBalls,
-        highest,
+        highest: batMatches.length > 0 ? Math.max(...batMatches.map((m: any) => m.runs)) : 0,
         average: outs > 0 ? (totalRuns / outs).toFixed(2) : totalRuns.toFixed(2),
         sr: totalBalls > 0 ? ((totalRuns / totalBalls) * 100).toFixed(2) : '0.00',
         notOut: batMatches.length - outs,
@@ -185,8 +157,7 @@ export default function PlayerProfilePage() {
         bowlAvg: totalWickets > 0 ? (totalRunsConceded / totalWickets).toFixed(2) : '0.00',
         eco: totalBallsBowled > 0 ? (totalRunsConceded / (totalBallsBowled / 6)).toFixed(2) : '0.00',
         bowlSr: totalWickets > 0 ? (totalBallsBowled / totalWickets).toFixed(2) : '0.00',
-        bbi: bbi,
-        bbm: bbi, // For limited overs formats, BBI and BBM are often same
+        bbi: bowlMatches.length > 0 ? `${bowlMatches.sort((a: any, b: any) => b.wickets - a.wickets || a.runs - b.runs)[0].wickets}/${bowlMatches.sort((a: any, b: any) => b.wickets - a.wickets || a.runs - b.runs)[0].runs}` : '---',
         '1w': bowlMatches.filter((m: any) => m.wickets === 1).length,
         '2w': bowlMatches.filter((m: any) => m.wickets === 2).length,
         '3w': bowlMatches.filter((m: any) => m.wickets === 3).length,
@@ -196,28 +167,9 @@ export default function PlayerProfilePage() {
     });
 
     return finalStats;
-  }, [allMatches, ballsFaced, ballsBowled, wicketsLost, playerId]);
+  }, [allMatches, ballsFaced, ballsBowled, playerId]);
 
-  const recentMatches = useMemo(() => {
-    return allMatches?.filter(m => 
-      m.team1SquadPlayerIds?.includes(playerId) || m.team2SquadPlayerIds?.includes(playerId)
-    ) || [];
-  }, [allMatches, playerId]);
-
-  const activeFormats = useMemo(() => {
-    const formats = Object.keys(statsByFormat).map(Number).sort((a, b) => a - b);
-    return formats.length > 0 ? formats : [];
-  }, [statsByFormat]);
-
-  const representedTeams = useMemo(() => {
-    const teamIds = new Set<string>();
-    if (player?.teamId) teamIds.add(player.teamId);
-    recentMatches.forEach(m => {
-      if (m.team1SquadPlayerIds?.includes(playerId)) teamIds.add(m.team1Id);
-      if (m.team2SquadPlayerIds?.includes(playerId)) teamIds.add(m.team2Id);
-    });
-    return allTeams?.filter(t => teamIds.has(t.id)) || [];
-  }, [recentMatches, player?.teamId, allTeams, playerId]);
+  const activeFormats = useMemo(() => Object.keys(statsByFormat).map(Number).sort((a, b) => a - b), [statsByFormat]);
 
   const handleUpdateProfile = () => {
     if (!editForm.name.trim()) return;
@@ -228,13 +180,11 @@ export default function PlayerProfilePage() {
       isWicketKeeper: editForm.isWicketKeeper
     });
     setIsEditOpen(false);
-    toast({ title: "Profile Updated", description: "Player information has been saved successfully." });
+    toast({ title: "Profile Updated" });
   };
 
   if (isPlayerLoading) return <div className="p-20 text-center font-black animate-pulse">LOADING PROFILE...</div>;
   if (!player) return <div className="p-20 text-center">Player not found.</div>;
-
-  const formatHeader = (overs: number) => `${overs}OF`;
 
   return (
     <div className="max-w-4xl mx-auto pb-24 px-0 bg-white min-h-screen">
@@ -282,7 +232,7 @@ export default function PlayerProfilePage() {
           </TabsList>
         </div>
 
-        <TabsContent value="info" className="p-4 space-y-6 animate-in fade-in duration-300">
+        <TabsContent value="info" className="p-4 space-y-6">
           <section>
             <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Personal Details</h3>
             <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
@@ -304,45 +254,14 @@ export default function PlayerProfilePage() {
                </Table>
             </div>
           </section>
-
-          <section>
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Recent Match Log</h3>
-            <div className="space-y-2">
-              {recentMatches.slice(0, 5).map(match => (
-                 <Link key={match.id} href={`/match/${match.id}`}>
-                    <div className="flex items-center justify-between p-4 border rounded-xl hover:bg-slate-50 transition-all shadow-sm bg-white">
-                       <div className="space-y-1">
-                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                          <p className="font-bold text-sm text-slate-900">vs {match.team1Id === player.teamId ? (allTeams?.find(t => t.id === match.team2Id)?.name || 'Opponent') : (allTeams?.find(t => t.id === match.team1Id)?.name || 'Opponent')}</p>
-                          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{match.totalOvers} Overs Format</p>
-                       </div>
-                       <ChevronRight className="w-4 h-4 text-slate-300" />
-                    </div>
-                 </Link>
-              ))}
-              {recentMatches.length === 0 && (
-                 <div className="text-center py-10 border-2 border-dashed rounded-xl bg-slate-50 text-slate-400 text-[10px] font-black uppercase tracking-widest">No match records found</div>
-              )}
-            </div>
-          </section>
-
-          <section>
-            <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 px-1">Active Franchises</h3>
-            <div className="flex flex-wrap gap-2 px-1">
-               {representedTeams.map(t => (
-                 <Badge key={t.id} variant="outline" className="px-3 py-1.5 text-[10px] font-bold border-slate-200 bg-white shadow-sm uppercase tracking-wider">
-                    {t.name}
-                 </Badge>
-               ))}
-            </div>
-          </section>
         </TabsContent>
 
-        <TabsContent value="batting" className="p-0 animate-in fade-in duration-300 overflow-x-auto">
+        <TabsContent value="batting" className="p-0 overflow-x-auto">
+           {(facedError) && <div className="p-4 text-center text-xs text-slate-400">Detailed stats temporarily unavailable due to permission sync. Please try again in a few moments.</div>}
            <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
               <span className="w-32">Batting Statistics</span>
               {activeFormats.map(f => (
-                <span key={f} className="w-20 text-right">{formatHeader(f)}</span>
+                <span key={f} className="w-20 text-right">{f}OF</span>
               ))}
            </div>
            <Table className="min-w-max">
@@ -376,11 +295,12 @@ export default function PlayerProfilePage() {
            </Table>
         </TabsContent>
 
-        <TabsContent value="bowling" className="p-0 animate-in fade-in duration-300 overflow-x-auto">
+        <TabsContent value="bowling" className="p-0 overflow-x-auto">
+           {(bowledError) && <div className="p-4 text-center text-xs text-slate-400">Detailed stats temporarily unavailable due to permission sync. Please try again in a few moments.</div>}
            <div className="bg-[#f0f4f3] px-4 py-2 text-[10px] font-black text-slate-500 flex justify-between uppercase tracking-wider min-w-max">
               <span className="w-32">Bowling Statistics</span>
               {activeFormats.map(f => (
-                <span key={f} className="w-20 text-right">{formatHeader(f)}</span>
+                <span key={f} className="w-20 text-right">{f}OF</span>
               ))}
            </div>
            <Table className="min-w-max">
@@ -396,7 +316,6 @@ export default function PlayerProfilePage() {
                    { label: 'Eco', field: 'eco' },
                    { label: 'SR', field: 'bowlSr' },
                    { label: 'BBI', field: 'bbi' },
-                   { label: 'BBM', field: 'bbm' },
                    { label: '1w', field: '1w' },
                    { label: '2w', field: '2w' },
                    { label: '3w', field: '3w' },
@@ -416,25 +335,12 @@ export default function PlayerProfilePage() {
            </Table>
         </TabsContent>
 
-        <TabsContent value="career" className="p-4 animate-in fade-in duration-300">
-           <Card className="bg-slate-900 text-white rounded-2xl overflow-hidden border-none shadow-xl transform hover:scale-[1.01] transition-transform">
-              <CardContent className="p-10 text-center relative overflow-hidden">
-                 <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <Trophy className="w-32 h-32" />
-                 </div>
+        <TabsContent value="career" className="p-4">
+           <Card className="bg-slate-900 text-white rounded-2xl overflow-hidden border-none shadow-xl">
+              <CardContent className="p-10 text-center">
                  <Trophy className="w-14 h-14 text-[#fbbf24] mx-auto mb-4" />
                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Cricket Value Points</p>
                  <h2 className="text-7xl font-black text-white">{player.careerCVP}</h2>
-                 <div className="grid grid-cols-2 gap-8 mt-10 pt-10 border-t border-white/10">
-                    <div className="text-left">
-                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Global Ranking</p>
-                       <p className="text-2xl font-black text-[#009270]">#12</p>
-                    </div>
-                    <div className="text-right">
-                       <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">League Standing</p>
-                       <p className="text-2xl font-black text-[#009270]">Pro Elite</p>
-                    </div>
-                 </div>
               </CardContent>
            </Card>
         </TabsContent>
@@ -448,56 +354,15 @@ export default function PlayerProfilePage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-5 py-4">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Full Name</Label>
-              <Input 
-                value={editForm.name} 
-                onChange={(e) => setEditForm({...editForm, name: e.target.value})} 
-                placeholder="Name" 
-                className="font-bold h-12 rounded-xl focus:ring-[#009270]"
-              />
-            </div>
-            
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Primary Role</Label>
-              <Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}>
-                <SelectTrigger className="font-bold h-12 rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Batsman">Batsman</SelectItem>
-                  <SelectItem value="Bowler">Bowler</SelectItem>
-                  <SelectItem value="All-rounder">All-rounder</SelectItem>
-                  <SelectItem value="Wicket Keeper">Wicket Keeper</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Batting Style</Label>
-              <Select value={editForm.battingStyle} onValueChange={(v) => setEditForm({...editForm, battingStyle: v})}>
-                <SelectTrigger className="font-bold h-12 rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Right Handed Bat">Right Handed Bat</SelectItem>
-                  <SelectItem value="Left Handed Bat">Left Handed Bat</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
+            <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Full Name</Label><Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="font-bold h-12 rounded-xl" /></div>
+            <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Primary Role</Label><Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}><SelectTrigger className="font-bold h-12 rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman">Batsman</SelectItem><SelectItem value="Bowler">Bowler</SelectItem><SelectItem value="All-rounder">All-rounder</SelectItem><SelectItem value="Wicket Keeper">Wicket Keeper</SelectItem></SelectContent></Select></div>
+            <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Batting Style</Label><Select value={editForm.battingStyle} onValueChange={(v) => setEditForm({...editForm, battingStyle: v})}><SelectTrigger className="font-bold h-12 rounded-xl"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Right Handed Bat">Right Handed Bat</SelectItem><SelectItem value="Left Handed Bat">Left Handed Bat</SelectItem></SelectContent></Select></div>
             <div className="flex items-center space-x-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
-               <input 
-                  type="checkbox" 
-                  id="wk-check" 
-                  checked={editForm.isWicketKeeper} 
-                  onChange={(e) => setEditForm({...editForm, isWicketKeeper: e.target.checked})}
-                  className="w-5 h-5 rounded border-slate-300 text-[#009270] focus:ring-[#009270]"
-               />
+               <input type="checkbox" id="wk-check" checked={editForm.isWicketKeeper} onChange={(e) => setEditForm({...editForm, isWicketKeeper: e.target.checked})} className="w-5 h-5 rounded border-slate-300 text-[#009270]" />
                <Label htmlFor="wk-check" className="text-xs font-bold text-slate-700 cursor-pointer">Official Wicket Keeper</Label>
             </div>
           </div>
-          <DialogFooter className="pt-2">
-            <Button onClick={handleUpdateProfile} className="w-full h-14 font-black uppercase tracking-widest shadow-lg bg-[#009270] hover:bg-[#007a5d] rounded-xl text-lg">
-               <Save className="w-5 h-5 mr-2" /> Commit Profile Updates
-            </Button>
-          </DialogFooter>
+          <DialogFooter><Button onClick={handleUpdateProfile} className="w-full h-14 font-black uppercase tracking-widest shadow-lg bg-[#009270] hover:bg-[#007a5d] rounded-xl text-lg">Save Profile</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
