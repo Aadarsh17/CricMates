@@ -75,16 +75,26 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (error: FirestoreError) => {
-        // Enhanced diagnostic path extraction
+        // Enhanced diagnostic path extraction for better error reporting
         let path: string = 'unknown_query';
         try {
           const q = memoizedTargetRefOrQuery as any;
+          // Check if it's a standard collection reference
           if (q.type === 'collection' && q.path) {
             path = q.path;
-          } else if (q._query) {
-            const internalPath = q._query.path?.canonicalString?.() || q._query.path?.toString?.();
+          } 
+          // Check if it's a query object (often used for collectionGroup)
+          else if (q._query) {
             const collectionId = q._query.collectionId;
-            path = internalPath && internalPath !== '/' ? internalPath : (collectionId ? `collection_group_query_${collectionId}` : 'collection_group_query');
+            const canonicalPath = q._query.path?.canonicalString?.() || q._query.path?.toString?.();
+            
+            if (collectionId && (!canonicalPath || canonicalPath === '/')) {
+              path = `[Collection Group Query: ${collectionId}]`;
+            } else if (canonicalPath) {
+              path = canonicalPath;
+            } else {
+              path = 'root_or_group_query';
+            }
           }
         } catch (e) {
           path = 'error_resolving_query_path';
@@ -93,11 +103,11 @@ export function useCollection<T = any>(
         const contextualError = new FirestorePermissionError({
           operation: 'list',
           path,
-        })
+        });
 
-        setError(contextualError)
-        setData(null)
-        setIsLoading(false)
+        setError(contextualError);
+        setData(null);
+        setIsLoading(false);
 
         // trigger global error propagation
         errorEmitter.emit('permission-error', contextualError);

@@ -10,24 +10,28 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- BROAD READ ACCESS ---
-    // This allows reading ANY document in the database, including subcollections.
-    // This is necessary for collectionGroup queries to work without path-specific denials.
+    // --- COLLECTION GROUP RULES (CRITICAL) ---
+    // These rules must be explicitly defined to allow collectionGroup() queries.
+    // They match any collection with the specified ID anywhere in the hierarchy.
+    
+    match /{path=**}/deliveryRecords/{deliveryId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /{path=**}/innings/{inningId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // --- BROAD ACCESS RULES ---
+    // Provides fallback read access for top-level collections like /teams, /players, etc.
     match /{document=**} {
       allow read: if true;
       allow write: if request.auth != null;
     }
 
-    // --- SPECIFIC COLLECTION GROUP RULES ---
-    // Even with the broad rule above, explicit collectionGroup rules are best practice
-    // for complex queries across subcollections.
-    match /{path=**}/deliveryRecords/{id} {
-      allow read: if true;
-      allow write: if request.auth != null;
-    }
-
-    // --- PROTECTED COLLECTIONS ---
-    // Specifically protect sensitive paths if any (none currently identified as sensitive)
+    // --- SPECIFIC PROTECTED PATHS ---
     match /umpires/{umpireId} {
       allow get: if request.auth != null;
       allow list, create, update, delete: if false;
