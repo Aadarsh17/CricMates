@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { collection, query, where, doc, orderBy, collectionGroup } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { cn } from '@/lib/utils';
@@ -51,7 +50,7 @@ export default function TeamDetailsPage() {
 
   // Calculate team standings for the header badges
   const standingsForThisTeam = useMemo(() => {
-    if (!teamId || !allMatches.length) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
+    if (!teamId || !allMatches || allMatches.length === 0) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
     
     let played = 0, won = 0, lost = 0, drawn = 0;
     const teamName = team?.name.toLowerCase() || '';
@@ -106,7 +105,7 @@ export default function TeamDetailsPage() {
   const [h2hTeamId, setH2hTeamId] = useState<string>('');
 
   const h2hStats = useMemo(() => {
-    if (!h2hTeamId || !allMatches.length) return null;
+    if (!h2hTeamId || !allMatches || allMatches.length === 0) return null;
     let played = 0, won = 0, lost = 0, drawn = 0;
     const filtered = allMatches.filter(m => (m.status === 'completed') && ((m.team1Id === teamId && m.team2Id === h2hTeamId) || (m.team1Id === h2hTeamId && m.team2Id === teamId)));
     filtered.forEach(m => {
@@ -165,10 +164,10 @@ export default function TeamDetailsPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Wins', value: standingsForThisTeam.won, icon: Trophy, color: 'text-secondary' },
-          { label: 'Losses', value: standingsForThisTeam.lost, icon: Activity, color: 'text-destructive' },
-          { label: 'NRR', value: standingsForThisTeam.nrr.toFixed(3), icon: HistoryIcon },
-          { label: 'Played', value: standingsForThisTeam.played, icon: HistoryIcon },
+          { label: 'Wins', value: standingsForThisTeam?.won || 0, icon: Trophy, color: 'text-secondary' },
+          { label: 'Losses', value: standingsForThisTeam?.lost || 0, icon: Activity, color: 'text-destructive' },
+          { label: 'NRR', value: (standingsForThisTeam?.nrr || 0).toFixed(3), icon: HistoryIcon },
+          { label: 'Played', value: standingsForThisTeam?.played || 0, icon: HistoryIcon },
         ].map((stat, i) => (
           <Card key={i} className="shadow-none border">
             <CardContent className="p-3 flex items-center gap-3">

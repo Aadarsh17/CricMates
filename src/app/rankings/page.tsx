@@ -94,7 +94,7 @@ export default function RankingsPage() {
   }, [teams, matches]);
 
   const topPlayers = useMemo(() => {
-    if (!players) return [];
+    if (!players || players.length === 0) return [];
     
     const pStats: Record<string, any> = {};
     
@@ -111,7 +111,7 @@ export default function RankingsPage() {
       };
     });
 
-    if (allDeliveries) {
+    if (allDeliveries && allDeliveries.length > 0) {
       allDeliveries.forEach(d => {
         const sId = d.strikerPlayerId;
         const bId = d.bowlerPlayerId;
@@ -139,12 +139,13 @@ export default function RankingsPage() {
           if (d.dismissalType === 'runout') pStats[fId].runOuts += 1;
         }
       });
-
-      Object.values(pStats).forEach((ps: any) => {
-        ps.matchCount = ps.matchesSeen.size;
-        ps.cvp = calculatePlayerCVP(ps as any);
-      });
     }
+
+    // Always calculate CVP even if history is empty (will be 0)
+    Object.values(pStats).forEach((ps: any) => {
+      ps.matchCount = ps.matchesSeen.size;
+      ps.cvp = calculatePlayerCVP(ps as any);
+    });
 
     return Object.values(pStats).sort((a: any, b: any) => {
       if (b.cvp !== a.cvp) return b.cvp - a.cvp;
