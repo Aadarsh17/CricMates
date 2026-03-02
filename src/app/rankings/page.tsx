@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Star, Medal, Flag, ChevronRight } from 'lucide-react';
+import { Trophy, Star, Medal, Flag, ChevronRight, UserCircle } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useMemo } from 'react';
 import Link from 'next/link';
@@ -32,7 +32,6 @@ export default function RankingsPage() {
     
     const standings: Record<string, any> = {};
     
-    // Initialize standings for all existing teams
     teams.forEach(t => {
       standings[t.id] = {
         id: t.id,
@@ -47,7 +46,6 @@ export default function RankingsPage() {
       };
     });
 
-    // Process only existing matches
     if (matches && matches.length > 0) {
       matches.forEach(m => {
         const t1Id = m.team1Id;
@@ -88,11 +86,15 @@ export default function RankingsPage() {
 
   const topPlayers = useMemo(() => {
     if (!players) return [];
-    return [...players].sort((a, b) => (b.careerCVP || 0) - (a.careerCVP || 0)).slice(0, 10);
+    // Sort by Runs primarily, then Wickets
+    return [...players].sort((a, b) => {
+      if ((b.runsScored || 0) !== (a.runsScored || 0)) return (b.runsScored || 0) - (a.runsScored || 0);
+      return (b.wicketsTaken || 0) - (a.wicketsTaken || 0);
+    }).slice(0, 20);
   }, [players]);
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-24">
+    <div className="space-y-6 max-w-4xl mx-auto pb-24 px-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900">Leaderboards</h1>
@@ -100,9 +102,9 @@ export default function RankingsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="teams" className="w-full">
+      <Tabs defaultValue="players" className="w-full">
         <TabsList className="grid w-full max-w-[400px] grid-cols-2 h-11 bg-slate-100 p-1 rounded-xl">
-          <TabsTrigger value="players" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">MVP (CVP)</TabsTrigger>
+          <TabsTrigger value="players" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">Player Stats</TabsTrigger>
           <TabsTrigger value="teams" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">Points Table</TabsTrigger>
         </TabsList>
 
@@ -113,17 +115,26 @@ export default function RankingsPage() {
                 {topPlayers.slice(0, 3).map((player, idx) => (
                   <Link key={player.id} href={`/players/${player.id}`}>
                     <Card className={`relative overflow-hidden border-t-4 hover:shadow-lg transition-all cursor-pointer h-full ${idx === 0 ? 'border-t-secondary scale-105 shadow-xl bg-secondary/5' : 'border-t-primary'}`}>
-                      {idx === 0 && <Badge className="absolute top-2 right-2 bg-secondary text-white font-black text-[9px] uppercase">Rank 1</Badge>}
+                      {idx === 0 && <Badge className="absolute top-2 right-2 bg-secondary text-white font-black text-[9px] uppercase">Top Batter</Badge>}
                       <CardHeader className="text-center">
                          <div className="mx-auto bg-slate-100 rounded-full w-20 h-20 flex items-center justify-center mb-2 overflow-hidden border-2 border-white shadow-inner">
-                          {player.imageUrl ? <img src={player.imageUrl} className="w-full h-full object-cover" /> : (idx === 0 ? <Medal className="w-10 h-10 text-secondary" /> : <Star className="w-10 h-10 text-primary" />)}
+                          {player.imageUrl ? <img src={player.imageUrl} className="w-full h-full object-cover" /> : <UserCircle className="w-10 h-10 text-slate-300" />}
                         </div>
                         <CardTitle className="text-xl font-black text-slate-900 group-hover:text-primary">{player.name}</CardTitle>
                         <CardDescription className="font-black text-[10px] uppercase tracking-tighter text-slate-400">{player.role}</CardDescription>
                       </CardHeader>
                       <CardContent className="text-center pb-8">
-                         <p className="text-5xl font-black text-primary">{player.careerCVP || 0}</p>
-                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">CVP Score</p>
+                         <div className="flex justify-center gap-6">
+                            <div>
+                               <p className="text-3xl font-black text-primary">{player.runsScored || 0}</p>
+                               <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Runs</p>
+                            </div>
+                            <div className="w-px bg-slate-100" />
+                            <div>
+                               <p className="text-3xl font-black text-secondary">{player.wicketsTaken || 0}</p>
+                               <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Wkts</p>
+                            </div>
+                         </div>
                       </CardContent>
                     </Card>
                   </Link>
@@ -132,7 +143,7 @@ export default function RankingsPage() {
 
               <Card className="shadow-sm border rounded-xl overflow-hidden">
                 <CardHeader className="bg-slate-50 border-b">
-                  <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500">Global MVP Standings</CardTitle>
+                  <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500">Global Player Statistics</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
@@ -143,6 +154,7 @@ export default function RankingsPage() {
                           <TableHead className="text-[10px] font-black uppercase">Player</TableHead>
                           <TableHead className="text-right text-[10px] font-black uppercase">Runs</TableHead>
                           <TableHead className="text-right text-[10px] font-black uppercase">Wkts</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase">Matches</TableHead>
                           <TableHead className="text-right text-[10px] font-black uppercase">CVP</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -159,8 +171,9 @@ export default function RankingsPage() {
                             </TableCell>
                             <TableCell className="text-right font-black text-xs">{player.runsScored || 0}</TableCell>
                             <TableCell className="text-right font-black text-xs">{player.wicketsTaken || 0}</TableCell>
+                            <TableCell className="text-right font-black text-xs text-slate-400">{player.matchesPlayed || 0}</TableCell>
                             <TableCell className="text-right">
-                              <Badge variant={idx < 3 ? "secondary" : "outline"} className="font-black px-2 text-[10px] border-none">
+                              <Badge variant="outline" className="font-black px-2 text-[10px] border-slate-200">
                                 {player.careerCVP || 0}
                               </Badge>
                             </TableCell>
@@ -175,7 +188,7 @@ export default function RankingsPage() {
           ) : (
             <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
               <Star className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No rankings recorded yet</p>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">No stats recorded yet</p>
             </div>
           )}
         </TabsContent>
@@ -187,7 +200,7 @@ export default function RankingsPage() {
                 <Table>
                   <TableHeader className="bg-[#f0f4f3]">
                     <TableRow className="border-b-0">
-                      <TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead>
+                      <TableHead className="w-12 text-[10px] font-black uppercase text-center">Rank</TableHead>
                       <TableHead className="text-[10px] font-black uppercase">Team</TableHead>
                       <TableHead className="text-center text-[10px] font-black uppercase">P</TableHead>
                       <TableHead className="text-center text-[10px] font-black uppercase">W</TableHead>
@@ -225,7 +238,7 @@ export default function RankingsPage() {
           ) : (
             <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
               <Trophy className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No team statistics available</p>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">No team statistics available</p>
             </div>
           )}
         </TabsContent>
