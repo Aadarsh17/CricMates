@@ -4,8 +4,9 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * GLOBAL COLLECTION GROUP: deliveryRecords
-     * Authorized at the top level for global history-based analytics.
+     * GLOBAL COLLECTION GROUP AUTHORIZATION
+     * Explicitly allow collection group queries for historical analytics.
+     * This must be at the top level to resolve permission issues across the app.
      */
     match /{path=**}/deliveryRecords/{deliveryId} {
       allow read: if true;

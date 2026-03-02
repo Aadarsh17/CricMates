@@ -6,7 +6,7 @@ import { collection, query, orderBy, doc, getDocs, deleteDoc, writeBatch } from 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Trash2, Trophy } from 'lucide-react';
+import { Calendar, Trash2, Trophy, Loader2 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
@@ -95,7 +95,11 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
           </div>
           {isUmpire && (
             <AlertDialog>
-              <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive" disabled={isDeleting}><Trash2 className="w-4 h-4" /></Button></AlertDialogTrigger>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive" disabled={isDeleting}>
+                  {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                </Button>
+              </AlertDialogTrigger>
               <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Match Permanently?</AlertDialogTitle><AlertDialogDescription>This will purge the match and <strong>ALL associated history records</strong>. Global rankings will update instantly.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={executeDeepDelete} className="bg-destructive">Confirm Purge</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
             </AlertDialog>
           )}
@@ -124,7 +128,7 @@ export default function MatchHistoryPage() {
   useEffect(() => { setIsMounted(true); }, []);
 
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
-  const { data: matches } = useCollection(matchesQuery);
+  const { data: matches, isLoading: isMatchesLoading } = useCollection(matchesQuery);
 
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: teams = [] } = useCollection(teamsQuery);
@@ -143,10 +147,26 @@ export default function MatchHistoryPage() {
           <TabsTrigger value="past" className="font-bold data-[state=active]:bg-white rounded-lg">Completed</TabsTrigger>
         </TabsList>
         <TabsContent value="live" className="space-y-4">
-          {liveMatches.map(match => <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)}
+          {isMatchesLoading ? (
+             <div className="py-20 text-center animate-pulse font-black uppercase text-[10px] text-slate-400 tracking-widest">Loading Live Matches...</div>
+          ) : liveMatches.length > 0 ? (
+            liveMatches.map(match => <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)
+          ) : (
+            <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-slate-50/50">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No live matches at the moment</p>
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="past" className="space-y-4">
-          {pastMatches.map(match => <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)}
+          {isMatchesLoading ? (
+             <div className="py-20 text-center animate-pulse font-black uppercase text-[10px] text-slate-400 tracking-widest">Syncing History...</div>
+          ) : pastMatches.length > 0 ? (
+            pastMatches.map(match => <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)
+          ) : (
+            <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-slate-50/50">
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No completed matches found</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
