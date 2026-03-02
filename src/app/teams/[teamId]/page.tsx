@@ -43,7 +43,6 @@ export default function TeamDetailsPage() {
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
   const { data: allMatches = [] } = useCollection(matchesQuery);
 
-  // Dynamic history stats for all players in this squad
   const squadDeliveriesQuery = useMemoFirebase(() => {
     if (!isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'));
@@ -87,7 +86,7 @@ export default function TeamDetailsPage() {
   const h2hStats = useMemo(() => {
     if (!h2hTeamId || !allMatches.length) return null;
     let played = 0, won = 0, lost = 0, drawn = 0;
-    const filtered = allMatches.filter(m => (m.team1Id === teamId && m.team2Id === h2hTeamId) || (m.team1Id === h2hTeamId && m.team2Id === teamId));
+    const filtered = allMatches.filter(m => (m.status === 'completed') && ((m.team1Id === teamId && m.team2Id === h2hTeamId) || (m.team1Id === h2hTeamId && m.team2Id === teamId)));
     filtered.forEach(m => {
         played++;
         const result = m.resultDescription?.toLowerCase() || '';
@@ -144,10 +143,10 @@ export default function TeamDetailsPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Won', value: team.matchesWon, icon: Trophy, color: 'text-secondary' },
-          { label: 'Lost', value: team.matchesLost, icon: Activity, color: 'text-destructive' },
-          { label: 'NRR', value: (team.netRunRate || 0).toFixed(3), icon: HistoryIcon },
-          { label: 'Played', value: (team.matchesWon||0)+(team.matchesLost||0)+(team.matchesDrawn||0), icon: HistoryIcon },
+          { label: 'Wins', value: standingsForThisTeam?.won || 0, icon: Trophy, color: 'text-secondary' },
+          { label: 'Losses', value: standingsForThisTeam?.lost || 0, icon: Activity, color: 'text-destructive' },
+          { label: 'NRR', value: (standingsForThisTeam?.nrr || 0).toFixed(3), icon: HistoryIcon },
+          { label: 'Played', value: standingsForThisTeam?.played || 0, icon: HistoryIcon },
         ].map((stat, i) => (
           <Card key={i} className="shadow-none border">
             <CardContent className="p-3 flex items-center gap-3">
@@ -191,7 +190,7 @@ export default function TeamDetailsPage() {
                         </div>
                     </div>
                 </div>
-            ) : h2hTeamId && <div className="py-12 text-center text-slate-400 text-xs font-bold uppercase border-2 border-dashed rounded-xl">No history found</div>}
+            ) : h2hTeamId && <div className="py-12 text-center text-slate-400 text-xs font-bold uppercase border-2 border-dashed rounded-xl">No match history found for this pairing</div>}
         </CardContent>
       </Card>
 

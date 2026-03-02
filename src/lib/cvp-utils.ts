@@ -18,19 +18,20 @@ export interface PlayerMatchStats {
   catches: number;
   stumpings: number;
   runOuts: number;
-  matchesPlayedCount?: number; // Optional count to override start point
+  matchesPlayedCount?: number; 
 }
 
 /**
  * Calculates CVP for a player based on their match statistics.
- * Criteria v1.2.5
+ * Returns 0 if no match activity is recorded.
  */
 export function calculatePlayerCVP(stats: PlayerMatchStats): number {
-  // If we have explicit match count and it's 0, return 0.
-  // Otherwise, if they've played, they start with 1 point for the XI.
-  if (stats.matchesPlayedCount === 0) return 0;
+  // Check if there is any activity. If no balls faced or bowled and no fielding, return 0.
+  const hasActivity = stats.ballsFaced > 0 || stats.ballsBowled > 0 || stats.catches > 0 || stats.stumpings > 0 || stats.runOuts > 0;
   
-  let points = 1; // Match Start (Playing XI)
+  if (!hasActivity) return 0;
+  
+  let points = 1; // Match Start (Playing XI) bonus for players with activity
 
   // Batting
   points += stats.runs;

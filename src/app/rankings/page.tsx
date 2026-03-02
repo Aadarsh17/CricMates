@@ -30,13 +30,9 @@ export default function RankingsPage() {
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), where('status', '==', 'completed')), [db]);
   const { data: matches = [] } = useCollection(matchesQuery);
 
-  // FETCH ALL DELIVERIES to ensure rankings are delete-proof and history-derived
   const allDeliveriesQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords')), [db]);
   const { data: allDeliveries, isLoading: isDeliveriesLoading } = useCollection(allDeliveriesQuery);
 
-  /**
-   * Dynamically calculate team standings based on existing completed matches.
-   */
   const teamStandings = useMemo(() => {
     if (!teams || teams.length === 0) return [];
     
@@ -94,17 +90,11 @@ export default function RankingsPage() {
     });
   }, [teams, matches]);
 
-  /**
-   * PURE HISTORY-BASED PLAYER RANKINGS
-   * Aggregates all deliveries currently in Firestore.
-   * If a match is deleted, its deliveries are gone, and this list updates instantly.
-   */
   const topPlayers = useMemo(() => {
     if (!players || !allDeliveries) return [];
     
     const pStats: Record<string, any> = {};
     
-    // Initialize all players with 0 stats
     players.forEach(p => {
       pStats[p.id] = { 
         id: p.id, name: p.name, role: p.role, imageUrl: p.imageUrl,
@@ -115,7 +105,6 @@ export default function RankingsPage() {
       };
     });
 
-    // Aggregate from every delivery in history
     allDeliveries.forEach(d => {
       const sId = d.strikerPlayerId;
       const bId = d.bowlerPlayerId;
@@ -147,9 +136,8 @@ export default function RankingsPage() {
     return Object.values(pStats).map((ps: any) => ({
       ...ps,
       matchCount: ps.matchesPlayed.size,
-      cvp: calculatePlayerCVP({ ...ps, matchesPlayedCount: ps.matchesPlayed.size } as any)
+      cvp: calculatePlayerCVP({ ...ps } as any)
     })).sort((a, b) => {
-      // Sort primarily by runs, then wickets, then CVP
       if (b.runs !== a.runs) return b.runs - a.runs;
       if (b.wickets !== a.wickets) return b.wickets - a.wickets;
       return b.cvp - a.cvp;
@@ -179,10 +167,10 @@ export default function RankingsPage() {
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Career Statistics...</p>
             </div>
-          ) : topPlayers.length > 0 ? (
+          ) : topPlayers.some(p => p.cvp > 0) ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                {topPlayers.slice(0, 3).map((player, idx) => (
+                {topPlayers.filter(p => p.cvp > 0).slice(0, 3).map((player, idx) => (
                   <Link key={player.id} href={`/players/${player.id}`}>
                     <Card className={`relative overflow-hidden border-t-4 hover:shadow-lg transition-all cursor-pointer h-full ${idx === 0 ? 'border-t-secondary scale-105 shadow-xl bg-secondary/5' : 'border-t-primary'}`}>
                       {idx === 0 && <Badge className="absolute top-2 right-2 bg-secondary text-white font-black text-[9px] uppercase">League Leader</Badge>}
@@ -229,7 +217,7 @@ export default function RankingsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {topPlayers.map((player, idx) => (
+                        {topPlayers.filter(p => p.cvp > 0 || p.matchCount > 0).map((player, idx) => (
                           <TableRow key={player.id} className={idx < 3 ? 'bg-slate-50/30' : ''}>
                             <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
                             <TableCell>
@@ -258,7 +246,7 @@ export default function RankingsPage() {
           ) : (
             <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
               <Star className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">No history recorded yet</p>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">No match records found in history</p>
             </div>
           )}
         </TabsContent>
