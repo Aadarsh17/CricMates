@@ -72,10 +72,11 @@ export function useCollection<T = any>(
           // Attempt to extract meaningful path info for both collection group and standard queries
           if (q.path) {
             path = q.path;
-          } else if (q._query) {
-            path = `[Group Query: ${q._query.path?.segments?.join('/') || 'query'}]`;
-          } else if (q.type) {
-            path = `[Group Query: ${q.type}]`;
+          } else if (q.type === 'collection') {
+             // For standard collection group queries in many SDK versions
+             path = `[Group Query: ${q.path || 'unknown'}]`;
+          } else if (q._query?.path) {
+            path = `[Group Query: ${q._query.path.segments.join('/') || 'query'}]`;
           }
         } catch (e) {
           path = 'collection_group_query';
