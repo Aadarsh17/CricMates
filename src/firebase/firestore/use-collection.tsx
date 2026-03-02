@@ -69,17 +69,13 @@ export function useCollection<T = any>(
         let path: string = 'root_or_group_query';
         try {
           const q = memoizedTargetRefOrQuery as any;
+          // Robust path extraction for both regular and group queries
           if (q.path) {
             path = q.path;
+          } else if (q._query && q._query.path) {
+            path = `[Group Query: ${q._query.path.lastSegment()}]`;
           } else {
-             // For collection group queries, try to extract the collection ID
-             const internalQuery = q._query || q;
-             const queryPath = internalQuery.path;
-             if (queryPath) {
-                path = `[Collection Group Query: ${queryPath.lastSegment()}]`;
-             } else {
-                path = 'collection_group_query';
-             }
+            path = 'collection_group_query';
           }
         } catch (e) {
           path = 'collection_group_query';
@@ -107,4 +103,3 @@ export function useCollection<T = any>(
   
   return { data, isLoading, error };
 }
-

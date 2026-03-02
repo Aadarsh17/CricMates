@@ -5,13 +5,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, limit, getDocs, increment } from 'firebase/firestore';
+import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, limit, getDocs, increment, setDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2, Download, FileText, Share2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -207,6 +207,11 @@ export default function MatchScoreboardPage() {
     return activeStats.batting.filter(b => b.out).map(b => b.id);
   }, [match?.currentInningNumber, stats1, stats2]);
 
+  const isCurrentInningFinished = useMemo(() => {
+    if (!match || !activeInningData) return false;
+    return activeInningData.oversCompleted >= match.totalOvers || activeInningData.wickets >= 10;
+  }, [match, activeInningData]);
+
   const chartData = useMemo(() => {
     const data: any[] = [];
     const maxOvers = match?.totalOvers || 20;
@@ -267,6 +272,38 @@ export default function MatchScoreboardPage() {
     } else {
       return "Match Tied";
     }
+  };
+
+  const handleStartSecondInnings = async () => {
+    if (!match || match.currentInningNumber !== 1 || !isUmpire) return;
+
+    const battingTeamId = inn1?.bowlingTeamId;
+    const bowlingTeamId = inn1?.battingTeamId;
+
+    const inningData = {
+      id: 'inning_2',
+      matchId: matchId,
+      inningNumber: 2,
+      battingTeamId,
+      bowlingTeamId,
+      score: 0,
+      wickets: 0,
+      oversCompleted: 0,
+      ballsInCurrentOver: 0,
+      strikerPlayerId: '',
+      nonStrikerPlayerId: '',
+      currentBowlerPlayerId: '',
+      umpireId: user?.uid || 'anonymous',
+      matchStatus: 'live'
+    };
+
+    const batch = writeBatch(db);
+    batch.update(doc(db, 'matches', matchId), { currentInningNumber: 2 });
+    batch.set(doc(db, 'matches', matchId, 'innings', 'inning_2'), inningData);
+    await batch.commit();
+    
+    setIsPlayerAssignmentOpen(true);
+    toast({ title: "Second Innings Started", description: `${getTeamName(battingTeamId)} to Bat` });
   };
 
   const handleDownloadReport = async () => {
@@ -369,7 +406,6 @@ export default function MatchScoreboardPage() {
       ballsFaced: increment(isLegalBall ? 1 : 0)
     };
 
-    // Increment batting innings only if it's the player's first involvement in this match session
     if (!battedThisMatch.has(activeInningData.strikerPlayerId)) {
       strikerUpdate.battingInnings = increment(1);
       battedThisMatch.add(activeInningData.strikerPlayerId);
@@ -380,14 +416,13 @@ export default function MatchScoreboardPage() {
       runsConceded: increment(totalRunsOnDelivery),
       ballsBowled: increment(isLegalBall ? 1 : 0)
     };
-    // Increment bowling innings only if it's the player's first over/ball in this match session
     if (!bowledThisMatch.has(activeInningData.currentBowlerPlayerId)) {
       bowlerUpdate.bowlingInnings = increment(1);
       bowledThisMatch.add(activeInningData.currentBowlerPlayerId);
     }
     updateDocumentNonBlocking(bowlerRef, bowlerUpdate);
 
-    if (newBalls === 0 && isLegalBall) {
+    if (newBalls === 0 && isLegalBall && newOvers < match.totalOvers) {
       setIsPlayerAssignmentOpen(true);
       toast({ title: "Over Complete", description: "Assign next bowler." });
     }
@@ -443,7 +478,6 @@ export default function MatchScoreboardPage() {
           potmCvpScore: topCVPPlayer?.cvp || 0
         });
 
-        // Update total matches played for all participants
         const participantIds = [...new Set([...match.team1SquadPlayerIds, ...match.team2SquadPlayerIds])];
         participantIds.forEach(pid => {
             updateDocumentNonBlocking(doc(db, 'players', pid), {
@@ -508,7 +542,9 @@ export default function MatchScoreboardPage() {
 
     setIsWicketDialogOpen(false);
     toast({ title: "OUT!", variant: "destructive" });
-    setIsPlayerAssignmentOpen(true);
+    if (newWickets < 10) {
+      setIsPlayerAssignmentOpen(true);
+    }
   };
 
   const handleDeleteBall = async (inningId: string, ballId: string) => {
@@ -639,7 +675,7 @@ export default function MatchScoreboardPage() {
               {inn2 && <div className={cn("p-4 rounded-xl border flex justify-between", match.currentInningNumber === 2 ? "bg-primary/5 border-primary shadow-sm" : "bg-slate-50 opacity-60")}><div><p className="text-[10px] font-black text-slate-400 uppercase">{getTeamName(inn2.battingTeamId)}</p><h4 className="font-black text-xl">{inn2.score || 0}/{inn2.wickets || 0}</h4></div><div className="text-right"><p className="text-[10px] font-black text-slate-400 uppercase">Overs</p><h4 className="font-bold">{(inn2.oversCompleted || 0)}.{(inn2.ballsInCurrentOver || 0)}</h4></div></div>}
             </div>
 
-            {match.status === 'live' && currentPartnership && (
+            {match.status === 'live' && currentPartnership && !isCurrentInningFinished && (
                 <Card className="bg-slate-50 border-none">
                     <CardContent className="p-3 flex items-center justify-between">
                         <div className="flex items-center gap-2">
@@ -656,35 +692,59 @@ export default function MatchScoreboardPage() {
 
             {isUmpire && match.status === 'live' && activeInningData && (
               <div className="space-y-6">
-                <div className="bg-slate-900 text-white p-4 rounded-xl relative shadow-lg">
-                  <div className="flex justify-between items-center mb-4">
-                    <div className="flex gap-3 items-center">
-                        <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center font-black text-xs shrink-0">BAT</div>
-                        <div className="cursor-pointer hover:opacity-80" onClick={() => setIsPlayerAssignmentOpen(true)}>
-                            <p className="text-[9px] font-black text-primary uppercase">On Strike</p>
-                            <p className="text-sm font-black">{getPlayerName(activeInningData.strikerPlayerId)}*</p>
-                            <p className="text-[9px] text-slate-400 font-bold">Non-Strike: {getPlayerName(activeInningData.nonStrikerPlayerId)}</p>
+                {!isCurrentInningFinished ? (
+                  <>
+                    <div className="bg-slate-900 text-white p-4 rounded-xl relative shadow-lg">
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="flex gap-3 items-center">
+                            <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center font-black text-xs shrink-0">BAT</div>
+                            <div className="cursor-pointer hover:opacity-80" onClick={() => setIsPlayerAssignmentOpen(true)}>
+                                <p className="text-[9px] font-black text-primary uppercase">On Strike</p>
+                                <p className="text-sm font-black">{getPlayerName(activeInningData.strikerPlayerId)}*</p>
+                                <p className="text-[9px] text-slate-400 font-bold">Non-Strike: {getPlayerName(activeInningData.nonStrikerPlayerId)}</p>
+                            </div>
                         </div>
+                        <div className="text-right cursor-pointer hover:opacity-80" onClick={() => setIsPlayerAssignmentOpen(true)}>
+                            <p className="text-[9px] font-black text-slate-400 uppercase">Current Bowler</p>
+                            <p className="text-sm font-black">{getPlayerName(activeInningData.currentBowlerPlayerId)}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-right cursor-pointer hover:opacity-80" onClick={() => setIsPlayerAssignmentOpen(true)}>
-                        <p className="text-[9px] font-black text-slate-400 uppercase">Current Bowler</p>
-                        <p className="text-sm font-black">{getPlayerName(activeInningData.currentBowlerPlayerId)}</p>
+
+                    <div className="grid grid-cols-3 gap-3">
+                      {[0, 1, 2, 3, 4, 6].map(r => (
+                        <Button key={r} onClick={() => handleRecordBall(r)} className="h-16 font-black text-2xl bg-white text-slate-900 border-2 border-slate-200 hover:border-primary/50 shadow-sm transition-all active:scale-95">{r === 0 ? "•" : r}</Button>
+                      ))}
                     </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">WIDE</Button>
+                      <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">NO BALL</Button>
+                      <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-14 font-black text-red-700 bg-red-50 uppercase tracking-widest text-xs">WICKET</Button>
+                      <Button variant="outline" onClick={handleEndMatch} className="h-14 font-black text-secondary bg-secondary/5 uppercase tracking-widest text-xs shadow-md border-secondary/20">FINISH MATCH</Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-8 text-center space-y-6 border-2 border-dashed rounded-3xl bg-slate-50/50">
+                    <div>
+                      <CheckCircle2 className="w-12 h-12 text-primary mx-auto mb-3" />
+                      <h3 className="text-xl font-black uppercase tracking-tight">Innings Complete</h3>
+                      <p className="text-sm font-medium text-slate-500 mt-1">
+                        {activeInningData.wickets >= 10 ? "All Out!" : `${match.totalOvers} Overs Completed.`}
+                      </p>
+                    </div>
+                    
+                    {match.currentInningNumber === 1 ? (
+                      <Button onClick={handleStartSecondInnings} className="w-full h-16 text-lg font-black uppercase tracking-widest shadow-xl">
+                        START 2ND INNINGS <ArrowLeftRight className="ml-2 w-6 h-6" />
+                      </Button>
+                    ) : (
+                      <Button onClick={handleEndMatch} className="w-full h-16 text-lg font-black uppercase tracking-widest bg-secondary hover:bg-secondary/90 shadow-xl">
+                        FINALIZE MATCH <Trophy className="ml-2 w-6 h-6" />
+                      </Button>
+                    )}
                   </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  {[0, 1, 2, 3, 4, 6].map(r => (
-                    <Button key={r} onClick={() => handleRecordBall(r)} className="h-16 font-black text-2xl bg-white text-slate-900 border-2 border-slate-200 hover:border-primary/50 shadow-sm transition-all active:scale-95">{r === 0 ? "•" : r}</Button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">WIDE</Button>
-                  <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">NO BALL</Button>
-                  <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-14 font-black text-red-700 bg-red-50 uppercase tracking-widest text-xs">WICKET</Button>
-                  <Button variant="outline" onClick={handleEndMatch} className="h-14 font-black text-secondary bg-secondary/5 uppercase tracking-widest text-xs shadow-md border-secondary/20">FINISH MATCH</Button>
-                </div>
+                )}
               </div>
             )}
           </div>
