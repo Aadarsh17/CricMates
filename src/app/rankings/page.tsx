@@ -24,13 +24,13 @@ export default function RankingsPage() {
   }, []);
 
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
-  const { data: players = [] } = useCollection(playersQuery);
+  const { data: players } = useCollection(playersQuery);
 
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
-  const { data: teams = [] } = useCollection(teamsQuery);
+  const { data: teams } = useCollection(teamsQuery);
 
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
-  const { data: matches = [] } = useCollection(matchesQuery);
+  const { data: matches } = useCollection(matchesQuery);
 
   const allDeliveriesQuery = useMemoFirebase(() => {
     if (!isMounted) return null;
@@ -40,10 +40,10 @@ export default function RankingsPage() {
 
   /**
    * PLAYER TO TEAM MAPPING
-   * Used for aggregating inning-level stats for NRR.
    */
   const playerToTeam = useMemo(() => {
     const map: Record<string, string> = {};
+    if (!players) return map;
     players.forEach(p => {
       if (p.teamId) map[p.id] = p.teamId;
     });
@@ -53,7 +53,6 @@ export default function RankingsPage() {
   /**
    * GHOST DATA PROTECTION ENGINE
    * Only includes deliveries from matches that currently exist in the database.
-   * If a match is deleted, its deliveries are ignored instantly across all leaderboards.
    */
   const allDeliveries = useMemo(() => {
     if (!rawDeliveries || !matches || matches.length === 0) return [];
@@ -66,7 +65,6 @@ export default function RankingsPage() {
 
   /**
    * DYNAMIC POINTS TABLE & NRR CALCULATION
-   * Derived purely from history records for 100% accuracy.
    */
   const teamStandings = useMemo(() => {
     if (!teams || teams.length === 0) return [];
@@ -89,7 +87,6 @@ export default function RankingsPage() {
       nrrCalc[t.id] = { runsScored: 0, oversFaced: 0, runsConceded: 0, oversBowled: 0 };
     });
 
-    // Group deliveries into Innings for NRR calculation (to handle professional all-out rule)
     const matchInnings: Record<string, { runs: number, balls: number, wickets: number, battingTeamId: string, matchId: string }> = {};
     allDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
@@ -112,12 +109,10 @@ export default function RankingsPage() {
       }
     });
 
-    // Aggregate NRR components
     Object.values(matchInnings).forEach(mi => {
-      const match = matches.find(m => m.id === mi.matchId);
+      const match = matches?.find(m => m.id === mi.matchId);
       if (!match || !mi.battingTeamId) return;
 
-      // Professional NRR Rule: If a team is all out, the full quota of overs is used for the divisor
       const oversUsed = (mi.wickets >= 10) ? match.totalOvers : (mi.balls / 6);
       const battingTeamId = mi.battingTeamId;
       const opponentId = match.team1Id === battingTeamId ? match.team2Id : match.team1Id;
@@ -132,7 +127,6 @@ export default function RankingsPage() {
       }
     });
 
-    // Calculate Points, Played, Won, Lost, Drawn
     if (matches && matches.length > 0) {
       matches.filter(m => m.status === 'completed').forEach(m => {
         const t1Id = m.team1Id;
@@ -155,7 +149,7 @@ export default function RankingsPage() {
           standings[t2Id].won += 1;
           standings[t2Id].points += 2;
           standings[t1Id].lost += 1;
-        } else {
+        } else if (result.includes('tied') || result.includes('drawn')) {
           standings[t1Id].drawn += 1;
           standings[t1Id].points += 1;
           standings[t2Id].drawn += 1;
@@ -164,7 +158,6 @@ export default function RankingsPage() {
       });
     }
 
-    // Finalize NRR for each team: (TotalRunsScored / TotalOversFaced) - (TotalRunsConceded / TotalOversBowled)
     teams.forEach(t => {
       const nc = nrrCalc[t.id];
       if (nc) {
@@ -181,12 +174,14 @@ export default function RankingsPage() {
     });
   }, [teams, matches, allDeliveries, playerToTeam]);
 
+  /**
+   * TOP PLAYERS (HISTORY-DERIVED)
+   */
   const topPlayers = useMemo(() => {
-    if (!players || players.length === 0) return [];
-    
     const pStats: Record<string, any> = {};
+    const playerPool = players || [];
     
-    players.forEach(p => {
+    playerPool.forEach(p => {
       pStats[p.id] = { 
         id: p.id, name: p.name, role: p.role, imageUrl: p.imageUrl,
         runs: 0, ballsFaced: 0, fours: 0, sixes: 0, 
@@ -198,35 +193,33 @@ export default function RankingsPage() {
       };
     });
 
-    if (allDeliveries && allDeliveries.length > 0) {
-      allDeliveries.forEach(d => {
-        const sId = d.strikerPlayerId;
-        const bId = d.bowlerPlayerId;
-        const fId = d.fielderPlayerId;
-        const matchId = d.__fullPath?.split('/')[1];
+    allDeliveries.forEach(d => {
+      const sId = d.strikerPlayerId;
+      const bId = d.bowlerPlayerId;
+      const fId = d.fielderPlayerId;
+      const matchId = d.__fullPath?.split('/')[1];
 
-        if (pStats[sId]) {
-          pStats[sId].runs += d.runsScored || 0;
-          if (d.extraType !== 'wide') pStats[sId].ballsFaced += 1;
-          if (d.runsScored === 4) pStats[sId].fours += 1;
-          if (d.runsScored === 6) pStats[sId].sixes += 1;
-          if (matchId) pStats[sId].matchesSeen.add(matchId);
-        }
+      if (pStats[sId]) {
+        pStats[sId].runs += d.runsScored || 0;
+        if (d.extraType !== 'wide') pStats[sId].ballsFaced += 1;
+        if (d.runsScored === 4) pStats[sId].fours += 1;
+        if (d.runsScored === 6) pStats[sId].sixes += 1;
+        if (matchId) pStats[sId].matchesSeen.add(matchId);
+      }
 
-        if (pStats[bId]) {
-          pStats[bId].runsConceded += d.totalRunsOnDelivery || 0;
-          if (d.extraType !== 'wide' && d.extraType !== 'noball') pStats[bId].ballsBowled += 1;
-          if (d.isWicket && d.dismissalType !== 'runout') pStats[bId].wickets += 1;
-          if (matchId) pStats[bId].matchesSeen.add(matchId);
-        }
+      if (pStats[bId]) {
+        pStats[bId].runsConceded += d.totalRunsOnDelivery || 0;
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') pStats[bId].ballsBowled += 1;
+        if (d.isWicket && d.dismissalType !== 'runout') pStats[bId].wickets += 1;
+        if (matchId) pStats[bId].matchesSeen.add(matchId);
+      }
 
-        if (fId && pStats[fId]) {
-          if (d.dismissalType === 'caught') pStats[fId].catches += 1;
-          if (d.dismissalType === 'stumped') pStats[fId].stumpings += 1;
-          if (d.dismissalType === 'runout') pStats[fId].runOuts += 1;
-        }
-      });
-    }
+      if (fId && pStats[fId]) {
+        if (d.dismissalType === 'caught') pStats[fId].catches += 1;
+        if (d.dismissalType === 'stumped') pStats[fId].stumpings += 1;
+        if (d.dismissalType === 'runout') pStats[fId].runOuts += 1;
+      }
+    });
 
     Object.values(pStats).forEach((ps: any) => {
       ps.matchCount = ps.matchesSeen.size;
