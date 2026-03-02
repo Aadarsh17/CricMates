@@ -185,8 +185,8 @@ export default function PlayerProfilePage() {
       const log = getLog(mId);
       log.batting.runs += d.runsScored || 0;
       if (d.extraType !== 'wide') log.batting.ballsFaced += 1;
-      if (d.runsScored === 4) log.batting.fours += 1;
-      if (d.runsScored === 6) log.batting.sixes += 1;
+      log.batting.fours += d.runsScored === 4 ? 1 : 0;
+      log.batting.sixes += d.runsScored === 6 ? 1 : 0;
     });
 
     bowlingDeliveries?.forEach(d => {
@@ -256,6 +256,10 @@ export default function PlayerProfilePage() {
     return vsStats;
   }, [comparePlayerId, battingDeliveries, bowlingDeliveries, playerId]);
 
+  const careerCVP = useMemo(() => {
+    return matchWiseLog.reduce((acc, curr) => acc + curr.cvp.total, 0);
+  }, [matchWiseLog]);
+
   const handleUpdateProfile = () => {
     if (!editForm.name.trim()) return;
     updateDocumentNonBlocking(doc(db, 'players', playerId), { name: editForm.name, role: editForm.role, battingStyle: editForm.battingStyle, isWicketKeeper: editForm.isWicketKeeper });
@@ -296,7 +300,7 @@ export default function PlayerProfilePage() {
               <AvatarFallback className="text-3xl font-black bg-white/10 text-white/50">{player.name[0]}</AvatarFallback>
            </Avatar>
            <div className="flex-1 grid grid-cols-2 gap-2 mb-2">
-              <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">Career CVP</p><p className="text-xl font-black">{player.careerCVP || 0}</p></div>
+              <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">Career CVP</p><p className="text-xl font-black">{careerCVP.toFixed(1)}</p></div>
               <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">Matches</p><p className="text-xl font-black">{historyStats.matchesPlayedCount}</p></div>
            </div>
         </div>
@@ -381,11 +385,11 @@ export default function PlayerProfilePage() {
                                 {log.date ? new Date(log.date).toLocaleDateString('en-GB') : '---'}
                              </div>
                           </TableCell>
-                          <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.cvp.batting}</TableCell>
-                          <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.cvp.bowling}</TableCell>
-                          <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.cvp.fielding}</TableCell>
+                          <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.cvp.batting.toFixed(1)}</TableCell>
+                          <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.cvp.bowling.toFixed(1)}</TableCell>
+                          <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.cvp.fielding.toFixed(1)}</TableCell>
                           <TableCell className="text-right">
-                             <Badge variant="secondary" className="font-black text-[10px] h-5">{log.cvp.total}</Badge>
+                             <Badge variant="secondary" className="font-black text-[10px] h-5">{log.cvp.total.toFixed(1)}</Badge>
                           </TableCell>
                        </TableRow>
                     )) : (
