@@ -6,8 +6,18 @@ service cloud.firestore {
     /**
      * COLLECTION GROUP: deliveryRecords
      * Authorized for all users to enable historical analytics and rankings.
+     * This rule must explicitly match the collection group.
      */
     match /{path=**}/deliveryRecords/{deliveryId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    /**
+     * INNINGS SUB-COLLECTIONS
+     * Explicit rules for sub-collections to avoid ambiguities.
+     */
+    match /matches/{matchId}/innings/{inningId} {
       allow read: if true;
       allow write: if request.auth != null;
     }

@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Utility functions for calculating Cricket Value Points (CVP) based on match performance.
  * Follows v1.2.5 criteria.
@@ -17,6 +18,7 @@ export interface PlayerMatchStats {
   catches: number;
   stumpings: number;
   runOuts: number;
+  matchesPlayedCount?: number; // Optional count to override start point
 }
 
 /**
@@ -24,6 +26,10 @@ export interface PlayerMatchStats {
  * Criteria v1.2.5
  */
 export function calculatePlayerCVP(stats: PlayerMatchStats): number {
+  // If we have explicit match count and it's 0, return 0.
+  // Otherwise, if they've played, they start with 1 point for the XI.
+  if (stats.matchesPlayedCount === 0) return 0;
+  
   let points = 1; // Match Start (Playing XI)
 
   // Batting

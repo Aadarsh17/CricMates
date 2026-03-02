@@ -104,7 +104,7 @@ export default function RankingsPage() {
     
     const pStats: Record<string, any> = {};
     
-    // Initialize all players
+    // Initialize all players with 0 stats
     players.forEach(p => {
       pStats[p.id] = { 
         id: p.id, name: p.name, role: p.role, imageUrl: p.imageUrl,
@@ -147,11 +147,13 @@ export default function RankingsPage() {
     return Object.values(pStats).map((ps: any) => ({
       ...ps,
       matchCount: ps.matchesPlayed.size,
-      cvp: calculatePlayerCVP(ps as any)
+      cvp: calculatePlayerCVP({ ...ps, matchesPlayedCount: ps.matchesPlayed.size } as any)
     })).sort((a, b) => {
+      // Sort primarily by runs, then wickets, then CVP
       if (b.runs !== a.runs) return b.runs - a.runs;
-      return b.wickets - a.wickets;
-    }).slice(0, 20);
+      if (b.wickets !== a.wickets) return b.wickets - a.wickets;
+      return b.cvp - a.cvp;
+    }).slice(0, 50);
   }, [players, allDeliveries]);
 
   if (!isMounted) return null;
@@ -183,7 +185,7 @@ export default function RankingsPage() {
                 {topPlayers.slice(0, 3).map((player, idx) => (
                   <Link key={player.id} href={`/players/${player.id}`}>
                     <Card className={`relative overflow-hidden border-t-4 hover:shadow-lg transition-all cursor-pointer h-full ${idx === 0 ? 'border-t-secondary scale-105 shadow-xl bg-secondary/5' : 'border-t-primary'}`}>
-                      {idx === 0 && <Badge className="absolute top-2 right-2 bg-secondary text-white font-black text-[9px] uppercase">Top Batter</Badge>}
+                      {idx === 0 && <Badge className="absolute top-2 right-2 bg-secondary text-white font-black text-[9px] uppercase">League Leader</Badge>}
                       <CardHeader className="text-center">
                          <div className="mx-auto bg-slate-100 rounded-full w-20 h-20 flex items-center justify-center mb-2 overflow-hidden border-2 border-white shadow-inner">
                           {player.imageUrl ? <img src={player.imageUrl} className="w-full h-full object-cover" /> : <UserCircle className="w-10 h-10 text-slate-300" />}
