@@ -35,12 +35,11 @@ export default function PlayerProfilePage() {
     isWicketKeeper: false
   });
 
-  // Fetch basic player profile
+  // Fetch basic player profile metadata
   const playerRef = useMemoFirebase(() => doc(db, 'players', playerId), [db, playerId]);
   const { data: player, isLoading: isPlayerLoading } = useDoc(playerRef);
 
-  // FETCH ALL HISTORY-BASED DATA
-  // We fetch all delivery records where this player was involved to calculate stats dynamically
+  // FETCH ALL HISTORY-BASED DATA FROM COLLECTION GROUP
   const battingQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId)), [db, playerId]);
   const { data: battingDeliveries, isLoading: isBattingLoading } = useCollection(battingQuery);
 
@@ -61,7 +60,7 @@ export default function PlayerProfilePage() {
     }
   }, [player]);
 
-  // CALCULATE LIVE STATS FROM HISTORY
+  // CALCULATE LIVE STATS EXCLUSIVELY FROM HISTORY
   const historyStats = useMemo(() => {
     const stats = {
       runs: 0,
@@ -89,7 +88,6 @@ export default function PlayerProfilePage() {
         if (d.runsScored === 4) stats.fours += 1;
         if (d.runsScored === 6) stats.sixes += 1;
         
-        // Extract matchId and inningId from path to count unique participation
         if (d.__fullPath) {
           const parts = d.__fullPath.split('/');
           const matchId = parts[1];
@@ -116,6 +114,16 @@ export default function PlayerProfilePage() {
       });
     }
 
+    if (dismissals) {
+      dismissals.forEach(d => {
+        if (d.fielderPlayerId === playerId) {
+          if (d.dismissalType === 'caught') stats.catches += 1;
+          if (d.dismissalType === 'stumped') stats.stumpings += 1;
+          if (d.dismissalType === 'runout') stats.runOuts += 1;
+        }
+      });
+    }
+
     return {
       ...stats,
       battingInningsCount: stats.battingInnings.size,
@@ -124,7 +132,7 @@ export default function PlayerProfilePage() {
       strikeRate: stats.ballsFaced > 0 ? ((stats.runs / stats.ballsFaced) * 100).toFixed(2) : '0.00',
       economy: stats.ballsBowled > 0 ? (stats.runsConceded / (stats.ballsBowled / 6)).toFixed(2) : '0.00'
     };
-  }, [battingDeliveries, bowlingDeliveries]);
+  }, [battingDeliveries, bowlingDeliveries, dismissals, playerId]);
 
   const handleUpdateProfile = () => {
     if (!editForm.name.trim()) return;
@@ -142,7 +150,7 @@ export default function PlayerProfilePage() {
 
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-      <Loader2 className="w-10 h-10 text-[#009270] animate-spin" />
+      <Loader2 className="w-10 h-10 text-primary animate-spin" />
       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Syncing Match History...</p>
     </div>
   );
@@ -151,7 +159,7 @@ export default function PlayerProfilePage() {
 
   return (
     <div className="max-w-4xl mx-auto pb-24 px-0 bg-white min-h-screen">
-      <div className="bg-[#009270] text-white p-4 pt-8 shadow-inner">
+      <div className="bg-primary text-white p-4 pt-8 shadow-inner">
         <div className="flex items-center gap-4 mb-4">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white hover:bg-white/10 shrink-0">
             <ArrowLeft className="w-6 h-6"/>
@@ -178,20 +186,20 @@ export default function PlayerProfilePage() {
               <AvatarFallback className="text-3xl font-black bg-white/10 text-white/50">{player.name[0]}</AvatarFallback>
            </Avatar>
            <div className="flex-1 grid grid-cols-2 gap-2 mb-2">
-              <div className="bg-white/10 p-2 rounded-xl backdrop-blur-sm text-center">
-                 <p className="text-[8px] font-black uppercase text-white/50">CVP Points</p>
+              <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center">
+                 <p className="text-[8px] font-black uppercase text-white/50">Career CVP</p>
                  <p className="text-xl font-black">{player.careerCVP || 0}</p>
               </div>
-              <div className="bg-white/10 p-2 rounded-xl backdrop-blur-sm text-center">
-                 <p className="text-[8px] font-black uppercase text-white/50">Style</p>
-                 <p className="text-[10px] font-bold leading-tight truncate uppercase">{player.battingStyle}</p>
+              <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center">
+                 <p className="text-[8px] font-black uppercase text-white/50">Matches</p>
+                 <p className="text-xl font-black">{historyStats.matchesPlayedCount}</p>
               </div>
            </div>
         </div>
       </div>
 
       <Tabs defaultValue="batting" className="w-full">
-        <div className="bg-[#009270] px-2 border-t border-white/10 sticky top-16 z-40 shadow-md">
+        <div className="bg-primary px-2 border-t border-white/10 sticky top-16 z-40 shadow-md">
           <TabsList className="bg-transparent h-12 flex justify-start gap-2 p-0 w-full overflow-x-auto scrollbar-hide">
             {['Batting', 'Bowling', 'Info'].map((tab) => (
               <TabsTrigger key={tab} value={tab.toLowerCase()} className="text-white/60 font-black data-[state=active]:text-white data-[state=active]:bg-transparent border-b-4 border-transparent data-[state=active]:border-white rounded-none px-6 h-full uppercase text-[11px] tracking-widest transition-all">
@@ -206,14 +214,13 @@ export default function PlayerProfilePage() {
              <Table className="min-w-max">
                 <TableBody>
                    {[
-                     { label: 'Matches', value: historyStats.matchesPlayedCount },
                      { label: 'Innings', value: historyStats.battingInningsCount },
                      { label: 'Runs Scored', value: historyStats.runs },
                      { label: 'Balls Played', value: historyStats.ballsFaced },
                      { label: 'Strike Rate', value: historyStats.strikeRate },
-                     { label: 'Boundaries', value: `${historyStats.fours}x4, ${historyStats.sixes}x6` },
+                     { label: '4s / 6s', value: `${historyStats.fours} / ${historyStats.sixes}` },
                    ].map((row, idx) => (
-                      <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]')}>
+                      <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}>
                          <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
                          <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
                       </TableRow>
@@ -228,14 +235,13 @@ export default function PlayerProfilePage() {
              <Table className="min-w-max">
                 <TableBody>
                    {[
-                     { label: 'Matches', value: historyStats.matchesPlayedCount },
                      { label: 'Innings', value: historyStats.bowlingInningsCount },
                      { label: 'Wickets', value: historyStats.wickets },
                      { label: 'Balls Bowled', value: historyStats.ballsBowled },
                      { label: 'Runs Conceded', value: historyStats.runsConceded },
                      { label: 'Economy', value: historyStats.economy },
                    ].map((row, idx) => (
-                      <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-[#f9fafb]')}>
+                      <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}>
                          <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
                          <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
                       </TableRow>
@@ -257,6 +263,14 @@ export default function PlayerProfilePage() {
                        <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Wicket Keeper</p>
                        <p className="text-sm font-bold">{player.isWicketKeeper ? 'Yes' : 'No'}</p>
                     </div>
+                    <div>
+                       <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Fielding: Catches</p>
+                       <p className="text-sm font-bold">{historyStats.catches}</p>
+                    </div>
+                    <div>
+                       <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Stumpings/RO</p>
+                       <p className="text-sm font-bold">{historyStats.stumpings} / {historyStats.runOuts}</p>
+                    </div>
                  </div>
               </CardContent>
            </Card>
@@ -264,9 +278,9 @@ export default function PlayerProfilePage() {
       </Tabs>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl">
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-primary">
           <DialogHeader>
-            <DialogTitle className="font-black uppercase tracking-widest text-[#009270]">Edit Player Profile</DialogTitle>
+            <DialogTitle className="font-black uppercase tracking-widest text-primary">Edit Player Profile</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
@@ -299,13 +313,16 @@ export default function PlayerProfilePage() {
                   </SelectContent>
                </Select>
             </div>
+            <div className="flex items-center gap-2 pt-2">
+               <Label className="text-[10px] font-black uppercase text-slate-400">Wicket Keeper?</Label>
+               <input type="checkbox" checked={editForm.isWicketKeeper} onChange={(e) => setEditForm({...editForm, isWicketKeeper: e.target.checked})} className="h-4 w-4" />
+            </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleUpdateProfile} className="w-full h-12 font-black uppercase bg-[#009270] hover:bg-[#007a5d]">Save Changes</Button>
+            <Button onClick={handleUpdateProfile} className="w-full h-12 font-black uppercase tracking-widest">Save Changes</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
 }
-

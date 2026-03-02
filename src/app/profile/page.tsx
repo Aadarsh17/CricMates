@@ -123,7 +123,7 @@ export default function UmpireProfilePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto pb-24 space-y-6">
+    <div className="max-w-2xl mx-auto pb-24 space-y-6 px-4">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full">
           <ArrowLeft className="w-6 h-6" />
@@ -206,7 +206,7 @@ export default function UmpireProfilePage() {
                 <Label className="text-[10px] font-black uppercase text-slate-400">Avatar Photo</Label>
                 <div className="flex gap-2">
                   <Button variant="outline" className="flex-1 h-12 font-bold" onClick={() => fileInputRef.current?.click()}>
-                    <Upload className="w-4 h-4 mr-2" /> Upload from Phone
+                    <Upload className="w-4 h-4 mr-2" /> Upload from Device
                   </Button>
                 </div>
               </div>
