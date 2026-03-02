@@ -27,6 +27,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
   const [isOpen, setIsOpen] = useState(false);
   const [editedResult, setEditedResult] = useState(match.resultDescription);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const inn1Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_1'), [db, match.id]);
   const { data: inn1 } = useDoc(inn1Ref);
@@ -47,9 +48,33 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
     });
   };
 
-  const executeDelete = () => {
-    deleteDocumentNonBlocking(doc(db, 'matches', match.id));
-    toast({ title: "Match Deleted", description: "Record removed successfully." });
+  const executeDeepDelete = async () => {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    toast({ title: "Deleting Match", description: "Cleaning up history and delivery records..." });
+
+    try {
+      // 1. Delete all delivery records for both potential innings
+      const innIds = ['inning_1', 'inning_2'];
+      for (const innId of innIds) {
+        const deliveriesRef = collection(db, 'matches', match.id, 'innings', innId, 'deliveryRecords');
+        const dSnap = await getDocs(deliveriesRef);
+        dSnap.docs.forEach(dDoc => deleteDocumentNonBlocking(dDoc.ref));
+        
+        // 2. Delete the inning document itself
+        deleteDocumentNonBlocking(doc(db, 'matches', match.id, 'innings', innId));
+      }
+
+      // 3. Finally delete the match record
+      deleteDocumentNonBlocking(doc(db, 'matches', match.id));
+      
+      toast({ title: "Match Deleted", description: "All associated data removed from history." });
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Delete Failed", description: "Could not remove all associated records.", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleUpdateResult = () => {
@@ -160,16 +185,16 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
                 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive" disabled={isDeleting}><Trash2 className="w-4 h-4" /></Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Delete this Match?</AlertDialogTitle>
-                      <AlertDialogDescription>This action cannot be undone. All delivery records and stats for this match will be lost.</AlertDialogDescription>
+                      <AlertDialogTitle>Deep Delete this Match?</AlertDialogTitle>
+                      <AlertDialogDescription>This will remove the match, its innings, and every ball-by-ball record permanently. All player stats and rankings will be recalculated instantly.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={executeDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete Match</AlertDialogAction>
+                      <AlertDialogAction onClick={executeDeepDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Confirm Delete</AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>

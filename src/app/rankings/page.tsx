@@ -2,18 +2,24 @@
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
-import { collection, query, where, orderBy } from 'firebase/firestore';
+import { collection, query, where, orderBy, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Star, Medal, Flag, ChevronRight, UserCircle } from 'lucide-react';
+import { Trophy, Star, Medal, Flag, ChevronRight, UserCircle, Loader2 } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
+import { calculatePlayerCVP } from '@/lib/cvp-utils';
 
 export default function RankingsPage() {
   const db = useFirestore();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: players = [] } = useCollection(playersQuery);
@@ -23,6 +29,10 @@ export default function RankingsPage() {
 
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), where('status', '==', 'completed')), [db]);
   const { data: matches = [] } = useCollection(matchesQuery);
+
+  // FETCH ALL DELIVERIES to ensure rankings are delete-proof and history-derived
+  const allDeliveriesQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords')), [db]);
+  const { data: allDeliveries, isLoading: isDeliveriesLoading } = useCollection(allDeliveriesQuery);
 
   /**
    * Dynamically calculate team standings based on existing completed matches.
@@ -84,21 +94,74 @@ export default function RankingsPage() {
     });
   }, [teams, matches]);
 
+  /**
+   * PURE HISTORY-BASED PLAYER RANKINGS
+   * Aggregates all deliveries currently in Firestore.
+   * If a match is deleted, its deliveries are gone, and this list updates instantly.
+   */
   const topPlayers = useMemo(() => {
-    if (!players) return [];
-    // Sort by Runs primarily, then Wickets
-    return [...players].sort((a, b) => {
-      if ((b.runsScored || 0) !== (a.runsScored || 0)) return (b.runsScored || 0) - (a.runsScored || 0);
-      return (b.wicketsTaken || 0) - (a.wicketsTaken || 0);
+    if (!players || !allDeliveries) return [];
+    
+    const pStats: Record<string, any> = {};
+    
+    // Initialize all players
+    players.forEach(p => {
+      pStats[p.id] = { 
+        id: p.id, name: p.name, role: p.role, imageUrl: p.imageUrl,
+        runs: 0, ballsFaced: 0, fours: 0, sixes: 0, 
+        wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0,
+        catches: 0, stumpings: 0, runOuts: 0,
+        matchesPlayed: new Set<string>()
+      };
+    });
+
+    // Aggregate from every delivery in history
+    allDeliveries.forEach(d => {
+      const sId = d.strikerPlayerId;
+      const bId = d.bowlerPlayerId;
+      const fId = d.fielderPlayerId;
+      const mId = d.__fullPath?.split('/')[1];
+
+      if (pStats[sId]) {
+        pStats[sId].runs += d.runsScored || 0;
+        if (d.extraType !== 'wide') pStats[sId].ballsFaced += 1;
+        if (d.runsScored === 4) pStats[sId].fours += 1;
+        if (d.runsScored === 6) pStats[sId].sixes += 1;
+        if (mId) pStats[sId].matchesPlayed.add(mId);
+      }
+
+      if (pStats[bId]) {
+        pStats[bId].runsConceded += d.totalRunsOnDelivery || 0;
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') pStats[bId].ballsBowled += 1;
+        if (d.isWicket && d.dismissalType !== 'runout') pStats[bId].wickets += 1;
+        if (mId) pStats[bId].matchesPlayed.add(mId);
+      }
+
+      if (fId && pStats[fId]) {
+        if (d.dismissalType === 'caught') pStats[fId].catches += 1;
+        if (d.dismissalType === 'stumped') pStats[fId].stumpings += 1;
+        if (d.dismissalType === 'runout') pStats[fId].runOuts += 1;
+      }
+    });
+
+    return Object.values(pStats).map((ps: any) => ({
+      ...ps,
+      matchCount: ps.matchesPlayed.size,
+      cvp: calculatePlayerCVP(ps as any)
+    })).sort((a, b) => {
+      if (b.runs !== a.runs) return b.runs - a.runs;
+      return b.wickets - a.wickets;
     }).slice(0, 20);
-  }, [players]);
+  }, [players, allDeliveries]);
+
+  if (!isMounted) return null;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-24 px-4">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900">Leaderboards</h1>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Season Performance Analytics</p>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Calculated from historical match deliveries</p>
         </div>
       </div>
 
@@ -109,7 +172,12 @@ export default function RankingsPage() {
         </TabsList>
 
         <TabsContent value="players" className="mt-6 space-y-6">
-          {topPlayers.length > 0 ? (
+          {isDeliveriesLoading ? (
+            <div className="py-20 flex flex-col items-center justify-center space-y-4">
+              <Loader2 className="w-8 h-8 text-primary animate-spin" />
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Career Statistics...</p>
+            </div>
+          ) : topPlayers.length > 0 ? (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 {topPlayers.slice(0, 3).map((player, idx) => (
@@ -126,12 +194,12 @@ export default function RankingsPage() {
                       <CardContent className="text-center pb-8">
                          <div className="flex justify-center gap-6">
                             <div>
-                               <p className="text-3xl font-black text-primary">{player.runsScored || 0}</p>
+                               <p className="text-3xl font-black text-primary">{player.runs || 0}</p>
                                <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Runs</p>
                             </div>
                             <div className="w-px bg-slate-100" />
                             <div>
-                               <p className="text-3xl font-black text-secondary">{player.wicketsTaken || 0}</p>
+                               <p className="text-3xl font-black text-secondary">{player.wickets || 0}</p>
                                <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Wkts</p>
                             </div>
                          </div>
@@ -169,12 +237,12 @@ export default function RankingsPage() {
                               </Link>
                               <div className="text-[9px] text-slate-400 uppercase font-black tracking-tighter">{player.role}</div>
                             </TableCell>
-                            <TableCell className="text-right font-black text-xs">{player.runsScored || 0}</TableCell>
-                            <TableCell className="text-right font-black text-xs">{player.wicketsTaken || 0}</TableCell>
-                            <TableCell className="text-right font-black text-xs text-slate-400">{player.matchesPlayed || 0}</TableCell>
+                            <TableCell className="text-right font-black text-xs">{player.runs || 0}</TableCell>
+                            <TableCell className="text-right font-black text-xs">{player.wickets || 0}</TableCell>
+                            <TableCell className="text-right font-black text-xs text-slate-400">{player.matchCount || 0}</TableCell>
                             <TableCell className="text-right">
                               <Badge variant="outline" className="font-black px-2 text-[10px] border-slate-200">
-                                {player.careerCVP || 0}
+                                {player.cvp?.toFixed(1) || 0}
                               </Badge>
                             </TableCell>
                           </TableRow>
@@ -188,7 +256,7 @@ export default function RankingsPage() {
           ) : (
             <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
               <Star className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">No stats recorded yet</p>
+              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">No history recorded yet</p>
             </div>
           )}
         </TabsContent>

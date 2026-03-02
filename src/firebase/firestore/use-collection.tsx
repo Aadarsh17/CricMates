@@ -72,9 +72,9 @@ export function useCollection<T = any>(
           // Robust path extraction for both regular and group queries
           if (q.path) {
             path = q.path;
-          } else if (q._query && q._query.path) {
-            // For collection group queries, extracting segments is environment-specific
-            path = `[Group Query: ${q._query.path.segments?.join('/') || 'collection'}]`;
+          } else if (q.type === 'query' || q._query) {
+            // For collection group queries, the target is often just the collection name
+            path = `[Group Query: ${q.type || 'collection'}]`;
           } else {
             path = 'collection_group_query';
           }

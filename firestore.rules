@@ -4,18 +4,19 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * GLOBAL READ ACCESS
-     * Allow anyone to read any document. This is critical for public leaderboards and scorecards.
+     * COLLECTION GROUP: deliveryRecords
+     * Explicitly authorize group queries for ball-by-ball data at any depth.
+     * This must be defined clearly for the collection name.
      */
-    match /{document=**} {
+    match /{path=**}/deliveryRecords/{deliveryId} {
       allow read: if true;
     }
 
     /**
-     * COLLECTION GROUP: deliveryRecords
-     * Explicitly authorize group queries for ball-by-ball data at any depth.
+     * GLOBAL READ ACCESS
+     * Allow anyone to read any document. This is critical for public leaderboards and scorecards.
      */
-    match /{path=**}/deliveryRecords/{deliveryId} {
+    match /{document=**} {
       allow read: if true;
     }
 
