@@ -30,17 +30,17 @@ export default function TeamDetailsPage() {
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
 
-  const teamRef = useMemoFirebase(() => doc(db, 'teams', teamId), [db, teamId]);
+  const teamRef = useMemoFirebase(() => teamId ? doc(db, 'teams', teamId) : null, [db, teamId]);
   const { data: team, isLoading: isTeamLoading } = useDoc(teamRef);
 
-  const playersQuery = useMemoFirebase(() => query(collection(db, 'players'), where('teamId', '==', teamId)), [db, teamId]);
+  const playersQuery = useMemoFirebase(() => teamId ? query(collection(db, 'players'), where('teamId', '==', teamId)) : null, [db, teamId]);
   const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
-  const { data: allMatches, isLoading: isMatchesLoading } = useCollection(allMatchesQuery);
+  const { data: allMatches = [], isLoading: isMatchesLoading } = useCollection(allMatchesQuery);
 
   const squadDeliveriesQuery = useMemoFirebase(() => {
     if (!isMounted) return null;
@@ -67,8 +67,7 @@ export default function TeamDetailsPage() {
    * Derived purely from existing match history.
    */
   const standingsForThisTeam = useMemo(() => {
-    const defaultStats = { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
-    if (!teamId || !allMatches || allMatches.length === 0) return defaultStats;
+    if (!teamId || !allMatches || !allMatches.length) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
     
     let played = 0, won = 0, lost = 0, drawn = 0;
     const teamName = team?.name.toLowerCase() || '';
@@ -190,10 +189,10 @@ export default function TeamDetailsPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Wins', value: standingsForThisTeam.won, icon: Trophy, color: 'text-secondary' },
-          { label: 'Losses', value: standingsForThisTeam.lost, icon: Activity, color: 'text-destructive' },
-          { label: 'NRR', value: (standingsForThisTeam.nrr || 0).toFixed(3), icon: HistoryIcon },
-          { label: 'Played', value: standingsForThisTeam.played, icon: HistoryIcon },
+          { label: 'Wins', value: standingsForThisTeam?.won || 0, icon: Trophy, color: 'text-secondary' },
+          { label: 'Losses', value: standingsForThisTeam?.lost || 0, icon: Activity, color: 'text-destructive' },
+          { label: 'NRR', value: (standingsForThisTeam?.nrr || 0).toFixed(3), icon: HistoryIcon },
+          { label: 'Played', value: standingsForThisTeam?.played || 0, icon: HistoryIcon },
         ].map((stat, i) => (
           <Card key={i} className="shadow-none border">
             <CardContent className="p-3 flex items-center gap-3">

@@ -2,20 +2,22 @@
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
-import { collection, query, where, orderBy, collectionGroup } from 'firebase/firestore';
+import { collection, query, orderBy, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Star, Medal, Flag, ChevronRight, UserCircle, Loader2 } from 'lucide-react';
+import { Trophy, Star, Medal, Flag, ChevronRight, UserCircle, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
+import { cn } from '@/lib/utils';
 
 export default function RankingsPage() {
   const db = useFirestore();
   const [isMounted, setIsMounted] = useState(false);
+  const [sortConfig, setSortConfig] = useState<{ key: 'runs' | 'wickets' | 'cvp', direction: 'asc' | 'desc' }>({ key: 'cvp', direction: 'desc' });
 
   useEffect(() => {
     setIsMounted(true);
@@ -160,11 +162,27 @@ export default function RankingsPage() {
     });
 
     return Object.values(pStats).sort((a: any, b: any) => {
-      if (b.cvp !== a.cvp) return b.cvp - a.cvp;
-      if (b.runs !== a.runs) return b.runs - a.runs;
-      return b.wickets - a.wickets;
+      const valA = a[sortConfig.key] || 0;
+      const valB = b[sortConfig.key] || 0;
+      if (sortConfig.direction === 'desc') {
+        return valB - valA;
+      }
+      return valA - valB;
     });
-  }, [players, allDeliveries]);
+  }, [players, allDeliveries, sortConfig]);
+
+  const requestSort = (key: 'runs' | 'wickets' | 'cvp') => {
+    let direction: 'asc' | 'desc' = 'desc';
+    if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const SortIcon = ({ field }: { field: 'runs' | 'wickets' | 'cvp' }) => {
+    if (sortConfig.key !== field) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp className="inline w-3 h-3 ml-1" /> : <ArrowDown className="inline w-3 h-3 ml-1" />;
+  };
 
   if (!isMounted) return null;
 
@@ -191,7 +209,7 @@ export default function RankingsPage() {
             </div>
           ) : (
             <>
-              {topPlayers.some(p => p.cvp > 0) && (
+              {topPlayers.some(p => p.cvp > 0) && sortConfig.key === 'cvp' && sortConfig.direction === 'desc' && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                   {topPlayers.filter(p => p.cvp > 0).slice(0, 3).map((player, idx) => (
                     <Link key={player.id} href={`/players/${player.id}`}>
@@ -224,8 +242,9 @@ export default function RankingsPage() {
               )}
 
               <Card className="shadow-sm border rounded-xl overflow-hidden bg-white">
-                <CardHeader className="bg-slate-50 border-b">
+                <CardHeader className="bg-slate-50 border-b flex flex-row items-center justify-between py-3">
                   <CardTitle className="text-[10px] font-black uppercase tracking-widest text-slate-500">Global Player Pool (Live History Sync)</CardTitle>
+                  <div className="text-[9px] text-slate-400 font-bold uppercase italic">Click headers to sort</div>
                 </CardHeader>
                 <CardContent className="p-0">
                   <div className="overflow-x-auto">
@@ -234,15 +253,39 @@ export default function RankingsPage() {
                         <TableRow>
                           <TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead>
                           <TableHead className="text-[10px] font-black uppercase">Player</TableHead>
-                          <TableHead className="text-right text-[10px] font-black uppercase">Runs</TableHead>
-                          <TableHead className="text-right text-[10px] font-black uppercase">Wkts</TableHead>
+                          <TableHead 
+                            className={cn(
+                              "text-right text-[10px] font-black uppercase cursor-pointer hover:text-primary transition-colors",
+                              sortConfig.key === 'runs' && "text-primary"
+                            )}
+                            onClick={() => requestSort('runs')}
+                          >
+                            Runs <SortIcon field="runs" />
+                          </TableHead>
+                          <TableHead 
+                            className={cn(
+                              "text-right text-[10px] font-black uppercase cursor-pointer hover:text-primary transition-colors",
+                              sortConfig.key === 'wickets' && "text-primary"
+                            )}
+                            onClick={() => requestSort('wickets')}
+                          >
+                            Wkts <SortIcon field="wickets" />
+                          </TableHead>
                           <TableHead className="text-right text-[10px] font-black uppercase">Matches</TableHead>
-                          <TableHead className="text-right text-[10px] font-black uppercase">CVP</TableHead>
+                          <TableHead 
+                            className={cn(
+                              "text-right text-[10px] font-black uppercase cursor-pointer hover:text-primary transition-colors",
+                              sortConfig.key === 'cvp' && "text-primary"
+                            )}
+                            onClick={() => requestSort('cvp')}
+                          >
+                            CVP <SortIcon field="cvp" />
+                          </TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {topPlayers.map((player, idx) => (
-                          <TableRow key={player.id} className={idx < 3 && player.cvp > 0 ? 'bg-slate-50/30' : ''}>
+                          <TableRow key={player.id} className={idx < 3 && player.cvp > 0 && sortConfig.key === 'cvp' ? 'bg-slate-50/30' : ''}>
                             <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
                             <TableCell>
                               <Link href={`/players/${player.id}`} className="font-black text-primary hover:underline text-xs flex items-center gap-2 uppercase tracking-tighter">
@@ -251,11 +294,11 @@ export default function RankingsPage() {
                               </Link>
                               <div className="text-[9px] text-slate-400 uppercase font-black tracking-tighter">{player.role}</div>
                             </TableCell>
-                            <TableCell className="text-right font-black text-xs">{player.runs || 0}</TableCell>
-                            <TableCell className="text-right font-black text-xs">{player.wickets || 0}</TableCell>
+                            <TableCell className={cn("text-right font-black text-xs", sortConfig.key === 'runs' && "text-primary")}>{player.runs || 0}</TableCell>
+                            <TableCell className={cn("text-right font-black text-xs", sortConfig.key === 'wickets' && "text-primary")}>{player.wickets || 0}</TableCell>
                             <TableCell className="text-right font-black text-xs text-slate-400">{player.matchCount || 0}</TableCell>
                             <TableCell className="text-right">
-                              <Badge variant="outline" className="font-black px-2 text-[10px] border-slate-200">
+                              <Badge variant={sortConfig.key === 'cvp' ? 'default' : 'outline'} className="font-black px-2 text-[10px] border-slate-200">
                                 {player.cvp?.toFixed(1) || 0}
                               </Badge>
                             </TableCell>
