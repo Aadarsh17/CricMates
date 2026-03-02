@@ -1,22 +1,24 @@
 
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useMemoFirebase, useFirestore, useUser } from '@/firebase';
-import { collection, query, where, doc } from 'firebase/firestore';
+import { collection, query, where, doc, orderBy } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, ArrowLeftRight } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 export default function TeamDetailsPage() {
   const params = useParams();
@@ -31,8 +33,36 @@ export default function TeamDetailsPage() {
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players'), where('teamId', '==', teamId)), [db, teamId]);
   const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
+  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
+  const { data: allTeams } = useCollection(allTeamsQuery);
+
+  const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
+  const { data: allMatches = [] } = useCollection(matchesQuery);
+
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [newPlayer, setNewPlayer] = useState({ name: '', role: 'Batsman' });
+  const [h2hTeamId, setH2hTeamId] = useState<string>('');
+
+  const h2hStats = useMemo(() => {
+    if (!h2hTeamId || !allMatches.length) return null;
+    
+    let played = 0, won = 0, lost = 0, drawn = 0;
+    const filtered = allMatches.filter(m => 
+      (m.team1Id === teamId && m.team2Id === h2hTeamId) || 
+      (m.team1Id === h2hTeamId && m.team2Id === teamId)
+    );
+
+    filtered.forEach(m => {
+        played++;
+        const result = m.resultDescription?.toLowerCase() || '';
+        const teamName = team?.name.toLowerCase() || '';
+        if (result.includes(teamName) && result.includes('won')) won++;
+        else if (result.includes('drawn') || result.includes('tied')) drawn++;
+        else lost++;
+    });
+
+    return { played, won, lost, drawn };
+  }, [h2hTeamId, allMatches, teamId, team?.name]);
 
   const handleAddPlayer = () => {
     if (!user || !newPlayer.name.trim()) return;
@@ -91,6 +121,59 @@ export default function TeamDetailsPage() {
           </Card>
         ))}
       </div>
+
+      <Card className="border-t-4 border-t-secondary">
+        <CardHeader>
+            <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                <ArrowLeftRight className="w-4 h-4" /> Head-to-Head Comparison
+            </CardTitle>
+            <CardDescription className="text-[10px] font-bold uppercase">Compare results with other franchises</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+            <div className="flex gap-4 items-end">
+                <div className="flex-1 space-y-1">
+                    <Label className="text-[10px] font-black uppercase">Opponent Team</Label>
+                    <Select value={h2hTeamId} onValueChange={setH2hTeamId}>
+                        <SelectTrigger><SelectValue placeholder="Choose opponent" /></SelectTrigger>
+                        <SelectContent>
+                            {allTeams?.filter(t => t.id !== teamId).map(t => (
+                                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
+            {h2hStats ? (
+                <div className="p-6 bg-slate-50 rounded-2xl border flex flex-col items-center gap-6">
+                    <div className="flex items-center gap-12 w-full justify-center">
+                        <div className="text-center">
+                            <Avatar className="h-16 w-16 mb-2 border-2 border-primary"><AvatarImage src={team.logoUrl}/></Avatar>
+                            <p className="text-sm font-black">{team.name}</p>
+                            <p className="text-3xl font-black text-primary mt-2">{h2hStats.won}</p>
+                            <p className="text-[10px] font-black uppercase text-slate-400">Wins</p>
+                        </div>
+                        <div className="text-center">
+                            <p className="text-xs font-black text-slate-300 uppercase">Played</p>
+                            <p className="text-xl font-black text-slate-400">{h2hStats.played}</p>
+                            <p className="text-[10px] font-black text-slate-300 uppercase mt-4">Tied</p>
+                            <p className="text-lg font-black text-slate-400">{h2hStats.drawn}</p>
+                        </div>
+                        <div className="text-center">
+                            <Avatar className="h-16 w-16 mb-2 border-2 border-secondary"><AvatarImage src={allTeams?.find(t => t.id === h2hTeamId)?.logoUrl}/></Avatar>
+                            <p className="text-sm font-black">{allTeams?.find(t => t.id === h2hTeamId)?.name}</p>
+                            <p className="text-3xl font-black text-secondary mt-2">{h2hStats.lost}</p>
+                            <p className="text-[10px] font-black uppercase text-slate-400">Wins</p>
+                        </div>
+                    </div>
+                </div>
+            ) : h2hTeamId && (
+                <div className="py-12 text-center text-slate-400 text-xs font-bold uppercase border-2 border-dashed rounded-xl">
+                    No history found between these two teams
+                </div>
+            )}
+        </CardContent>
+      </Card>
 
       <div className="flex justify-between items-center gap-4">
         <h2 className="text-lg md:text-2xl font-black">Active Squad</h2>

@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Flag, Edit2, ShieldCheck, Star, Info as InfoIcon, Loader2 } from 'lucide-react';
+import { ArrowLeft, Flag, Edit2, ShieldCheck, Star, Info as InfoIcon, Loader2, Trophy, Medal } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -69,12 +69,15 @@ export default function PlayerProfilePage() {
       sixes: 0,
       battingInnings: new Set<string>(),
       matchesPlayed: new Set<string>(),
+      fifties: 0,
+      hundreds: 0,
       
       wickets: 0,
       ballsBowled: 0,
       runsConceded: 0,
       bowlingInnings: new Set<string>(),
       maidens: 0,
+      threeWktHauls: 0,
       
       catches: 0,
       stumpings: 0,
@@ -82,6 +85,7 @@ export default function PlayerProfilePage() {
     };
 
     if (battingDeliveries) {
+      const matchRuns: Record<string, number> = {};
       battingDeliveries.forEach(d => {
         stats.runs += d.runsScored || 0;
         if (d.extraType !== 'wide') stats.ballsFaced += 1;
@@ -92,17 +96,32 @@ export default function PlayerProfilePage() {
           const parts = d.__fullPath.split('/');
           const matchId = parts[1];
           const inningId = parts[3];
-          stats.battingInnings.add(`${matchId}-${inningId}`);
+          const key = `${matchId}-${inningId}`;
+          stats.battingInnings.add(key);
           stats.matchesPlayed.add(matchId);
+          matchRuns[key] = (matchRuns[key] || 0) + (d.runsScored || 0);
         }
+      });
+      // Calculate milestones
+      Object.values(matchRuns).forEach(runs => {
+        if (runs >= 100) stats.hundreds += 1;
+        else if (runs >= 50) stats.fifties += 1;
       });
     }
 
     if (bowlingDeliveries) {
+      const matchWickets: Record<string, number> = {};
       bowlingDeliveries.forEach(d => {
         stats.runsConceded += d.totalRunsOnDelivery || 0;
         if (d.extraType !== 'wide' && d.extraType !== 'noball') stats.ballsBowled += 1;
-        if (d.isWicket && d.dismissalType !== 'runout') stats.wickets += 1;
+        if (d.isWicket && d.dismissalType !== 'runout') {
+           stats.wickets += 1;
+           if (d.__fullPath) {
+              const parts = d.__fullPath.split('/');
+              const key = `${parts[1]}-${parts[3]}`;
+              matchWickets[key] = (matchWickets[key] || 0) + 1;
+           }
+        }
         
         if (d.__fullPath) {
           const parts = d.__fullPath.split('/');
@@ -111,6 +130,10 @@ export default function PlayerProfilePage() {
           stats.bowlingInnings.add(`${matchId}-${inningId}`);
           stats.matchesPlayed.add(matchId);
         }
+      });
+      // Calculate bowling milestones
+      Object.values(matchWickets).forEach(wkts => {
+        if (wkts >= 3) stats.threeWktHauls += 1;
       });
     }
 
@@ -198,6 +221,21 @@ export default function PlayerProfilePage() {
         </div>
       </div>
 
+      <div className="px-4 py-4 flex gap-4 overflow-x-auto scrollbar-hide">
+         <div className="flex items-center gap-2 bg-slate-50 border px-3 py-2 rounded-xl shrink-0">
+            <Medal className="w-4 h-4 text-amber-500" />
+            <span className="text-xs font-black uppercase">{historyStats.hundreds} Hundreds</span>
+         </div>
+         <div className="flex items-center gap-2 bg-slate-50 border px-3 py-2 rounded-xl shrink-0">
+            <Star className="w-4 h-4 text-blue-500" />
+            <span className="text-xs font-black uppercase">{historyStats.fifties} Fifties</span>
+         </div>
+         <div className="flex items-center gap-2 bg-slate-50 border px-3 py-2 rounded-xl shrink-0">
+            <Trophy className="w-4 h-4 text-secondary" />
+            <span className="text-xs font-black uppercase">{historyStats.threeWktHauls} 3+ Wkts</span>
+         </div>
+      </div>
+
       <Tabs defaultValue="batting" className="w-full">
         <div className="bg-primary px-2 border-t border-white/10 sticky top-16 z-40 shadow-md">
           <TabsList className="bg-transparent h-12 flex justify-start gap-2 p-0 w-full overflow-x-auto scrollbar-hide">
@@ -219,6 +257,7 @@ export default function PlayerProfilePage() {
                      { label: 'Balls Played', value: historyStats.ballsFaced },
                      { label: 'Strike Rate', value: historyStats.strikeRate },
                      { label: '4s / 6s', value: `${historyStats.fours} / ${historyStats.sixes}` },
+                     { label: '50s / 100s', value: `${historyStats.fifties} / ${historyStats.hundreds}` },
                    ].map((row, idx) => (
                       <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}>
                          <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
@@ -240,6 +279,7 @@ export default function PlayerProfilePage() {
                      { label: 'Balls Bowled', value: historyStats.ballsBowled },
                      { label: 'Runs Conceded', value: historyStats.runsConceded },
                      { label: 'Economy', value: historyStats.economy },
+                     { label: '3+ Wkt Hauls', value: historyStats.threeWktHauls },
                    ].map((row, idx) => (
                       <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}>
                          <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
