@@ -4,12 +4,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, updateDocumentNonBlocking, useCollection } from '@/firebase';
-import { doc, collectionGroup, query, where } from 'firebase/firestore';
-import { Card, CardContent } from '@/components/ui/card';
+import { doc, collectionGroup, query, where, collection, orderBy } from 'firebase/firestore';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Flag, Edit2, ShieldCheck, Star, Info as InfoIcon, Loader2, Trophy, Medal } from 'lucide-react';
+import { ArrowLeft, Flag, Edit2, ShieldCheck, Star, Info as InfoIcon, Loader2, Trophy, Medal, ArrowLeftRight, Users, Target, Zap } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useApp } from '@/context/AppContext';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 export default function PlayerProfilePage() {
   const params = useParams();
@@ -28,6 +29,7 @@ export default function PlayerProfilePage() {
   const { isUmpire } = useApp();
 
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [comparePlayerId, setComparePlayerId] = useState<string>('');
   const [editForm, setEditForm] = useState({
     name: '',
     role: '',
@@ -38,6 +40,10 @@ export default function PlayerProfilePage() {
   // Fetch basic player profile metadata
   const playerRef = useMemoFirebase(() => doc(db, 'players', playerId), [db, playerId]);
   const { data: player, isLoading: isPlayerLoading } = useDoc(playerRef);
+
+  // Fetch all players for comparison dropdown
+  const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
+  const { data: allPlayers } = useCollection(allPlayersQuery);
 
   // FETCH ALL HISTORY-BASED DATA FROM COLLECTION GROUP
   const battingQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId)), [db, playerId]);
@@ -102,7 +108,6 @@ export default function PlayerProfilePage() {
           matchRuns[key] = (matchRuns[key] || 0) + (d.runsScored || 0);
         }
       });
-      // Calculate milestones
       Object.values(matchRuns).forEach(runs => {
         if (runs >= 100) stats.hundreds += 1;
         else if (runs >= 50) stats.fifties += 1;
@@ -131,7 +136,6 @@ export default function PlayerProfilePage() {
           stats.matchesPlayed.add(matchId);
         }
       });
-      // Calculate bowling milestones
       Object.values(matchWickets).forEach(wkts => {
         if (wkts >= 3) stats.threeWktHauls += 1;
       });
@@ -157,6 +161,42 @@ export default function PlayerProfilePage() {
     };
   }, [battingDeliveries, bowlingDeliveries, dismissals, playerId]);
 
+  // CALCULATE HEAD-TO-HEAD STATS
+  const headToHead = useMemo(() => {
+    if (!comparePlayerId) return null;
+
+    const vsStats = {
+      asBatter: { runs: 0, balls: 0, outs: 0 },
+      asBowler: { runs: 0, balls: 0, wickets: 0 }
+    };
+
+    if (battingDeliveries) {
+      battingDeliveries.forEach(d => {
+        if (d.bowlerPlayerId === comparePlayerId) {
+          vsStats.asBatter.runs += d.runsScored || 0;
+          if (d.extraType !== 'wide') vsStats.asBatter.balls += 1;
+          if (d.isWicket && (d.batsmanOutPlayerId === playerId || !d.batsmanOutPlayerId)) {
+            vsStats.asBatter.outs += 1;
+          }
+        }
+      });
+    }
+
+    if (bowlingDeliveries) {
+      bowlingDeliveries.forEach(d => {
+        if (d.strikerPlayerId === comparePlayerId) {
+          vsStats.asBowler.runs += d.totalRunsOnDelivery || 0;
+          if (d.extraType !== 'wide' && d.extraType !== 'noball') vsStats.asBowler.balls += 1;
+          if (d.isWicket && d.dismissalType !== 'runout' && (d.batsmanOutPlayerId === comparePlayerId || !d.batsmanOutPlayerId)) {
+            vsStats.asBowler.wickets += 1;
+          }
+        }
+      });
+    }
+
+    return vsStats;
+  }, [comparePlayerId, battingDeliveries, bowlingDeliveries, playerId]);
+
   const handleUpdateProfile = () => {
     if (!editForm.name.trim()) return;
     updateDocumentNonBlocking(doc(db, 'players', playerId), {
@@ -179,6 +219,8 @@ export default function PlayerProfilePage() {
   );
 
   if (!player) return <div className="p-20 text-center">Player not found.</div>;
+
+  const comparePlayer = allPlayers?.find(p => p.id === comparePlayerId);
 
   return (
     <div className="max-w-4xl mx-auto pb-24 px-0 bg-white min-h-screen">
@@ -239,7 +281,7 @@ export default function PlayerProfilePage() {
       <Tabs defaultValue="batting" className="w-full">
         <div className="bg-primary px-2 border-t border-white/10 sticky top-16 z-40 shadow-md">
           <TabsList className="bg-transparent h-12 flex justify-start gap-2 p-0 w-full overflow-x-auto scrollbar-hide">
-            {['Batting', 'Bowling', 'Info'].map((tab) => (
+            {['Batting', 'Bowling', 'Comparison', 'Info'].map((tab) => (
               <TabsTrigger key={tab} value={tab.toLowerCase()} className="text-white/60 font-black data-[state=active]:text-white data-[state=active]:bg-transparent border-b-4 border-transparent data-[state=active]:border-white rounded-none px-6 h-full uppercase text-[11px] tracking-widest transition-all">
                 {tab}
               </TabsTrigger>
@@ -247,48 +289,128 @@ export default function PlayerProfilePage() {
           </TabsList>
         </div>
 
-        <TabsContent value="batting" className="p-0 animate-in fade-in duration-300">
-           <div className="overflow-x-auto">
-             <Table className="min-w-max">
-                <TableBody>
-                   {[
-                     { label: 'Innings', value: historyStats.battingInningsCount },
-                     { label: 'Runs Scored', value: historyStats.runs },
-                     { label: 'Balls Played', value: historyStats.ballsFaced },
-                     { label: 'Strike Rate', value: historyStats.strikeRate },
-                     { label: '4s / 6s', value: `${historyStats.fours} / ${historyStats.sixes}` },
-                     { label: '50s / 100s', value: `${historyStats.fifties} / ${historyStats.hundreds}` },
-                   ].map((row, idx) => (
-                      <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}>
-                         <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
-                         <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
-                      </TableRow>
-                   ))}
-                </TableBody>
-             </Table>
-           </div>
+        <TabsContent value="batting" className="p-0">
+           <Table>
+              <TableBody>
+                 {[
+                   { label: 'Innings', value: historyStats.battingInningsCount },
+                   { label: 'Runs Scored', value: historyStats.runs },
+                   { label: 'Balls Faced', value: historyStats.ballsFaced },
+                   { label: 'Strike Rate', value: historyStats.strikeRate },
+                   { label: '4s / 6s', value: `${historyStats.fours} / ${historyStats.sixes}` },
+                   { label: '50s / 100s', value: `${historyStats.fifties} / ${historyStats.hundreds}` },
+                 ].map((row, idx) => (
+                    <TableRow key={row.label} className={cn("hover:bg-slate-50", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}>
+                       <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
+                       <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                    </TableRow>
+                 ))}
+              </TableBody>
+           </Table>
         </TabsContent>
 
-        <TabsContent value="bowling" className="p-0 animate-in fade-in duration-300">
-           <div className="overflow-x-auto">
-             <Table className="min-w-max">
-                <TableBody>
-                   {[
-                     { label: 'Innings', value: historyStats.bowlingInningsCount },
-                     { label: 'Wickets', value: historyStats.wickets },
-                     { label: 'Balls Bowled', value: historyStats.ballsBowled },
-                     { label: 'Runs Conceded', value: historyStats.runsConceded },
-                     { label: 'Economy', value: historyStats.economy },
-                     { label: '3+ Wkt Hauls', value: historyStats.threeWktHauls },
-                   ].map((row, idx) => (
-                      <TableRow key={row.label} className={cn("hover:bg-slate-50 transition-colors", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}>
-                         <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
-                         <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
-                      </TableRow>
-                   ))}
-                </TableBody>
-             </Table>
-           </div>
+        <TabsContent value="bowling" className="p-0">
+           <Table>
+              <TableBody>
+                 {[
+                   { label: 'Innings', value: historyStats.bowlingInningsCount },
+                   { label: 'Wickets', value: historyStats.wickets },
+                   { label: 'Balls Bowled', value: historyStats.ballsBowled },
+                   { label: 'Runs Conceded', value: historyStats.runsConceded },
+                   { label: 'Economy', value: historyStats.economy },
+                   { label: '3+ Wkt Hauls', value: historyStats.threeWktHauls },
+                 ].map((row, idx) => (
+                    <TableRow key={row.label} className={cn("hover:bg-slate-50", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}>
+                       <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
+                       <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                    </TableRow>
+                 ))}
+              </TableBody>
+           </Table>
+        </TabsContent>
+
+        <TabsContent value="comparison" className="p-4 space-y-6">
+           <Card className="border-t-4 border-t-secondary shadow-sm">
+              <CardHeader>
+                 <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                    <ArrowLeftRight className="w-4 h-4 text-secondary" /> Head-to-Head Engine
+                 </CardTitle>
+                 <CardDescription className="text-[10px] font-bold uppercase">Compare stats vs specific rivals</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                 <div className="space-y-1">
+                    <Label className="text-[10px] font-black uppercase text-slate-400">Select Rival Player</Label>
+                    <Select value={comparePlayerId} onValueChange={setComparePlayerId}>
+                       <SelectTrigger className="font-bold h-12 shadow-sm">
+                          <SelectValue placeholder="Choose a player..." />
+                       </SelectTrigger>
+                       <SelectContent>
+                          {allPlayers?.filter(p => p.id !== playerId).map(p => (
+                             <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
+                          ))}
+                       </SelectContent>
+                    </Select>
+                 </div>
+
+                 {headToHead ? (
+                    <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-300">
+                       <div className="p-6 bg-slate-50 rounded-2xl border flex flex-col items-center gap-6 shadow-inner">
+                          <div className="flex items-center justify-between w-full gap-4">
+                             <div className="flex flex-col items-center text-center flex-1">
+                                <Avatar className="h-16 w-16 mb-2 border-4 border-primary shadow-lg"><AvatarImage src={player.imageUrl}/></Avatar>
+                                <p className="text-[10px] font-black uppercase text-slate-900 line-clamp-1">{player.name}</p>
+                             </div>
+                             <div className="flex flex-col items-center">
+                                <Zap className="w-8 h-8 text-amber-500 fill-amber-500 animate-pulse" />
+                                <span className="text-[10px] font-black text-slate-300 uppercase mt-2">VS</span>
+                             </div>
+                             <div className="flex flex-col items-center text-center flex-1">
+                                <Avatar className="h-16 w-16 mb-2 border-4 border-secondary shadow-lg"><AvatarImage src={comparePlayer?.imageUrl}/></Avatar>
+                                <p className="text-[10px] font-black uppercase text-slate-900 line-clamp-1">{comparePlayer?.name || 'Rival'}</p>
+                             </div>
+                          </div>
+                       </div>
+
+                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <Card className="bg-primary/5 border-primary/20 shadow-none">
+                             <CardHeader className="p-4 pb-0">
+                                <CardTitle className="text-[10px] font-black uppercase text-primary tracking-widest flex items-center gap-2">
+                                   <Target className="w-3 h-3" /> When Batting vs {comparePlayer?.name?.split(' ')[0]}
+                                </CardTitle>
+                             </CardHeader>
+                             <CardContent className="p-4 pt-4">
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                   <div><p className="text-[8px] font-black text-slate-400 uppercase">Runs</p><p className="text-xl font-black text-primary">{headToHead.asBatter.runs}</p></div>
+                                   <div><p className="text-[8px] font-black text-slate-400 uppercase">Balls</p><p className="text-xl font-black text-primary">{headToHead.asBatter.balls}</p></div>
+                                   <div><p className="text-[8px] font-black text-slate-400 uppercase">Outs</p><p className="text-xl font-black text-destructive">{headToHead.asBatter.outs}</p></div>
+                                </div>
+                             </CardContent>
+                          </Card>
+
+                          <Card className="bg-secondary/5 border-secondary/20 shadow-none">
+                             <CardHeader className="p-4 pb-0">
+                                <CardTitle className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-2">
+                                   <Target className="w-3 h-3" /> When Bowling to {comparePlayer?.name?.split(' ')[0]}
+                                </CardTitle>
+                             </CardHeader>
+                             <CardContent className="p-4 pt-4">
+                                <div className="grid grid-cols-3 gap-2 text-center">
+                                   <div><p className="text-[8px] font-black text-slate-400 uppercase">Runs</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.runs}</p></div>
+                                   <div><p className="text-[8px] font-black text-slate-400 uppercase">Balls</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.balls}</p></div>
+                                   <div><p className="text-[8px] font-black text-slate-400 uppercase">Wkts</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.wickets}</p></div>
+                                </div>
+                             </CardContent>
+                          </Card>
+                       </div>
+                    </div>
+                 ) : (
+                    <div className="py-12 text-center text-slate-400 text-[10px] font-bold uppercase border-2 border-dashed rounded-xl bg-slate-50/50">
+                       <Users className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                       Select a player to generate history-based Head-to-Head analytics
+                    </div>
+                 )}
+              </CardContent>
+           </Card>
         </TabsContent>
 
         <TabsContent value="info" className="p-4 space-y-6">
