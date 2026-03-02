@@ -6,7 +6,7 @@ service cloud.firestore {
     /**
      * COLLECTION GROUP: deliveryRecords
      * Explicitly authorize group queries for ball-by-ball data at any depth.
-     * This MUST be defined at the root level for collection group queries to work.
+     * This MUST be defined with the {path=**} recursive wildcard for collection group queries to work.
      */
     match /{path=**}/deliveryRecords/{deliveryId} {
       allow read: if true;

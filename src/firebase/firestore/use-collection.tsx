@@ -73,10 +73,11 @@ export function useCollection<T = any>(
           if (q.path) {
             path = q.path;
           } else if (q.type === 'collection') {
-             // For standard collection group queries in many SDK versions
-             path = `[Group Query: ${q.path || 'unknown'}]`;
+             path = `[Group Query: ${q.path || 'collection'}]`;
           } else if (q._query?.path) {
             path = `[Group Query: ${q._query.path.segments.join('/') || 'query'}]`;
+          } else if (q.query && q.query.path) {
+             path = `[Group Query: ${q.query.path.segments.join('/') || 'query'}]`;
           }
         } catch (e) {
           path = 'collection_group_query';
