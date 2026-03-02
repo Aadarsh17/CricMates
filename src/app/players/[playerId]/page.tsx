@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Flag, Edit2, Loader2, Calendar } from 'lucide-react';
+import { ArrowLeft, Flag, Edit2, Loader2, Calendar, Target, Zap, ShieldCheck } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -135,10 +135,36 @@ export default function PlayerProfilePage() {
   }, [allDeliveries, allMatches, player, allTeams, isMounted, playerId]);
 
   const historyStats = useMemo(() => {
-    const stats = { runs: 0, wickets: 0, careerCVP: 0, matchesPlayed: 0 };
+    const stats = {
+      runs: 0, ballsFaced: 0, fours: 0, sixes: 0,
+      wickets: 0, ballsBowled: 0, runsConceded: 0, maidens: 0,
+      catches: 0, stumpings: 0, runOuts: 0,
+      careerCVP: 0, matchesPlayed: 0,
+      inningsBatted: 0, inningsBowled: 0,
+      highestScore: 0
+    };
     matchWiseLog.forEach(log => {
+      // Batting
       stats.runs += log.batting.runs;
+      stats.ballsFaced += log.batting.ballsFaced;
+      stats.fours += log.batting.fours;
+      stats.sixes += log.batting.sixes;
+      if (log.batting.ballsFaced > 0) stats.inningsBatted += 1;
+      if (log.batting.runs > stats.highestScore) stats.highestScore = log.batting.runs;
+
+      // Bowling
       stats.wickets += log.bowling.wickets;
+      stats.ballsBowled += log.bowling.ballsBowled;
+      stats.runsConceded += log.bowling.runsConceded;
+      stats.maidens += log.bowling.maidens;
+      if (log.bowling.ballsBowled > 0) stats.inningsBowled += 1;
+
+      // Fielding
+      stats.catches += log.fielding.catches;
+      stats.stumpings += log.fielding.stumpings;
+      stats.runOuts += log.fielding.runOuts;
+
+      // General
       stats.careerCVP += log.totalCVP;
       stats.matchesPlayed += 1;
     });
@@ -208,12 +234,79 @@ export default function PlayerProfilePage() {
         </TabsContent>
 
         <TabsContent value="career stats" className="p-0">
-           <Table><TableBody>{[
-             { label: 'Total Matches', value: historyStats.matchesPlayed },
-             { label: 'Total Runs', value: historyStats.runs },
-             { label: 'Total Wickets', value: historyStats.wickets },
-             { label: 'Average CVP', value: historyStats.matchesPlayed > 0 ? (historyStats.careerCVP / historyStats.matchesPlayed).toFixed(2) : '0.00' },
-           ].map((row, idx) => (<TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}><TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 uppercase tracking-tighter">{row.label}</TableCell><TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell></TableRow>))}</TableBody></Table>
+          <Tabs defaultValue="batting" className="w-full">
+            <div className="bg-slate-50 border-b">
+              <TabsList className="bg-transparent h-10 flex justify-start gap-2 p-0 w-full overflow-x-auto scrollbar-hide">
+                {['Batting', 'Bowling', 'Fielding'].map((tab) => (
+                  <TabsTrigger key={tab} value={tab.toLowerCase()} className="text-slate-500 font-black data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none px-6 h-full uppercase text-[10px] tracking-widest">
+                    {tab}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+
+            <TabsContent value="batting" className="p-0">
+              <Table>
+                <TableBody>
+                  {[
+                    { label: 'Innings Batted', value: historyStats.inningsBatted },
+                    { label: 'Total Runs', value: historyStats.runs },
+                    { label: 'Balls Faced', value: historyStats.ballsFaced },
+                    { label: 'Highest Score', value: historyStats.highestScore },
+                    { label: 'Batting Average', value: historyStats.inningsBatted > 0 ? (historyStats.runs / historyStats.inningsBatted).toFixed(2) : '0.00' },
+                    { label: 'Strike Rate', value: historyStats.ballsFaced > 0 ? ((stats.runs / stats.ballsFaced) * 100).toFixed(2) : '0.00' },
+                    { label: 'Fours', value: historyStats.fours },
+                    { label: 'Sixes', value: historyStats.sixes },
+                  ].map((row, idx) => (
+                    <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                      <TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell>
+                      <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+
+            <TabsContent value="bowling" className="p-0">
+              <Table>
+                <TableBody>
+                  {[
+                    { label: 'Innings Bowled', value: historyStats.inningsBowled },
+                    { label: 'Wickets', value: historyStats.wickets },
+                    { label: 'Runs Conceded', value: historyStats.runsConceded },
+                    { label: 'Balls Bowled', value: historyStats.ballsBowled },
+                    { label: 'Overs Bowled', value: `${Math.floor(historyStats.ballsBowled / 6)}.${historyStats.ballsBowled % 6}` },
+                    { label: 'Maidens', value: historyStats.maidens },
+                    { label: 'Economy Rate', value: historyStats.ballsBowled >= 6 ? (historyStats.runsConceded / (historyStats.ballsBowled / 6)).toFixed(2) : '0.00' },
+                    { label: 'Bowling Average', value: historyStats.wickets > 0 ? (historyStats.runsConceded / historyStats.wickets).toFixed(2) : 'N/A' },
+                  ].map((row, idx) => (
+                    <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                      <TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell>
+                      <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+
+            <TabsContent value="fielding" className="p-0">
+              <Table>
+                <TableBody>
+                  {[
+                    { label: 'Catches', value: historyStats.catches },
+                    { label: 'Stumpings', value: historyStats.stumpings },
+                    { label: 'Run Outs', value: historyStats.runOuts },
+                    { label: 'Total Dismissals', value: historyStats.catches + historyStats.stumpings + historyStats.runOuts },
+                  ].map((row, idx) => (
+                    <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                      <TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell>
+                      <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
       </Tabs>
 
