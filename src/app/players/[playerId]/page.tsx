@@ -44,6 +44,9 @@ export default function PlayerProfilePage() {
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
 
+  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
+  const { data: allTeams } = useCollection(allTeamsQuery);
+
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
 
@@ -152,7 +155,7 @@ export default function PlayerProfilePage() {
       strikeRate: stats.ballsFaced > 0 ? ((stats.runs / stats.ballsFaced) * 100).toFixed(2) : '0.00',
       economy: stats.ballsBowled > 0 ? (stats.runsConceded / (stats.ballsBowled / 6)).toFixed(2) : '0.00'
     };
-  }, [battingDeliveries, bowlingDeliveries, fieldingActions, playerId]);
+  }, [battingDeliveries, bowlingDeliveries, fieldingActions]);
 
   const matchWiseLog = useMemo(() => {
     const logs: Record<string, any> = {};
@@ -160,9 +163,13 @@ export default function PlayerProfilePage() {
     const getLog = (mId: string) => {
       if (!logs[mId]) {
         const m = allMatches?.find(match => match.id === mId);
+        const playerTeamId = player?.teamId;
+        const opponentTeamId = m?.team1Id === playerTeamId ? m?.team2Id : m?.team1Id;
+        const opponentTeam = allTeams?.find(t => t.id === opponentTeamId);
+
         logs[mId] = {
           matchId: mId,
-          matchName: m ? 'Match' : 'Unknown',
+          matchName: opponentTeam ? `vs ${opponentTeam.name}` : 'League Match',
           date: m?.matchDate || '',
           batting: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0 },
           bowling: { wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0 },
@@ -227,7 +234,7 @@ export default function PlayerProfilePage() {
         }
       };
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [battingDeliveries, bowlingDeliveries, fieldingActions, allMatches]);
+  }, [battingDeliveries, bowlingDeliveries, fieldingActions, allMatches, player?.teamId, allTeams]);
 
   const headToHead = useMemo(() => {
     if (!comparePlayerId) return null;
@@ -368,7 +375,7 @@ export default function PlayerProfilePage() {
                     {matchWiseLog.length > 0 ? matchWiseLog.map((log, idx) => (
                        <TableRow key={log.matchId} className="hover:bg-slate-50">
                           <TableCell className="py-3">
-                             <p className="text-[10px] font-black truncate max-w-[100px]">vs Opponent</p>
+                             <p className="text-[10px] font-black truncate max-w-[100px]">{log.matchName}</p>
                              <div className="flex items-center gap-1 text-[8px] text-slate-400 font-bold uppercase">
                                 <Calendar className="w-2.5 h-2.5" />
                                 {log.date ? new Date(log.date).toLocaleDateString('en-GB') : '---'}

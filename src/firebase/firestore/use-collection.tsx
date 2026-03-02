@@ -66,17 +66,16 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        let path: string = 'root_or_group_query';
+        let path: string = 'collection_group_query';
         try {
           const q = memoizedTargetRefOrQuery as any;
-          // Robust path extraction for both regular and group queries
+          // Attempt to extract meaningful path info for both collection group and standard queries
           if (q.path) {
             path = q.path;
-          } else if (q.type === 'query' || q._query) {
-            // For collection group queries, the target is often just the collection name
-            path = `[Group Query: ${q.type || 'collection'}]`;
-          } else {
-            path = 'collection_group_query';
+          } else if (q._query) {
+            path = `[Group Query: ${q._query.path?.segments?.join('/') || 'query'}]`;
+          } else if (q.type) {
+            path = `[Group Query: ${q.type}]`;
           }
         } catch (e) {
           path = 'collection_group_query';
