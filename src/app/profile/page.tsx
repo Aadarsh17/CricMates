@@ -1,10 +1,10 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, useUser, setDocumentNonBlocking } from '@/firebase';
 import { doc } from 'firebase/firestore';
+import { updatePassword } from 'firebase/auth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ShieldCheck, User, Camera, Save, ArrowLeft, Loader2, Sparkles, Upload } from 'lucide-react';
+import { ShieldCheck, User, Camera, Save, ArrowLeft, Loader2, Sparkles, Upload, KeyRound, Lock, CheckCircle2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
 
@@ -25,11 +25,14 @@ export default function UmpireProfilePage() {
 
   const [isMounted, setIsMounted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     style: 'Elite Panel',
     imageUrl: ''
   });
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   useEffect(() => {
     setIsMounted(true);
@@ -94,6 +97,34 @@ export default function UmpireProfilePage() {
     }, 500);
   };
 
+  const handleChangePassword = async () => {
+    if (!user) return;
+    if (!newPassword || newPassword !== confirmPassword) {
+      toast({ title: "Validation Error", description: "Passwords do not match.", variant: "destructive" });
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast({ title: "Too Short", description: "Password must be at least 6 characters.", variant: "destructive" });
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    try {
+      await updatePassword(user, newPassword);
+      toast({ title: "Password Updated", description: "Your login credentials have been changed successfully." });
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: any) {
+      if (error.code === 'auth/requires-recent-login') {
+        toast({ title: "Session Expired", description: "For security, please sign out and sign back in to change your password.", variant: "destructive" });
+      } else {
+        toast({ title: "Error", description: error.message || "Could not update password.", variant: "destructive" });
+      }
+    } finally {
+      setIsUpdatingPassword(false);
+    }
+  };
+
   if (!isMounted) return null;
 
   if (isUserLoading) return (
@@ -114,8 +145,8 @@ export default function UmpireProfilePage() {
             <h2 className="text-2xl font-black uppercase tracking-tight">Access Restricted</h2>
             <p className="text-slate-500 text-sm font-medium">You must be in Umpire Mode to manage an official profile.</p>
           </div>
-          <Button onClick={() => setRole('umpire')} className="w-full font-black uppercase tracking-widest h-12">
-            Switch to Umpire Mode
+          <Button onClick={() => router.push('/auth')} className="w-full font-black uppercase tracking-widest h-12">
+            Umpire Login
           </Button>
         </CardContent>
       </Card>
@@ -123,7 +154,7 @@ export default function UmpireProfilePage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto pb-24 space-y-6 px-4">
+    <div className="max-w-2xl mx-auto pb-24 space-y-8 px-4">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full">
           <ArrowLeft className="w-6 h-6" />
@@ -135,7 +166,7 @@ export default function UmpireProfilePage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-1 shadow-sm border-none bg-slate-50 overflow-hidden">
+        <Card className="md:col-span-1 shadow-sm border-none bg-slate-50 overflow-hidden h-fit">
           <CardContent className="pt-8 flex flex-col items-center text-center space-y-4">
             <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <Avatar className="w-32 h-32 border-4 border-white shadow-xl rounded-3xl overflow-hidden">
@@ -169,64 +200,92 @@ export default function UmpireProfilePage() {
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-2 shadow-xl border-t-4 border-t-primary">
-          <CardHeader>
-            <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-primary" /> Edit Credentials
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400">Official Name</Label>
-                <Input 
-                  value={formData.name} 
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                  placeholder="Enter your full name"
-                  className="font-bold h-12"
-                />
-              </div>
+        <div className="md:col-span-2 space-y-6">
+          <Card className="shadow-xl border-t-4 border-t-primary">
+            <CardHeader>
+              <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" /> Edit Credentials
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Official Name</Label>
+                  <Input 
+                    value={formData.name} 
+                    onChange={e => setFormData({...formData, name: e.target.value})}
+                    placeholder="Enter your full name"
+                    className="font-bold h-12"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400">Officiating Style</Label>
-                <Select value={formData.style} onValueChange={v => setFormData({...formData, style: v})}>
-                  <SelectTrigger className="font-bold h-12">
-                    <SelectValue placeholder="Select Style" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Elite Panel" className="font-bold">Elite Panel</SelectItem>
-                    <SelectItem value="State Level" className="font-bold">State Level</SelectItem>
-                    <SelectItem value="Club Official" className="font-bold">Club Official</SelectItem>
-                    <SelectItem value="Gully Specialist" className="font-bold">Gully Specialist</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase text-slate-400">Avatar Photo</Label>
-                <div className="flex gap-2">
-                  <Button variant="outline" className="flex-1 h-12 font-bold" onClick={() => fileInputRef.current?.click()}>
-                    <Upload className="w-4 h-4 mr-2" /> Upload from Device
-                  </Button>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Officiating Style</Label>
+                  <Select value={formData.style} onValueChange={v => setFormData({...formData, style: v})}>
+                    <SelectTrigger className="font-bold h-12">
+                      <SelectValue placeholder="Select Style" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Elite Panel" className="font-bold">Elite Panel</SelectItem>
+                      <SelectItem value="State Level" className="font-bold">State Level</SelectItem>
+                      <SelectItem value="Club Official" className="font-bold">Club Official</SelectItem>
+                      <SelectItem value="Gully Specialist" className="font-bold">Gully Specialist</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            </div>
 
-            <Button 
-              onClick={handleSave} 
-              disabled={isSaving}
-              className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-lg transform hover:scale-[1.02] transition-all"
-            >
-              {isSaving ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
-              ) : (
-                <>
-                  <Save className="w-6 h-6 mr-2" /> Commit Profile
-                </>
-              )}
-            </Button>
-          </CardContent>
-        </Card>
+              <Button 
+                onClick={handleSave} 
+                disabled={isSaving}
+                className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-lg"
+              >
+                {isSaving ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Save className="w-6 h-6 mr-2" /> Commit Changes</>}
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-xl border-t-4 border-t-secondary">
+            <CardHeader>
+              <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                <Lock className="w-4 h-4 text-secondary" /> Security & Access
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">New Password</Label>
+                  <Input 
+                    type="password"
+                    value={newPassword} 
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="Min 6 characters"
+                    className="font-bold h-12"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Confirm Password</Label>
+                  <Input 
+                    type="password"
+                    value={confirmPassword} 
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    placeholder="Repeat new password"
+                    className="font-bold h-12"
+                  />
+                </div>
+              </div>
+
+              <Button 
+                variant="secondary"
+                onClick={handleChangePassword} 
+                disabled={isUpdatingPassword || !newPassword}
+                className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-lg"
+              >
+                {isUpdatingPassword ? <Loader2 className="w-6 h-6 animate-spin" /> : <><CheckCircle2 className="w-6 h-6 mr-2" /> Update Password</>}
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

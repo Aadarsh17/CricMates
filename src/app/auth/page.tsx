@@ -1,22 +1,26 @@
-
 "use client"
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/firebase';
-import { initiateEmailSignIn, initiateEmailSignUp } from '@/firebase/non-blocking-login';
+import { initiateEmailSignIn, initiateEmailSignUp, initiatePasswordReset } from '@/firebase/non-blocking-login';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Trophy, ArrowRight, Loader2 } from 'lucide-react';
+import { ShieldCheck, Trophy, ArrowRight, Loader2, KeyRound } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isResetLoading, setIsResetLoading] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [isResetOpen, setIsResetOpen] = useState(false);
+
   const auth = useAuth();
   const router = useRouter();
 
@@ -35,14 +39,30 @@ export default function AuthPage() {
       initiateEmailSignUp(auth, email, password);
     }
 
-    // Since these are non-blocking, we rely on the FirebaseProvider 
-    // to detect the auth state change and update the app.
-    // We'll give it a moment then redirect.
+    // Rely on FirebaseProvider to detect auth state change
     setTimeout(() => {
       setIsLoading(false);
-      router.push('/');
-      toast({ title: isLogin ? "Welcome Back!" : "Account Created", description: "You now have official officiating access." });
+      // We don't force redirect here, the layout handles auth state
+      toast({ title: isLogin ? "Welcome Back!" : "Account Created", description: "Verifying credentials..." });
     }, 1500);
+  };
+
+  const handleForgotPassword = async () => {
+    if (!auth || !resetEmail) {
+      toast({ title: "Error", description: "Please enter your email address.", variant: "destructive" });
+      return;
+    }
+
+    setIsResetLoading(true);
+    try {
+      await initiatePasswordReset(auth, resetEmail);
+      toast({ title: "Email Sent", description: "Check your inbox for password reset instructions." });
+      setIsResetOpen(false);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Could not send reset email.", variant: "destructive" });
+    } finally {
+      setIsResetLoading(false);
+    }
   };
 
   return (
@@ -79,7 +99,18 @@ export default function AuthPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Password</Label>
+              <div className="flex justify-between items-center">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Password</Label>
+                {isLogin && (
+                  <button 
+                    type="button"
+                    onClick={() => setIsResetOpen(true)}
+                    className="text-[10px] font-black uppercase text-primary hover:underline"
+                  >
+                    Forgot Password?
+                  </button>
+                )}
+              </div>
               <Input 
                 type="password" 
                 placeholder="••••••••" 
@@ -115,6 +146,40 @@ export default function AuthPage() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={isResetOpen} onOpenChange={setIsResetOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-primary">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-widest text-primary flex items-center gap-2">
+              <KeyRound className="w-5 h-5" /> Reset Password
+            </DialogTitle>
+            <DialogDescription className="font-medium">
+              We'll send a recovery link to your official email address.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Official Email</Label>
+              <Input 
+                type="email" 
+                placeholder="name@official.com" 
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                className="h-12 font-bold"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              onClick={handleForgotPassword} 
+              className="w-full h-12 font-black uppercase tracking-widest"
+              disabled={isResetLoading}
+            >
+              {isResetLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Send Reset Link"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="bg-slate-50 p-4 rounded-xl border border-dashed text-center">
         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest leading-relaxed">
