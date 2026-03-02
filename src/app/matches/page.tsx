@@ -2,7 +2,7 @@
 'use client';
 
 import { useCollection, useMemoFirebase, useFirestore, useDoc, deleteDocumentNonBlocking, useUser, updateDocumentNonBlocking } from '@/firebase';
-import { collection, query, orderBy, doc, getDocs } from 'firebase/firestore';
+import { collection, query, orderBy, doc, getDocs, deleteDoc } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -51,27 +51,32 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
   const executeDeepDelete = async () => {
     if (isDeleting) return;
     setIsDeleting(true);
-    toast({ title: "Deleting Match", description: "Cleaning up history and delivery records..." });
+    toast({ title: "Deleting Match", description: "Purging historical delivery records..." });
 
     try {
-      // 1. Delete all delivery records for both potential innings
+      // 1. Fetch and delete every delivery record associated with this match
+      // We do this inning by inning to ensure completeness
       const innIds = ['inning_1', 'inning_2'];
       for (const innId of innIds) {
         const deliveriesRef = collection(db, 'matches', match.id, 'innings', innId, 'deliveryRecords');
         const dSnap = await getDocs(deliveriesRef);
-        dSnap.docs.forEach(dDoc => deleteDocumentNonBlocking(dDoc.ref));
+        
+        // Sequentially delete delivery records for maximum consistency
+        for (const dDoc of dSnap.docs) {
+          await deleteDoc(dDoc.ref);
+        }
         
         // 2. Delete the inning document itself
-        deleteDocumentNonBlocking(doc(db, 'matches', match.id, 'innings', innId));
+        await deleteDoc(doc(db, 'matches', match.id, 'innings', innId));
       }
 
-      // 3. Finally delete the match record
-      deleteDocumentNonBlocking(doc(db, 'matches', match.id));
+      // 3. Finally delete the match record itself
+      await deleteDoc(doc(db, 'matches', match.id));
       
-      toast({ title: "Match Deleted", description: "All associated data removed from history." });
-    } catch (e) {
+      toast({ title: "Match Deep-Deleted", description: "History and rankings updated instantly." });
+    } catch (e: any) {
       console.error(e);
-      toast({ title: "Delete Failed", description: "Could not remove all associated records.", variant: "destructive" });
+      toast({ title: "Delete Failed", description: e.message || "Permission issue or network error.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
@@ -190,7 +195,10 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
                   <AlertDialogContent className="max-w-[90vw] sm:max-w-md">
                     <AlertDialogHeader>
                       <AlertDialogTitle>Deep Delete this Match?</AlertDialogTitle>
-                      <AlertDialogDescription>This will remove the match, its innings, and every ball-by-ball record permanently. All player stats and rankings will be recalculated instantly.</AlertDialogDescription>
+                      <AlertDialogDescription>
+                        This will permanently remove the match, its innings, and <strong>all ball-by-ball delivery records</strong>. 
+                        Player runs, wickets, and CVP scores across the entire application will be recalculated instantly.
+                      </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                       <AlertDialogCancel>Cancel</AlertDialogCancel>

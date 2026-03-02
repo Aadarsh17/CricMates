@@ -73,6 +73,7 @@ export function useCollection<T = any>(
             path = q.path;
           } else {
             // For group queries, extract the collection ID if possible
+            // This provides clearer diagnostic info in the permission error overlay
             path = `[Collection Group: ${q._query?.path?.segments?.join('/') || 'deliveryRecords'}]`;
           }
         } catch (e) {
