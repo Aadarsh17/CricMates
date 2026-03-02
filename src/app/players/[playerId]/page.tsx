@@ -29,6 +29,7 @@ export default function PlayerProfilePage() {
   const router = useRouter();
   const { isUmpire } = useApp();
 
+  const [isMounted, setIsMounted] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [comparePlayerId, setComparePlayerId] = useState<string>('');
   const [editForm, setEditForm] = useState({
@@ -38,7 +39,14 @@ export default function PlayerProfilePage() {
     isWicketKeeper: false
   });
 
-  const playerRef = useMemoFirebase(() => playerId ? doc(db, 'players', playerId) : null, [db, playerId]);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const playerRef = useMemoFirebase(() => {
+    if (!db || !playerId) return null;
+    return doc(db, 'players', playerId);
+  }, [db, playerId]);
   const { data: player, isLoading: isPlayerLoading } = useDoc(playerRef);
 
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
@@ -52,27 +60,27 @@ export default function PlayerProfilePage() {
 
   // Group Queries with strict playerId guard
   const battingQuery = useMemoFirebase(() => {
-    if (!db || !playerId) return null;
+    if (!db || !playerId || !isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId));
-  }, [db, playerId]);
+  }, [db, playerId, isMounted]);
   const { data: battingDeliveries, isLoading: isBattingLoading } = useCollection(battingQuery);
 
   const bowlingQuery = useMemoFirebase(() => {
-    if (!db || !playerId) return null;
+    if (!db || !playerId || !isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId));
-  }, [db, playerId]);
+  }, [db, playerId, isMounted]);
   const { data: bowlingDeliveries, isLoading: isBowlingLoading } = useCollection(bowlingQuery);
 
   const dismissalQuery = useMemoFirebase(() => {
-    if (!db || !playerId) return null;
+    if (!db || !playerId || !isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'), where('batsmanOutPlayerId', '==', playerId));
-  }, [db, playerId]);
+  }, [db, playerId, isMounted]);
   const { data: dismissals, isLoading: isDismissalLoading } = useCollection(dismissalQuery);
 
   const fielderQuery = useMemoFirebase(() => {
-    if (!db || !playerId) return null;
+    if (!db || !playerId || !isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'), where('fielderPlayerId', '==', playerId));
-  }, [db, playerId]);
+  }, [db, playerId, isMounted]);
   const { data: fieldingActions } = useCollection(fielderQuery);
 
   useEffect(() => {
@@ -171,6 +179,7 @@ export default function PlayerProfilePage() {
   }, [battingDeliveries, bowlingDeliveries, fieldingActions]);
 
   const matchWiseLog = useMemo(() => {
+    if (!isMounted || !player) return [];
     const logs: Record<string, any> = {};
 
     const getLog = (mId: string) => {
@@ -247,10 +256,10 @@ export default function PlayerProfilePage() {
         }
       };
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [battingDeliveries, bowlingDeliveries, fieldingActions, allMatches, player?.teamId, allTeams, player]);
+  }, [battingDeliveries, bowlingDeliveries, fieldingActions, allMatches, player, allTeams, isMounted]);
 
   const headToHead = useMemo(() => {
-    if (!comparePlayerId) return null;
+    if (!comparePlayerId || !isMounted) return null;
     const vsStats = { asBatter: { runs: 0, balls: 0, outs: 0 }, asBowler: { runs: 0, balls: 0, wickets: 0 } };
     battingDeliveries?.forEach(d => {
       if (d.bowlerPlayerId === comparePlayerId) {
@@ -267,7 +276,7 @@ export default function PlayerProfilePage() {
       }
     });
     return vsStats;
-  }, [comparePlayerId, battingDeliveries, bowlingDeliveries, playerId]);
+  }, [comparePlayerId, battingDeliveries, bowlingDeliveries, playerId, isMounted]);
 
   const careerCVP = useMemo(() => {
     return matchWiseLog.reduce((acc, curr) => acc + curr.cvp.total, 0);
@@ -280,7 +289,7 @@ export default function PlayerProfilePage() {
     toast({ title: "Profile Updated" });
   };
 
-  const isLoading = isPlayerLoading || isBattingLoading || isBowlingLoading || isDismissalLoading;
+  const isLoading = !isMounted || isPlayerLoading || isBattingLoading || isBowlingLoading || isDismissalLoading;
 
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">

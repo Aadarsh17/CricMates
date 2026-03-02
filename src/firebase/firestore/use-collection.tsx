@@ -77,7 +77,8 @@ export function useCollection<T = any>(
           } else if (q.query && q.query.path) {
              path = `[Query: ${q.query.path.segments.join('/') || 'unknown'}]`;
           } else if (q._query && q._query.path) {
-             path = `[Group Query: ${q._query.path.segments.join('/') || 'unknown'}]`;
+             const segments = q._query.path.segments || [];
+             path = `[Group Query: ${segments.join('/') || 'unknown'}]`;
           }
         } catch (e) {
           path = 'collection_group_query';
