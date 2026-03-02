@@ -73,7 +73,8 @@ export function useCollection<T = any>(
           if (q.path) {
             path = q.path;
           } else if (q._query && q._query.path) {
-            path = `[Group Query: ${q._query.path.lastSegment()}]`;
+            // For collection group queries, extracting segments is environment-specific
+            path = `[Group Query: ${q._query.path.segments?.join('/') || 'collection'}]`;
           } else {
             path = 'collection_group_query';
           }

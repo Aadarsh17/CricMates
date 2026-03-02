@@ -209,6 +209,7 @@ export default function MatchScoreboardPage() {
 
   const isCurrentInningFinished = useMemo(() => {
     if (!match || !activeInningData) return false;
+    // Strict comparison to avoid floating overage
     return activeInningData.oversCompleted >= match.totalOvers || activeInningData.wickets >= 10;
   }, [match, activeInningData]);
 
@@ -336,6 +337,12 @@ export default function MatchScoreboardPage() {
   const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none') => {
     if (!match || !activeInningData || !isUmpire) return;
 
+    // GUARD: Prevent extra balls if inning is already finished
+    if (isCurrentInningFinished) {
+      toast({ title: "Inning Complete", description: "Start 2nd innings or finalize match.", variant: "destructive" });
+      return;
+    }
+
     if (!activeInningData.strikerPlayerId || !activeInningData.nonStrikerPlayerId || !activeInningData.currentBowlerPlayerId) {
       setIsPlayerAssignmentOpen(true);
       toast({ title: "Assignments Missing", description: "Select Striker, Non-Striker, and Bowler first.", variant: "destructive" });
@@ -456,7 +463,7 @@ export default function MatchScoreboardPage() {
     const currentInningId = `inning_${match?.currentInningNumber || 1}`;
     batch.update(doc(db, 'matches', matchId, 'innings', currentInningId), {
       strikerPlayerId: editForm.strikerId === 'none' ? '' : editForm.strikerId,
-      nonStrikerPlayerId: editForm.nonStrikerId === 'none' ? '' : editForm.nonStrikerId,
+      nonStrikerId: editForm.nonStrikerId === 'none' ? '' : editForm.nonStrikerId,
       currentBowlerPlayerId: editForm.bowlerId === 'none' ? '' : editForm.bowlerId
     });
     await batch.commit();
