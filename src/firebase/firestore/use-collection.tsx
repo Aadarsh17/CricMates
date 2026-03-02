@@ -73,11 +73,11 @@ export function useCollection<T = any>(
           if (q.path) {
             path = q.path;
           } else if (q.type === 'collection') {
-             path = `[Group Query: ${q.path || 'collection'}]`;
-          } else if (q._query?.path) {
-            path = `[Group Query: ${q._query.path.segments.join('/') || 'query'}]`;
+             path = `[Collection: ${q.id || 'unknown'}]`;
           } else if (q.query && q.query.path) {
-             path = `[Group Query: ${q.query.path.segments.join('/') || 'query'}]`;
+             path = `[Query: ${q.query.path.segments.join('/') || 'unknown'}]`;
+          } else if (q._query && q._query.path) {
+             path = `[Group Query: ${q._query.path.segments.join('/') || 'unknown'}]`;
           }
         } catch (e) {
           path = 'collection_group_query';

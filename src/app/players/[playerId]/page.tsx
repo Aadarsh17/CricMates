@@ -38,7 +38,7 @@ export default function PlayerProfilePage() {
     isWicketKeeper: false
   });
 
-  const playerRef = useMemoFirebase(() => doc(db, 'players', playerId), [db, playerId]);
+  const playerRef = useMemoFirebase(() => playerId ? doc(db, 'players', playerId) : null, [db, playerId]);
   const { data: player, isLoading: isPlayerLoading } = useDoc(playerRef);
 
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
@@ -50,16 +50,29 @@ export default function PlayerProfilePage() {
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
 
-  const battingQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId)), [db, playerId]);
+  // Group Queries with strict playerId guard
+  const battingQuery = useMemoFirebase(() => {
+    if (!db || !playerId) return null;
+    return query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId));
+  }, [db, playerId]);
   const { data: battingDeliveries, isLoading: isBattingLoading } = useCollection(battingQuery);
 
-  const bowlingQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId)), [db, playerId]);
+  const bowlingQuery = useMemoFirebase(() => {
+    if (!db || !playerId) return null;
+    return query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId));
+  }, [db, playerId]);
   const { data: bowlingDeliveries, isLoading: isBowlingLoading } = useCollection(bowlingQuery);
 
-  const dismissalQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('batsmanOutPlayerId', '==', playerId)), [db, playerId]);
+  const dismissalQuery = useMemoFirebase(() => {
+    if (!db || !playerId) return null;
+    return query(collectionGroup(db, 'deliveryRecords'), where('batsmanOutPlayerId', '==', playerId));
+  }, [db, playerId]);
   const { data: dismissals, isLoading: isDismissalLoading } = useCollection(dismissalQuery);
 
-  const fielderQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords'), where('fielderPlayerId', '==', playerId)), [db, playerId]);
+  const fielderQuery = useMemoFirebase(() => {
+    if (!db || !playerId) return null;
+    return query(collectionGroup(db, 'deliveryRecords'), where('fielderPlayerId', '==', playerId));
+  }, [db, playerId]);
   const { data: fieldingActions } = useCollection(fielderQuery);
 
   useEffect(() => {
@@ -234,7 +247,7 @@ export default function PlayerProfilePage() {
         }
       };
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [battingDeliveries, bowlingDeliveries, fieldingActions, allMatches, player?.teamId, allTeams]);
+  }, [battingDeliveries, bowlingDeliveries, fieldingActions, allMatches, player?.teamId, allTeams, player]);
 
   const headToHead = useMemo(() => {
     if (!comparePlayerId) return null;
