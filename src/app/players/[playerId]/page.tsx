@@ -131,7 +131,9 @@ export default function PlayerProfilePage() {
           stats.matchesPlayed.add(mId);
         }
       });
-      Object.values(matchWickets).forEach(wkts => if (wkts >= 3) stats.threeWktHauls += 1);
+      Object.values(matchWickets).forEach(wkts => {
+        if (wkts >= 3) stats.threeWktHauls += 1;
+      });
     }
 
     if (fieldingActions) {
@@ -403,7 +405,7 @@ export default function PlayerProfilePage() {
                        </div>
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <Card className="bg-primary/5 border-primary/20 shadow-none"><CardHeader className="p-4 pb-0"><CardTitle className="text-[10px] font-black uppercase text-primary tracking-widest flex items-center gap-2"><Target className="w-3 h-3" /> When Batting vs {comparePlayer?.name?.split(' ')[0]}</CardTitle></CardHeader><CardContent className="p-4 pt-4"><div className="grid grid-cols-3 gap-2 text-center"><div><p className="text-[8px] font-black text-slate-400 uppercase">Runs</p><p className="text-xl font-black text-primary">{headToHead.asBatter.runs}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase">Balls</p><p className="text-xl font-black text-primary">{headToHead.asBatter.balls}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase">Outs</p><p className="text-xl font-black text-destructive">{headToHead.asBatter.outs}</p></div></div></CardContent></Card>
-                          <Card className="bg-secondary/5 border-secondary/20 shadow-none"><CardHeader className="p-4 pb-0"><CardTitle className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-2"><Target className="w-3 h-3" /> When Bowling to {comparePlayer?.name?.split(' ')[0]}</CardTitle></CardHeader><CardContent className="p-4 pt-4"><div className="grid grid-cols-3 gap-2 text-center"><div><p className="text-[8px] font-black text-slate-400 uppercase">Runs</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.runs}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase">Balls</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.balls}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase">Wkts</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.wickets}</p></div></div></CardContent></Card>
+                          <Card className="bg-secondary/5 border-secondary/20 shadow-none"><CardHeader className="p-4 pb-0"><CardTitle className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-2"><Target className="w-3 h-3" /> When Bowling to {comparePlayer?.name?.split(' ')[0]}</CardTitle></CardHeader><CardContent className="p-4 pt-4"><div className="grid grid-cols-3 gap-2 text-center"><div><p className="text-[8px] font-black text-slate-400 uppercase">Runs</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.runs}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase">Balls</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.balls}</p></div><div><p className="text-[8px] font-black text-secondary uppercase">Wkts</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.wickets}</p></div></div></CardContent></Card>
                        </div>
                     </div>
                  ) : (
