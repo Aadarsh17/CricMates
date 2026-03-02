@@ -58,7 +58,7 @@ export default function PlayerProfilePage() {
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
 
-  // Group Queries with strict playerId guard and isMounted check
+  // Group Queries with strict playerId guard
   const battingQuery = useMemoFirebase(() => {
     if (!db || !playerId || !isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId));
@@ -87,72 +87,6 @@ export default function PlayerProfilePage() {
       });
     }
   }, [player]);
-
-  const historyStats = useMemo(() => {
-    const stats = {
-      runs: 0, ballsFaced: 0, fours: 0, sixes: 0,
-      battingInnings: new Set<string>(), matchesPlayed: new Set<string>(),
-      fifties: 0, hundreds: 0, wickets: 0, ballsBowled: 0, runsConceded: 0,
-      bowlingInnings: new Set<string>(), maidens: 0, threeWktHauls: 0,
-      catches: 0, stumpings: 0, runOuts: 0
-    };
-
-    if (battingDeliveries) {
-      const matchRuns: Record<string, number> = {};
-      battingDeliveries.forEach(d => {
-        stats.runs += d.runsScored || 0;
-        if (d.extraType !== 'wide') stats.ballsFaced += 1;
-        if (d.runsScored === 4) stats.fours += 1;
-        if (d.runsScored === 6) stats.sixes += 1;
-        const mId = d.__fullPath?.split('/')[1];
-        if (mId) {
-          stats.battingInnings.add(mId);
-          stats.matchesPlayed.add(mId);
-          matchRuns[mId] = (matchRuns[mId] || 0) + (d.runsScored || 0);
-        }
-      });
-      Object.values(matchRuns).forEach(runs => {
-        if (runs >= 100) stats.hundreds += 1;
-        else if (runs >= 50) stats.fifties += 1;
-      });
-    }
-
-    if (bowlingDeliveries) {
-      const matchWickets: Record<string, number> = {};
-      bowlingDeliveries.forEach(d => {
-        stats.runsConceded += d.totalRunsOnDelivery || 0;
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') stats.ballsBowled += 1;
-        if (d.isWicket && d.dismissalType !== 'runout') {
-           stats.wickets += 1;
-           const mId = d.__fullPath?.split('/')[1];
-           if (mId) matchWickets[mId] = (matchWickets[mId] || 0) + 1;
-        }
-        const mId = d.__fullPath?.split('/')[1];
-        if (mId) {
-          stats.bowlingInnings.add(mId);
-          stats.matchesPlayed.add(mId);
-        }
-      });
-      Object.values(matchWickets).forEach(wkts => { if (wkts >= 3) stats.threeWktHauls += 1; });
-    }
-
-    if (fieldingActions) {
-      fieldingActions.forEach(d => {
-        if (d.dismissalType === 'caught') stats.catches += 1;
-        if (d.dismissalType === 'stumped') stats.stumpings += 1;
-        if (d.dismissalType === 'runout') stats.runOuts += 1;
-      });
-    }
-
-    return {
-      ...stats,
-      battingInningsCount: stats.battingInnings.size,
-      bowlingInningsCount: stats.bowlingInnings.size,
-      matchesPlayedCount: stats.matchesPlayed.size,
-      strikeRate: stats.ballsFaced > 0 ? ((stats.runs / stats.ballsFaced) * 100).toFixed(2) : '0.00',
-      economy: stats.ballsBowled > 0 ? (stats.runsConceded / (stats.ballsBowled / 6)).toFixed(2) : '0.00'
-    };
-  }, [battingDeliveries, bowlingDeliveries, fieldingActions]);
 
   const matchWiseLog = useMemo(() => {
     if (!isMounted || !player) return [];
@@ -225,7 +159,48 @@ export default function PlayerProfilePage() {
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [battingDeliveries, bowlingDeliveries, fieldingActions, allMatches, player, allTeams, isMounted]);
 
-  const careerCVP = useMemo(() => matchWiseLog.reduce((acc, curr) => acc + curr.cvp.total, 0), [matchWiseLog]);
+  const historyStats = useMemo(() => {
+    const stats = {
+      runs: 0, ballsFaced: 0, fours: 0, sixes: 0,
+      battingInnings: 0, matchesPlayed: 0,
+      fifties: 0, hundreds: 0, wickets: 0, ballsBowled: 0, runsConceded: 0,
+      bowlingInnings: 0, maidens: 0, threeWktHauls: 0,
+      catches: 0, stumpings: 0, runOuts: 0, careerCVP: 0
+    };
+
+    matchWiseLog.forEach(log => {
+      stats.matchesPlayed += 1;
+      stats.careerCVP += log.cvp.total;
+      
+      if (log.batting.ballsFaced > 0) {
+        stats.battingInnings += 1;
+        stats.runs += log.batting.runs;
+        stats.ballsFaced += log.batting.ballsFaced;
+        stats.fours += log.batting.fours;
+        stats.sixes += log.batting.sixes;
+        if (log.batting.runs >= 100) stats.hundreds += 1;
+        else if (log.batting.runs >= 50) stats.fifties += 1;
+      }
+
+      if (log.bowling.ballsBowled > 0) {
+        stats.bowlingInnings += 1;
+        stats.wickets += log.bowling.wickets;
+        stats.ballsBowled += log.bowling.ballsBowled;
+        stats.runsConceded += log.bowling.runsConceded;
+        if (log.bowling.wickets >= 3) stats.threeWktHauls += 1;
+      }
+
+      stats.catches += log.fielding.catches;
+      stats.stumpings += log.fielding.stumpings;
+      stats.runOuts += log.fielding.runOuts;
+    });
+
+    return {
+      ...stats,
+      strikeRate: stats.ballsFaced > 0 ? ((stats.runs / stats.ballsFaced) * 100).toFixed(2) : '0.00',
+      economy: stats.ballsBowled > 0 ? (stats.runsConceded / (stats.ballsBowled / 6)).toFixed(2) : '0.00'
+    };
+  }, [matchWiseLog]);
 
   const headToHead = useMemo(() => {
     if (!comparePlayerId || !isMounted) return null;
@@ -283,8 +258,8 @@ export default function PlayerProfilePage() {
         <div className="flex items-end gap-6 pb-2">
            <Avatar className="w-24 h-24 border-4 border-white/20 rounded-2xl shadow-xl shrink-0 overflow-hidden"><AvatarImage src={player.imageUrl} className="object-cover" /><AvatarFallback className="text-3xl font-black bg-white/10 text-white/50">{player.name[0]}</AvatarFallback></Avatar>
            <div className="flex-1 grid grid-cols-2 gap-2 mb-2">
-              <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">Career CVP</p><p className="text-xl font-black">{careerCVP.toFixed(1)}</p></div>
-              <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">Matches</p><p className="text-xl font-black">{historyStats.matchesPlayedCount}</p></div>
+              <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">Career CVP</p><p className="text-xl font-black">{historyStats.careerCVP.toFixed(1)}</p></div>
+              <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">Matches</p><p className="text-xl font-black">{historyStats.matchesPlayed}</p></div>
            </div>
         </div>
       </div>
@@ -308,7 +283,7 @@ export default function PlayerProfilePage() {
 
         <TabsContent value="batting" className="p-0">
            <Table><TableBody>{[
-             { label: 'Innings', value: historyStats.battingInningsCount },
+             { label: 'Innings', value: historyStats.battingInnings },
              { label: 'Runs Scored', value: historyStats.runs },
              { label: 'Balls Faced', value: historyStats.ballsFaced },
              { label: 'Strike Rate', value: historyStats.strikeRate },
@@ -319,7 +294,7 @@ export default function PlayerProfilePage() {
 
         <TabsContent value="bowling" className="p-0">
            <Table><TableBody>{[
-             { label: 'Innings', value: historyStats.bowlingInningsCount },
+             { label: 'Innings', value: historyStats.bowlingInnings },
              { label: 'Wickets', value: historyStats.wickets },
              { label: 'Balls Bowled', value: historyStats.ballsBowled },
              { label: 'Runs Conceded', value: historyStats.runsConceded },

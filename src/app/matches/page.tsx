@@ -54,23 +54,21 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
     toast({ title: "Deleting Match", description: "Purging historical delivery records..." });
 
     try {
-      // 1. Fetch and delete every delivery record associated with this match
-      // We do this inning by inning to ensure completeness
       const innIds = ['inning_1', 'inning_2'];
       for (const innId of innIds) {
         const deliveriesRef = collection(db, 'matches', match.id, 'innings', innId, 'deliveryRecords');
         const dSnap = await getDocs(deliveriesRef);
         
-        // Sequentially delete delivery records for maximum consistency
+        // Ensure all deliveries are deleted first
         for (const dDoc of dSnap.docs) {
           await deleteDoc(dDoc.ref);
         }
         
-        // 2. Delete the inning document itself
+        // Then delete the inning
         await deleteDoc(doc(db, 'matches', match.id, 'innings', innId));
       }
 
-      // 3. Finally delete the match record itself
+      // Finally delete the match record itself
       await deleteDoc(doc(db, 'matches', match.id));
       
       toast({ title: "Match Deep-Deleted", description: "History and rankings updated instantly." });

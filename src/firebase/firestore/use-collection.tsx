@@ -73,8 +73,9 @@ export function useCollection<T = any>(
             path = q.path;
           } else {
             // For group queries, extract the collection ID if possible
-            // This provides clearer diagnostic info in the permission error overlay
-            path = `[Collection Group: ${q._query?.path?.segments?.join('/') || 'deliveryRecords'}]`;
+            // Use segments to find the collection name for clearer error reporting
+            const segments = q._query?.path?.segments;
+            path = `[Collection Group: ${segments ? segments.join('/') : 'deliveryRecords'}]`;
           }
         } catch (e) {
           path = 'history_records';
