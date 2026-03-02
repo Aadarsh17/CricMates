@@ -2,7 +2,7 @@
 'use client';
 
 import { useCollection, useMemoFirebase, useFirestore, useDoc, useUser } from '@/firebase';
-import { collection, query, orderBy, doc, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,36 +32,37 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
   };
 
   /**
-   * SEQUENTIAL DEEP DELETE
-   * Purges all ball-by-ball delivery records from history.
+   * ROBUST SEQUENTIAL DEEP DELETE
+   * Purges all ball-by-ball records before removing the match.
    */
   const executeDeepDelete = async () => {
     if (isDeleting) return;
     setIsDeleting(true);
-    toast({ title: "Deep Purging Data...", description: "Removing all history records." });
+    toast({ title: "Purging History...", description: "Removing all sub-records for this match." });
 
     try {
       const innings = ['inning_1', 'inning_2'];
+      
       for (const innId of innings) {
         const deliveriesRef = collection(db, 'matches', match.id, 'innings', innId, 'deliveryRecords');
         const deliveriesSnapshot = await getDocs(deliveriesRef);
         
-        // Sequential deletion to guarantee Firestore completes the purge
+        // Delete all delivery records sequentially to ensure completion
         for (const docSnapshot of deliveriesSnapshot.docs) {
           await deleteDoc(docSnapshot.ref);
         }
         
-        // Delete the inning document
+        // Delete the inning document itself
         await deleteDoc(doc(db, 'matches', match.id, 'innings', innId));
       }
 
-      // Delete the match document
+      // Finally delete the match metadata
       await deleteDoc(doc(db, 'matches', match.id));
       
-      toast({ title: "Match History Purged", description: "All player stats have been updated globally." });
+      toast({ title: "Match Deleted", description: "History has been permanently updated." });
     } catch (e: any) {
-      console.error("Deep Delete Failed:", e);
-      toast({ title: "Purge Error", description: "Failed to remove all sub-records.", variant: "destructive" });
+      console.error("Purge Failed:", e);
+      toast({ title: "Deletion Error", description: "Failed to remove all records.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
@@ -95,7 +96,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
           {isUmpire && (
             <AlertDialog>
               <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive" disabled={isDeleting}><Trash2 className="w-4 h-4" /></Button></AlertDialogTrigger>
-              <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Match Permanently?</AlertDialogTitle><AlertDialogDescription>This will purge the match and <strong>ALL historical delivery records</strong>. Player career stats will update instantly.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={executeDeepDelete} className="bg-destructive">Confirm Purge</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+              <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Match Permanently?</AlertDialogTitle><AlertDialogDescription>This will purge the match and <strong>ALL associated history records</strong>. Global rankings will update instantly.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={executeDeepDelete} className="bg-destructive">Confirm Purge</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
             </AlertDialog>
           )}
         </div>

@@ -21,7 +21,7 @@ export default function RankingsPage() {
     setIsMounted(true);
   }, []);
 
-  const playersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
+  const playersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: players = [] } = useCollection(playersQuery);
 
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
@@ -95,6 +95,7 @@ export default function RankingsPage() {
     
     const pStats: Record<string, any> = {};
     
+    // Initialize stats for ALL players (to ensure 0s show if no history)
     players.forEach(p => {
       pStats[p.id] = { 
         id: p.id, name: p.name, role: p.role, imageUrl: p.imageUrl,
@@ -105,6 +106,7 @@ export default function RankingsPage() {
       };
     });
 
+    // Aggregate stats only if deliveries exist
     allDeliveries.forEach(d => {
       const sId = d.strikerPlayerId;
       const bId = d.bowlerPlayerId;
@@ -138,10 +140,10 @@ export default function RankingsPage() {
       matchCount: ps.matchesPlayed.size,
       cvp: calculatePlayerCVP({ ...ps } as any)
     })).sort((a, b) => {
+      if (b.cvp !== a.cvp) return b.cvp - a.cvp;
       if (b.runs !== a.runs) return b.runs - a.runs;
-      if (b.wickets !== a.wickets) return b.wickets - a.wickets;
-      return b.cvp - a.cvp;
-    }).slice(0, 50);
+      return b.wickets - a.wickets;
+    });
   }, [players, allDeliveries]);
 
   if (!isMounted) return null;
@@ -167,37 +169,39 @@ export default function RankingsPage() {
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Career Statistics...</p>
             </div>
-          ) : topPlayers.some(p => p.cvp > 0) ? (
+          ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                {topPlayers.filter(p => p.cvp > 0).slice(0, 3).map((player, idx) => (
-                  <Link key={player.id} href={`/players/${player.id}`}>
-                    <Card className={`relative overflow-hidden border-t-4 hover:shadow-lg transition-all cursor-pointer h-full ${idx === 0 ? 'border-t-secondary scale-105 shadow-xl bg-secondary/5' : 'border-t-primary'}`}>
-                      {idx === 0 && <Badge className="absolute top-2 right-2 bg-secondary text-white font-black text-[9px] uppercase">League Leader</Badge>}
-                      <CardHeader className="text-center">
-                         <div className="mx-auto bg-slate-100 rounded-full w-20 h-20 flex items-center justify-center mb-2 overflow-hidden border-2 border-white shadow-inner">
-                          {player.imageUrl ? <img src={player.imageUrl} className="w-full h-full object-cover" /> : <UserCircle className="w-10 h-10 text-slate-300" />}
-                        </div>
-                        <CardTitle className="text-xl font-black text-slate-900 group-hover:text-primary">{player.name}</CardTitle>
-                        <CardDescription className="font-black text-[10px] uppercase tracking-tighter text-slate-400">{player.role}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="text-center pb-8">
-                         <div className="flex justify-center gap-6">
-                            <div>
-                               <p className="text-3xl font-black text-primary">{player.runs || 0}</p>
-                               <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Runs</p>
-                            </div>
-                            <div className="w-px bg-slate-100" />
-                            <div>
-                               <p className="text-3xl font-black text-secondary">{player.wickets || 0}</p>
-                               <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Wkts</p>
-                            </div>
-                         </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                ))}
-              </div>
+              {topPlayers.some(p => p.cvp > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                  {topPlayers.filter(p => p.cvp > 0).slice(0, 3).map((player, idx) => (
+                    <Link key={player.id} href={`/players/${player.id}`}>
+                      <Card className={`relative overflow-hidden border-t-4 hover:shadow-lg transition-all cursor-pointer h-full ${idx === 0 ? 'border-t-secondary scale-105 shadow-xl bg-secondary/5' : 'border-t-primary'}`}>
+                        {idx === 0 && <Badge className="absolute top-2 right-2 bg-secondary text-white font-black text-[9px] uppercase">League Leader</Badge>}
+                        <CardHeader className="text-center">
+                           <div className="mx-auto bg-slate-100 rounded-full w-20 h-20 flex items-center justify-center mb-2 overflow-hidden border-2 border-white shadow-inner">
+                            {player.imageUrl ? <img src={player.imageUrl} className="w-full h-full object-cover" /> : <UserCircle className="w-10 h-10 text-slate-300" />}
+                          </div>
+                          <CardTitle className="text-xl font-black text-slate-900 group-hover:text-primary">{player.name}</CardTitle>
+                          <CardDescription className="font-black text-[10px] uppercase tracking-tighter text-slate-400">{player.role}</CardDescription>
+                        </CardHeader>
+                        <CardContent className="text-center pb-8">
+                           <div className="flex justify-center gap-6">
+                              <div>
+                                 <p className="text-3xl font-black text-primary">{player.runs || 0}</p>
+                                 <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Runs</p>
+                              </div>
+                              <div className="w-px bg-slate-100" />
+                              <div>
+                                 <p className="text-3xl font-black text-secondary">{player.wickets || 0}</p>
+                                 <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Wkts</p>
+                              </div>
+                           </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              )}
 
               <Card className="shadow-sm border rounded-xl overflow-hidden">
                 <CardHeader className="bg-slate-50 border-b">
@@ -217,8 +221,8 @@ export default function RankingsPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {topPlayers.filter(p => p.cvp > 0 || p.matchCount > 0).map((player, idx) => (
-                          <TableRow key={player.id} className={idx < 3 ? 'bg-slate-50/30' : ''}>
+                        {topPlayers.map((player, idx) => (
+                          <TableRow key={player.id} className={idx < 3 && player.cvp > 0 ? 'bg-slate-50/30' : ''}>
                             <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
                             <TableCell>
                               <Link href={`/players/${player.id}`} className="font-black text-primary hover:underline text-xs flex items-center gap-2">
@@ -243,11 +247,6 @@ export default function RankingsPage() {
                 </CardContent>
               </Card>
             </>
-          ) : (
-            <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
-              <Star className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-              <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">No match records found in history</p>
-            </div>
           )}
         </TabsContent>
 

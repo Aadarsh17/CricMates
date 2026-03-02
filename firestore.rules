@@ -5,8 +5,8 @@ service cloud.firestore {
 
     /**
      * COLLECTION GROUP: deliveryRecords
-     * Explicitly allowed for all users to enable historical analytics.
-     * This MUST be defined to support group queries across all matches.
+     * Explicitly allowed for all users at the top level to enable historical analytics.
+     * This is critical for collection group queries used in rankings and profiles.
      */
     match /{path=**}/deliveryRecords/{deliveryId} {
       allow read: if true;

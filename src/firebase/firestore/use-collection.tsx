@@ -65,19 +65,21 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        let path: string = 'unknown_query';
+        let path: string = 'unknown_path';
         try {
-          const q = memoizedTargetRefOrQuery as any;
           // Robust path identification for error overlays
+          const q = memoizedTargetRefOrQuery as any;
           if (q.path) {
             path = q.path;
           } else if (q._query && q._query.path) {
             path = `[Collection Group: ${q._query.path.segments.join('/')}]`;
-          } else {
-            path = '[Collection Group: deliveryRecords]';
+          } else if (err.message.includes('collection group')) {
+            // Attempt to extract from error message if possible
+            const match = err.message.match(/collection group "([^"]+)"/);
+            path = match ? `[Collection Group: ${match[1]}]` : '[Collection Group Query]';
           }
         } catch (e) {
-          path = 'delivery_records_group';
+          path = 'collection_group_query';
         }
 
         const contextualError = new FirestorePermissionError({
@@ -86,7 +88,7 @@ export function useCollection<T = any>(
         });
 
         setError(contextualError);
-        setData(null);
+        setData([]); // Return empty list instead of null to prevent some UI crashes
         setIsLoading(false);
 
         errorEmitter.emit('permission-error', contextualError);
