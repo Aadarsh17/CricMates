@@ -9,7 +9,7 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, l
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2, Download, FileText, Share2 } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2, Download, FileText, Share2, Users as UsersIcon } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -815,6 +815,78 @@ export default function MatchScoreboardPage() {
                </Table>
              </CardContent>
            </Card>
+
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card>
+                <CardHeader className="bg-slate-50 p-4 border-b">
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                    <ShieldAlert className="w-3 h-3" /> Fall of Wickets
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-[8px] font-black uppercase">Wkt</TableHead>
+                        <TableHead className="text-[8px] font-black uppercase">Batter</TableHead>
+                        <TableHead className="text-right text-[8px] font-black uppercase">Score</TableHead>
+                        <TableHead className="text-right text-[8px] font-black uppercase">Over</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {currentInningStats.fow.length > 0 ? currentInningStats.fow.map((f: any) => (
+                        <TableRow key={f.wicketNum}>
+                          <TableCell className="text-[10px] font-bold">{f.wicketNum}</TableCell>
+                          <TableCell className="text-[10px] font-bold truncate max-w-[100px]">{getPlayerName(f.playerOutId)}</TableCell>
+                          <TableCell className="text-right text-[10px] font-black text-primary">{f.scoreAtWicket}</TableCell>
+                          <TableCell className="text-right text-[10px] text-slate-400">{f.overs}</TableCell>
+                        </TableRow>
+                      )) : (
+                        <TableRow>
+                          <TableCell colSpan={4} className="text-center py-4 text-[10px] text-slate-400 font-bold uppercase">No wickets fallen</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="bg-slate-50 p-4 border-b">
+                  <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                    <UsersIcon className="w-3 h-3" /> Partnerships
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-[8px] font-black uppercase">Batters</TableHead>
+                        <TableHead className="text-right text-[8px] font-black uppercase">Runs</TableHead>
+                        <TableHead className="text-right text-[8px] font-black uppercase">Balls</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {currentInningStats.partnerships.length > 0 ? currentInningStats.partnerships.map((p: any, idx: number) => (
+                        <TableRow key={idx}>
+                          <TableCell className="text-[10px] font-bold py-3">
+                            <span className="truncate inline-block max-w-[60px]">{getPlayerName(p.batter1Id)}</span> 
+                            <span className="mx-1 text-slate-300">&</span>
+                            <span className="truncate inline-block max-w-[60px]">{getPlayerName(p.batter2Id)}</span>
+                          </TableCell>
+                          <TableCell className="text-right text-[10px] font-black text-secondary">{p.runs}</TableCell>
+                          <TableCell className="text-right text-[10px] text-slate-400">{p.balls}</TableCell>
+                        </TableRow>
+                      )) : (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center py-4 text-[10px] text-slate-400 font-bold uppercase">No data</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+           </div>
         </TabsContent>
 
         <TabsContent value="overs" className="space-y-4 pt-4">
