@@ -39,6 +39,18 @@ export default function RankingsPage() {
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(allDeliveriesQuery);
 
   /**
+   * PLAYER TO TEAM MAPPING
+   * Used for aggregating inning-level stats for NRR.
+   */
+  const playerToTeam = useMemo(() => {
+    const map: Record<string, string> = {};
+    players.forEach(p => {
+      if (p.teamId) map[p.id] = p.teamId;
+    });
+    return map;
+  }, [players]);
+
+  /**
    * GHOST DATA PROTECTION ENGINE
    * Only includes deliveries from matches that currently exist in the database.
    * If a match is deleted, its deliveries are ignored instantly across all leaderboards.
@@ -52,11 +64,16 @@ export default function RankingsPage() {
     });
   }, [rawDeliveries, matches]);
 
+  /**
+   * DYNAMIC POINTS TABLE & NRR CALCULATION
+   * Derived purely from history records for 100% accuracy.
+   */
   const teamStandings = useMemo(() => {
     if (!teams || teams.length === 0) return [];
     
     const standings: Record<string, any> = {};
-    
+    const nrrCalc: Record<string, { runsScored: number, oversFaced: number, runsConceded: number, oversBowled: number }> = {};
+
     teams.forEach(t => {
       standings[t.id] = {
         id: t.id,
@@ -67,10 +84,55 @@ export default function RankingsPage() {
         lost: 0,
         drawn: 0,
         points: 0,
-        nrr: t.netRunRate || 0
+        nrr: 0
       };
+      nrrCalc[t.id] = { runsScored: 0, oversFaced: 0, runsConceded: 0, oversBowled: 0 };
     });
 
+    // Group deliveries into Innings for NRR calculation (to handle professional all-out rule)
+    const matchInnings: Record<string, { runs: number, balls: number, wickets: number, battingTeamId: string, matchId: string }> = {};
+    allDeliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      const innId = d.__fullPath?.split('/')[3];
+      const key = `${matchId}_${innId}`;
+      
+      if (matchId && innId) {
+        if (!matchInnings[key]) {
+          matchInnings[key] = { 
+            runs: 0, 
+            balls: 0, 
+            wickets: 0, 
+            battingTeamId: playerToTeam[d.strikerPlayerId] || '',
+            matchId: matchId 
+          };
+        }
+        matchInnings[key].runs += d.totalRunsOnDelivery || 0;
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') matchInnings[key].balls += 1;
+        if (d.isWicket) matchInnings[key].wickets += 1;
+      }
+    });
+
+    // Aggregate NRR components
+    Object.values(matchInnings).forEach(mi => {
+      const match = matches.find(m => m.id === mi.matchId);
+      if (!match || !mi.battingTeamId) return;
+
+      // Professional NRR Rule: If a team is all out, the full quota of overs is used for the divisor
+      const oversUsed = (mi.wickets >= 10) ? match.totalOvers : (mi.balls / 6);
+      const battingTeamId = mi.battingTeamId;
+      const opponentId = match.team1Id === battingTeamId ? match.team2Id : match.team1Id;
+
+      if (nrrCalc[battingTeamId]) {
+        nrrCalc[battingTeamId].runsScored += mi.runs;
+        nrrCalc[battingTeamId].oversFaced += oversUsed;
+      }
+      if (nrrCalc[opponentId]) {
+        nrrCalc[opponentId].runsConceded += mi.runs;
+        nrrCalc[opponentId].oversBowled += oversUsed;
+      }
+    });
+
+    // Calculate Points, Played, Won, Lost, Drawn
     if (matches && matches.length > 0) {
       matches.filter(m => m.status === 'completed').forEach(m => {
         const t1Id = m.team1Id;
@@ -102,12 +164,22 @@ export default function RankingsPage() {
       });
     }
 
+    // Finalize NRR for each team: (TotalRunsScored / TotalOversFaced) - (TotalRunsConceded / TotalOversBowled)
+    teams.forEach(t => {
+      const nc = nrrCalc[t.id];
+      if (nc) {
+        const forRR = nc.oversFaced > 0 ? nc.runsScored / nc.oversFaced : 0;
+        const againstRR = nc.oversBowled > 0 ? nc.runsConceded / nc.oversBowled : 0;
+        standings[t.id].nrr = forRR - againstRR;
+      }
+    });
+
     return Object.values(standings).sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
       if (b.won !== a.won) return b.won - a.won;
       return b.nrr - a.nrr;
     });
-  }, [teams, matches]);
+  }, [teams, matches, allDeliveries, playerToTeam]);
 
   const topPlayers = useMemo(() => {
     if (!players || players.length === 0) return [];
