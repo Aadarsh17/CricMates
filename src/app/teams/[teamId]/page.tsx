@@ -39,18 +39,28 @@ export default function TeamDetailsPage() {
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
-  const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
-  const { data: allMatches = [] } = useCollection(matchesQuery);
+  const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
+  const { data: allMatches = [] } = useCollection(allMatchesQuery);
 
   const squadDeliveriesQuery = useMemoFirebase(() => {
     if (!isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'));
   }, [db, isMounted]);
-  const { data: allDeliveries, isLoading: isDeliveriesLoading } = useCollection(squadDeliveriesQuery);
+  const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(squadDeliveriesQuery);
 
-  // Calculate team standings for the header badges
+  // GHOST DATA PROTECTION: Filter deliveries by current matches
+  const allDeliveries = useMemo(() => {
+    if (!rawDeliveries || !allMatches) return [];
+    const validMatchIds = new Set(allMatches.map(m => m.id));
+    return rawDeliveries.filter(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      return matchId && validMatchIds.has(matchId);
+    });
+  }, [rawDeliveries, allMatches]);
+
+  // Calculate team standings safely
   const standingsForThisTeam = useMemo(() => {
-    if (!teamId || !allMatches || allMatches.length === 0) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
+    if (!teamId || !allMatches || !allMatches.length) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
     
     let played = 0, won = 0, lost = 0, drawn = 0;
     const teamName = team?.name.toLowerCase() || '';
@@ -105,7 +115,7 @@ export default function TeamDetailsPage() {
   const [h2hTeamId, setH2hTeamId] = useState<string>('');
 
   const h2hStats = useMemo(() => {
-    if (!h2hTeamId || !allMatches || allMatches.length === 0) return null;
+    if (!h2hTeamId || !allMatches || !allMatches.length) return null;
     let played = 0, won = 0, lost = 0, drawn = 0;
     const filtered = allMatches.filter(m => (m.status === 'completed') && ((m.team1Id === teamId && m.team2Id === h2hTeamId) || (m.team1Id === h2hTeamId && m.team2Id === teamId)));
     filtered.forEach(m => {

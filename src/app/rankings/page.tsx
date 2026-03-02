@@ -34,7 +34,17 @@ export default function RankingsPage() {
     if (!isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'));
   }, [db, isMounted]);
-  const { data: allDeliveries, isLoading: isDeliveriesLoading } = useCollection(allDeliveriesQuery);
+  const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(allDeliveriesQuery);
+
+  // GHOST DATA PROTECTION: Only include deliveries from matches that currently exist
+  const allDeliveries = useMemo(() => {
+    if (!rawDeliveries || !matches) return [];
+    const validMatchIds = new Set(matches.map(m => m.id));
+    return rawDeliveries.filter(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      return matchId && validMatchIds.has(matchId);
+    });
+  }, [rawDeliveries, matches]);
 
   const teamStandings = useMemo(() => {
     if (!teams || teams.length === 0) return [];
@@ -98,7 +108,6 @@ export default function RankingsPage() {
     
     const pStats: Record<string, any> = {};
     
-    // Initialize stats for ALL players (ensures 0s if no history)
     players.forEach(p => {
       pStats[p.id] = { 
         id: p.id, name: p.name, role: p.role, imageUrl: p.imageUrl,
@@ -116,21 +125,21 @@ export default function RankingsPage() {
         const sId = d.strikerPlayerId;
         const bId = d.bowlerPlayerId;
         const fId = d.fielderPlayerId;
-        const mId = d.__fullPath?.split('/')[1];
+        const matchId = d.__fullPath?.split('/')[1];
 
         if (pStats[sId]) {
           pStats[sId].runs += d.runsScored || 0;
           if (d.extraType !== 'wide') pStats[sId].ballsFaced += 1;
           if (d.runsScored === 4) pStats[sId].fours += 1;
           if (d.runsScored === 6) pStats[sId].sixes += 1;
-          if (mId) pStats[sId].matchesSeen.add(mId);
+          if (matchId) pStats[sId].matchesSeen.add(matchId);
         }
 
         if (pStats[bId]) {
           pStats[bId].runsConceded += d.totalRunsOnDelivery || 0;
           if (d.extraType !== 'wide' && d.extraType !== 'noball') pStats[bId].ballsBowled += 1;
           if (d.isWicket && d.dismissalType !== 'runout') pStats[bId].wickets += 1;
-          if (mId) pStats[bId].matchesSeen.add(mId);
+          if (matchId) pStats[bId].matchesSeen.add(matchId);
         }
 
         if (fId && pStats[fId]) {
@@ -141,7 +150,6 @@ export default function RankingsPage() {
       });
     }
 
-    // Always calculate CVP even if history is empty (will be 0)
     Object.values(pStats).forEach((ps: any) => {
       ps.matchCount = ps.matchesSeen.size;
       ps.cvp = calculatePlayerCVP(ps as any);
@@ -161,7 +169,7 @@ export default function RankingsPage() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900">Leaderboards</h1>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Calculated from historical match deliveries</p>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Validated Historical Match Analytics</p>
         </div>
       </div>
 

@@ -4,9 +4,8 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * COLLECTION GROUP: deliveryRecords
-     * This MUST be at the top level to ensure collection group queries (rankings, profiles) 
-     * are authorized globally across all match/inning paths.
+     * GLOBAL COLLECTION GROUP: deliveryRecords
+     * Authorized at the top level for global history-based analytics.
      */
     match /{path=**}/deliveryRecords/{deliveryId} {
       allow read: if true;
@@ -23,11 +22,6 @@ service cloud.firestore {
       match /innings/{inningId} {
         allow read: if true;
         allow write: if request.auth != null;
-        
-        match /deliveryRecords/{deliveryId} {
-          allow read: if true;
-          allow write: if request.auth != null;
-        }
       }
     }
 
