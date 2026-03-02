@@ -58,7 +58,7 @@ export default function PlayerProfilePage() {
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
 
-  // Group Queries with strict playerId guard
+  // Group Queries with strict playerId guard and isMounted check
   const battingQuery = useMemoFirebase(() => {
     if (!db || !playerId || !isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId));
@@ -70,12 +70,6 @@ export default function PlayerProfilePage() {
     return query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId));
   }, [db, playerId, isMounted]);
   const { data: bowlingDeliveries, isLoading: isBowlingLoading } = useCollection(bowlingQuery);
-
-  const dismissalQuery = useMemoFirebase(() => {
-    if (!db || !playerId || !isMounted) return null;
-    return query(collectionGroup(db, 'deliveryRecords'), where('batsmanOutPlayerId', '==', playerId));
-  }, [db, playerId, isMounted]);
-  const { data: dismissals, isLoading: isDismissalLoading } = useCollection(dismissalQuery);
 
   const fielderQuery = useMemoFirebase(() => {
     if (!db || !playerId || !isMounted) return null;
@@ -96,23 +90,11 @@ export default function PlayerProfilePage() {
 
   const historyStats = useMemo(() => {
     const stats = {
-      runs: 0,
-      ballsFaced: 0,
-      fours: 0,
-      sixes: 0,
-      battingInnings: new Set<string>(),
-      matchesPlayed: new Set<string>(),
-      fifties: 0,
-      hundreds: 0,
-      wickets: 0,
-      ballsBowled: 0,
-      runsConceded: 0,
-      bowlingInnings: new Set<string>(),
-      maidens: 0,
-      threeWktHauls: 0,
-      catches: 0,
-      stumpings: 0,
-      runOuts: 0
+      runs: 0, ballsFaced: 0, fours: 0, sixes: 0,
+      battingInnings: new Set<string>(), matchesPlayed: new Set<string>(),
+      fifties: 0, hundreds: 0, wickets: 0, ballsBowled: 0, runsConceded: 0,
+      bowlingInnings: new Set<string>(), maidens: 0, threeWktHauls: 0,
+      catches: 0, stumpings: 0, runOuts: 0
     };
 
     if (battingDeliveries) {
@@ -122,10 +104,9 @@ export default function PlayerProfilePage() {
         if (d.extraType !== 'wide') stats.ballsFaced += 1;
         if (d.runsScored === 4) stats.fours += 1;
         if (d.runsScored === 6) stats.sixes += 1;
-        if (d.__fullPath) {
-          const mId = d.__fullPath.split('/')[1];
-          const iId = d.__fullPath.split('/')[3];
-          stats.battingInnings.add(`${mId}-${iId}`);
+        const mId = d.__fullPath?.split('/')[1];
+        if (mId) {
+          stats.battingInnings.add(mId);
           stats.matchesPlayed.add(mId);
           matchRuns[mId] = (matchRuns[mId] || 0) + (d.runsScored || 0);
         }
@@ -143,21 +124,16 @@ export default function PlayerProfilePage() {
         if (d.extraType !== 'wide' && d.extraType !== 'noball') stats.ballsBowled += 1;
         if (d.isWicket && d.dismissalType !== 'runout') {
            stats.wickets += 1;
-           if (d.__fullPath) {
-              const mId = d.__fullPath.split('/')[1];
-              matchWickets[mId] = (matchWickets[mId] || 0) + 1;
-           }
+           const mId = d.__fullPath?.split('/')[1];
+           if (mId) matchWickets[mId] = (matchWickets[mId] || 0) + 1;
         }
-        if (d.__fullPath) {
-          const mId = d.__fullPath.split('/')[1];
-          const iId = d.__fullPath.split('/')[3];
-          stats.bowlingInnings.add(`${mId}-${iId}`);
+        const mId = d.__fullPath?.split('/')[1];
+        if (mId) {
+          stats.bowlingInnings.add(mId);
           stats.matchesPlayed.add(mId);
         }
       });
-      Object.values(matchWickets).forEach(wkts => {
-        if (wkts >= 3) stats.threeWktHauls += 1;
-      });
+      Object.values(matchWickets).forEach(wkts => { if (wkts >= 3) stats.threeWktHauls += 1; });
     }
 
     if (fieldingActions) {
@@ -230,33 +206,26 @@ export default function PlayerProfilePage() {
     });
 
     return Object.values(logs).map(log => {
-      // Calculate breakdown points
       let batPts = log.batting.runs + log.batting.fours + (log.batting.sixes * 2);
       if (log.batting.ballsFaced >= 10) {
         const sr = (log.batting.runs / log.batting.ballsFaced) * 100;
         if (sr > 170) batPts += 6; else if (sr < 50) batPts -= 2;
       }
-
       let bowlPts = log.bowling.wickets * 15;
       if (log.bowling.wickets >= 4) bowlPts += 10; else if (log.bowling.wickets >= 2) bowlPts += 4;
       if (log.bowling.ballsBowled >= 12) {
         const econ = log.bowling.runsConceded / (log.bowling.ballsBowled / 6);
         if (econ < 5) bowlPts += 6; else if (econ <= 6) bowlPts += 4; else if (econ >= 10 && econ <= 11) bowlPts -= 2; else if (econ > 12) bowlPts -= 4;
       }
-
       const fieldPts = (log.fielding.catches + log.fielding.stumpings + log.fielding.runOuts) * 4;
-
       return {
         ...log,
-        cvp: {
-          batting: batPts,
-          bowling: bowlPts,
-          fielding: fieldPts,
-          total: batPts + bowlPts + fieldPts + 1 // +1 for playing XI
-        }
+        cvp: { batting: batPts, bowling: bowlPts, fielding: fieldPts, total: batPts + bowlPts + fieldPts + 1 }
       };
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [battingDeliveries, bowlingDeliveries, fieldingActions, allMatches, player, allTeams, isMounted]);
+
+  const careerCVP = useMemo(() => matchWiseLog.reduce((acc, curr) => acc + curr.cvp.total, 0), [matchWiseLog]);
 
   const headToHead = useMemo(() => {
     if (!comparePlayerId || !isMounted) return null;
@@ -278,10 +247,6 @@ export default function PlayerProfilePage() {
     return vsStats;
   }, [comparePlayerId, battingDeliveries, bowlingDeliveries, playerId, isMounted]);
 
-  const careerCVP = useMemo(() => {
-    return matchWiseLog.reduce((acc, curr) => acc + curr.cvp.total, 0);
-  }, [matchWiseLog]);
-
   const handleUpdateProfile = () => {
     if (!editForm.name.trim()) return;
     updateDocumentNonBlocking(doc(db, 'players', playerId), { name: editForm.name, role: editForm.role, battingStyle: editForm.battingStyle, isWicketKeeper: editForm.isWicketKeeper });
@@ -289,12 +254,12 @@ export default function PlayerProfilePage() {
     toast({ title: "Profile Updated" });
   };
 
-  const isLoading = !isMounted || isPlayerLoading || isBattingLoading || isBowlingLoading || isDismissalLoading;
+  const isLoading = !isMounted || isPlayerLoading || isBattingLoading || isBowlingLoading;
 
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
       <Loader2 className="w-10 h-10 text-primary animate-spin" />
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Syncing Match History...</p>
+      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Syncing Career Statistics...</p>
     </div>
   );
 
@@ -315,12 +280,8 @@ export default function PlayerProfilePage() {
             <div className="flex items-center gap-2 mt-0.5 opacity-70"><Flag className="w-3 h-3" /><span className="text-[10px] font-black uppercase tracking-widest">{player.role}</span></div>
           </div>
         </div>
-        
         <div className="flex items-end gap-6 pb-2">
-           <Avatar className="w-24 h-24 border-4 border-white/20 rounded-2xl shadow-xl shrink-0 overflow-hidden">
-              <AvatarImage src={player.imageUrl || `https://picsum.photos/seed/${playerId}/300`} className="object-cover" />
-              <AvatarFallback className="text-3xl font-black bg-white/10 text-white/50">{player.name[0]}</AvatarFallback>
-           </Avatar>
+           <Avatar className="w-24 h-24 border-4 border-white/20 rounded-2xl shadow-xl shrink-0 overflow-hidden"><AvatarImage src={player.imageUrl} className="object-cover" /><AvatarFallback className="text-3xl font-black bg-white/10 text-white/50">{player.name[0]}</AvatarFallback></Avatar>
            <div className="flex-1 grid grid-cols-2 gap-2 mb-2">
               <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">Career CVP</p><p className="text-xl font-black">{careerCVP.toFixed(1)}</p></div>
               <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">Matches</p><p className="text-xl font-black">{historyStats.matchesPlayedCount}</p></div>
@@ -346,77 +307,41 @@ export default function PlayerProfilePage() {
         </div>
 
         <TabsContent value="batting" className="p-0">
-           <Table>
-              <TableBody>
-                 {[
-                   { label: 'Innings', value: historyStats.battingInningsCount },
-                   { label: 'Runs Scored', value: historyStats.runs },
-                   { label: 'Balls Faced', value: historyStats.ballsFaced },
-                   { label: 'Strike Rate', value: historyStats.strikeRate },
-                   { label: '4s / 6s', value: `${historyStats.fours} / ${historyStats.sixes}` },
-                   { label: '50s / 100s', value: `${historyStats.fifties} / ${historyStats.hundreds}` },
-                 ].map((row, idx) => (
-                    <TableRow key={row.label} className={cn("hover:bg-slate-50", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}>
-                       <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
-                       <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
-                    </TableRow>
-                 ))}
-              </TableBody>
-           </Table>
+           <Table><TableBody>{[
+             { label: 'Innings', value: historyStats.battingInningsCount },
+             { label: 'Runs Scored', value: historyStats.runs },
+             { label: 'Balls Faced', value: historyStats.ballsFaced },
+             { label: 'Strike Rate', value: historyStats.strikeRate },
+             { label: '4s / 6s', value: `${historyStats.fours} / ${historyStats.sixes}` },
+             { label: '50s / 100s', value: `${historyStats.fifties} / ${historyStats.hundreds}` },
+           ].map((row, idx) => (<TableRow key={row.label} className={cn("hover:bg-slate-50", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}><TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell><TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell></TableRow>))}</TableBody></Table>
         </TabsContent>
 
         <TabsContent value="bowling" className="p-0">
-           <Table>
-              <TableBody>
-                 {[
-                   { label: 'Innings', value: historyStats.bowlingInningsCount },
-                   { label: 'Wickets', value: historyStats.wickets },
-                   { label: 'Balls Bowled', value: historyStats.ballsBowled },
-                   { label: 'Runs Conceded', value: historyStats.runsConceded },
-                   { label: 'Economy', value: historyStats.economy },
-                   { label: '3+ Wkt Hauls', value: historyStats.threeWktHauls },
-                 ].map((row, idx) => (
-                    <TableRow key={row.label} className={cn("hover:bg-slate-50", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}>
-                       <TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell>
-                       <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
-                    </TableRow>
-                 ))}
-              </TableBody>
-           </Table>
+           <Table><TableBody>{[
+             { label: 'Innings', value: historyStats.bowlingInningsCount },
+             { label: 'Wickets', value: historyStats.wickets },
+             { label: 'Balls Bowled', value: historyStats.ballsBowled },
+             { label: 'Runs Conceded', value: historyStats.runsConceded },
+             { label: 'Economy', value: historyStats.economy },
+             { label: '3+ Wkt Hauls', value: historyStats.threeWktHauls },
+           ].map((row, idx) => (<TableRow key={row.label} className={cn("hover:bg-slate-50", idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50')}><TableCell className="text-[11px] font-black text-slate-400 py-3.5 pl-4 w-32 uppercase tracking-tighter">{row.label}</TableCell><TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell></TableRow>))}</TableBody></Table>
         </TabsContent>
 
         <TabsContent value="match log" className="p-0">
            <div className="overflow-x-auto">
               <Table>
-                 <TableHeader className="bg-slate-50">
-                    <TableRow>
-                       <TableHead className="text-[9px] font-black uppercase">Match/Date</TableHead>
-                       <TableHead className="text-right text-[9px] font-black uppercase">Bat CVP</TableHead>
-                       <TableHead className="text-right text-[9px] font-black uppercase">Bowl CVP</TableHead>
-                       <TableHead className="text-right text-[9px] font-black uppercase">Field CVP</TableHead>
-                       <TableHead className="text-right text-[9px] font-black uppercase">Total</TableHead>
-                    </TableRow>
-                 </TableHeader>
+                 <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Match/Date</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Bat CVP</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Bowl CVP</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Field CVP</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Total</TableHead></TableRow></TableHeader>
                  <TableBody>
-                    {matchWiseLog.length > 0 ? matchWiseLog.map((log, idx) => (
+                    {matchWiseLog.length > 0 ? matchWiseLog.map((log) => (
                        <TableRow key={log.matchId} className="hover:bg-slate-50">
-                          <TableCell className="py-3">
-                             <p className="text-[10px] font-black truncate max-w-[100px]">{log.matchName}</p>
-                             <div className="flex items-center gap-1 text-[8px] text-slate-400 font-bold uppercase">
-                                <Calendar className="w-2.5 h-2.5" />
-                                {log.date ? new Date(log.date).toLocaleDateString('en-GB') : '---'}
-                             </div>
-                          </TableCell>
+                          <TableCell className="py-3"><p className="text-[10px] font-black truncate max-w-[100px]">{log.matchName}</p><div className="flex items-center gap-1 text-[8px] text-slate-400 font-bold uppercase"><Calendar className="w-2.5 h-2.5" />{log.date ? new Date(log.date).toLocaleDateString('en-GB') : '---'}</div></TableCell>
                           <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.cvp.batting.toFixed(1)}</TableCell>
                           <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.cvp.bowling.toFixed(1)}</TableCell>
                           <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.cvp.fielding.toFixed(1)}</TableCell>
-                          <TableCell className="text-right">
-                             <Badge variant="secondary" className="font-black text-[10px] h-5">{log.cvp.total.toFixed(1)}</Badge>
-                          </TableCell>
+                          <TableCell className="text-right"><Badge variant="secondary" className="font-black text-[10px] h-5">{log.cvp.total.toFixed(1)}</Badge></TableCell>
                        </TableRow>
-                    )) : (
-                       <TableRow><TableCell colSpan={5} className="py-12 text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">No match history found</TableCell></TableRow>
-                    )}
+                    )) : <TableRow><TableCell colSpan={5} className="py-12 text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">No match history</TableCell></TableRow>}
                  </TableBody>
               </Table>
            </div>
@@ -424,7 +349,7 @@ export default function PlayerProfilePage() {
 
         <TabsContent value="comparison" className="p-4 space-y-6">
            <Card className="border-t-4 border-t-secondary shadow-sm">
-              <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-secondary" /> Head-to-Head Engine</CardTitle><CardDescription className="text-[10px] font-bold uppercase">Compare stats vs specific rivals</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><ArrowLeftRight className="w-4 h-4 text-secondary" /> Head-to-Head Engine</CardTitle></CardHeader>
               <CardContent className="space-y-6">
                  <div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Select Rival Player</Label><Select value={comparePlayerId} onValueChange={setComparePlayerId}><SelectTrigger className="font-bold h-12 shadow-sm"><SelectValue placeholder="Choose a player..." /></SelectTrigger><SelectContent>{allPlayers?.filter(p => p.id !== playerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div>
                  {headToHead ? (
@@ -432,18 +357,16 @@ export default function PlayerProfilePage() {
                        <div className="p-6 bg-slate-50 rounded-2xl border flex flex-col items-center gap-6 shadow-inner">
                           <div className="flex items-center justify-between w-full gap-4">
                              <div className="flex flex-col items-center text-center flex-1"><Avatar className="h-16 w-16 mb-2 border-4 border-primary shadow-lg"><AvatarImage src={player.imageUrl}/></Avatar><p className="text-[10px] font-black uppercase text-slate-900 line-clamp-1">{player.name}</p></div>
-                             <div className="flex flex-col items-center"><Zap className="w-8 h-8 text-amber-500 fill-amber-500 animate-pulse" /><span className="text-[10px] font-black text-slate-300 uppercase mt-2">VS</span></div>
+                             <div className="flex flex-col items-center"><Zap className="w-8 h-8 text-amber-500 fill-amber-500" /><span className="text-[10px] font-black text-slate-300 uppercase mt-2">VS</span></div>
                              <div className="flex flex-col items-center text-center flex-1"><Avatar className="h-16 w-16 mb-2 border-4 border-secondary shadow-lg"><AvatarImage src={comparePlayer?.imageUrl}/></Avatar><p className="text-[10px] font-black uppercase text-slate-900 line-clamp-1">{comparePlayer?.name || 'Rival'}</p></div>
                           </div>
                        </div>
                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <Card className="bg-primary/5 border-primary/20 shadow-none"><CardHeader className="p-4 pb-0"><CardTitle className="text-[10px] font-black uppercase text-primary tracking-widest flex items-center gap-2"><Target className="w-3 h-3" /> When Batting vs {comparePlayer?.name?.split(' ')[0]}</CardTitle></CardHeader><CardContent className="p-4 pt-4"><div className="grid grid-cols-3 gap-2 text-center"><div><p className="text-[8px] font-black text-slate-400 uppercase">Runs</p><p className="text-xl font-black text-primary">{headToHead.asBatter.runs}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase">Balls</p><p className="text-xl font-black text-primary">{headToHead.asBatter.balls}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase">Outs</p><p className="text-xl font-black text-destructive">{headToHead.asBatter.outs}</p></div></div></CardContent></Card>
-                          <Card className="bg-secondary/5 border-secondary/20 shadow-none"><CardHeader className="p-4 pb-0"><CardTitle className="text-[10px] font-black uppercase text-secondary tracking-widest flex items-center gap-2"><Target className="w-3 h-3" /> When Bowling to {comparePlayer?.name?.split(' ')[0]}</CardTitle></CardHeader><CardContent className="p-4 pt-4"><div className="grid grid-cols-3 gap-2 text-center"><div><p className="text-[8px] font-black text-slate-400 uppercase">Runs</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.runs}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase">Balls</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.balls}</p></div><div><p className="text-[8px] font-black text-secondary uppercase">Wkts</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.wickets}</p></div></div></CardContent></Card>
+                          <Card className="bg-primary/5 border-primary/20"><CardHeader className="p-4 pb-0"><CardTitle className="text-[10px] font-black uppercase text-primary tracking-widest">Batting vs {comparePlayer?.name?.split(' ')[0]}</CardTitle></CardHeader><CardContent className="p-4 pt-4"><div className="grid grid-cols-3 gap-2 text-center"><div><p className="text-[8px] font-black text-slate-400 uppercase">Runs</p><p className="text-xl font-black text-primary">{headToHead.asBatter.runs}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase">Balls</p><p className="text-xl font-black text-primary">{headToHead.asBatter.balls}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase">Outs</p><p className="text-xl font-black text-destructive">{headToHead.asBatter.outs}</p></div></div></CardContent></Card>
+                          <Card className="bg-secondary/5 border-secondary/20"><CardHeader className="p-4 pb-0"><CardTitle className="text-[10px] font-black uppercase text-secondary tracking-widest">Bowling to {comparePlayer?.name?.split(' ')[0]}</CardTitle></CardHeader><CardContent className="p-4 pt-4"><div className="grid grid-cols-3 gap-2 text-center"><div><p className="text-[8px] font-black text-slate-400 uppercase">Runs</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.runs}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase">Balls</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.balls}</p></div><div><p className="text-[8px] font-black text-secondary uppercase">Wkts</p><p className="text-xl font-black text-secondary">{headToHead.asBowler.wickets}</p></div></div></CardContent></Card>
                        </div>
                     </div>
-                 ) : (
-                    <div className="py-12 text-center text-slate-400 text-[10px] font-bold uppercase border-2 border-dashed rounded-xl bg-slate-50/50"><Users className="w-10 h-10 mx-auto mb-3 opacity-20" />Select a player to generate history-based Head-to-Head analytics</div>
-                 )}
+                 ) : <div className="py-12 text-center text-slate-400 text-[10px] font-bold uppercase border-2 border-dashed rounded-xl bg-slate-50/50"><Users className="w-10 h-10 mx-auto mb-3 opacity-20" />Select a player for Head-to-Head analytics</div>}
               </CardContent>
            </Card>
         </TabsContent>

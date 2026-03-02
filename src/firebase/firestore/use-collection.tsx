@@ -66,22 +66,17 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        let path: string = 'collection_group_query';
+        let path: string = 'history_records';
         try {
           const q = memoizedTargetRefOrQuery as any;
-          // Attempt to extract meaningful path info for both collection group and standard queries
           if (q.path) {
             path = q.path;
-          } else if (q.type === 'collection') {
-             path = `[Collection: ${q.id || 'unknown'}]`;
-          } else if (q.query && q.query.path) {
-             path = `[Query: ${q.query.path.segments.join('/') || 'unknown'}]`;
-          } else if (q._query && q._query.path) {
-             const segments = q._query.path.segments || [];
-             path = `[Group Query: ${segments.join('/') || 'unknown'}]`;
+          } else {
+            // For group queries, extract the collection ID if possible
+            path = `[Collection Group: ${q._query?.path?.segments?.join('/') || 'deliveryRecords'}]`;
           }
         } catch (e) {
-          path = 'collection_group_query';
+          path = 'history_records';
         }
 
         const contextualError = new FirestorePermissionError({
