@@ -6,7 +6,7 @@ import { collection, query, where, orderBy, limit, doc } from 'firebase/firestor
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trophy, Activity, Users, ArrowRight, PlayCircle } from 'lucide-react';
+import { Trophy, Activity, Users, ArrowRight, PlayCircle, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 
@@ -49,20 +49,26 @@ export default function Home() {
         />
         <div className="absolute inset-0 bg-primary/70 z-10" />
         <div className="relative z-20 text-white px-4">
-          <Badge className="mb-4 bg-secondary text-white border-none uppercase tracking-widest font-black text-[10px]">
-            {isUmpire ? 'Official Umpire Mode' : 'Professional Scoring Suite'}
+          <Badge className="mb-4 bg-secondary text-white border-none uppercase tracking-widest font-black text-[10px] flex items-center gap-2 mx-auto w-fit">
+            {isUmpire ? <><ShieldCheck className="w-3 h-3" /> Official Umpire Mode</> : 'Professional Scoring Suite'}
           </Badge>
           <h1 className="text-4xl md:text-6xl font-black font-headline mb-4 tracking-tight">
             {isUmpire && umpireProfile?.name ? `Welcome, ${umpireProfile.name}` : 'CricMates ScoresTracker'}
           </h1>
           <p className="text-lg md:text-xl opacity-90 mb-8 max-w-2xl mx-auto font-medium">Ball-by-ball precision, real-time analytics, and comprehensive league management in one place.</p>
           <div className="flex flex-wrap justify-center gap-4">
-            <Button size="lg" className="bg-secondary hover:bg-secondary/90 h-12 px-8 font-black uppercase text-xs tracking-widest" asChild>
+            <Button size="lg" className="bg-secondary hover:bg-secondary/90 h-12 px-8 font-black uppercase text-xs tracking-widest shadow-xl" asChild>
               <Link href="/matches">Match Center</Link>
             </Button>
-            <Button size="lg" variant="outline" className="bg-white/10 border-white hover:bg-white/20 h-12 px-8 font-black uppercase text-xs tracking-widest" asChild>
-              <Link href="/teams">Manage Squads</Link>
-            </Button>
+            {isUmpire ? (
+              <Button size="lg" variant="outline" className="bg-white/10 border-white hover:bg-white/20 h-12 px-8 font-black uppercase text-xs tracking-widest" asChild>
+                <Link href="/match/new">Start New Match</Link>
+              </Button>
+            ) : (
+              <Button size="lg" variant="outline" className="bg-white/10 border-white hover:bg-white/20 h-12 px-8 font-black uppercase text-xs tracking-widest" asChild>
+                <Link href="/teams">Manage Squads</Link>
+              </Button>
+            )}
           </div>
         </div>
       </section>
@@ -100,9 +106,11 @@ export default function Home() {
               <div className="text-center py-12 border-2 border-dashed rounded-xl bg-slate-50/50">
                 <Activity className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No matches are currently active</p>
-                <Button variant="link" asChild className="mt-2 text-primary font-black uppercase text-[10px]">
-                  <Link href="/match/new">Start a match as Umpire</Link>
-                </Button>
+                {isUmpire && (
+                  <Button variant="link" asChild className="mt-2 text-primary font-black uppercase text-[10px]">
+                    <Link href="/match/new">Start a match now</Link>
+                  </Button>
+                )}
               </div>
             )}
           </CardContent>
@@ -148,7 +156,7 @@ export default function Home() {
           { title: 'Squad Hub', desc: 'Manage teams & players', icon: Users, href: '/teams', color: 'bg-blue-500' },
           { title: 'History', desc: 'Archive of past glories', icon: Activity, href: '/matches', color: 'bg-secondary' },
           { title: 'Number Game', desc: 'Casual street cricket', icon: PlayCircle, href: '/number-game', color: 'bg-destructive' },
-          { title: 'New Match', desc: 'Official officiating', icon: PlayCircle, href: '/match/new', color: 'bg-primary' },
+          { title: 'Official', desc: isUmpire ? 'Manage Credentials' : 'Umpire Login', icon: ShieldCheck, href: isUmpire ? '/profile' : '/auth', color: 'bg-primary' },
         ].map((item) => (
           <Link href={item.href} key={item.title} className="group">
             <Card className="hover:border-primary transition-all cursor-pointer h-full border-b-4 border-b-transparent hover:border-b-primary shadow-sm bg-white">

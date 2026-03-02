@@ -1,37 +1,23 @@
 
 "use client"
 
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { useAuth, useUser, initiateAnonymousSignIn } from '@/firebase';
-
-type UserRole = 'guest' | 'umpire';
+import React, { createContext, useContext, ReactNode } from 'react';
+import { useUser } from '@/firebase';
 
 interface AppContextType {
-  role: UserRole;
-  setRole: (role: UserRole) => void;
   isUmpire: boolean;
+  isLoading: boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [role, setRole] = useState<UserRole>('guest');
-  const auth = useAuth();
-  const { user } = useUser();
-
-  // Automatically sign in anonymously when the role is set to 'umpire'
-  // to ensure Firestore security rules allow writes.
-  useEffect(() => {
-    if (role === 'umpire' && !user && auth) {
-      initiateAnonymousSignIn(auth);
-    }
-  }, [role, user, auth]);
+  const { user, isUserLoading } = useUser();
 
   return (
     <AppContext.Provider value={{
-      role,
-      setRole,
-      isUmpire: role === 'umpire'
+      isUmpire: !!user,
+      isLoading: isUserLoading
     }}>
       {children}
     </AppContext.Provider>

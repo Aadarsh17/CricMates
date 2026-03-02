@@ -3,13 +3,19 @@
 
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { Trophy, Users, LayoutDashboard, ShieldCheck, User, Menu, X, Play, UserCircle, History, UserCog } from 'lucide-react';
+import { useUser, useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
+import { Trophy, Users, LayoutDashboard, ShieldCheck, LogIn, LogOut, Menu, X, Play, UserCircle, History, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 export default function Navbar() {
-  const { setRole, isUmpire } = useApp();
+  const { isUmpire } = useApp();
+  const { user } = useUser();
+  const auth = useAuth();
+  const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
 
   const navLinks = [
@@ -20,6 +26,13 @@ export default function Navbar() {
     { name: 'Rankings', href: '/rankings', icon: Trophy },
     { name: 'Number Game', href: '/number-game', icon: Play },
   ];
+
+  const handleSignOut = async () => {
+    if (auth) {
+      await signOut(auth);
+      router.push('/');
+    }
+  };
 
   return (
     <nav className="bg-primary text-primary-foreground sticky top-0 z-50 shadow-md">
@@ -43,22 +56,35 @@ export default function Navbar() {
             
             <div className="border-l border-primary-foreground/20 h-6 mx-2" />
             
-            {isUmpire && (
-              <Link href="/profile" className="flex items-center space-x-1 hover:text-secondary transition-colors text-sm font-medium">
-                <UserCog className="w-4 h-4" />
-                <span className="hidden lg:inline">Official Profile</span>
-              </Link>
+            {isUmpire ? (
+              <>
+                <Link href="/profile" className="flex items-center space-x-1 hover:text-secondary transition-colors text-sm font-medium">
+                  <UserCog className="w-4 h-4" />
+                  <span className="hidden lg:inline">Profile</span>
+                </Link>
+                <Button 
+                  variant="secondary" 
+                  size="sm"
+                  onClick={handleSignOut}
+                  className="flex items-center space-x-2 ml-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </Button>
+              </>
+            ) : (
+              <Button 
+                variant="outline" 
+                size="sm"
+                asChild
+                className="bg-transparent text-white border-white hover:bg-white/10"
+              >
+                <Link href="/auth">
+                  <LogIn className="w-4 h-4 mr-2" />
+                  <span>Umpire Login</span>
+                </Link>
+              </Button>
             )}
-
-            <Button 
-              variant={isUmpire ? "secondary" : "outline"} 
-              size="sm"
-              onClick={() => setRole(isUmpire ? 'guest' : 'umpire')}
-              className={cn("flex items-center space-x-2 ml-2", !isUmpire && "bg-transparent text-white border-white hover:bg-white/10")}
-            >
-              {isUmpire ? <ShieldCheck className="w-4 h-4" /> : <User className="w-4 h-4" />}
-              <span>{isUmpire ? "Umpire" : "Guest"}</span>
-            </Button>
           </div>
 
           {/* Mobile menu button */}
@@ -97,17 +123,31 @@ export default function Navbar() {
           )}
 
           <div className="pt-2 border-t border-white/20">
-            <Button 
-              variant={isUmpire ? "secondary" : "outline"} 
-              className="w-full justify-start mt-2"
-              onClick={() => {
-                setRole(isUmpire ? 'guest' : 'umpire');
-                setIsOpen(false);
-              }}
-            >
-              {isUmpire ? <ShieldCheck className="w-4 h-4 mr-2" /> : <User className="w-4 h-4 mr-2" />}
-              <span>{isUmpire ? "Switch to Guest" : "Switch to Umpire"}</span>
-            </Button>
+            {isUmpire ? (
+              <Button 
+                variant="secondary" 
+                className="w-full justify-start mt-2"
+                onClick={() => {
+                  handleSignOut();
+                  setIsOpen(false);
+                }}
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                <span>Sign Out</span>
+              </Button>
+            ) : (
+              <Button 
+                variant="outline" 
+                className="w-full justify-start mt-2 bg-transparent text-white border-white hover:bg-white/10"
+                asChild
+                onClick={() => setIsOpen(false)}
+              >
+                <Link href="/auth">
+                  <LogIn className="w-4 h-4 mr-2" />
+                  <span>Umpire Login</span>
+                </Link>
+              </Button>
+            )}
           </div>
         </div>
       )}
