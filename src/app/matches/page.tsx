@@ -1,32 +1,21 @@
 
 'use client';
 
-import { useCollection, useMemoFirebase, useFirestore, useDoc, deleteDocumentNonBlocking, useUser, updateDocumentNonBlocking } from '@/firebase';
+import { useCollection, useMemoFirebase, useFirestore, useDoc, useUser } from '@/firebase';
 import { collection, query, orderBy, doc, getDocs, deleteDoc } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, PlayCircle, History as HistoryIcon, RefreshCcw, Trash2, Edit2, Star, ChevronDown, ChevronUp, Info, Trophy, Download, FileText, Share2 } from 'lucide-react';
+import { Calendar, Trash2, Trophy } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
-import { generateHTMLReport, getExtendedInningStats } from '@/lib/report-utils';
-import { cn } from '@/lib/utils';
 
-function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { match: any, teams: any[], isUmpire: boolean, isMounted: boolean, allPlayers: any[] }) {
+function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, teams: any[], isUmpire: boolean, isMounted: boolean }) {
   const db = useFirestore();
-  const [isEditing, setIsEditing] = useState(false);
-  const [isOpen, setIsOpen] = useState(false);
-  const [editedResult, setEditedResult] = useState(match.resultDescription);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const inn1Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_1'), [db, match.id]);
@@ -44,13 +33,12 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
 
   /**
    * SEQUENTIAL DEEP DELETE
-   * This ensures that every delivery record is purged from Firestore
-   * before the match is removed from the history list.
+   * Purges all ball-by-ball delivery records from history.
    */
   const executeDeepDelete = async () => {
     if (isDeleting) return;
     setIsDeleting(true);
-    toast({ title: "Deep Purging Data...", description: "Removing all ball-by-ball records from history." });
+    toast({ title: "Deep Purging Data...", description: "Removing all history records." });
 
     try {
       const innings = ['inning_1', 'inning_2'];
@@ -58,21 +46,22 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
         const deliveriesRef = collection(db, 'matches', match.id, 'innings', innId, 'deliveryRecords');
         const deliveriesSnapshot = await getDocs(deliveriesRef);
         
-        // Delete each delivery document one by one to ensure completion
-        const deletePromises = deliveriesSnapshot.docs.map(d => deleteDoc(d.ref));
-        await Promise.all(deletePromises);
+        // Sequential deletion to guarantee Firestore completes the purge
+        for (const docSnapshot of deliveriesSnapshot.docs) {
+          await deleteDoc(docSnapshot.ref);
+        }
         
-        // Delete the inning document itself
+        // Delete the inning document
         await deleteDoc(doc(db, 'matches', match.id, 'innings', innId));
       }
 
-      // Finally delete the main match document
+      // Delete the match document
       await deleteDoc(doc(db, 'matches', match.id));
       
-      toast({ title: "Match & History Deleted", description: "All associated player stats have been recalculated." });
+      toast({ title: "Match History Purged", description: "All player stats have been updated globally." });
     } catch (e: any) {
       console.error("Deep Delete Failed:", e);
-      toast({ title: "Delete Error", description: "Failed to purge sub-records.", variant: "destructive" });
+      toast({ title: "Purge Error", description: "Failed to remove all sub-records.", variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
@@ -106,7 +95,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted, allPlayers }: { mat
           {isUmpire && (
             <AlertDialog>
               <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive" disabled={isDeleting}><Trash2 className="w-4 h-4" /></Button></AlertDialogTrigger>
-              <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Match Permanently?</AlertDialogTitle><AlertDialogDescription>This will purge the match and <strong>all its delivery records</strong>. Player stats will be updated globally.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={executeDeepDelete} className="bg-destructive">Confirm Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+              <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Match Permanently?</AlertDialogTitle><AlertDialogDescription>This will purge the match and <strong>ALL historical delivery records</strong>. Player career stats will update instantly.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={executeDeepDelete} className="bg-destructive">Confirm Purge</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
             </AlertDialog>
           )}
         </div>
@@ -134,13 +123,10 @@ export default function MatchHistoryPage() {
   useEffect(() => { setIsMounted(true); }, []);
 
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
-  const { data: matches, isLoading } = useCollection(matchesQuery);
+  const { data: matches } = useCollection(matchesQuery);
 
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: teams = [] } = useCollection(teamsQuery);
-
-  const playersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
-  const { data: allPlayers = [] } = useCollection(playersQuery);
 
   const liveMatches = matches?.filter(m => m.status === 'live') || [];
   const pastMatches = matches?.filter(m => m.status === 'completed') || [];
@@ -156,10 +142,10 @@ export default function MatchHistoryPage() {
           <TabsTrigger value="past" className="font-bold data-[state=active]:bg-white rounded-lg">Completed</TabsTrigger>
         </TabsList>
         <TabsContent value="live" className="space-y-4">
-          {liveMatches.map(match => <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} allPlayers={allPlayers} />)}
+          {liveMatches.map(match => <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)}
         </TabsContent>
         <TabsContent value="past" className="space-y-4">
-          {pastMatches.map(match => <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} allPlayers={allPlayers} />)}
+          {pastMatches.map(match => <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)}
         </TabsContent>
       </Tabs>
     </div>

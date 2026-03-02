@@ -18,19 +18,18 @@ export type WithId<T> = T & { id: string; __fullPath?: string };
 
 /**
  * Interface for the return value of the useCollection hook.
- * @template T Type of the document data.
  */
 export interface UseCollectionResult<T> {
-  data: WithId<T>[] | null; // Document data with ID, or null.
-  isLoading: boolean;       // True if loading.
-  error: FirestoreError | Error | null; // Error object, or null.
+  data: WithId<T>[] | null;
+  isLoading: boolean;
+  error: FirestoreError | Error | null;
 }
 
 /**
  * React hook to subscribe to a Firestore collection or query in real-time.
  */
 export function useCollection<T = any>(
-    memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & {__memo?: boolean, type?: string})  | null | undefined,
+    memoizedTargetRefOrQuery: ((CollectionReference<DocumentData> | Query<DocumentData>) & {__memo?: boolean}) | null | undefined,
 ): UseCollectionResult<T> {
   type ResultItemType = WithId<T>;
   type StateDataType = ResultItemType[] | null;
@@ -66,19 +65,19 @@ export function useCollection<T = any>(
         setIsLoading(false);
       },
       (err: FirestoreError) => {
-        let path: string = 'history_records';
+        let path: string = 'unknown_query';
         try {
           const q = memoizedTargetRefOrQuery as any;
+          // Robust path identification for error overlays
           if (q.path) {
             path = q.path;
+          } else if (q._query && q._query.path) {
+            path = `[Collection Group: ${q._query.path.segments.join('/')}]`;
           } else {
-            // For group queries, extract the collection ID if possible
-            // Use segments to find the collection name for clearer error reporting
-            const segments = q._query?.path?.segments;
-            path = `[Collection Group: ${segments ? segments.join('/') : 'deliveryRecords'}]`;
+            path = '[Collection Group: deliveryRecords]';
           }
         } catch (e) {
-          path = 'history_records';
+          path = 'delivery_records_group';
         }
 
         const contextualError = new FirestorePermissionError({

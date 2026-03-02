@@ -5,11 +5,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, updateDocumentNonBlocking, useCollection } from '@/firebase';
 import { doc, collectionGroup, query, where, collection, orderBy } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Flag, Edit2, ShieldCheck, Star, Info as InfoIcon, Loader2, Trophy, Medal, ArrowLeftRight, Users, Target, Zap, FileText, Calendar } from 'lucide-react';
+import { ArrowLeft, Flag, Edit2, Loader2, Calendar } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -18,9 +18,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useApp } from '@/context/AppContext';
 import { toast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
-import Link from 'next/link';
 
 export default function PlayerProfilePage() {
   const params = useParams();
@@ -31,7 +29,6 @@ export default function PlayerProfilePage() {
 
   const [isMounted, setIsMounted] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
-  const [comparePlayerId, setComparePlayerId] = useState<string>('');
   const [editForm, setEditForm] = useState({
     name: '',
     role: '',
@@ -49,33 +46,18 @@ export default function PlayerProfilePage() {
   }, [db, playerId, isMounted]);
   const { data: player, isLoading: isPlayerLoading } = useDoc(playerRef);
 
-  const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
-  const { data: allPlayers } = useCollection(allPlayersQuery);
-
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
 
-  // GROUP QUERIES: Guaranteed to fetch raw history for calculation
-  const battingQuery = useMemoFirebase(() => {
+  // PURE HISTORY QUERIES: Derives everything from delivery records
+  const historyQuery = useMemoFirebase(() => {
     if (!db || !playerId || !isMounted) return null;
-    return query(collectionGroup(db, 'deliveryRecords'), where('strikerPlayerId', '==', playerId));
+    return query(collectionGroup(db, 'deliveryRecords'));
   }, [db, playerId, isMounted]);
-  const { data: battingDeliveries, isLoading: isBattingLoading } = useCollection(battingQuery);
-
-  const bowlingQuery = useMemoFirebase(() => {
-    if (!db || !playerId || !isMounted) return null;
-    return query(collectionGroup(db, 'deliveryRecords'), where('bowlerPlayerId', '==', playerId));
-  }, [db, playerId, isMounted]);
-  const { data: bowlingDeliveries, isLoading: isBowlingLoading } = useCollection(bowlingQuery);
-
-  const fielderQuery = useMemoFirebase(() => {
-    if (!db || !playerId || !isMounted) return null;
-    return query(collectionGroup(db, 'deliveryRecords'), where('fielderPlayerId', '==', playerId));
-  }, [db, playerId, isMounted]);
-  const { data: fieldingActions } = useCollection(fielderQuery);
+  const { data: allDeliveries, isLoading: isHistoryLoading } = useCollection(historyQuery);
 
   useEffect(() => {
     if (player) {
@@ -88,8 +70,12 @@ export default function PlayerProfilePage() {
     }
   }, [player]);
 
+  /**
+   * RE-CALCULATE MATCH LOG AND TOTALS FROM HISTORY ONLY
+   */
   const matchWiseLog = useMemo(() => {
-    if (!isMounted || !player || !allMatches) return [];
+    if (!isMounted || !player || !allDeliveries || !allMatches) return [];
+    
     const logs: Record<string, any> = {};
 
     const getLog = (mId: string) => {
@@ -97,13 +83,12 @@ export default function PlayerProfilePage() {
         const m = allMatches.find(match => match.id === mId);
         if (!m) return null;
         
-        const playerTeamId = player.teamId;
-        const opponentTeamId = m.team1Id === playerTeamId ? m.team2Id : m.team1Id;
-        const opponentTeam = allTeams?.find(t => t.id === opponentTeamId);
+        const opponentId = m.team1Id === player.teamId ? m.team2Id : m.team1Id;
+        const opponent = allTeams?.find(t => t.id === opponentId);
 
         logs[mId] = {
           matchId: mId,
-          matchName: opponentTeam ? `vs ${opponentTeam.name}` : 'Match',
+          matchName: opponent ? `vs ${opponent.name}` : 'League Match',
           date: m.matchDate || '',
           batting: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0 },
           bowling: { wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0 },
@@ -113,42 +98,41 @@ export default function PlayerProfilePage() {
       return logs[mId];
     };
 
-    battingDeliveries?.forEach(d => {
+    allDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       if (!matchId) return;
-      const log = getLog(matchId);
-      if (!log) return;
-      log.batting.runs += d.runsScored || 0;
-      if (d.extraType !== 'wide') log.batting.ballsFaced += 1;
-      if (d.runsScored === 4) log.batting.fours += 1;
-      if (d.runsScored === 6) log.batting.sixes += 1;
-    });
 
-    bowlingDeliveries?.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      if (!matchId) return;
-      const log = getLog(matchId);
-      if (!log) return;
-      log.bowling.runsConceded += d.totalRunsOnDelivery || 0;
-      if (d.extraType !== 'wide' && d.extraType !== 'noball') log.bowling.ballsBowled += 1;
-      if (d.isWicket && d.dismissalType !== 'runout') log.bowling.wickets += 1;
-    });
+      if (d.strikerPlayerId === playerId) {
+        const log = getLog(matchId);
+        if (!log) return;
+        log.batting.runs += d.runsScored || 0;
+        if (d.extraType !== 'wide') log.batting.ballsFaced += 1;
+        if (d.runsScored === 4) log.batting.fours += 1;
+        if (d.runsScored === 6) log.batting.sixes += 1;
+      }
 
-    fieldingActions?.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      if (!matchId) return;
-      const log = getLog(matchId);
-      if (!log) return;
-      if (d.dismissalType === 'caught') log.fielding.catches += 1;
-      if (d.dismissalType === 'stumped') log.fielding.stumpings += 1;
-      if (d.dismissalType === 'runout') log.fielding.runOuts += 1;
+      if (d.bowlerPlayerId === playerId) {
+        const log = getLog(matchId);
+        if (!log) return;
+        log.bowling.runsConceded += d.totalRunsOnDelivery || 0;
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') log.bowling.ballsBowled += 1;
+        if (d.isWicket && d.dismissalType !== 'runout') log.bowling.wickets += 1;
+      }
+
+      if (d.fielderPlayerId === playerId) {
+        const log = getLog(matchId);
+        if (!log) return;
+        if (d.dismissalType === 'caught') log.fielding.catches += 1;
+        if (d.dismissalType === 'stumped') log.fielding.stumpings += 1;
+        if (d.dismissalType === 'runout') log.fielding.runOuts += 1;
+      }
     });
 
     return Object.values(logs).map(log => {
       const points = calculatePlayerCVP({ ...log.batting, ...log.bowling, ...log.fielding, id: player.id, name: player.name });
       return { ...log, totalCVP: points };
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [battingDeliveries, bowlingDeliveries, fieldingActions, allMatches, player, allTeams, isMounted]);
+  }, [allDeliveries, allMatches, player, allTeams, isMounted, playerId]);
 
   const historyStats = useMemo(() => {
     const stats = { runs: 0, wickets: 0, careerCVP: 0, matchesPlayed: 0 };
@@ -161,22 +145,22 @@ export default function PlayerProfilePage() {
     return stats;
   }, [matchWiseLog]);
 
-  const isLoading = !isMounted || isPlayerLoading || isBattingLoading || isBowlingLoading;
+  const isLoading = !isMounted || isPlayerLoading || isHistoryLoading;
 
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
       <Loader2 className="w-10 h-10 text-primary animate-spin" />
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Calculating Dynamic History...</p>
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Synchronizing Career Data...</p>
     </div>
   );
 
-  if (!player) return <div className="p-20 text-center">Player not found.</div>;
+  if (!player) return <div className="p-20 text-center">Player record missing.</div>;
 
   return (
     <div className="max-w-4xl mx-auto pb-24 px-0 bg-white min-h-screen">
       <div className="bg-primary text-white p-4 pt-8 shadow-inner">
         <div className="flex items-center gap-4 mb-4">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white hover:bg-white/10 shrink-0"><ArrowLeft className="w-6 h-6"/></Button>
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white shrink-0"><ArrowLeft className="w-6 h-6"/></Button>
           <div className="flex-1 min-w-0">
              <div className="flex items-center gap-2">
                 <span className="font-black text-2xl tracking-tighter uppercase truncate">{player.name}</span>
@@ -197,7 +181,7 @@ export default function PlayerProfilePage() {
       <Tabs defaultValue="match log" className="w-full">
         <div className="bg-primary px-2 border-t border-white/10 sticky top-16 z-40 shadow-md">
           <TabsList className="bg-transparent h-12 flex justify-start gap-2 p-0 w-full overflow-x-auto scrollbar-hide">
-            {['Match Log', 'Career Stats', 'Info'].map((tab) => (
+            {['Match Log', 'Career Stats'].map((tab) => (
               <TabsTrigger key={tab} value={tab.toLowerCase()} className="text-white/60 font-black data-[state=active]:text-white data-[state=active]:bg-transparent border-b-4 border-transparent data-[state=active]:border-white rounded-none px-6 h-full uppercase text-[11px] tracking-widest whitespace-nowrap">
                 {tab}
               </TabsTrigger>

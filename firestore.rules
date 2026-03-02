@@ -5,8 +5,7 @@ service cloud.firestore {
 
     /**
      * COLLECTION GROUP: deliveryRecords
-     * Explicitly authorize group queries for ball-by-ball data at any depth.
-     * This is critical for history-based player analytics and rankings.
+     * Authorized for all users to enable historical analytics and rankings.
      */
     match /{path=**}/deliveryRecords/{deliveryId} {
       allow read: if true;
@@ -15,8 +14,7 @@ service cloud.firestore {
 
     /**
      * GLOBAL ACCESS
-     * Allow anyone to read any document. Critical for public leaderboards and scorecards.
-     * Ensure only authenticated users can modify data.
+     * Allow read access to all documents. Write access requires authentication.
      */
     match /{document=**} {
       allow read: if true;
@@ -25,7 +23,7 @@ service cloud.firestore {
 
     /**
      * UMPIRE PROFILES
-     * Specific rule for umpire-only self-management.
+     * Specific rule for umpire-only management.
      */
     match /umpires/{umpireId} {
       allow write: if request.auth != null && request.auth.uid == umpireId;
