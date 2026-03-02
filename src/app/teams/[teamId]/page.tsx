@@ -49,6 +49,28 @@ export default function TeamDetailsPage() {
   }, [db, isMounted]);
   const { data: allDeliveries, isLoading: isDeliveriesLoading } = useCollection(squadDeliveriesQuery);
 
+  // Calculate team standings for the header badges
+  const standingsForThisTeam = useMemo(() => {
+    if (!teamId || !allMatches.length) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
+    
+    let played = 0, won = 0, lost = 0, drawn = 0;
+    const teamName = team?.name.toLowerCase() || '';
+
+    allMatches.filter(m => m.status === 'completed' && (m.team1Id === teamId || m.team2Id === teamId)).forEach(m => {
+      played++;
+      const result = m.resultDescription?.toLowerCase() || '';
+      if (result.includes(teamName) && result.includes('won')) {
+        won++;
+      } else if (result.includes('drawn') || result.includes('tied')) {
+        drawn++;
+      } else {
+        lost++;
+      }
+    });
+
+    return { played, won, lost, drawn, nrr: team?.netRunRate || 0 };
+  }, [allMatches, teamId, team?.name, team?.netRunRate]);
+
   const squadStats = useMemo(() => {
     if (!players || !allDeliveries) return {};
     const stats: Record<string, any> = {};
@@ -143,10 +165,10 @@ export default function TeamDetailsPage() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Wins', value: standingsForThisTeam?.won || 0, icon: Trophy, color: 'text-secondary' },
-          { label: 'Losses', value: standingsForThisTeam?.lost || 0, icon: Activity, color: 'text-destructive' },
-          { label: 'NRR', value: (standingsForThisTeam?.nrr || 0).toFixed(3), icon: HistoryIcon },
-          { label: 'Played', value: standingsForThisTeam?.played || 0, icon: HistoryIcon },
+          { label: 'Wins', value: standingsForThisTeam.won, icon: Trophy, color: 'text-secondary' },
+          { label: 'Losses', value: standingsForThisTeam.lost, icon: Activity, color: 'text-destructive' },
+          { label: 'NRR', value: standingsForThisTeam.nrr.toFixed(3), icon: HistoryIcon },
+          { label: 'Played', value: standingsForThisTeam.played, icon: HistoryIcon },
         ].map((stat, i) => (
           <Card key={i} className="shadow-none border">
             <CardContent className="p-3 flex items-center gap-3">
