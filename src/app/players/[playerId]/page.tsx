@@ -103,9 +103,10 @@ export default function PlayerProfilePage() {
         if (d.extraType !== 'wide') log.batting.ballsFaced += 1;
         if (d.runsScored === 4) log.batting.fours += 1;
         if (d.runsScored === 6) log.batting.sixes += 1;
-        if (d.isWicket && d.batsmanOutPlayerId === playerId) {
-          log.batting.out = true;
-        }
+      }
+
+      if (d.isWicket && d.batsmanOutPlayerId === playerId) {
+        log.batting.out = true;
       }
 
       if (d.bowlerPlayerId === playerId) {
@@ -135,7 +136,8 @@ export default function PlayerProfilePage() {
       careerCVP: 0, matchesPlayed: 0,
       inningsBatted: 0, inningsBowled: 0,
       highestScore: 0,
-      ducks: 0, thirties: 0, fifties: 0, hundreds: 0,
+      ducks: 0, goldenDucks: 0, diamondDucks: 0, totalDucks: 0,
+      thirties: 0, fifties: 0, hundreds: 0,
       twoWkts: 0, threeWkts: 0, fourWkts: 0, fiveWkts: 0,
       bestBowling: { wkts: 0, runs: 0, display: '0/0' }
     };
@@ -146,7 +148,7 @@ export default function PlayerProfilePage() {
       stats.ballsFaced += log.batting.ballsFaced;
       stats.fours += log.batting.fours;
       stats.sixes += log.batting.sixes;
-      if (log.batting.ballsFaced > 0) stats.inningsBatted += 1;
+      if (log.batting.ballsFaced > 0 || log.batting.out) stats.inningsBatted += 1;
       if (log.batting.runs > stats.highestScore) stats.highestScore = log.batting.runs;
       
       // Batting Milestones
@@ -154,7 +156,12 @@ export default function PlayerProfilePage() {
       else if (log.batting.runs >= 50) stats.fifties += 1;
       else if (log.batting.runs >= 30) stats.thirties += 1;
       
-      if (log.batting.runs === 0 && log.batting.out) stats.ducks += 1;
+      if (log.batting.runs === 0 && log.batting.out) {
+        stats.totalDucks += 1;
+        if (log.batting.ballsFaced === 0) stats.diamondDucks += 1;
+        else if (log.batting.ballsFaced === 1) stats.goldenDucks += 1;
+        else stats.ducks += 1;
+      }
 
       // Bowling Stats
       stats.wickets += log.bowling.wickets;
@@ -267,11 +274,11 @@ export default function PlayerProfilePage() {
                     { label: 'Total Runs', value: historyStats.runs },
                     { label: 'Balls Faced', value: historyStats.ballsFaced },
                     { label: 'Highest Score', value: historyStats.highestScore },
-                    { label: 'Batting Average', value: (historyStats.inningsBatted - historyStats.ducks) > 0 ? (historyStats.runs / historyStats.inningsBatted).toFixed(2) : '0.00' },
+                    { label: 'Batting Average', value: (historyStats.inningsBatted - historyStats.totalDucks) > 0 ? (historyStats.runs / (historyStats.inningsBatted - historyStats.totalDucks)).toFixed(2) : historyStats.runs.toFixed(2) },
                     { label: 'Strike Rate', value: historyStats.ballsFaced > 0 ? ((historyStats.runs / historyStats.ballsFaced) * 100).toFixed(2) : '0.00' },
                     { label: 'Fours / Sixes', value: `${historyStats.fours} / ${historyStats.sixes}` },
                     { label: '30s / 50s / 100s', value: `${historyStats.thirties} / ${historyStats.fifties} / ${historyStats.hundreds}` },
-                    { label: 'Ducks', value: historyStats.ducks },
+                    { label: 'Ducks (Reg/Gold/Diam)', value: `${historyStats.ducks} / ${historyStats.goldenDucks} / ${historyStats.diamondDucks}` },
                   ].map((row, idx) => (
                     <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                       <TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell>
