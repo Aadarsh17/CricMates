@@ -44,7 +44,6 @@ export default function NewMatchPage() {
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
 
-  // Handle "Play Again" params
   useEffect(() => {
     const t1 = searchParams.get('t1');
     const t2 = searchParams.get('t2');
@@ -80,6 +79,7 @@ export default function NewMatchPage() {
       team2Id: setup.team2Id,
       team1SquadPlayerIds: finalT1Squad,
       team2SquadPlayerIds: finalT2Squad,
+      commonPlayerId: setup.commonPlayerId !== 'none' ? setup.commonPlayerId : '',
       totalOvers: parseInt(setup.totalOvers),
       status: 'live',
       tossWinnerTeamId: setup.tossWinner,
@@ -112,7 +112,9 @@ export default function NewMatchPage() {
       nonStrikerPlayerId: setup.nonStrikerId,
       currentBowlerPlayerId: setup.bowlerId,
       umpireId: user?.uid || 'anonymous',
-      matchStatus: 'live'
+      matchStatus: 'live',
+      isLastManActive: false,
+      isDeclaredFinished: false
     };
 
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_1'), inningData, { merge: true });
@@ -280,7 +282,7 @@ export default function NewMatchPage() {
                 <Select value={setup.strikerId || undefined} onValueChange={(v) => setSetup({...setup, strikerId: v})}>
                   <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Striker" /></SelectTrigger>
                   <SelectContent>
-                    {battingPlayers.filter(p => p.id !== setup.nonStrikerId).map(p => (
+                    {battingPlayers.filter(p => p.id !== setup.nonStrikerId && p.id !== setup.bowlerId).map(p => (
                       <SelectItem key={p.id} value={p.id} className="font-bold">
                         {p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span>
                         {p.id === setup.commonPlayerId && <span className="text-[8px] text-secondary ml-1">[CP]</span>}
@@ -294,7 +296,7 @@ export default function NewMatchPage() {
                 <Select value={setup.nonStrikerId || undefined} onValueChange={(v) => setSetup({...setup, nonStrikerId: v})}>
                   <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
                   <SelectContent>
-                    {battingPlayers.filter(p => p.id !== setup.strikerId).map(p => (
+                    {battingPlayers.filter(p => p.id !== setup.strikerId && p.id !== setup.bowlerId).map(p => (
                       <SelectItem key={p.id} value={p.id} className="font-bold">
                         {p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span>
                         {p.id === setup.commonPlayerId && <span className="text-[8px] text-secondary ml-1">[CP]</span>}
@@ -309,7 +311,7 @@ export default function NewMatchPage() {
               <Select value={setup.bowlerId || undefined} onValueChange={(v) => setSetup({...setup, bowlerId: v})}>
                 <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Bowler" /></SelectTrigger>
                 <SelectContent>
-                  {bowlingPlayers.map(p => (
+                  {bowlingPlayers.filter(p => p.id !== setup.strikerId && p.id !== setup.nonStrikerId).map(p => (
                     <SelectItem key={p.id} value={p.id} className="font-bold">
                       {p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span>
                       {p.id === setup.commonPlayerId && <span className="text-[8px] text-secondary ml-1">[CP]</span>}

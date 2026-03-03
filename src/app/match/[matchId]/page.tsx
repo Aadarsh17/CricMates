@@ -102,6 +102,8 @@ export default function MatchScoreboardPage() {
   const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || []), [inn1Deliveries]);
   const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || []), [inn2Deliveries]);
 
+  const currentInningStats = activeInningView === 1 ? stats1 : stats2;
+
   const playerCVPList = useMemo(() => {
     if (!allPlayers) return [];
     const playerStats: Record<string, any> = {};
@@ -293,7 +295,6 @@ export default function MatchScoreboardPage() {
       updates.strikerPlayerId = wicketForm.batterOutId === activeInningData.strikerPlayerId ? activeInningData.nonStrikerPlayerId : activeInningData.strikerPlayerId;
       updates.nonStrikerPlayerId = '';
     } else {
-      // Regular replacement
       updates.strikerPlayerId = wicketForm.batterOutId === activeInningData.strikerPlayerId ? '' : activeInningData.strikerPlayerId;
       updates.nonStrikerPlayerId = wicketForm.batterOutId === activeInningData.nonStrikerPlayerId ? '' : activeInningData.nonStrikerPlayerId;
     }
@@ -315,6 +316,7 @@ export default function MatchScoreboardPage() {
       id: 'inning_2', matchId, inningNumber: 2, score: 0, wickets: 0,
       oversCompleted: 0, ballsInCurrentOver: 0,
       battingTeamId: inn1?.bowlingTeamId, bowlingTeamId: inn1?.battingTeamId,
+      strikerPlayerId: '', nonStrikerPlayerId: '', currentBowlerPlayerId: '',
       matchStatus: 'live', isDeclaredFinished: false, isLastManActive: false
     });
     await batch.commit();
@@ -568,11 +570,21 @@ export default function MatchScoreboardPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
                 <Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label>
-                <Select value={activeInningData?.strikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { strikerPlayerId: v })}>
+                <Select 
+                  value={activeInningData?.strikerPlayerId || undefined} 
+                  onValueChange={v => {
+                    const updates: any = { strikerPlayerId: v };
+                    if (v === activeInningData?.currentBowlerPlayerId) updates.currentBowlerPlayerId = '';
+                    updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), updates);
+                  }}
+                >
                   <SelectTrigger className="font-bold"><SelectValue placeholder="Striker" /></SelectTrigger>
                   <SelectContent>
-                    {currentBattingSquad.filter(p => p.id !== activeInningData?.nonStrikerPlayerId).map(p => (
-                      <SelectItem key={p.id} value={p.id} className="font-bold">{p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span></SelectItem>
+                    {currentBattingSquad.filter(p => p.id !== activeInningData?.nonStrikerPlayerId && p.id !== activeInningData?.currentBowlerPlayerId).map(p => (
+                      <SelectItem key={p.id} value={p.id} className="font-bold">
+                        {p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span>
+                        {p.id === match.commonPlayerId && <span className="text-[8px] text-secondary ml-1">[CP]</span>}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -580,11 +592,21 @@ export default function MatchScoreboardPage() {
               {!activeInningData?.isLastManActive && (
                 <div className="space-y-1">
                   <Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label>
-                  <Select value={activeInningData?.nonStrikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { nonStrikerPlayerId: v })}>
+                  <Select 
+                    value={activeInningData?.nonStrikerPlayerId || undefined} 
+                    onValueChange={v => {
+                      const updates: any = { nonStrikerPlayerId: v };
+                      if (v === activeInningData?.currentBowlerPlayerId) updates.currentBowlerPlayerId = '';
+                      updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), updates);
+                    }}
+                  >
                     <SelectTrigger className="font-bold"><SelectValue placeholder="Non-Striker" /></SelectTrigger>
                     <SelectContent>
-                      {currentBattingSquad.filter(p => p.id !== activeInningData?.strikerPlayerId).map(p => (
-                        <SelectItem key={p.id} value={p.id} className="font-bold">{p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span></SelectItem>
+                      {currentBattingSquad.filter(p => p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.currentBowlerPlayerId).map(p => (
+                        <SelectItem key={p.id} value={p.id} className="font-bold">
+                          {p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span>
+                          {p.id === match.commonPlayerId && <span className="text-[8px] text-secondary ml-1">[CP]</span>}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -593,11 +615,22 @@ export default function MatchScoreboardPage() {
             </div>
             <div className="space-y-1">
               <Label className="text-[10px] font-black uppercase text-slate-400">Current Bowler</Label>
-              <Select value={activeInningData?.currentBowlerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: v })}>
+              <Select 
+                value={activeInningData?.currentBowlerPlayerId || undefined} 
+                onValueChange={v => {
+                  const updates: any = { currentBowlerPlayerId: v };
+                  if (v === activeInningData?.strikerPlayerId) updates.strikerPlayerId = '';
+                  if (v === activeInningData?.nonStrikerPlayerId) updates.nonStrikerPlayerId = '';
+                  updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), updates);
+                }}
+              >
                 <SelectTrigger className="font-bold"><SelectValue placeholder="Bowler" /></SelectTrigger>
                 <SelectContent>
-                  {currentBowlingSquad.map(p => (
-                    <SelectItem key={p.id} value={p.id} className="font-bold">{p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span></SelectItem>
+                  {currentBowlingSquad.filter(p => p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId).map(p => (
+                    <SelectItem key={p.id} value={p.id} className="font-bold">
+                      {p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span>
+                      {p.id === match.commonPlayerId && <span className="text-[8px] text-secondary ml-1">[CP]</span>}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
