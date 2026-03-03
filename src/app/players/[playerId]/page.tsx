@@ -1,14 +1,14 @@
 
 "use client"
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, updateDocumentNonBlocking, useCollection } from '@/firebase';
 import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Flag, Edit2, Loader2, Calendar } from 'lucide-react';
+import { ArrowLeft, Flag, Edit2, Loader2, Calendar, Camera, Upload } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -25,6 +25,7 @@ export default function PlayerProfilePage() {
   const db = useFirestore();
   const router = useRouter();
   const { isUmpire } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isMounted, setIsMounted] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -32,7 +33,8 @@ export default function PlayerProfilePage() {
     name: '',
     role: '',
     battingStyle: '',
-    isWicketKeeper: false
+    isWicketKeeper: false,
+    imageUrl: ''
   });
 
   useEffect(() => {
@@ -63,10 +65,55 @@ export default function PlayerProfilePage() {
         name: player.name || '',
         role: player.role || 'Batsman',
         battingStyle: player.battingStyle || 'Right Handed Bat',
-        isWicketKeeper: player.isWicketKeeper || false
+        isWicketKeeper: player.isWicketKeeper || false,
+        imageUrl: player.imageUrl || ''
       });
     }
   }, [player]);
+
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 200;
+          const MAX_HEIGHT = 200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+      };
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const resized = await resizeImage(file);
+      setEditForm(prev => ({ ...prev, imageUrl: resized }));
+      toast({ title: "Photo selected", description: "Save changes to update profile." });
+    }
+  };
 
   const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
 
@@ -143,7 +190,6 @@ export default function PlayerProfilePage() {
     };
 
     matchWiseLog.forEach(log => {
-      // Batting Stats
       stats.runs += log.batting.runs;
       stats.ballsFaced += log.batting.ballsFaced;
       stats.fours += log.batting.fours;
@@ -151,7 +197,6 @@ export default function PlayerProfilePage() {
       if (log.batting.ballsFaced > 0 || log.batting.out) stats.inningsBatted += 1;
       if (log.batting.runs > stats.highestScore) stats.highestScore = log.batting.runs;
       
-      // Batting Milestones
       if (log.batting.runs >= 100) stats.hundreds += 1;
       else if (log.batting.runs >= 50) stats.fifties += 1;
       else if (log.batting.runs >= 30) stats.thirties += 1;
@@ -163,25 +208,21 @@ export default function PlayerProfilePage() {
         else stats.ducks += 1;
       }
 
-      // Bowling Stats
       stats.wickets += log.bowling.wickets;
       stats.ballsBowled += log.bowling.ballsBowled;
       stats.runsConceded += log.bowling.runsConceded;
       stats.maidens += log.bowling.maidens;
       if (log.bowling.ballsBowled > 0) stats.inningsBowled += 1;
 
-      // Bowling Milestones
       if (log.bowling.wickets >= 5) stats.fiveWkts += 1;
       else if (log.bowling.wickets === 4) stats.fourWkts += 1;
       else if (log.bowling.wickets === 3) stats.threeWkts += 1;
       else if (log.bowling.wickets === 2) stats.twoWkts += 1;
 
-      // Best Bowling
       if (log.bowling.wickets > stats.bestBowling.wkts || (log.bowling.wickets === stats.bestBowling.wkts && log.bowling.runsConceded < stats.bestBowling.runs)) {
         stats.bestBowling = { wkts: log.bowling.wickets, runs: log.bowling.runsConceded, display: `${log.bowling.wickets}/${log.bowling.runsConceded}` };
       }
 
-      // General Stats
       stats.catches += log.fielding.catches;
       stats.stumpings += log.fielding.stumpings;
       stats.runOuts += log.fielding.runOuts;
@@ -216,7 +257,17 @@ export default function PlayerProfilePage() {
           </div>
         </div>
         <div className="flex items-end gap-6 pb-2">
-           <Avatar className="w-24 h-24 border-4 border-white/20 rounded-2xl shadow-xl shrink-0 overflow-hidden"><AvatarImage src={player.imageUrl} className="object-cover" /><AvatarFallback className="text-3xl font-black bg-white/10 text-white/50">{player.name[0]}</AvatarFallback></Avatar>
+           <div className="relative group/avatar">
+              <Avatar className="w-24 h-24 border-4 border-white/20 rounded-2xl shadow-xl shrink-0 overflow-hidden">
+                <AvatarImage src={player.imageUrl} className="object-cover" />
+                <AvatarFallback className="text-3xl font-black bg-white/10 text-white/50">{player.name[0]}</AvatarFallback>
+              </Avatar>
+              {isUmpire && (
+                <button onClick={() => setIsEditOpen(true)} className="absolute inset-0 bg-black/40 opacity-0 group-hover/avatar:opacity-100 transition-opacity rounded-2xl flex items-center justify-center">
+                   <Camera className="w-6 h-6 text-white" />
+                </button>
+              )}
+           </div>
            <div className="flex-1 grid grid-cols-2 gap-2 mb-2">
               <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">History CVP</p><p className="text-xl font-black">{historyStats.careerCVP.toFixed(1)}</p></div>
               <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">Matches</p><p className="text-xl font-black">{historyStats.matchesPlayed}</p></div>
@@ -335,7 +386,31 @@ export default function PlayerProfilePage() {
       </Tabs>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-primary"><DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-primary">Edit Player</DialogTitle></DialogHeader><div className="space-y-4 py-4"><div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Full Name</Label><Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="font-bold h-12" /></div><div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Role</Label><Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman">Batsman</SelectItem><SelectItem value="Bowler">Bowler</SelectItem><SelectItem value="All-rounder">All-rounder</SelectItem></SelectContent></Select></div></div><DialogFooter><Button onClick={() => { updateDocumentNonBlocking(playerRef, editForm); setIsEditOpen(false); toast({ title: "Profile Updated" }); }} className="w-full h-12 font-black uppercase tracking-widest">Save Changes</Button></DialogFooter></DialogContent>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-primary">
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-primary">Edit Player</DialogTitle></DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="flex flex-col items-center gap-4">
+               <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                  <Avatar className="w-24 h-24 border-4 border-slate-100 shadow-lg rounded-2xl overflow-hidden">
+                    <AvatarImage src={editForm.imageUrl} className="object-cover" />
+                    <AvatarFallback className="bg-primary text-white text-3xl font-black">{editForm.name?.[0] || '?'}</AvatarFallback>
+                  </Avatar>
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl flex flex-col items-center justify-center text-white">
+                    <Upload className="w-6 h-6 mb-1" />
+                    <span className="text-[8px] font-black uppercase">Upload</span>
+                  </div>
+                  <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+               </div>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Update Photo</p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Full Name</Label><Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="font-bold h-12" /></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Role</Label><Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman">Batsman</SelectItem><SelectItem value="Bowler">Bowler</SelectItem><SelectItem value="All-rounder">All-rounder</SelectItem></SelectContent></Select></div>
+            </div>
+          </div>
+          <DialogFooter><Button onClick={() => { updateDocumentNonBlocking(playerRef, editForm); setIsEditOpen(false); toast({ title: "Profile Updated" }); }} className="w-full h-12 font-black uppercase tracking-widest">Save Changes</Button></DialogFooter>
+        </DialogContent>
       </Dialog>
     </div>
   );
