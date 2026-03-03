@@ -4,12 +4,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, updateDocumentNonBlocking, useCollection } from '@/firebase';
-import { doc, collectionGroup, query, where, collection, orderBy } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Flag, Edit2, Loader2, Calendar, Target, Zap, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Flag, Edit2, Loader2, Calendar } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -52,7 +51,6 @@ export default function PlayerProfilePage() {
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
 
-  // PURE HISTORY QUERIES: Derives everything from delivery records
   const historyQuery = useMemoFirebase(() => {
     if (!db || !playerId || !isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'));
@@ -70,24 +68,24 @@ export default function PlayerProfilePage() {
     }
   }, [player]);
 
-  /**
-   * RE-CALCULATE MATCH LOG AND TOTALS FROM HISTORY ONLY
-   */
   const matchWiseLog = useMemo(() => {
     if (!isMounted || !player || !allDeliveries || !allMatches) return [];
     
     const logs: Record<string, any> = {};
 
-    const getLog = (mId: string) => {
-      if (!logs[mId]) {
-        const m = allMatches.find(match => match.id === mId);
-        if (!m) return null;
+    allDeliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      if (!matchId) return;
+
+      if (!logs[matchId]) {
+        const m = allMatches.find(match => match.id === matchId);
+        if (!m) return;
         
         const opponentId = m.team1Id === player.teamId ? m.team2Id : m.team1Id;
         const opponent = allTeams?.find(t => t.id === opponentId);
 
-        logs[mId] = {
-          matchId: mId,
+        logs[matchId] = {
+          matchId: matchId,
           matchName: opponent ? `vs ${opponent.name}` : 'League Match',
           date: m.matchDate || '',
           batting: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0 },
@@ -95,16 +93,10 @@ export default function PlayerProfilePage() {
           fielding: { catches: 0, stumpings: 0, runOuts: 0 }
         };
       }
-      return logs[mId];
-    };
 
-    allDeliveries.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      if (!matchId) return;
+      const log = logs[matchId];
 
       if (d.strikerPlayerId === playerId) {
-        const log = getLog(matchId);
-        if (!log) return;
         log.batting.runs += d.runsScored || 0;
         if (d.extraType !== 'wide') log.batting.ballsFaced += 1;
         if (d.runsScored === 4) log.batting.fours += 1;
@@ -112,16 +104,12 @@ export default function PlayerProfilePage() {
       }
 
       if (d.bowlerPlayerId === playerId) {
-        const log = getLog(matchId);
-        if (!log) return;
         log.bowling.runsConceded += d.totalRunsOnDelivery || 0;
         if (d.extraType !== 'wide' && d.extraType !== 'noball') log.bowling.ballsBowled += 1;
         if (d.isWicket && d.dismissalType !== 'runout') log.bowling.wickets += 1;
       }
 
       if (d.fielderPlayerId === playerId) {
-        const log = getLog(matchId);
-        if (!log) return;
         if (d.dismissalType === 'caught') log.fielding.catches += 1;
         if (d.dismissalType === 'stumped') log.fielding.stumpings += 1;
         if (d.dismissalType === 'runout') log.fielding.runOuts += 1;
@@ -144,7 +132,6 @@ export default function PlayerProfilePage() {
       highestScore: 0
     };
     matchWiseLog.forEach(log => {
-      // Batting
       stats.runs += log.batting.runs;
       stats.ballsFaced += log.batting.ballsFaced;
       stats.fours += log.batting.fours;
@@ -152,19 +139,16 @@ export default function PlayerProfilePage() {
       if (log.batting.ballsFaced > 0) stats.inningsBatted += 1;
       if (log.batting.runs > stats.highestScore) stats.highestScore = log.batting.runs;
 
-      // Bowling
       stats.wickets += log.bowling.wickets;
       stats.ballsBowled += log.bowling.ballsBowled;
       stats.runsConceded += log.bowling.runsConceded;
       stats.maidens += log.bowling.maidens;
       if (log.bowling.ballsBowled > 0) stats.inningsBowled += 1;
 
-      // Fielding
       stats.catches += log.fielding.catches;
       stats.stumpings += log.fielding.stumpings;
       stats.runOuts += log.fielding.runOuts;
 
-      // General
       stats.careerCVP += log.totalCVP;
       stats.matchesPlayed += 1;
     });
@@ -254,7 +238,7 @@ export default function PlayerProfilePage() {
                     { label: 'Balls Faced', value: historyStats.ballsFaced },
                     { label: 'Highest Score', value: historyStats.highestScore },
                     { label: 'Batting Average', value: historyStats.inningsBatted > 0 ? (historyStats.runs / historyStats.inningsBatted).toFixed(2) : '0.00' },
-                    { label: 'Strike Rate', value: historyStats.ballsFaced > 0 ? ((stats.runs / stats.ballsFaced) * 100).toFixed(2) : '0.00' },
+                    { label: 'Strike Rate', value: historyStats.ballsFaced > 0 ? ((historyStats.runs / historyStats.ballsFaced) * 100).toFixed(2) : '0.00' },
                     { label: 'Fours', value: historyStats.fours },
                     { label: 'Sixes', value: historyStats.sixes },
                   ].map((row, idx) => (

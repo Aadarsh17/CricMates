@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, ArrowLeftRight, Loader2 } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -36,11 +36,8 @@ export default function TeamDetailsPage() {
   const playersQuery = useMemoFirebase(() => teamId ? query(collection(db, 'players'), where('teamId', '==', teamId)) : null, [db, teamId]);
   const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
-  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
-  const { data: allTeams } = useCollection(allTeamsQuery);
-
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
-  const { data: allMatches = [], isLoading: isMatchesLoading } = useCollection(allMatchesQuery);
+  const { data: allMatches, isLoading: isMatchesLoading } = useCollection(allMatchesQuery);
 
   const squadDeliveriesQuery = useMemoFirebase(() => {
     if (!isMounted) return null;
@@ -48,11 +45,6 @@ export default function TeamDetailsPage() {
   }, [db, isMounted]);
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(squadDeliveriesQuery);
 
-  /**
-   * GHOST DATA PROTECTION ENGINE
-   * Only includes deliveries from matches that currently exist in the DB.
-   * If a match is deleted, its deliveries are ignored instantly.
-   */
   const allDeliveries = useMemo(() => {
     if (!rawDeliveries || !allMatches || allMatches.length === 0) return [];
     const validMatchIds = new Set(allMatches.map(m => m.id));
@@ -62,10 +54,6 @@ export default function TeamDetailsPage() {
     });
   }, [rawDeliveries, allMatches]);
 
-  /**
-   * DYNAMIC STANDINGS CALCULATION
-   * Derived purely from existing match history.
-   */
   const standingsForThisTeam = useMemo(() => {
     if (!teamId || !allMatches || !allMatches.length) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
     
@@ -87,10 +75,6 @@ export default function TeamDetailsPage() {
     return { played, won, lost, drawn, nrr: team?.netRunRate || 0 };
   }, [allMatches, teamId, team?.name, team?.netRunRate]);
 
-  /**
-   * DYNAMIC SQUAD STATISTICS
-   * Aggregated directly from Validated History records.
-   */
   const squadStats = useMemo(() => {
     if (!players || players.length === 0) return {};
     const stats: Record<string, any> = {};
@@ -98,24 +82,22 @@ export default function TeamDetailsPage() {
       stats[p.id] = { runs: 0, wickets: 0, cvp: 0, ballsFaced: 0, fours: 0, sixes: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0, maidens: 0 };
     });
 
-    if (allDeliveries.length > 0) {
-      allDeliveries.forEach(d => {
-        if (stats[d.strikerPlayerId]) {
-          stats[d.strikerPlayerId].runs += d.runsScored || 0;
-          if (d.extraType !== 'wide') stats[d.strikerPlayerId].ballsFaced += 1;
-        }
-        if (stats[d.bowlerPlayerId]) {
-          stats[d.bowlerPlayerId].runsConceded += d.totalRunsOnDelivery || 0;
-          if (d.extraType !== 'wide' && d.extraType !== 'noball') stats[d.bowlerPlayerId].ballsBowled += 1;
-          if (d.isWicket && d.dismissalType !== 'runout') stats[d.bowlerPlayerId].wickets += 1;
-        }
-        if (d.fielderPlayerId && stats[d.fielderPlayerId]) {
-          if (d.dismissalType === 'caught') stats[d.fielderPlayerId].catches += 1;
-          if (d.dismissalType === 'stumped') stats[d.fielderPlayerId].stumpings += 1;
-          if (d.dismissalType === 'runout') stats[d.fielderPlayerId].runOuts += 1;
-        }
-      });
-    }
+    allDeliveries.forEach(d => {
+      if (stats[d.strikerPlayerId]) {
+        stats[d.strikerPlayerId].runs += d.runsScored || 0;
+        if (d.extraType !== 'wide') stats[d.strikerPlayerId].ballsFaced += 1;
+      }
+      if (stats[d.bowlerPlayerId]) {
+        stats[d.bowlerPlayerId].runsConceded += d.totalRunsOnDelivery || 0;
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') stats[d.bowlerPlayerId].ballsBowled += 1;
+        if (d.isWicket && d.dismissalType !== 'runout') stats[d.bowlerPlayerId].wickets += 1;
+      }
+      if (d.fielderPlayerId && stats[d.fielderPlayerId]) {
+        if (d.dismissalType === 'caught') stats[d.fielderPlayerId].catches += 1;
+        if (d.dismissalType === 'stumped') stats[d.fielderPlayerId].stumpings += 1;
+        if (d.dismissalType === 'runout') stats[d.fielderPlayerId].runOuts += 1;
+      }
+    });
 
     Object.keys(stats).forEach(id => {
       stats[id].cvp = calculatePlayerCVP({ ...stats[id], id, name: '' });
@@ -125,22 +107,6 @@ export default function TeamDetailsPage() {
 
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [newPlayer, setNewPlayer] = useState({ name: '', role: 'Batsman' });
-  const [h2hTeamId, setH2hTeamId] = useState<string>('');
-
-  const h2hStats = useMemo(() => {
-    if (!h2hTeamId || !allMatches || allMatches.length === 0) return null;
-    let played = 0, won = 0, lost = 0, drawn = 0;
-    const filtered = allMatches.filter(m => (m.status === 'completed') && ((m.team1Id === teamId && m.team2Id === h2hTeamId) || (m.team1Id === h2hTeamId && m.team2Id === teamId)));
-    filtered.forEach(m => {
-        played++;
-        const result = m.resultDescription?.toLowerCase() || '';
-        const teamName = team?.name.toLowerCase() || '';
-        if (result.includes(teamName) && result.includes('won')) won++;
-        else if (result.includes('drawn') || result.includes('tied')) drawn++;
-        else lost++;
-    });
-    return { played, won, lost, drawn };
-  }, [h2hTeamId, allMatches, teamId, team?.name]);
 
   const handleAddPlayer = () => {
     if (!user || !newPlayer.name.trim()) return;
@@ -177,22 +143,22 @@ export default function TeamDetailsPage() {
   if (!team) return <div className="p-8 text-center font-black uppercase tracking-widest text-slate-400">Franchise Not Found</div>;
 
   return (
-    <div className="space-y-6 pb-24 px-1 md:px-4 max-w-5xl mx-auto animate-in fade-in">
+    <div className="space-y-6 pb-24 px-1 md:px-4 max-w-5xl mx-auto">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="shrink-0"><ArrowLeft className="w-5 h-5"/></Button>
+        <Button variant="ghost" size="icon" onClick={() => router.back()}><ArrowLeft className="w-5 h-5"/></Button>
         <Avatar className="w-12 h-12 border-2 border-primary"><AvatarImage src={team.logoUrl}/><AvatarFallback>{team.name[0]}</AvatarFallback></Avatar>
         <div className="min-w-0">
-          <h1 className="text-xl md:text-3xl font-black font-headline truncate uppercase">{team.name}</h1>
+          <h1 className="text-xl md:text-3xl font-black truncate uppercase">{team.name}</h1>
           <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Active Franchise Squad</p>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Wins', value: standingsForThisTeam?.won || 0, icon: Trophy, color: 'text-secondary' },
-          { label: 'Losses', value: standingsForThisTeam?.lost || 0, icon: Activity, color: 'text-destructive' },
-          { label: 'NRR', value: (standingsForThisTeam?.nrr || 0).toFixed(3), icon: HistoryIcon },
-          { label: 'Played', value: standingsForThisTeam?.played || 0, icon: HistoryIcon },
+          { label: 'Wins', value: standingsForThisTeam.won, icon: Trophy, color: 'text-secondary' },
+          { label: 'Losses', value: standingsForThisTeam.lost, icon: Activity, color: 'text-destructive' },
+          { label: 'NRR', value: (standingsForThisTeam.nrr || 0).toFixed(3), icon: HistoryIcon },
+          { label: 'Played', value: standingsForThisTeam.played, icon: HistoryIcon },
         ].map((stat, i) => (
           <Card key={i} className="shadow-none border">
             <CardContent className="p-3 flex items-center gap-3">
@@ -203,52 +169,15 @@ export default function TeamDetailsPage() {
         ))}
       </div>
 
-      <Card className="border-t-4 border-t-secondary">
-        <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><ArrowLeftRight className="w-4 h-4" /> Head-to-Head Comparison</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-            <div className="flex gap-4 items-end">
-                <div className="flex-1 space-y-1">
-                    <Label className="text-[10px] font-black uppercase">Opponent Team</Label>
-                    <Select value={h2hTeamId} onValueChange={setH2hTeamId}>
-                        <SelectTrigger><SelectValue placeholder="Choose opponent" /></SelectTrigger>
-                        <SelectContent>{allTeams?.filter(t => t.id !== teamId).map(t => (<SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>))}</SelectContent>
-                    </Select>
-                </div>
-            </div>
-            {h2hStats ? (
-                <div className="p-6 bg-slate-50 rounded-2xl border flex flex-col items-center gap-6">
-                    <div className="flex items-center gap-12 w-full justify-center">
-                        <div className="text-center">
-                            <Avatar className="h-16 w-16 mb-2 border-2 border-primary"><AvatarImage src={team.logoUrl}/></Avatar>
-                            <p className="text-sm font-black uppercase">{team.name}</p>
-                            <p className="text-3xl font-black text-primary mt-2">{h2hStats.won}</p>
-                            <p className="text-[10px] font-black uppercase text-slate-400">Wins</p>
-                        </div>
-                        <div className="text-center">
-                            <p className="text-xs font-black text-slate-300 uppercase tracking-widest">Played</p>
-                            <p className="text-xl font-black text-slate-400">{h2hStats.played}</p>
-                        </div>
-                        <div className="text-center">
-                            <Avatar className="h-16 w-16 mb-2 border-2 border-secondary"><AvatarImage src={allTeams?.find(t => t.id === h2hTeamId)?.logoUrl}/></Avatar>
-                            <p className="text-sm font-black uppercase">{allTeams?.find(t => t.id === h2hTeamId)?.name}</p>
-                            <p className="text-3xl font-black text-secondary mt-2">{h2hStats.lost}</p>
-                            <p className="text-[10px] font-black uppercase text-slate-400">Wins</p>
-                        </div>
-                    </div>
-                </div>
-            ) : h2hTeamId && <div className="py-12 text-center text-slate-400 text-xs font-bold uppercase border-2 border-dashed rounded-xl">No match history found for this pairing</div>}
-        </CardContent>
-      </Card>
-
       <div className="flex justify-between items-center gap-4">
         <h2 className="text-lg md:text-2xl font-black uppercase tracking-tight">Active Squad</h2>
         <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
-          <DialogTrigger asChild><Button className="bg-secondary hover:bg-secondary/90 font-bold uppercase tracking-widest text-xs h-10"><UserPlus className="mr-2 h-4 w-4"/> Add Player</Button></DialogTrigger>
+          <DialogTrigger asChild><Button className="bg-secondary hover:bg-secondary/90 font-bold h-10"><UserPlus className="mr-2 h-4 w-4"/> Add Player</Button></DialogTrigger>
           <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl">
             <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Register Player</DialogTitle></DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="space-y-1"><Label className="text-[10px] font-black uppercase">Full Name</Label><Input value={newPlayer.name} onChange={(e) => setNewPlayer({...newPlayer, name: e.target.value})} placeholder="e.g. Jasprit Bumrah" className="font-bold h-12" /></div>
-              <div className="space-y-1"><Label className="text-[10px] font-black uppercase">Role</Label><Select value={newPlayer.role} onValueChange={(v) => setNewPlayer({...newPlayer, role: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman">Batsman</SelectItem><SelectItem value="Bowler">Bowler</SelectItem><SelectItem value="All-rounder">All-rounder</SelectItem><SelectItem value="Wicket Keeper">Wicket Keeper</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1"><Label className="text-[10px] font-black uppercase">Full Name</Label><Input value={newPlayer.name} onChange={(e) => setNewPlayer({...newPlayer, name: e.target.value})} className="font-bold h-12" /></div>
+              <div className="space-y-1"><Label className="text-[10px] font-black uppercase">Role</Label><Select value={newPlayer.role} onValueChange={(v) => setNewPlayer({...newPlayer, role: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman">Batsman</SelectItem><SelectItem value="Bowler">Bowler</SelectItem><SelectItem value="All-rounder">All-rounder</SelectItem></SelectContent></Select></div>
             </div>
             <DialogFooter><Button onClick={handleAddPlayer} className="w-full h-14 font-black uppercase tracking-widest">Confirm Registration</Button></DialogFooter>
           </DialogContent>
@@ -263,9 +192,9 @@ export default function TeamDetailsPage() {
               <CardContent className="p-4">
                 <div className="flex justify-between items-start">
                   <Link href={`/players/${player.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                    <Avatar className="w-12 h-12 rounded-xl"><AvatarImage src={player.imageUrl} className="object-cover" /><AvatarFallback className="font-black text-slate-400 bg-slate-100">{player.name[0]}</AvatarFallback></Avatar>
+                    <Avatar className="w-12 h-12 rounded-xl"><AvatarImage src={player.imageUrl} /><AvatarFallback className="font-black text-slate-400 bg-slate-100">{player.name[0]}</AvatarFallback></Avatar>
                     <div className="min-w-0">
-                      <p className="font-black text-sm truncate max-w-[140px] group-hover:text-primary transition-colors uppercase">{player.name}</p>
+                      <p className="font-black text-sm truncate max-w-[140px] uppercase">{player.name}</p>
                       <Badge variant="outline" className="text-[8px] font-black uppercase px-1 py-0 h-4 border-slate-200 mt-0.5">{player.role}</Badge>
                     </div>
                   </Link>
