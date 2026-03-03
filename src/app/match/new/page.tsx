@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, User, Target, Zap } from 'lucide-react';
 
 export default function NewMatchPage() {
   const db = useFirestore();
@@ -153,33 +153,33 @@ export default function NewMatchPage() {
 
       {step === 1 && (
         <Card className="border-t-4 border-t-primary shadow-lg">
-          <CardHeader><CardTitle className="text-xl">Step 1: Teams & Format</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-xl font-black uppercase">Step 1: Teams & Format</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Team 1 (Home)</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-400">Team 1 (Home)</Label>
                 <Select value={setup.team1Id} onValueChange={(v) => setSetup({...setup, team1Id: v})}>
-                  <SelectTrigger><SelectValue placeholder="Pick a team" /></SelectTrigger>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Pick a team" /></SelectTrigger>
                   <SelectContent>
-                    {teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    {teams?.map(t => <SelectItem key={t.id} value={t.id} className="font-bold">{t.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Team 2 (Away)</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-400">Team 2 (Away)</Label>
                 <Select value={setup.team2Id} onValueChange={(v) => setSetup({...setup, team2Id: v})}>
-                  <SelectTrigger><SelectValue placeholder="Pick a team" /></SelectTrigger>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Pick a team" /></SelectTrigger>
                   <SelectContent>
-                    {teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                    {teams?.map(t => <SelectItem key={t.id} value={t.id} className="font-bold">{t.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Match Length (Overs)</Label>
-              <Input type="number" value={setup.totalOvers} onChange={(e) => setSetup({...setup, totalOvers: e.target.value})} />
+              <Label className="text-[10px] font-black uppercase text-slate-400">Match Length (Overs)</Label>
+              <Input type="number" value={setup.totalOvers} onChange={(e) => setSetup({...setup, totalOvers: e.target.value})} className="h-12 font-bold" />
             </div>
-            <Button className="w-full h-12 text-lg font-bold" disabled={!setup.team1Id || !setup.team2Id} onClick={() => setStep(2)}>
+            <Button className="w-full h-14 text-lg font-black uppercase tracking-widest shadow-xl" disabled={!setup.team1Id || !setup.team2Id} onClick={() => setStep(2)}>
               Configure Squads <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
           </CardContent>
@@ -188,49 +188,49 @@ export default function NewMatchPage() {
 
       {step === 2 && (
         <Card className="border-t-4 border-t-primary shadow-lg">
-          <CardHeader><CardTitle className="text-xl">Step 2: Squad Selection</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-xl font-black uppercase">Step 2: Squad Selection</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-8">
               <div className="space-y-3 bg-muted/30 p-4 rounded-xl">
-                <h3 className="font-bold border-b border-primary/20 pb-2 text-primary">{teams?.find(t => t.id === setup.team1Id)?.name}</h3>
+                <h3 className="font-black border-b border-primary/20 pb-2 text-primary uppercase text-xs truncate">{teams?.find(t => t.id === setup.team1Id)?.name}</h3>
                 {team1Pool?.map(p => (
                   <div key={p.id} className="flex items-center gap-2 hover:bg-white/50 p-1 rounded transition-colors">
                     <Checkbox checked={setup.team1Squad.includes(p.id)} onCheckedChange={(c) => {
                       const newSquad = c ? [...setup.team1Squad, p.id] : setup.team1Squad.filter(id => id !== p.id);
                       setSetup({...setup, team1Squad: newSquad});
                     }} id={`t1-${p.id}`} />
-                    <Label htmlFor={`t1-${p.id}`} className="text-sm cursor-pointer font-medium">{p.name}</Label>
+                    <Label htmlFor={`t1-${p.id}`} className="text-xs cursor-pointer font-bold">{p.name}</Label>
                   </div>
                 ))}
               </div>
               <div className="space-y-3 bg-muted/30 p-4 rounded-xl">
-                <h3 className="font-bold border-b border-primary/20 pb-2 text-primary">{teams?.find(t => t.id === setup.team2Id)?.name}</h3>
+                <h3 className="font-black border-b border-primary/20 pb-2 text-primary uppercase text-xs truncate">{teams?.find(t => t.id === setup.team2Id)?.name}</h3>
                 {team2Pool?.map(p => (
                   <div key={p.id} className="flex items-center gap-2 hover:bg-white/50 p-1 rounded transition-colors">
                     <Checkbox checked={setup.team2Squad.includes(p.id)} onCheckedChange={(c) => {
                       const newSquad = c ? [...setup.team2Squad, p.id] : setup.team2Squad.filter(id => id !== p.id);
                       setSetup({...setup, team2Squad: newSquad});
                     }} id={`t2-${p.id}`} />
-                    <Label htmlFor={`t2-${p.id}`} className="text-sm cursor-pointer font-medium">{p.name}</Label>
+                    <Label htmlFor={`t2-${p.id}`} className="text-xs cursor-pointer font-bold">{p.name}</Label>
                   </div>
                 ))}
               </div>
             </div>
             <div className="p-4 bg-secondary/5 border-2 border-dashed border-secondary/20 rounded-xl">
-              <Label className="text-secondary font-bold">Street Mode: Common Player (Optional)</Label>
+              <Label className="text-secondary font-black uppercase text-[10px] tracking-widest">Street Mode: Common Player (Optional)</Label>
               <Select value={setup.commonPlayerId} onValueChange={(v) => setSetup({...setup, commonPlayerId: v})}>
-                <SelectTrigger><SelectValue placeholder="Select shared player" /></SelectTrigger>
+                <SelectTrigger className="h-12 font-bold mt-2"><SelectValue placeholder="Select shared player" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">(None)</SelectItem>
+                  <SelectItem value="none" className="font-bold text-slate-400">(NONE)</SelectItem>
                   {allPlayers?.filter(p => !setup.team1Squad.includes(p.id) && !setup.team2Squad.includes(p.id)).map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setStep(1)}><ArrowLeft className="mr-2 w-4 h-4" /> Back</Button>
-              <Button className="flex-1 h-12 font-bold" onClick={() => setStep(3)}>Next: The Toss <ArrowRight className="ml-2 w-4 h-4" /></Button>
+              <Button variant="outline" className="flex-1 font-black uppercase" onClick={() => setStep(1)}><ArrowLeft className="mr-2 w-4 h-4" /> Back</Button>
+              <Button className="flex-1 h-14 font-black uppercase tracking-widest shadow-xl" onClick={() => setStep(3)}>Next: The Toss <ArrowRight className="ml-2 w-4 h-4" /></Button>
             </div>
           </CardContent>
         </Card>
@@ -238,33 +238,33 @@ export default function NewMatchPage() {
 
       {step === 3 && (
         <Card className="border-t-4 border-t-primary shadow-lg">
-          <CardHeader><CardTitle className="text-xl">Step 3: Toss Results</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-xl font-black uppercase">Step 3: Toss Results</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Who won the toss?</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-400">Who won the toss?</Label>
                 <Select value={setup.tossWinner} onValueChange={(v) => setSetup({...setup, tossWinner: v})}>
-                  <SelectTrigger><SelectValue placeholder="Choose winner" /></SelectTrigger>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose winner" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value={setup.team1Id}>{teams?.find(t => t.id === setup.team1Id)?.name}</SelectItem>
-                    <SelectItem value={setup.team2Id}>{teams?.find(t => t.id === setup.team2Id)?.name}</SelectItem>
+                    <SelectItem value={setup.team1Id} className="font-bold">{teams?.find(t => t.id === setup.team1Id)?.name}</SelectItem>
+                    <SelectItem value={setup.team2Id} className="font-bold">{teams?.find(t => t.id === setup.team2Id)?.name}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>What was the decision?</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-400">What was the decision?</Label>
                 <Select value={setup.tossDecision} onValueChange={(v) => setSetup({...setup, tossDecision: v})}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="bat">Elect to Bat</SelectItem>
-                    <SelectItem value="bowl">Elect to Bowl</SelectItem>
+                    <SelectItem value="bat" className="font-bold">Elect to Bat</SelectItem>
+                    <SelectItem value="bowl" className="font-bold">Elect to Bowl</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setStep(2)}><ArrowLeft className="mr-2 w-4 h-4" /> Back</Button>
-              <Button className="flex-1 h-12 font-bold" disabled={!setup.tossWinner} onClick={() => setStep(4)}>Assign Openers <ArrowRight className="ml-2 w-4 h-4" /></Button>
+              <Button variant="outline" className="flex-1 font-black uppercase" onClick={() => setStep(2)}><ArrowLeft className="mr-2 w-4 h-4" /> Back</Button>
+              <Button className="flex-1 h-14 font-black uppercase tracking-widest shadow-xl" disabled={!setup.tossWinner} onClick={() => setStep(4)}>Assign Openers <ArrowRight className="ml-2 w-4 h-4" /></Button>
             </div>
           </CardContent>
         </Card>
@@ -272,47 +272,56 @@ export default function NewMatchPage() {
 
       {step === 4 && (
         <Card className="border-t-4 border-t-primary shadow-lg">
-          <CardHeader><CardTitle className="text-xl">Step 4: Starting Positions</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-xl font-black uppercase tracking-tight">Step 4: Starting Positions</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Striker</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label>
                 <Select value={setup.strikerId || undefined} onValueChange={(v) => setSetup({...setup, strikerId: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Striker" /></SelectTrigger>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Striker" /></SelectTrigger>
                   <SelectContent>
                     {battingPlayers.filter(p => p.id !== setup.nonStrikerId).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      <SelectItem key={p.id} value={p.id} className="font-bold">
+                        {p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span>
+                        {p.id === setup.commonPlayerId && <span className="text-[8px] text-secondary ml-1">[CP]</span>}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Non-Striker</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label>
                 <Select value={setup.nonStrikerId || undefined} onValueChange={(v) => setSetup({...setup, nonStrikerId: v})}>
-                  <SelectTrigger><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
                   <SelectContent>
                     {battingPlayers.filter(p => p.id !== setup.strikerId).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      <SelectItem key={p.id} value={p.id} className="font-bold">
+                        {p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span>
+                        {p.id === setup.commonPlayerId && <span className="text-[8px] text-secondary ml-1">[CP]</span>}
+                      </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Opening Bowler</Label>
+              <Label className="text-[10px] font-black uppercase text-slate-400">Opening Bowler</Label>
               <Select value={setup.bowlerId || undefined} onValueChange={(v) => setSetup({...setup, bowlerId: v})}>
-                <SelectTrigger><SelectValue placeholder="Select Bowler" /></SelectTrigger>
+                <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Bowler" /></SelectTrigger>
                 <SelectContent>
                   {bowlingPlayers.map(p => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    <SelectItem key={p.id} value={p.id} className="font-bold">
+                      {p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span>
+                      {p.id === setup.commonPlayerId && <span className="text-[8px] text-secondary ml-1">[CP]</span>}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setStep(3)}><ArrowLeft className="mr-2 w-4 h-4" /> Back</Button>
-              <Button className="flex-1 bg-secondary hover:bg-secondary/90 h-14 text-lg font-black" onClick={handleStartMatch} disabled={!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId}>
-                START MATCH <CheckCircle2 className="ml-2 w-6 h-6" />
+              <Button variant="outline" className="flex-1 font-black uppercase" onClick={() => setStep(3)}><ArrowLeft className="mr-2 w-4 h-4" /> Back</Button>
+              <Button className="flex-1 bg-secondary hover:bg-secondary/90 h-16 text-lg font-black uppercase tracking-widest shadow-2xl group" onClick={handleStartMatch} disabled={!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId}>
+                START MATCH <CheckCircle2 className="ml-2 w-6 h-6 group-hover:scale-110 transition-transform" />
               </Button>
             </div>
           </CardContent>

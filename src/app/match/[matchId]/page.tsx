@@ -102,7 +102,7 @@ export default function MatchScoreboardPage() {
     }
   }, [match, inn1, inn2, activeInningData]);
 
-  const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
+  const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
 
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
@@ -257,7 +257,7 @@ export default function MatchScoreboardPage() {
       ballNumberInOver: newBalls === 0 && isLegalBall ? 6 : newBalls,
       strikerPlayerId: activeInningData.strikerPlayerId,
       nonStrikerPlayerId: activeInningData.nonStrikerPlayerId,
-      bowlerPlayerId: activeInningData.currentBowlerPlayerId,
+      bowlerId: activeInningData.currentBowlerPlayerId,
       runsScored: ballRuns, extraRuns, extraType, totalRunsOnDelivery,
       isWicket: false, timestamp: Date.now()
     };
@@ -283,7 +283,7 @@ export default function MatchScoreboardPage() {
       ballNumberInOver: activeInningData.ballsInCurrentOver + 1,
       strikerPlayerId: activeInningData.strikerPlayerId,
       nonStrikerPlayerId: activeInningData.nonStrikerPlayerId,
-      bowlerPlayerId: activeInningData.currentBowlerPlayerId,
+      bowlerId: activeInningData.currentBowlerPlayerId,
       runsScored: 0, extraRuns: 0, extraType: 'none', totalRunsOnDelivery: 0,
       isWicket: true, dismissalType: wicketForm.type, batsmanOutPlayerId: wicketForm.batterOutId, fielderPlayerId: wicketForm.fielderId,
       timestamp: Date.now()
@@ -342,6 +342,9 @@ export default function MatchScoreboardPage() {
 
   if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse">SYNCING MATCH...</div>;
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
+
+  const currentBattingSquad = allPlayers?.filter(p => match.currentInningNumber === 1 ? match.team1SquadPlayerIds?.includes(p.id) : match.team2SquadPlayerIds?.includes(p.id)) || [];
+  const currentBowlingSquad = allPlayers?.filter(p => match.currentInningNumber === 1 ? match.team2SquadPlayerIds?.includes(p.id) : match.team1SquadPlayerIds?.includes(p.id)) || [];
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
@@ -532,13 +535,46 @@ export default function MatchScoreboardPage() {
       </Dialog>
 
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
-        <DialogContent className="rounded-xl">
-          <DialogHeader><DialogTitle className="font-black uppercase">Assign Positions</DialogTitle></DialogHeader>
+        <DialogContent className="rounded-xl border-t-8 border-t-primary">
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-widest">Assign Positions</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-1"><Label className="text-[10px] font-black">Striker</Label><Select value={activeInningData?.strikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { strikerPlayerId: v })}><SelectTrigger><SelectValue placeholder="Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => p.id !== activeInningData?.nonStrikerPlayerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1"><Label className="text-[10px] font-black">Bowler</Label><Select value={activeInningData?.currentBowlerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: v })}><SelectTrigger><SelectValue placeholder="Bowler" /></SelectTrigger><SelectContent>{allPlayers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label>
+                <Select value={activeInningData?.strikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { strikerPlayerId: v })}>
+                  <SelectTrigger className="font-bold"><SelectValue placeholder="Striker" /></SelectTrigger>
+                  <SelectContent>
+                    {currentBattingSquad.filter(p => p.id !== activeInningData?.nonStrikerPlayerId).map(p => (
+                      <SelectItem key={p.id} value={p.id} className="font-bold">{p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label>
+                <Select value={activeInningData?.nonStrikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { nonStrikerPlayerId: v })}>
+                  <SelectTrigger className="font-bold"><SelectValue placeholder="Non-Striker" /></SelectTrigger>
+                  <SelectContent>
+                    {currentBattingSquad.filter(p => p.id !== activeInningData?.strikerPlayerId).map(p => (
+                      <SelectItem key={p.id} value={p.id} className="font-bold">{p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span></SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Current Bowler</Label>
+              <Select value={activeInningData?.currentBowlerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: v })}>
+                <SelectTrigger className="font-bold"><SelectValue placeholder="Bowler" /></SelectTrigger>
+                <SelectContent>
+                  {currentBowlingSquad.map(p => (
+                    <SelectItem key={p.id} value={p.id} className="font-bold">{p.name} <span className="text-[8px] opacity-50 ml-1">({p.role})</span></SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <DialogFooter><Button onClick={() => setIsPlayerAssignmentOpen(false)} className="w-full h-12 font-black">CONFIRM</Button></DialogFooter>
+          <DialogFooter><Button onClick={() => setIsPlayerAssignmentOpen(false)} className="w-full h-12 font-black uppercase tracking-widest shadow-lg">Confirm Rotation</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
