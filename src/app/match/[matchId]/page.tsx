@@ -434,13 +434,14 @@ export default function MatchScoreboardPage() {
     }
   };
 
-  const handleFixSummary = async () => {
-    if (!match || !activeInningData || !isUmpire || isFixing) return;
+  const handleFixSummary = async (inningNumOverride?: number) => {
+    const targetInningNum = inningNumOverride || match?.currentInningNumber;
+    if (!match || !isUmpire || isFixing || !targetInningNum) return;
     setIsFixing(true);
-    toast({ title: "Recalculating...", description: "Scanning history to fix summary counts." });
+    toast({ title: `Recalculating Innings ${targetInningNum}...`, description: "Scanning history to fix summary counts." });
 
     try {
-      const currentInningId = `inning_${match.currentInningNumber}`;
+      const currentInningId = `inning_${targetInningNum}`;
       const deliveriesRef = collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords');
       const q = query(deliveriesRef, orderBy('timestamp', 'asc'));
       const snapshot = await getDocs(q);
@@ -478,6 +479,18 @@ export default function MatchScoreboardPage() {
       toast({ title: "Fix Failed", variant: "destructive" });
     } finally {
       setIsFixing(false);
+    }
+  };
+
+  const handleDeleteBall = async (ballId: string, inningNum: number) => {
+    if (!isUmpire) return;
+    if (!confirm("Are you sure you want to delete this ball? You must recalculate the inning afterwards.")) return;
+    
+    try {
+      await deleteDoc(doc(db, 'matches', matchId, 'innings', `inning_${inningNum}`, 'deliveryRecords', ballId));
+      toast({ title: "Ball Deleted", description: "Use 'Fix Summary' to update the scoreboard." });
+    } catch (e) {
+      toast({ title: "Delete Failed", variant: "destructive" });
     }
   };
 
@@ -703,9 +716,16 @@ export default function MatchScoreboardPage() {
         </TabsContent>
 
         <TabsContent value="overs" className="pt-4">
-           <div className="flex gap-2 mb-4">
-              <Button size="sm" variant={activeInningView === 1 ? 'default' : 'outline'} onClick={() => setActiveInningView(1)} className="font-black text-[10px] uppercase">1st Innings</Button>
-              {(match.currentInningNumber >= 2 || inn2) && <Button size="sm" variant={activeInningView === 2 ? 'default' : 'outline'} onClick={() => setActiveInningView(2)} className="font-black text-[10px] uppercase">2nd Innings</Button>}
+           <div className="flex justify-between items-center mb-4">
+              <div className="flex gap-2">
+                <Button size="sm" variant={activeInningView === 1 ? 'default' : 'outline'} onClick={() => setActiveInningView(1)} className="font-black text-[10px] uppercase">1st Innings</Button>
+                {(match.currentInningNumber >= 2 || inn2) && <Button size="sm" variant={activeInningView === 2 ? 'default' : 'outline'} onClick={() => setActiveInningView(2)} className="font-black text-[10px] uppercase">2nd Innings</Button>}
+              </div>
+              {isUmpire && (
+                <Button size="sm" variant="secondary" className="h-8 text-[9px] font-black uppercase tracking-widest" onClick={() => handleFixSummary(activeInningView)}>
+                  <Zap className="w-3 h-3 mr-1.5" /> Fix Summary
+                </Button>
+              )}
            </div>
            <div className="space-y-4">
               {currentDeliveriesList && currentDeliveriesList.length > 0 ? (
@@ -721,13 +741,26 @@ export default function MatchScoreboardPage() {
                         <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Over {oNum}</h4>
                         <p className="text-[9px] font-bold text-slate-400">By {getPlayerName(overs[parseInt(oNum)][0].bowlerId)}</p>
                       </div>
-                      <div className="p-2 flex flex-wrap gap-2">
+                      <div className="p-4 space-y-3">
                         {overs[parseInt(oNum)].map((d, idx) => (
-                          <div key={idx} className={cn("w-10 h-10 rounded-full flex items-center justify-center text-xs font-black border-2", 
-                            d.isWicket ? "bg-red-600 border-red-700 text-white shadow-sm" : 
-                            d.runsScored >= 4 ? "bg-blue-600 border-blue-700 text-white shadow-sm" :
-                            d.extraType !== 'none' ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-white border-slate-100 text-slate-700")}>
-                            {d.isWicket ? "W" : d.extraType === 'wide' ? `${d.totalRunsOnDelivery}wd` : d.extraType === 'noball' ? `${d.totalRunsOnDelivery}nb` : d.runsScored}
+                          <div key={idx} className="flex items-center justify-between group">
+                            <div className="flex items-center gap-3">
+                              <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", 
+                                d.isWicket ? "bg-red-600 border-red-700 text-white shadow-sm" : 
+                                d.runsScored >= 4 ? "bg-blue-600 border-blue-700 text-white shadow-sm" :
+                                d.extraType !== 'none' ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-white border-slate-100 text-slate-700")}>
+                                {d.isWicket ? "W" : d.extraType === 'wide' ? `${d.totalRunsOnDelivery}wd` : d.extraType === 'noball' ? `${d.totalRunsOnDelivery}nb` : d.runsScored}
+                              </div>
+                              <div className="flex flex-col">
+                                <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
+                                <p className="text-[8px] text-slate-400 font-bold uppercase">{d.extraType !== 'none' ? `(+${d.extraRuns} extras)` : `${d.runsScored} runs`}</p>
+                              </div>
+                            </div>
+                            {isUmpire && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteBall(d.id, activeInningView)}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -768,7 +801,7 @@ export default function MatchScoreboardPage() {
             
             <div className="p-4 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
               <h4 className="text-[10px] font-black uppercase text-slate-400 mb-3">Professional Recovery</h4>
-              <Button onClick={handleFixSummary} disabled={isFixing} variant="secondary" className="w-full h-12 font-black uppercase tracking-widest text-[10px]">
+              <Button onClick={() => handleFixSummary()} disabled={isFixing} variant="secondary" className="w-full h-12 font-black uppercase tracking-widest text-[10px]">
                 {isFixing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />} Fix Summary (Recalculate from Balls)
               </Button>
               <p className="text-[8px] text-slate-400 font-bold uppercase mt-2 text-center">Use this if the total score does not match history records.</p>
