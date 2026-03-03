@@ -262,6 +262,7 @@ export default function PlayerProfilePage() {
               <Table>
                 <TableBody>
                   {[
+                    { label: 'Matches Played', value: historyStats.matchesPlayed },
                     { label: 'Innings Batted', value: historyStats.inningsBatted },
                     { label: 'Total Runs', value: historyStats.runs },
                     { label: 'Balls Faced', value: historyStats.ballsFaced },
@@ -285,6 +286,7 @@ export default function PlayerProfilePage() {
               <Table>
                 <TableBody>
                   {[
+                    { label: 'Matches Played', value: historyStats.matchesPlayed },
                     { label: 'Innings Bowled', value: historyStats.inningsBowled },
                     { label: 'Wickets', value: historyStats.wickets },
                     { label: 'Runs Conceded', value: historyStats.runsConceded },
@@ -292,7 +294,7 @@ export default function PlayerProfilePage() {
                     { label: 'Maidens', value: historyStats.maidens },
                     { label: 'Best Bowling (BBF)', value: historyStats.bestBowling.display },
                     { label: 'Economy Rate', value: historyStats.ballsBowled >= 6 ? (historyStats.runsConceded / (historyStats.ballsBowled / 6)).toFixed(2) : '0.00' },
-                    { label: '5w / 4w / 3w / 2w', value: `${historyStats.fiveWkts} / ${historyStats.fourWkts} / ${historyStats.threeWkts} / ${historyStats.twoWkts}` },
+                    { label: '2w / 3w / 4w / 5w', value: `${historyStats.twoWkts} / ${historyStats.threeWkts} / ${historyStats.fourWkts} / ${historyStats.fiveWkts}` },
                   ].map((row, idx) => (
                     <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                       <TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell>
@@ -307,6 +309,7 @@ export default function PlayerProfilePage() {
               <Table>
                 <TableBody>
                   {[
+                    { label: 'Matches Played', value: historyStats.matchesPlayed },
                     { label: 'Catches', value: historyStats.catches },
                     { label: 'Stumpings', value: historyStats.stumpings },
                     { label: 'Run Outs', value: historyStats.runOuts },
