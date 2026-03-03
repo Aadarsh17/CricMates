@@ -6,10 +6,10 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, limit, getDocs, increment, setDoc } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2, Download, FileText, Share2, Users as UsersIcon } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2, Download, FileText, Share2, Users as UsersIcon, Sparkles, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -19,12 +19,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart as ReBarChart, Bar } from "recharts";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart as ReBarChart, Bar, Cell } from "recharts";
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
 import { generateHTMLReport, getExtendedInningStats } from '@/lib/report-utils';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
+import { generateMatchSummary } from '@/ai/flows/generate-match-summary';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -40,8 +41,8 @@ export default function MatchScoreboardPage() {
   const [isEditFullMatchOpen, setIsEditFullMatchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('live');
   const [activeInningView, setActiveInningView] = useState<number>(1);
-  const [openOvers, setOpenOvers] = useState<Record<number, boolean>>({});
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -137,9 +138,7 @@ export default function MatchScoreboardPage() {
 
   const playerCVPList = useMemo(() => {
     if (!allPlayers) return [];
-    
     const playerStats: Record<string, any> = {};
-    
     [stats1, stats2].forEach(stats => {
       stats.batting.forEach((b: any) => {
         if (!playerStats[b.id]) playerStats[b.id] = { id: b.id, name: getPlayerName(b.id), runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
@@ -156,7 +155,6 @@ export default function MatchScoreboardPage() {
         playerStats[b.id].runsConceded += b.runs;
       });
     });
-
     return Object.values(playerStats).map(ps => ({
       ...ps,
       cvp: calculatePlayerCVP(ps as any)
@@ -169,6 +167,65 @@ export default function MatchScoreboardPage() {
     return activeInningView === 1 ? stats1 : stats2;
   }, [activeInningView, stats1, stats2]);
 
+  const handleHandleAiSummary = async () => {
+    if (!match || isGeneratingSummary) return;
+    setIsGeneratingSummary(true);
+    try {
+      const input = {
+        matchId: match.id,
+        matchOverall: {
+          date: match.matchDate || '',
+          totalOversScheduled: match.totalOvers,
+          result: match.resultDescription || '',
+          team1Name: getTeamName(match.team1Id),
+          team2Name: getTeamName(match.team2Id),
+          team1FinalScore: `${inn1?.score}/${inn1?.wickets}`,
+          team2FinalScore: `${inn2?.score}/${inn2?.wickets}`,
+          tossWinner: getTeamName(match.tossWinnerTeamId),
+          tossDecision: match.tossDecision || 'bat'
+        },
+        inningsSummaries: [
+          {
+            inningNumber: 1,
+            battingTeamName: getTeamName(inn1?.battingTeamId),
+            bowlingTeamName: getTeamName(inn1?.bowlingTeamId),
+            score: inn1?.score || 0,
+            wickets: inn1?.wickets || 0,
+            overs: parseFloat(`${inn1?.oversCompleted || 0}.${inn1?.ballsInCurrentOver || 0}`),
+            topPerformersBatting: stats1.batting.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), runs: b.runs })),
+            topPerformersBowling: stats1.bowling.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), wickets: b.wickets, runsConceded: b.runs, overs: parseFloat(b.oversDisplay), maidens: b.maidens || 0 })),
+            keyMoments: stats1.fow.map(f => `Wicket ${f.wicketNum} at ${f.scoreAtWicket}`)
+          },
+          {
+            inningNumber: 2,
+            battingTeamName: getTeamName(inn2?.battingTeamId),
+            bowlingTeamName: getTeamName(inn2?.bowlingTeamId),
+            score: inn2?.score || 0,
+            wickets: inn2?.wickets || 0,
+            overs: parseFloat(`${inn2?.oversCompleted || 0}.${inn2?.ballsInCurrentOver || 0}`),
+            topPerformersBatting: stats2.batting.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), runs: b.runs })),
+            topPerformersBowling: stats2.bowling.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), wickets: b.wickets, runsConceded: b.runs, overs: parseFloat(b.oversDisplay), maidens: b.maidens || 0 })),
+            keyMoments: stats2.fow.map(f => `Wicket ${f.wicketNum} at ${f.scoreAtWicket}`)
+          }
+        ],
+        playerOverallPerformance: playerCVPList.map(p => ({
+          playerName: p.name,
+          teamName: '',
+          role: 'Batsman' as any,
+          cvpScore: p.cvp,
+          battingStats: { runs: p.runs, ballsFaced: p.ballsFaced, strikeRate: p.ballsFaced > 0 ? (p.runs / p.ballsFaced) * 100 : 0, fours: p.fours, sixes: p.sixes },
+          bowlingStats: { overs: p.ballsBowled / 6, maidens: p.maidens, runsConceded: p.runsConceded, wickets: p.wickets, economy: p.ballsBowled > 0 ? p.runsConceded / (p.ballsBowled / 6) : 0 }
+        }))
+      };
+      const summary = await generateMatchSummary(input as any);
+      setAiSummary(summary);
+    } catch (e) {
+      toast({ title: "AI Generation Failed", variant: "destructive" });
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
+
   const isCurrentInningFinished = useMemo(() => {
     if (!match || !activeInningData) return false;
     return activeInningData.oversCompleted >= match.totalOvers || activeInningData.wickets >= 10;
@@ -176,42 +233,24 @@ export default function MatchScoreboardPage() {
 
   const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none') => {
     if (!match || !activeInningData || !isUmpire || isCurrentInningFinished) return;
-
     if (!activeInningData.strikerPlayerId || !activeInningData.nonStrikerPlayerId || !activeInningData.currentBowlerPlayerId) {
       setIsPlayerAssignmentOpen(true);
       toast({ title: "Assignments Missing", variant: "destructive" });
       return;
     }
-
     const currentInningId = `inning_${match.currentInningNumber}`;
     const inningRef = doc(db, 'matches', matchId, 'innings', currentInningId);
-    
     let ballRuns = runs;
     let extraRuns = 0;
     let isLegalBall = true;
-
-    if (extraType === 'wide') {
-      extraRuns = runs + 1;
-      ballRuns = 0;
-      isLegalBall = false;
-    } else if (extraType === 'noball') {
-      extraRuns = 1;
-      isLegalBall = false;
-    } else if (extraType === 'bye' || extraType === 'legbye') {
-      extraRuns = runs;
-      ballRuns = 0;
-    }
-
+    if (extraType === 'wide') { extraRuns = runs + 1; ballRuns = 0; isLegalBall = false; }
+    else if (extraType === 'noball') { extraRuns = 1; isLegalBall = false; }
+    else if (extraType === 'bye' || extraType === 'legbye') { extraRuns = runs; ballRuns = 0; }
     const totalRunsOnDelivery = ballRuns + extraRuns;
     const newScore = activeInningData.score + totalRunsOnDelivery;
     let newBalls = activeInningData.ballsInCurrentOver + (isLegalBall ? 1 : 0);
     let newOvers = activeInningData.oversCompleted;
-
-    if (newBalls === 6) {
-      newOvers += 1;
-      newBalls = 0;
-    }
-
+    if (newBalls === 6) { newOvers += 1; newBalls = 0; }
     const deliveryData = {
       id: doc(collection(db, 'temp')).id,
       overNumber: newBalls === 0 && isLegalBall ? newOvers : newOvers + 1,
@@ -219,24 +258,15 @@ export default function MatchScoreboardPage() {
       strikerPlayerId: activeInningData.strikerPlayerId,
       nonStrikerPlayerId: activeInningData.nonStrikerPlayerId,
       bowlerPlayerId: activeInningData.currentBowlerPlayerId,
-      runsScored: ballRuns,
-      extraRuns: extraRuns,
-      extraType,
-      totalRunsOnDelivery,
-      isWicket: false,
-      timestamp: Date.now()
+      runsScored: ballRuns, extraRuns, extraType, totalRunsOnDelivery,
+      isWicket: false, timestamp: Date.now()
     };
-
     addDocumentNonBlocking(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords'), deliveryData);
-    
     updateDocumentNonBlocking(inningRef, {
-      score: newScore,
-      oversCompleted: newOvers,
-      ballsInCurrentOver: newBalls,
+      score: newScore, oversCompleted: newOvers, ballsInCurrentOver: newBalls,
       strikerPlayerId: runs % 2 !== 0 ? activeInningData.nonStrikerPlayerId : activeInningData.strikerPlayerId,
       nonStrikerPlayerId: runs % 2 !== 0 ? activeInningData.strikerPlayerId : activeInningData.nonStrikerPlayerId
     });
-
     if (newBalls === 0 && isLegalBall && newOvers < match.totalOvers) {
       setIsPlayerAssignmentOpen(true);
       toast({ title: "Over Complete", description: "Assign next bowler." });
@@ -245,10 +275,8 @@ export default function MatchScoreboardPage() {
 
   const handleWicket = async () => {
     if (!match || !activeInningData || !isUmpire || !wicketForm.batterOutId) return;
-
     const currentInningId = `inning_${match.currentInningNumber}`;
     const inningRef = doc(db, 'matches', matchId, 'innings', currentInningId);
-    
     const deliveryData = {
       id: doc(collection(db, 'temp')).id,
       overNumber: activeInningData.ballsInCurrentOver === 5 ? activeInningData.oversCompleted + 1 : activeInningData.oversCompleted + 1,
@@ -256,41 +284,23 @@ export default function MatchScoreboardPage() {
       strikerPlayerId: activeInningData.strikerPlayerId,
       nonStrikerPlayerId: activeInningData.nonStrikerPlayerId,
       bowlerPlayerId: activeInningData.currentBowlerPlayerId,
-      runsScored: 0,
-      extraRuns: 0,
-      extraType: 'none',
-      totalRunsOnDelivery: 0,
-      isWicket: true,
-      dismissalType: wicketForm.type,
-      batsmanOutPlayerId: wicketForm.batterOutId,
-      fielderPlayerId: wicketForm.fielderId,
+      runsScored: 0, extraRuns: 0, extraType: 'none', totalRunsOnDelivery: 0,
+      isWicket: true, dismissalType: wicketForm.type, batsmanOutPlayerId: wicketForm.batterOutId, fielderPlayerId: wicketForm.fielderId,
       timestamp: Date.now()
     };
-
     addDocumentNonBlocking(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords'), deliveryData);
-
     const newWickets = activeInningData.wickets + 1;
     let newBalls = activeInningData.ballsInCurrentOver + 1;
     let newOvers = activeInningData.oversCompleted;
-
-    if (newBalls === 6) {
-      newOvers += 1;
-      newBalls = 0;
-    }
-
+    if (newBalls === 6) { newOvers += 1; newBalls = 0; }
     updateDocumentNonBlocking(inningRef, {
-      wickets: newWickets,
-      oversCompleted: newOvers,
-      ballsInCurrentOver: newBalls,
+      wickets: newWickets, oversCompleted: newOvers, ballsInCurrentOver: newBalls,
       strikerPlayerId: wicketForm.batterOutId === activeInningData.strikerPlayerId ? '' : activeInningData.strikerPlayerId,
       nonStrikerPlayerId: wicketForm.batterOutId === activeInningData.nonStrikerPlayerId ? '' : activeInningData.nonStrikerPlayerId
     });
-
     setIsWicketDialogOpen(false);
     toast({ title: "OUT!", variant: "destructive" });
-    if (newWickets < 10) {
-      setIsPlayerAssignmentOpen(true);
-    }
+    if (newWickets < 10) setIsPlayerAssignmentOpen(true);
   };
 
   const handleStartSecondInnings = async () => {
@@ -357,7 +367,7 @@ export default function MatchScoreboardPage() {
       <div className="sticky top-16 z-50 bg-white border-b shadow-sm overflow-x-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="flex w-full justify-start rounded-none bg-transparent h-auto p-0 scrollbar-hide">
-            {['Live', 'Scorecard', 'Overs', 'Info'].map(t => (
+            {['Live', 'Scorecard', 'Analytics', 'Overs', 'Info'].map(t => (
               <TabsTrigger key={t} value={t.toLowerCase()} className="flex-1 px-4 py-4 text-xs font-black rounded-none border-b-2 border-transparent data-[state=active]:border-secondary data-[state=active]:text-secondary uppercase tracking-widest whitespace-nowrap">
                 {t}
               </TabsTrigger>
@@ -368,6 +378,30 @@ export default function MatchScoreboardPage() {
 
       <Tabs value={activeTab}>
         <TabsContent value="live" className="space-y-6 pt-2">
+          {match.status === 'completed' && (
+             <Card className="border-l-4 border-l-amber-400 bg-amber-50/30">
+               <CardContent className="p-4">
+                 <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                       <Sparkles className="w-5 h-5 text-amber-500" />
+                       <p className="text-xs font-black uppercase tracking-widest text-amber-900">AI Match Insight</p>
+                    </div>
+                    {!aiSummary && (
+                       <Button size="sm" variant="ghost" className="text-[10px] font-black uppercase tracking-widest h-7" onClick={handleHandleAiSummary} disabled={isGeneratingSummary}>
+                          {isGeneratingSummary ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <RefreshCw className="w-3 h-3 mr-2" />}
+                          Generate Summary
+                       </Button>
+                    )}
+                 </div>
+                 {aiSummary && (
+                    <div className="mt-3 p-3 bg-white/80 rounded border border-amber-100 italic text-xs leading-relaxed text-slate-700 animate-in fade-in slide-in-from-top-1">
+                       {aiSummary}
+                    </div>
+                 )}
+               </CardContent>
+             </Card>
+          )}
+
           <div className="bg-white p-4 md:p-6 rounded-lg border shadow-sm space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {[inn1, inn2].map((inn, idx) => inn && (
@@ -395,11 +429,9 @@ export default function MatchScoreboardPage() {
                         </div>
                       </div>
                     </div>
-
                     <div className="grid grid-cols-3 gap-3">
                       {[0, 1, 2, 3, 4, 6].map(r => <Button key={r} onClick={() => handleRecordBall(r)} className="h-16 font-black text-2xl bg-white text-slate-900 border-2 border-slate-200 hover:border-primary shadow-sm">{r === 0 ? "•" : r}</Button>)}
                     </div>
-
                     <div className="grid grid-cols-2 gap-3">
                       <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">WIDE</Button>
                       <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">NO BALL</Button>
@@ -423,7 +455,7 @@ export default function MatchScoreboardPage() {
               <Button size="sm" variant={activeInningView === 1 ? 'default' : 'outline'} onClick={() => setActiveInningView(1)} className="font-black text-[10px] uppercase">1st Innings</Button>
               {match.currentInningNumber >= 2 && <Button size="sm" variant={activeInningView === 2 ? 'default' : 'outline'} onClick={() => setActiveInningView(2)} className="font-black text-[10px] uppercase">2nd Innings</Button>}
            </div>
-           <Card className="rounded-xl overflow-hidden border-none shadow-sm">
+           <Card className="rounded-xl overflow-hidden border shadow-sm">
               <Table>
                  <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[8px] font-black uppercase">Batter</TableHead><TableHead className="text-right text-[8px] font-black uppercase">R</TableHead><TableHead className="text-right text-[8px] font-black uppercase">B</TableHead><TableHead className="text-right text-[8px] font-black uppercase">4s/6s</TableHead><TableHead className="text-right text-[8px] font-black uppercase">SR</TableHead></TableRow></TableHeader>
                  <TableBody>
@@ -436,6 +468,44 @@ export default function MatchScoreboardPage() {
                  </TableBody>
               </Table>
            </Card>
+        </TabsContent>
+
+        <TabsContent value="analytics" className="space-y-6 pt-4">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="shadow-sm">
+                 <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest">Partnership Breakdown</CardTitle></CardHeader>
+                 <CardContent className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <ReBarChart data={currentInningStats.partnerships}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey={(p: any) => `${getPlayerName(p.batter1Id).split(' ')[0]}-${getPlayerName(p.batter2Id).split(' ')[0]}`} fontSize={8} interval={0} tick={{ fill: '#94a3b8' }} />
+                          <YAxis fontSize={8} tick={{ fill: '#94a3b8' }} />
+                          <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
+                          <Bar dataKey="runs" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                       </ReBarChart>
+                    </ResponsiveContainer>
+                 </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                 <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest">Top CVP Performers</CardTitle></CardHeader>
+                 <CardContent className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <ReBarChart data={playerCVPList.slice(0, 5)} layout="vertical">
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                          <XAxis type="number" fontSize={8} hide />
+                          <YAxis dataKey="name" type="category" fontSize={8} tick={{ fill: '#94a3b8' }} width={80} />
+                          <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
+                          <Bar dataKey="cvp" radius={[0, 4, 4, 0]}>
+                             {playerCVPList.slice(0, 5).map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={index === 0 ? 'hsl(var(--secondary))' : 'hsl(var(--primary))'} />
+                             ))}
+                          </Bar>
+                       </ReBarChart>
+                    </ResponsiveContainer>
+                 </CardContent>
+              </Card>
+           </div>
         </TabsContent>
       </Tabs>
 
