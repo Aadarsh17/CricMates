@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, limit, getDocs, increment, setDoc } from 'firebase/firestore';
+import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, limit, getDocs, increment, setDoc, deleteDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -43,6 +43,7 @@ export default function MatchScoreboardPage() {
   const [activeInningView, setActiveInningView] = useState<number>(1);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [isUndoing, setIsUndoing] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -308,6 +309,69 @@ export default function MatchScoreboardPage() {
     }
   };
 
+  const handleUndoLastBall = async () => {
+    if (!match || !activeInningData || !isUmpire || isUndoing) return;
+    setIsUndoing(true);
+    
+    const currentInningId = `inning_${match.currentInningNumber}`;
+    const deliveriesRef = collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords');
+    const q = query(deliveriesRef, orderBy('timestamp', 'desc'), limit(1));
+    
+    try {
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        toast({ title: "Nothing to undo" });
+        return;
+      }
+
+      const lastBall = snapshot.docs[0].data();
+      const lastBallId = snapshot.docs[0].id;
+
+      // Revert state
+      let { score, wickets, oversCompleted, ballsInCurrentOver, strikerPlayerId, nonStrikerPlayerId, isLastManActive } = activeInningData;
+
+      score -= lastBall.totalRunsOnDelivery;
+      if (lastBall.isWicket) {
+        wickets -= 1;
+        // Restore previous positions accurately from the history record
+        strikerPlayerId = lastBall.strikerPlayerId;
+        nonStrikerPlayerId = lastBall.nonStrikerPlayerId;
+        if (nonStrikerPlayerId === 'none') nonStrikerPlayerId = '';
+        isLastManActive = lastBall.nonStrikerPlayerId === 'none';
+      } else {
+        // If odd runs were scored, we need to swap back to original rotation
+        if (!isLastManActive && lastBall.runsScored % 2 !== 0) {
+          const temp = strikerPlayerId;
+          strikerPlayerId = nonStrikerPlayerId;
+          nonStrikerPlayerId = temp;
+        }
+      }
+
+      // Revert over counter
+      const isLegal = lastBall.extraType !== 'wide' && lastBall.extraType !== 'noball';
+      if (isLegal) {
+        if (ballsInCurrentOver === 0) {
+          oversCompleted -= 1;
+          ballsInCurrentOver = 5;
+        } else {
+          ballsInCurrentOver -= 1;
+        }
+      }
+
+      const inningRef = doc(db, 'matches', matchId, 'innings', currentInningId);
+      updateDocumentNonBlocking(inningRef, {
+        score, wickets, oversCompleted, ballsInCurrentOver, strikerPlayerId, nonStrikerPlayerId, isLastManActive, isDeclaredFinished: false
+      });
+
+      await deleteDoc(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', lastBallId));
+      toast({ title: "Last Ball Undone" });
+    } catch (e) {
+      toast({ title: "Undo Failed", variant: "destructive" });
+    } finally {
+      setIsUndoing(false);
+    }
+  };
+
   const handleStartSecondInnings = async () => {
     if (!match || match.currentInningNumber !== 1 || !isUmpire) return;
     const batch = writeBatch(db);
@@ -448,12 +512,15 @@ export default function MatchScoreboardPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">WIDE</Button>
                       <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">NO BALL</Button>
-                      <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-14 font-black text-red-700 bg-red-50 uppercase tracking-widest text-xs">WICKET</Button>
+                      <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-14 font-black text-red-700 bg-red-50 uppercase tracking-widest text-xs">WICKET / RETIRE</Button>
+                      <Button variant="outline" onClick={handleUndoLastBall} disabled={isUndoing} className="h-14 font-black text-slate-700 bg-slate-100 uppercase tracking-widest text-xs">
+                        {isUndoing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Undo2 className="w-4 h-4 mr-2" />} UNDO
+                      </Button>
                       <Button variant="outline" onClick={() => {
                         if(confirm("End current innings manually?")) {
                           updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { isDeclaredFinished: true });
                         }
-                      }} className="h-14 font-black text-secondary bg-secondary/5 uppercase tracking-widest text-xs border-secondary/20">DECLARE END</Button>
+                      }} className="h-14 font-black text-secondary bg-secondary/5 uppercase tracking-widest text-xs border-secondary/20 col-span-2">DECLARE END</Button>
                     </div>
                   </>
                 ) : (
@@ -539,10 +606,10 @@ export default function MatchScoreboardPage() {
 
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
         <DialogContent className="rounded-xl border-t-8 border-t-destructive">
-          <DialogHeader><DialogTitle className="font-black uppercase tracking-widest flex items-center gap-2 text-destructive"><Skull className="w-5 h-5" /> Register Wicket</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-widest flex items-center gap-2 text-destructive"><Skull className="w-5 h-5" /> Register Wicket / Retire</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Wicket Type</Label><Select value={wicketForm.type} onValueChange={v => setWicketForm({...wicketForm, type: v})}><SelectTrigger className="font-bold"><SelectValue /></SelectTrigger><SelectContent>{['bowled', 'caught', 'lbw', 'runout', 'stumped'].map(t => <SelectItem key={t} value={t} className="uppercase font-bold text-[10px]">{t}</SelectItem>)}</SelectContent></Select></div>
-            <div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Batter Out</Label><Select value={wicketForm.batterOutId} onValueChange={v => setWicketForm({...wicketForm, batterOutId: v})}><SelectTrigger className="font-bold"><SelectValue placeholder="Select Batter" /></SelectTrigger><SelectContent>
+            <div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Action Type</Label><Select value={wicketForm.type} onValueChange={v => setWicketForm({...wicketForm, type: v})}><SelectTrigger className="font-bold"><SelectValue /></SelectTrigger><SelectContent>{['bowled', 'caught', 'lbw', 'runout', 'stumped', 'retired'].map(t => <SelectItem key={t} value={t} className="uppercase font-bold text-[10px]">{t}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Batter Out/Leaving</Label><Select value={wicketForm.batterOutId} onValueChange={v => setWicketForm({...wicketForm, batterOutId: v})}><SelectTrigger className="font-bold"><SelectValue placeholder="Select Batter" /></SelectTrigger><SelectContent>
               {activeInningData?.strikerPlayerId && <SelectItem value={activeInningData.strikerPlayerId}>{getPlayerName(activeInningData.strikerPlayerId)}</SelectItem>}
               {activeInningData?.nonStrikerPlayerId && <SelectItem value={activeInningData.nonStrikerPlayerId}>{getPlayerName(activeInningData.nonStrikerPlayerId)}</SelectItem>}
             </SelectContent></Select></div>
@@ -559,7 +626,7 @@ export default function MatchScoreboardPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter><Button variant="destructive" onClick={handleWicket} className="w-full h-12 font-black uppercase tracking-widest shadow-lg">Confirm Wicket</Button></DialogFooter>
+          <DialogFooter><Button variant="destructive" onClick={handleWicket} className="w-full h-12 font-black uppercase tracking-widest shadow-lg">Confirm Action</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
