@@ -2,18 +2,25 @@
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from '@/firebase';
-import { collection, query, where, orderBy, limit, doc } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, doc, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trophy, Activity, Users, ArrowRight, PlayCircle, ShieldCheck } from 'lucide-react';
+import { Trophy, Activity, Users, ArrowRight, PlayCircle, ShieldCheck, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
+import { useMemo, useState, useEffect } from 'react';
+import { calculatePlayerCVP } from '@/lib/cvp-utils';
 
 export default function Home() {
   const db = useFirestore();
   const { isUmpire } = useApp();
   const { user } = useUser();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   const umpireRef = useMemoFirebase(() => 
     isUmpire && user?.uid ? doc(db, 'umpires', user.uid) : null, 
@@ -26,10 +33,55 @@ export default function Home() {
   const { data: liveMatches } = useCollection(liveMatchesQuery);
   const liveMatch = liveMatches?.[0];
 
-  const topPlayersQuery = useMemoFirebase(() => 
-    query(collection(db, 'players'), orderBy('careerCVP', 'desc'), limit(3)), 
-  [db]);
-  const { data: topPlayers } = useCollection(topPlayersQuery);
+  const playersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
+  const { data: players } = useCollection(playersQuery);
+
+  const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
+  const { data: allMatches } = useCollection(allMatchesQuery);
+
+  const deliveriesQuery = useMemoFirebase(() => {
+    if (!isMounted) return null;
+    return query(collectionGroup(db, 'deliveryRecords'));
+  }, [db, isMounted]);
+  const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
+
+  // GHOST DATA PROTECTION: Map Top 3 based on active history only
+  const topPlayers = useMemo(() => {
+    if (!players || !allMatches || !rawDeliveries || !isMounted) return [];
+    
+    const activeMatchIds = new Set(allMatches.map(m => m.id));
+    const stats: Record<string, any> = {};
+
+    players.forEach(p => {
+      stats[p.id] = { id: p.id, name: p.name, role: p.role, cvp: 0, runs: 0, wickets: 0, ballsFaced: 0, ballsBowled: 0, catches: 0, stumpings: 0, runOuts: 0, fours: 0, sixes: 0, maidens: 0, runsConceded: 0 };
+    });
+
+    rawDeliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      if (!matchId || !activeMatchIds.has(matchId)) return;
+
+      if (stats[d.strikerPlayerId]) {
+        stats[d.strikerPlayerId].runs += d.runsScored || 0;
+        if (d.extraType !== 'wide') stats[d.strikerPlayerId].ballsFaced += 1;
+      }
+      if (stats[d.bowlerPlayerId]) {
+        stats[d.bowlerPlayerId].runsConceded += d.totalRunsOnDelivery || 0;
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') stats[d.bowlerPlayerId].ballsBowled += 1;
+        if (d.isWicket && d.dismissalType !== 'runout') stats[d.bowlerPlayerId].wickets += 1;
+      }
+      if (d.fielderPlayerId && stats[d.fielderPlayerId]) {
+        if (d.dismissalType === 'caught') stats[d.fielderPlayerId].catches += 1;
+        if (d.dismissalType === 'stumped') stats[d.fielderPlayerId].stumpings += 1;
+        if (d.dismissalType === 'runout') stats[d.fielderPlayerId].runOuts += 1;
+      }
+    });
+
+    return Object.values(stats)
+      .map(s => ({ ...s, cvp: calculatePlayerCVP(s) }))
+      .filter(s => s.cvp > 0)
+      .sort((a, b) => b.cvp - a.cvp)
+      .slice(0, 3);
+  }, [players, allMatches, rawDeliveries, isMounted]);
 
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: teams } = useCollection(teamsQuery);
@@ -38,6 +90,8 @@ export default function Home() {
     const team = teams?.find(t => t.id === teamId);
     return team ? team.name : 'Unknown Team';
   };
+
+  if (!isMounted) return null;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -53,9 +107,9 @@ export default function Home() {
             {isUmpire ? <><ShieldCheck className="w-3 h-3" /> Official Umpire Mode</> : 'Professional Scoring Suite'}
           </Badge>
           <h1 className="text-4xl md:text-6xl font-black font-headline mb-4 tracking-tight">
-            {isUmpire && umpireProfile?.name ? `Welcome, ${umpireProfile.name}` : 'CricMates ScoresTracker'}
+            {isUmpire && umpireProfile?.name ? `Welcome, ${umpireProfile.name}` : 'CricMates Tracker'}
           </h1>
-          <p className="text-lg md:text-xl opacity-90 mb-8 max-w-2xl mx-auto font-medium">Ball-by-ball precision, real-time analytics, and comprehensive league management in one place.</p>
+          <p className="text-lg md:text-xl opacity-90 mb-8 max-w-2xl mx-auto font-medium">Ball-by-ball precision, real-time analytics, and comprehensive league management.</p>
           <div className="flex flex-wrap justify-center gap-4">
             <Button size="lg" className="bg-secondary hover:bg-secondary/90 h-12 px-8 font-black uppercase text-xs tracking-widest shadow-xl" asChild>
               <Link href="/matches">Match Center</Link>
@@ -106,11 +160,6 @@ export default function Home() {
               <div className="text-center py-12 border-2 border-dashed rounded-xl bg-slate-50/50">
                 <Activity className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                 <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No matches are currently active</p>
-                {isUmpire && (
-                  <Button variant="link" asChild className="mt-2 text-primary font-black uppercase text-[10px]">
-                    <Link href="/match/new">Start a match now</Link>
-                  </Button>
-                )}
               </div>
             )}
           </CardContent>
@@ -122,10 +171,15 @@ export default function Home() {
               <Trophy className="text-secondary w-5 h-5" />
               <span>MVP Rankings</span>
             </CardTitle>
-            <CardDescription className="text-[10px] font-bold uppercase">Top Career CVP Points</CardDescription>
+            <CardDescription className="text-[10px] font-bold uppercase">Top Career CVP Points (Validated)</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {topPlayers && topPlayers.length > 0 ? topPlayers.map((player, idx) => (
+            {isDeliveriesLoading ? (
+              <div className="flex flex-col items-center py-12 gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <p className="text-[10px] font-black text-slate-400 uppercase">Validating History...</p>
+              </div>
+            ) : topPlayers && topPlayers.length > 0 ? topPlayers.map((player, idx) => (
               <div key={player.id} className="flex items-center justify-between p-3 hover:bg-muted transition-colors rounded-lg border border-transparent hover:border-border">
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-[10px] font-black text-primary">
@@ -137,12 +191,14 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-black text-primary">{player.careerCVP || 0}</p>
+                  <p className="text-sm font-black text-primary">{player.cvp.toFixed(1)}</p>
                   <p className="text-[8px] uppercase font-black text-muted-foreground">Points</p>
                 </div>
               </div>
             )) : (
-              <p className="text-[10px] text-center text-muted-foreground font-bold uppercase tracking-widest py-8">No leaderboard data</p>
+              <div className="text-center py-12">
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">No leaderboard data</p>
+              </div>
             )}
             <Button variant="ghost" className="w-full mt-2 text-primary font-black uppercase text-[10px] tracking-widest hover:bg-primary/5" asChild>
               <Link href="/rankings">Global Leaderboard <ArrowRight className="ml-2 w-4 h-4" /></Link>
@@ -151,7 +207,7 @@ export default function Home() {
         </Card>
       </div>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pb-12">
         {[
           { title: 'Squad Hub', desc: 'Manage teams & players', icon: Users, href: '/teams', color: 'bg-blue-500' },
           { title: 'History', desc: 'Archive of past glories', icon: Activity, href: '/matches', color: 'bg-secondary' },
