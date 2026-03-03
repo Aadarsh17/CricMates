@@ -8,7 +8,7 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Flag, Edit2, Loader2, Calendar, Award, Target, Zap } from 'lucide-react';
+import { ArrowLeft, Flag, Edit2, Loader2, Calendar } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -270,7 +270,7 @@ export default function PlayerProfilePage() {
                     { label: 'Batting Average', value: (historyStats.inningsBatted - historyStats.ducks) > 0 ? (historyStats.runs / historyStats.inningsBatted).toFixed(2) : '0.00' },
                     { label: 'Strike Rate', value: historyStats.ballsFaced > 0 ? ((historyStats.runs / historyStats.ballsFaced) * 100).toFixed(2) : '0.00' },
                     { label: 'Fours / Sixes', value: `${historyStats.fours} / ${historyStats.sixes}` },
-                    { label: '100s / 50s / 30s', value: `${historyStats.hundreds} / ${historyStats.fifties} / ${historyStats.thirties}` },
+                    { label: '30s / 50s / 100s', value: `${historyStats.thirties} / ${historyStats.fifties} / ${historyStats.hundreds}` },
                     { label: 'Ducks', value: historyStats.ducks },
                   ].map((row, idx) => (
                     <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
