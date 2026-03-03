@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, UserCircle, Star, ShieldCheck, ChevronRight } from 'lucide-react';
+import { Search, UserCircle, Star, ShieldCheck, ChevronRight, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 
@@ -19,11 +19,17 @@ export default function PlayersPage() {
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
+  const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
+  const { data: matches, isLoading: isMatchesLoading } = useCollection(matchesQuery);
+
   const allDeliveriesQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords')), [db]);
   const { data: allDeliveries, isLoading: isDeliveriesLoading } = useCollection(allDeliveriesQuery);
 
+  // GHOST DATA PROTECTION: Only count deliveries belonging to existing matches
+  const activeMatchIds = useMemo(() => new Set(matches?.map(m => m.id) || []), [matches]);
+
   const playerStats = useMemo(() => {
-    if (!players || !allDeliveries) return {};
+    if (!players || !allDeliveries || !matches) return {};
     
     const stats: Record<string, any> = {};
     players.forEach(p => {
@@ -31,6 +37,9 @@ export default function PlayersPage() {
     });
 
     allDeliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      if (!matchId || !activeMatchIds.has(matchId)) return; // Filter out ghost data
+
       if (stats[d.strikerPlayerId]) {
         stats[d.strikerPlayerId].runs += d.runsScored || 0;
         if (d.extraType !== 'wide') stats[d.strikerPlayerId].ballsFaced += 1;
@@ -54,21 +63,21 @@ export default function PlayersPage() {
     });
 
     return stats;
-  }, [players, allDeliveries]);
+  }, [players, allDeliveries, matches, activeMatchIds]);
 
   const filteredPlayers = players?.filter(p => 
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.role.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const isLoading = isPlayersLoading || isDeliveriesLoading;
+  const isLoading = isPlayersLoading || isDeliveriesLoading || isMatchesLoading;
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-24 px-4 max-w-5xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900">Player Pool</h1>
-          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">League Participant Directory (Live History Sync)</p>
+          <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">League Participant Directory (Validated History)</p>
         </div>
         <div className="relative w-full md:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -82,13 +91,12 @@ export default function PlayersPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[...Array(8)].map((_, i) => (
-            <Card key={i} className="animate-pulse h-40 bg-slate-50 border-none" />
-          ))}
+        <div className="flex flex-col items-center justify-center py-20 gap-4">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Verifying History Records...</p>
         </div>
       ) : filteredPlayers && filteredPlayers.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPlayers.map(player => {
             const stats = playerStats[player.id] || { runs: 0, wickets: 0, cvp: 0 };
             return (
@@ -97,7 +105,7 @@ export default function PlayersPage() {
                   <CardContent className="p-0">
                     <div className="p-4 flex items-center gap-4">
                       <Avatar className="w-12 h-12 border-2 border-slate-100 group-hover:border-primary/20 transition-colors">
-                        <AvatarImage src={player.imageUrl} />
+                        <AvatarImage src={player.imageUrl} className="object-cover" />
                         <AvatarFallback className="font-black text-slate-400">{player.name[0]}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1 min-w-0">

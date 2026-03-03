@@ -8,7 +8,7 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Flag, Edit2, Loader2, Calendar } from 'lucide-react';
+import { ArrowLeft, Flag, Edit2, Loader2, Calendar, Award, Target, Zap } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -68,6 +68,8 @@ export default function PlayerProfilePage() {
     }
   }, [player]);
 
+  const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
+
   const matchWiseLog = useMemo(() => {
     if (!isMounted || !player || !allDeliveries || !allMatches) return [];
     
@@ -75,7 +77,7 @@ export default function PlayerProfilePage() {
 
     allDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
-      if (!matchId) return;
+      if (!matchId || !activeMatchIds.has(matchId)) return;
 
       if (!logs[matchId]) {
         const m = allMatches.find(match => match.id === matchId);
@@ -88,7 +90,7 @@ export default function PlayerProfilePage() {
           matchId: matchId,
           matchName: opponent ? `vs ${opponent.name}` : 'League Match',
           date: m.matchDate || '',
-          batting: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0 },
+          batting: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0, out: false },
           bowling: { wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0 },
           fielding: { catches: 0, stumpings: 0, runOuts: 0 }
         };
@@ -101,6 +103,9 @@ export default function PlayerProfilePage() {
         if (d.extraType !== 'wide') log.batting.ballsFaced += 1;
         if (d.runsScored === 4) log.batting.fours += 1;
         if (d.runsScored === 6) log.batting.sixes += 1;
+        if (d.isWicket && d.batsmanOutPlayerId === playerId) {
+          log.batting.out = true;
+        }
       }
 
       if (d.bowlerPlayerId === playerId) {
@@ -120,7 +125,7 @@ export default function PlayerProfilePage() {
       const points = calculatePlayerCVP({ ...log.batting, ...log.bowling, ...log.fielding, id: player.id, name: player.name });
       return { ...log, totalCVP: points };
     }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [allDeliveries, allMatches, player, allTeams, isMounted, playerId]);
+  }, [allDeliveries, allMatches, player, allTeams, isMounted, playerId, activeMatchIds]);
 
   const historyStats = useMemo(() => {
     const stats = {
@@ -129,26 +134,50 @@ export default function PlayerProfilePage() {
       catches: 0, stumpings: 0, runOuts: 0,
       careerCVP: 0, matchesPlayed: 0,
       inningsBatted: 0, inningsBowled: 0,
-      highestScore: 0
+      highestScore: 0,
+      ducks: 0, thirties: 0, fifties: 0, hundreds: 0,
+      twoWkts: 0, threeWkts: 0, fourWkts: 0, fiveWkts: 0,
+      bestBowling: { wkts: 0, runs: 0, display: '0/0' }
     };
+
     matchWiseLog.forEach(log => {
+      // Batting Stats
       stats.runs += log.batting.runs;
       stats.ballsFaced += log.batting.ballsFaced;
       stats.fours += log.batting.fours;
       stats.sixes += log.batting.sixes;
       if (log.batting.ballsFaced > 0) stats.inningsBatted += 1;
       if (log.batting.runs > stats.highestScore) stats.highestScore = log.batting.runs;
+      
+      // Batting Milestones
+      if (log.batting.runs >= 100) stats.hundreds += 1;
+      else if (log.batting.runs >= 50) stats.fifties += 1;
+      else if (log.batting.runs >= 30) stats.thirties += 1;
+      
+      if (log.batting.runs === 0 && log.batting.out) stats.ducks += 1;
 
+      // Bowling Stats
       stats.wickets += log.bowling.wickets;
       stats.ballsBowled += log.bowling.ballsBowled;
       stats.runsConceded += log.bowling.runsConceded;
       stats.maidens += log.bowling.maidens;
       if (log.bowling.ballsBowled > 0) stats.inningsBowled += 1;
 
+      // Bowling Milestones
+      if (log.bowling.wickets >= 5) stats.fiveWkts += 1;
+      else if (log.bowling.wickets === 4) stats.fourWkts += 1;
+      else if (log.bowling.wickets === 3) stats.threeWkts += 1;
+      else if (log.bowling.wickets === 2) stats.twoWkts += 1;
+
+      // Best Bowling
+      if (log.bowling.wickets > stats.bestBowling.wkts || (log.bowling.wickets === stats.bestBowling.wkts && log.bowling.runsConceded < stats.bestBowling.runs)) {
+        stats.bestBowling = { wkts: log.bowling.wickets, runs: log.bowling.runsConceded, display: `${log.bowling.wickets}/${log.bowling.runsConceded}` };
+      }
+
+      // General Stats
       stats.catches += log.fielding.catches;
       stats.stumpings += log.fielding.stumpings;
       stats.runOuts += log.fielding.runOuts;
-
       stats.careerCVP += log.totalCVP;
       stats.matchesPlayed += 1;
     });
@@ -160,7 +189,7 @@ export default function PlayerProfilePage() {
   if (isLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
       <Loader2 className="w-10 h-10 text-primary animate-spin" />
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Synchronizing Career Data...</p>
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Career Data...</p>
     </div>
   );
 
@@ -237,10 +266,11 @@ export default function PlayerProfilePage() {
                     { label: 'Total Runs', value: historyStats.runs },
                     { label: 'Balls Faced', value: historyStats.ballsFaced },
                     { label: 'Highest Score', value: historyStats.highestScore },
-                    { label: 'Batting Average', value: historyStats.inningsBatted > 0 ? (historyStats.runs / historyStats.inningsBatted).toFixed(2) : '0.00' },
+                    { label: 'Batting Average', value: (historyStats.inningsBatted - historyStats.ducks) > 0 ? (historyStats.runs / historyStats.inningsBatted).toFixed(2) : '0.00' },
                     { label: 'Strike Rate', value: historyStats.ballsFaced > 0 ? ((historyStats.runs / historyStats.ballsFaced) * 100).toFixed(2) : '0.00' },
-                    { label: 'Fours', value: historyStats.fours },
-                    { label: 'Sixes', value: historyStats.sixes },
+                    { label: 'Fours / Sixes', value: `${historyStats.fours} / ${historyStats.sixes}` },
+                    { label: '100s / 50s / 30s', value: `${historyStats.hundreds} / ${historyStats.fifties} / ${historyStats.thirties}` },
+                    { label: 'Ducks', value: historyStats.ducks },
                   ].map((row, idx) => (
                     <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                       <TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell>
@@ -258,11 +288,11 @@ export default function PlayerProfilePage() {
                     { label: 'Innings Bowled', value: historyStats.inningsBowled },
                     { label: 'Wickets', value: historyStats.wickets },
                     { label: 'Runs Conceded', value: historyStats.runsConceded },
-                    { label: 'Balls Bowled', value: historyStats.ballsBowled },
                     { label: 'Overs Bowled', value: `${Math.floor(historyStats.ballsBowled / 6)}.${historyStats.ballsBowled % 6}` },
                     { label: 'Maidens', value: historyStats.maidens },
+                    { label: 'Best Bowling (BBF)', value: historyStats.bestBowling.display },
                     { label: 'Economy Rate', value: historyStats.ballsBowled >= 6 ? (historyStats.runsConceded / (historyStats.ballsBowled / 6)).toFixed(2) : '0.00' },
-                    { label: 'Bowling Average', value: historyStats.wickets > 0 ? (historyStats.runsConceded / historyStats.wickets).toFixed(2) : 'N/A' },
+                    { label: '5w / 4w / 3w / 2w', value: `${historyStats.fiveWkts} / ${historyStats.fourWkts} / ${historyStats.threeWkts} / ${historyStats.twoWkts}` },
                   ].map((row, idx) => (
                     <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                       <TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell>
