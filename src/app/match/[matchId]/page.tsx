@@ -9,7 +9,7 @@ import { doc, collection, query, orderBy, writeBatch, serverTimestamp, getDoc, l
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2, Download, FileText, Share2, Users as UsersIcon, Sparkles, Loader2, Skull, LogOut } from 'lucide-react';
+import { History, CheckCircle2, Trophy, Star, ShieldAlert, UserPlus, Info, ChevronRight, AlertCircle, Edit2, Save, Settings2, ShieldCheck, PenTool, BarChart3, LineChart as LineChartIcon, Flag, User, Target, Zap, PlayCircle, Undo2, Users2, ArrowLeftRight, Clock, Calendar, BarChart, TrendingUp, Users, ChevronDown, ChevronUp, RefreshCw, Trash2, Download, FileText, Share2, Users as UsersIcon, Sparkles, Loader2, Skull, LogOut, Search } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -45,6 +45,7 @@ export default function MatchScoreboardPage() {
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [isUndoing, setIsUndoing] = useState(false);
+  const [isFixing, setIsFixing] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -61,16 +62,16 @@ export default function MatchScoreboardPage() {
   const activeInningData = match?.currentInningNumber === 1 ? inn1 : (match?.currentInningNumber === 2 ? inn2 : null);
 
   useEffect(() => {
-    if (match?.currentInningNumber && isMounted) {
+    if (match?.currentInningNumber && isMounted && activeTab === 'live') {
       setActiveInningView(match.currentInningNumber);
     }
-  }, [match?.currentInningNumber, isMounted]);
+  }, [match?.currentInningNumber, isMounted, activeTab]);
 
   const [wicketForm, setWicketForm] = useState({
     type: 'bowled',
     batterOutId: '',
     fielderId: 'none',
-    decision: 'next' // next, last_man, finish
+    decision: 'next'
   });
 
   const [retireForm, setRetireForm] = useState({
@@ -110,8 +111,8 @@ export default function MatchScoreboardPage() {
   const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || []), [inn2Deliveries]);
 
   const currentInningStats = activeInningView === 1 ? stats1 : stats2;
+  const currentDeliveriesList = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
 
-  // Identify players who are definitively OUT (not retired)
   const definitivelyOutIds = useMemo(() => {
     const currentDeliveries = match?.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries;
     if (!currentDeliveries) return new Set<string>();
@@ -390,7 +391,6 @@ export default function MatchScoreboardPage() {
       const lastBall = snapshot.docs[0].data();
       const lastBallId = snapshot.docs[0].id;
 
-      // Revert state
       let { score, wickets, oversCompleted, ballsInCurrentOver, strikerPlayerId, nonStrikerPlayerId, isLastManActive } = activeInningData;
 
       score -= lastBall.totalRunsOnDelivery;
@@ -398,13 +398,11 @@ export default function MatchScoreboardPage() {
         if (lastBall.dismissalType !== 'retired') {
           wickets -= 1;
         }
-        // Restore previous positions accurately from the history record
         strikerPlayerId = lastBall.strikerPlayerId;
         nonStrikerPlayerId = lastBall.nonStrikerPlayerId;
         if (nonStrikerPlayerId === 'none') nonStrikerPlayerId = '';
         isLastManActive = lastBall.nonStrikerPlayerId === 'none';
       } else {
-        // If odd runs were scored, we need to swap back to original rotation
         if (!isLastManActive && lastBall.runsScored % 2 !== 0) {
           const temp = strikerPlayerId;
           strikerPlayerId = nonStrikerPlayerId;
@@ -412,7 +410,6 @@ export default function MatchScoreboardPage() {
         }
       }
 
-      // Revert over counter
       const isLegal = lastBall.extraType !== 'wide' && lastBall.extraType !== 'noball' && lastBall.dismissalType !== 'retired';
       if (isLegal) {
         if (ballsInCurrentOver === 0) {
@@ -434,6 +431,53 @@ export default function MatchScoreboardPage() {
       toast({ title: "Undo Failed", variant: "destructive" });
     } finally {
       setIsUndoing(false);
+    }
+  };
+
+  const handleFixSummary = async () => {
+    if (!match || !activeInningData || !isUmpire || isFixing) return;
+    setIsFixing(true);
+    toast({ title: "Recalculating...", description: "Scanning history to fix summary counts." });
+
+    try {
+      const currentInningId = `inning_${match.currentInningNumber}`;
+      const deliveriesRef = collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords');
+      const q = query(deliveriesRef, orderBy('timestamp', 'asc'));
+      const snapshot = await getDocs(q);
+      
+      let newScore = 0;
+      let newWickets = 0;
+      let newBalls = 0;
+      let newOvers = 0;
+
+      snapshot.docs.forEach(doc => {
+        const d = doc.data();
+        newScore += d.totalRunsOnDelivery || 0;
+        if (d.isWicket && d.dismissalType !== 'retired') newWickets += 1;
+        
+        const isLegal = d.extraType !== 'wide' && d.extraType !== 'noball';
+        if (isLegal) {
+          newBalls += 1;
+          if (newBalls === 6) {
+            newOvers += 1;
+            newBalls = 0;
+          }
+        }
+      });
+
+      const inningRef = doc(db, 'matches', matchId, 'innings', currentInningId);
+      await setDoc(inningRef, {
+        score: newScore,
+        wickets: newWickets,
+        oversCompleted: newOvers,
+        ballsInCurrentOver: newBalls
+      }, { merge: true });
+
+      toast({ title: "Summary Fixed", description: `Score: ${newScore}/${newWickets}, Overs: ${newOvers}.${newBalls}` });
+    } catch (e) {
+      toast({ title: "Fix Failed", variant: "destructive" });
+    } finally {
+      setIsFixing(false);
     }
   };
 
@@ -603,7 +647,7 @@ export default function MatchScoreboardPage() {
         <TabsContent value="scorecard" className="space-y-4 pt-4">
            <div className="flex gap-2 mb-4">
               <Button size="sm" variant={activeInningView === 1 ? 'default' : 'outline'} onClick={() => setActiveInningView(1)} className="font-black text-[10px] uppercase">1st Innings</Button>
-              {match.currentInningNumber >= 2 && <Button size="sm" variant={activeInningView === 2 ? 'default' : 'outline'} onClick={() => setActiveInningView(2)} className="font-black text-[10px] uppercase">2nd Innings</Button>}
+              {(match.currentInningNumber >= 2 || inn2) && <Button size="sm" variant={activeInningView === 2 ? 'default' : 'outline'} onClick={() => setActiveInningView(2)} className="font-black text-[10px] uppercase">2nd Innings</Button>}
            </div>
            <Card className="rounded-xl overflow-hidden border shadow-sm">
               <Table>
@@ -657,14 +701,78 @@ export default function MatchScoreboardPage() {
               </Card>
            </div>
         </TabsContent>
+
+        <TabsContent value="overs" className="pt-4">
+           <div className="flex gap-2 mb-4">
+              <Button size="sm" variant={activeInningView === 1 ? 'default' : 'outline'} onClick={() => setActiveInningView(1)} className="font-black text-[10px] uppercase">1st Innings</Button>
+              {(match.currentInningNumber >= 2 || inn2) && <Button size="sm" variant={activeInningView === 2 ? 'default' : 'outline'} onClick={() => setActiveInningView(2)} className="font-black text-[10px] uppercase">2nd Innings</Button>}
+           </div>
+           <div className="space-y-4">
+              {currentDeliveriesList && currentDeliveriesList.length > 0 ? (
+                (() => {
+                  const overs: Record<number, any[]> = {};
+                  currentDeliveriesList.forEach(d => {
+                    if (!overs[d.overNumber]) overs[d.overNumber] = [];
+                    overs[d.overNumber].push(d);
+                  });
+                  return Object.keys(overs).reverse().map(oNum => (
+                    <Card key={oNum} className="overflow-hidden border-l-4 border-l-slate-200">
+                      <div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b">
+                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Over {oNum}</h4>
+                        <p className="text-[9px] font-bold text-slate-400">By {getPlayerName(overs[parseInt(oNum)][0].bowlerId)}</p>
+                      </div>
+                      <div className="p-2 flex flex-wrap gap-2">
+                        {overs[parseInt(oNum)].map((d, idx) => (
+                          <div key={idx} className={cn("w-10 h-10 rounded-full flex items-center justify-center text-xs font-black border-2", 
+                            d.isWicket ? "bg-red-600 border-red-700 text-white shadow-sm" : 
+                            d.runsScored >= 4 ? "bg-blue-600 border-blue-700 text-white shadow-sm" :
+                            d.extraType !== 'none' ? "bg-amber-50 border-amber-200 text-amber-700" : "bg-white border-slate-100 text-slate-700")}>
+                            {d.isWicket ? "W" : d.extraType === 'wide' ? `${d.totalRunsOnDelivery}wd` : d.extraType === 'noball' ? `${d.totalRunsOnDelivery}nb` : d.runsScored}
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  ));
+                })()
+              ) : (
+                <div className="py-20 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+                  <Search className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No deliveries found for this inning</p>
+                </div>
+              )}
+           </div>
+        </TabsContent>
       </Tabs>
 
       <Dialog open={isEditFullMatchOpen} onOpenChange={setIsEditFullMatchOpen}>
         <DialogContent className="max-w-2xl rounded-xl border-t-8 border-t-primary">
           <DialogHeader><DialogTitle className="font-black uppercase text-xl flex items-center gap-2"><ShieldCheck className="w-6 h-6 text-primary" /> CORRECTION ENGINE</DialogTitle></DialogHeader>
           <div className="space-y-6 py-6">
-            <div className="grid grid-cols-2 gap-6"><div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Match Status</Label><Select value={match.status} onValueChange={v => updateDocumentNonBlocking(matchRef, {status: v})}><SelectTrigger className="font-bold h-12 shadow-sm"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="live">Live</SelectItem><SelectItem value="completed">Completed</SelectItem></SelectContent></Select></div></div>
+            <div className="grid grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Match Status</Label>
+                <Select value={match.status} onValueChange={v => updateDocumentNonBlocking(matchRef, {status: v})}>
+                  <SelectTrigger className="font-bold h-12 shadow-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="live">Live</SelectItem><SelectItem value="completed">Completed</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Active Inning (Correct Here)</Label>
+                <Select value={match.currentInningNumber.toString()} onValueChange={v => updateDocumentNonBlocking(matchRef, {currentInningNumber: parseInt(v)})}>
+                  <SelectTrigger className="font-bold h-12 shadow-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="1">Inning 1</SelectItem><SelectItem value="2">Inning 2</SelectItem></SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Result Description</Label><Input value={match.resultDescription} onChange={e => updateDocumentNonBlocking(matchRef, {resultDescription: e.target.value})} className="font-bold text-primary h-12 shadow-sm" /></div>
+            
+            <div className="p-4 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
+              <h4 className="text-[10px] font-black uppercase text-slate-400 mb-3">Professional Recovery</h4>
+              <Button onClick={handleFixSummary} disabled={isFixing} variant="secondary" className="w-full h-12 font-black uppercase tracking-widest text-[10px]">
+                {isFixing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />} Fix Summary (Recalculate from Balls)
+              </Button>
+              <p className="text-[8px] text-slate-400 font-bold uppercase mt-2 text-center">Use this if the total score does not match history records.</p>
+            </div>
           </div>
           <DialogFooter><Button onClick={() => setIsEditFullMatchOpen(false)} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl">CLOSE TOOLS</Button></DialogFooter>
         </DialogContent>
@@ -739,7 +847,7 @@ export default function MatchScoreboardPage() {
                   <SelectTrigger className="font-bold"><SelectValue placeholder="Striker" /></SelectTrigger>
                   <SelectContent>
                     {currentBattingSquad
-                      .filter(p => !definitivelyOutIds.has(p.id)) // Exclude players who are OUT (but not retired)
+                      .filter(p => !definitivelyOutIds.has(p.id))
                       .filter(p => p.id !== activeInningData?.nonStrikerPlayerId && p.id !== activeInningData?.currentBowlerPlayerId)
                       .map(p => (
                       <SelectItem key={p.id} value={p.id} className="font-bold">
@@ -764,7 +872,7 @@ export default function MatchScoreboardPage() {
                     <SelectTrigger className="font-bold"><SelectValue placeholder="Non-Striker" /></SelectTrigger>
                     <SelectContent>
                       {currentBattingSquad
-                        .filter(p => !definitivelyOutIds.has(p.id)) // Exclude players who are OUT (but not retired)
+                        .filter(p => !definitivelyOutIds.has(p.id))
                         .filter(p => p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.currentBowlerPlayerId)
                         .map(p => (
                         <SelectItem key={p.id} value={p.id} className="font-bold">
