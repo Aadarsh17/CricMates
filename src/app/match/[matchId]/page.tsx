@@ -735,7 +735,7 @@ export default function MatchScoreboardPage() {
                     if (!overs[d.overNumber]) overs[d.overNumber] = [];
                     overs[d.overNumber].push(d);
                   });
-                  return Object.keys(overs).reverse().map(oNum => (
+                  return Object.keys(overs).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => (
                     <Card key={oNum} className="overflow-hidden border-l-4 border-l-slate-200">
                       <div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b">
                         <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Over {oNum}</h4>
@@ -743,7 +743,7 @@ export default function MatchScoreboardPage() {
                       </div>
                       <div className="p-4 space-y-3">
                         {overs[parseInt(oNum)].map((d, idx) => (
-                          <div key={idx} className="flex items-center justify-between group">
+                          <div key={d.id || idx} className="flex items-center justify-between group">
                             <div className="flex items-center gap-3">
                               <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", 
                                 d.isWicket ? "bg-red-600 border-red-700 text-white shadow-sm" : 
@@ -778,7 +778,7 @@ export default function MatchScoreboardPage() {
               ) : (
                 <div className="py-20 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
                   <Search className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No deliveries found for this inning</p>
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No deliveries found for Inning {activeInningView}</p>
                 </div>
               )}
            </div>
