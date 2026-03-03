@@ -425,7 +425,7 @@ export default function MatchScoreboardPage() {
         score, wickets, oversCompleted, ballsInCurrentOver, strikerPlayerId, nonStrikerPlayerId, isLastManActive, isDeclaredFinished: false
       });
 
-      await deleteDoc(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', lastBallId));
+      deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', lastBallId));
       toast({ title: "Last Ball Undone" });
     } catch (e) {
       toast({ title: "Undo Failed", variant: "destructive" });
@@ -482,16 +482,16 @@ export default function MatchScoreboardPage() {
     }
   };
 
-  const handleDeleteBall = async (ballId: string, inningNum: number) => {
+  const handleDeleteBall = (ballId: string, inningNum: number) => {
     if (!isUmpire) return;
     if (!confirm("Are you sure you want to delete this ball? You must recalculate the inning afterwards.")) return;
     
-    try {
-      await deleteDoc(doc(db, 'matches', matchId, 'innings', `inning_${inningNum}`, 'deliveryRecords', ballId));
-      toast({ title: "Ball Deleted", description: "Use 'Fix Summary' to update the scoreboard." });
-    } catch (e) {
-      toast({ title: "Delete Failed", variant: "destructive" });
-    }
+    deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${inningNum}`, 'deliveryRecords', ballId));
+    toast({ 
+      title: "Ball Removed", 
+      description: "Note: Total score is not automatically adjusted. Click 'Fix Summary' above to update scoreboard.",
+      duration: 5000 
+    });
   };
 
   const handleStartSecondInnings = async () => {
@@ -757,7 +757,15 @@ export default function MatchScoreboardPage() {
                               </div>
                             </div>
                             {isUmpire && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => handleDeleteBall(d.id, activeInningView)}>
+                              <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-slate-300 hover:text-destructive transition-colors" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteBall(d.id, activeInningView);
+                                }}
+                              >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             )}
