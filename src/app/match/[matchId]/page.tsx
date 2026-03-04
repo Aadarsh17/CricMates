@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { CheckCircle2, Trophy, Info, ArrowLeftRight, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
-import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart as ReBarChart, Bar, Cell, AreaChart, Area, Line } from "recharts";
+import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, Line, BarChart as ReBarChart, Bar, Cell } from "recharts";
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
@@ -88,6 +88,16 @@ export default function MatchScoreboardPage() {
     return match.currentInningNumber === 1 ? inn1 : (match.currentInningNumber === 2 ? inn2 : null);
   }, [match?.currentInningNumber, inn1, inn2]);
 
+  const getPlayerName = (pid: string) => {
+    if (!pid || pid === 'none' || pid === '') return '---';
+    return allPlayers?.find(p => p.id === pid)?.name || '---';
+  };
+
+  const getTeamName = (tid: string) => {
+    if (!tid) return '---';
+    return allTeams?.find(t => t.id === tid)?.name || 'Unknown Team';
+  };
+
   const currentBattingSquad = useMemo(() => {
     if (!match || !activeInningData || !allPlayers) return [];
     return allPlayers.filter(p => p.teamId === activeInningData.battingTeamId || (match.commonPlayerId && p.id === match.commonPlayerId));
@@ -115,16 +125,6 @@ export default function MatchScoreboardPage() {
   const currentInningStats = useMemo(() => activeInningView === 1 ? stats1 : stats2, [activeInningView, stats1, stats2]);
   const currentDeliveriesList = useMemo(() => activeInningView === 1 ? inn1Deliveries : inn2Deliveries, [activeInningView, inn1Deliveries, inn2Deliveries]);
   const isHistoryLoading = useMemo(() => activeInningView === 1 ? isInn1Loading : isInn2Loading, [activeInningView, isInn1Loading, isInn2Loading]);
-
-  const getPlayerName = (pid: string) => {
-    if (!pid || pid === 'none' || pid === '') return '---';
-    return allPlayers?.find(p => p.id === pid)?.name || '---';
-  };
-
-  const getTeamName = (tid: string) => {
-    if (!tid) return '---';
-    return allTeams?.find(t => t.id === tid)?.name || 'Unknown Team';
-  };
 
   const wormData = useMemo(() => {
     const data: any[] = [];
@@ -273,11 +273,26 @@ export default function MatchScoreboardPage() {
       snapshot.docs.forEach(doc => {
         const d = doc.data(); newScore += (d.totalRunsOnDelivery || 0);
         if (d.isWicket && d.dismissalType !== 'retired') newWickets += 1;
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') { newBalls += 1; if (newBalls === 6) { newOvers += 1; newBalls = 0; } }
+        if (d.extraType !== 'wide' && d.extraType !== 'noball' && d.dismissalType !== 'retired') { newBalls += 1; if (newBalls === 6) { newOvers += 1; newBalls = 0; } }
       });
       await setDoc(doc(db, 'matches', matchId, 'innings', currentInningId), { score: newScore, wickets: newWickets, oversCompleted: newOvers, ballsInCurrentOver: newBalls, isDeclaredFinished: false }, { merge: true });
       toast({ title: "Summary Fixed" });
     } finally { setIsFixing(false); }
+  };
+
+  const handleDownloadReport = () => {
+    if (!match || !inn1) return;
+    const reportContent = generateHTMLReport(match, inn1, inn2, stats1, stats2, allTeams || [], allPlayers || []);
+    const blob = new Blob([reportContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `MatchReport_${match.id || 'Report'}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({ title: "Report Downloaded" });
   };
 
   const calculateResult = (i1: any, i2: any) => {
@@ -313,7 +328,7 @@ export default function MatchScoreboardPage() {
             <p className="text-[10px] font-black uppercase text-primary tracking-widest mt-1">{match.status === 'completed' ? match.resultDescription : `Innings ${match.currentInningNumber} Active`}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button size="sm" variant="outline" className="h-8 text-secondary border-secondary hover:bg-secondary/5 font-black text-[10px] uppercase" onClick={() => generateHTMLReport(match, inn1, inn2, stats1, stats2, allTeams||[], allPlayers||[])}><Download className="w-3 h-3 mr-1.5" /> Report</Button>
+            <Button size="sm" variant="outline" className="h-8 text-secondary border-secondary hover:bg-secondary/5 font-black text-[10px] uppercase" onClick={handleDownloadReport}><Download className="w-3 h-3 mr-1.5" /> Report</Button>
             {isUmpire && <Button size="sm" variant="outline" onClick={() => setIsEditFullMatchOpen(true)} className="h-8 px-3 font-black text-[10px] uppercase border-primary text-primary">Umpire Tools</Button>}
           </div>
         </div>
@@ -452,33 +467,44 @@ export default function MatchScoreboardPage() {
                     if (!overGroups[d.overNumber]) overGroups[d.overNumber] = [];
                     overGroups[d.overNumber].push(d);
                   });
-                  return Object.keys(overGroups).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => (
-                    <Card key={`over-card-${oNum}`} className="overflow-hidden border-l-4 border-l-slate-200">
-                      <div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b">
-                        <h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4>
-                      </div>
-                      <div className="p-4 space-y-3">
-                        {overGroups[parseInt(oNum)].map((d, idx) => (
-                          <div key={d.id || `ball-${idx}`} className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white" : "bg-white text-slate-700")}>
-                                {d.isWicket ? "W" : d.runsScored}
+                  return Object.keys(overGroups).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => {
+                    const overBalls = overGroups[parseInt(oNum)];
+                    const bowlerId = overBalls[0]?.bowlerId;
+                    return (
+                      <Card key={`over-card-${oNum}`} className="overflow-hidden border-l-4 border-l-slate-200">
+                        <div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b">
+                          <h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4>
+                          <span className="text-[9px] font-black text-primary uppercase">Bowled by: {getPlayerName(bowlerId)}</span>
+                        </div>
+                        <div className="p-4 space-y-3">
+                          {overBalls.map((d, idx) => (
+                            <div key={d.id || `ball-${idx}`} className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white" : "bg-white text-slate-700")}>
+                                  {d.isWicket ? "W" : d.runsScored}
+                                </div>
+                                <div className="flex flex-col">
+                                  <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
+                                  {d.isWicket ? (
+                                    <p className="text-[8px] text-red-600 font-bold uppercase">
+                                      OUT: {d.dismissalType} {d.fielderPlayerId && d.fielderPlayerId !== 'none' ? `(by ${getPlayerName(d.fielderPlayerId)})` : ''}
+                                    </p>
+                                  ) : (
+                                    <p className="text-[8px] text-slate-400 font-bold uppercase">{d.totalRunsOnDelivery} runs {d.extraType !== 'none' ? `(${d.extraType})` : ''}</p>
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex flex-col">
-                                <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
-                                <p className="text-[8px] text-slate-400 font-bold uppercase">{d.totalRunsOnDelivery} runs {d.extraType !== 'none' ? `(${d.extraType})` : ''}</p>
-                              </div>
+                              {isUmpire && (
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => { if (confirm("Delete this ball?")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', d.id)); toast({ title: "Ball Removed" }); } }}>
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </Button>
+                              )}
                             </div>
-                            {isUmpire && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => { if (confirm("Delete this ball?")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', d.id)); toast({ title: "Ball Removed" }); } }}>
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  ));
+                          ))}
+                        </div>
+                      </Card>
+                    );
+                  });
                 })()
               ) : (
                 <div className="py-20 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
