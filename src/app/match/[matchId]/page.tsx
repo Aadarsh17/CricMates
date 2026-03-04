@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
@@ -8,7 +9,7 @@ import { doc, collection, query, orderBy, getDocs, limit } from 'firebase/firest
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Info, ArrowLeftRight, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight } from 'lucide-react';
+import { Trophy, Info, ArrowLeftRight, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, Line, BarChart as ReBarChart, Bar, Cell } from "recharts";
@@ -107,18 +108,25 @@ export default function MatchScoreboardPage() {
   const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || []), [inn1Deliveries]);
   const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || []), [inn2Deliveries]);
 
-  const currentDeliveriesList = useMemo(() => activeInningView === 1 ? inn1Deliveries : inn2Deliveries, [activeInningView, inn1Deliveries, inn2Deliveries]);
-  const isHistoryLoading = useMemo(() => activeInningView === 1 ? isInn1Loading : isInn2Loading, [activeInningView, isInn1Loading, isInn2Loading]);
-
-  const overGroups = useMemo(() => {
-    if (!currentDeliveriesList) return null;
+  const overGroups1 = useMemo(() => {
+    if (!inn1Deliveries) return null;
     const groups: Record<number, any[]> = {};
-    currentDeliveriesList.forEach(d => {
+    inn1Deliveries.forEach(d => {
       if (!groups[d.overNumber]) groups[d.overNumber] = [];
       groups[d.overNumber].push(d);
     });
     return groups;
-  }, [currentDeliveriesList]);
+  }, [inn1Deliveries]);
+
+  const overGroups2 = useMemo(() => {
+    if (!inn2Deliveries) return null;
+    const groups: Record<number, any[]> = {};
+    inn2Deliveries.forEach(d => {
+      if (!groups[d.overNumber]) groups[d.overNumber] = [];
+      groups[d.overNumber].push(d);
+    });
+    return groups;
+  }, [inn2Deliveries]);
 
   const wormData = useMemo(() => {
     const data: any[] = [];
@@ -255,6 +263,36 @@ export default function MatchScoreboardPage() {
       </div>
     );
   };
+
+  const HistoryCard = ({ title, groups, isLoading, icon: Icon }: { title: string, groups: Record<number, any[]> | null, isLoading: boolean, icon: any }) => (
+    <Card className="shadow-sm border-none bg-white">
+      <CardHeader className="py-4 border-b">
+        <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+          <Icon className="w-4 h-4 text-primary" /> {title}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
+        {isLoading ? (
+          <div className="py-12 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></div>
+        ) : groups && Object.keys(groups).length > 0 ? (
+          Object.keys(groups).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => {
+            const over = groups[parseInt(oNum)];
+            const overRuns = over.reduce((acc, curr) => acc + curr.totalRunsOnDelivery, 0);
+            return (
+              <div key={oNum} className="space-y-2 pb-4 border-b last:border-none">
+                <div className="flex justify-between items-center"><span className="text-[9px] font-black uppercase text-slate-400">Over {oNum}</span><span className="text-[9px] font-black text-primary uppercase">{overRuns} Runs</span></div>
+                <div className="flex flex-wrap gap-1.5">
+                  {over.map((d, idx) => (
+                    <div key={idx} className={cn("w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black border shadow-sm", d.isWicket ? "bg-red-600 text-white border-red-700" : d.runsScored === 4 ? "bg-green-100 text-green-700 border-green-200" : d.runsScored === 6 ? "bg-purple-100 text-purple-700 border-purple-200" : "bg-white text-slate-700 border-slate-200")}>{d.isWicket ? "W" : d.runsScored === 0 ? "•" : d.runsScored}</div>
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        ) : <p className="py-12 text-center text-slate-300 font-black text-[9px] uppercase">No deliveries recorded</p>}
+      </CardContent>
+    </Card>
+  );
 
   const InningsLiveStats = ({ stats, inningData, title }: { stats: any, inningData: any, title: string }) => {
     if (!inningData) return null;
@@ -442,29 +480,20 @@ export default function MatchScoreboardPage() {
             </div>
 
             <div className="space-y-4">
-              <Card className="shadow-sm border-none bg-white">
-                <CardHeader className="py-4 border-b"><CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><Zap className="w-4 h-4 text-primary" /> Recent History</CardTitle></CardHeader>
-                <CardContent className="p-4 space-y-4 max-h-[500px] overflow-y-auto">
-                  {isHistoryLoading ? (
-                    <div className="py-12 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></div>
-                  ) : overGroups && Object.keys(overGroups).length > 0 ? (
-                    Object.keys(overGroups).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => {
-                      const over = overGroups[parseInt(oNum)];
-                      const overRuns = over.reduce((acc, curr) => acc + curr.totalRunsOnDelivery, 0);
-                      return (
-                        <div key={oNum} className="space-y-2 pb-4 border-b last:border-none">
-                          <div className="flex justify-between items-center"><span className="text-[9px] font-black uppercase text-slate-400">Over {oNum}</span><span className="text-[9px] font-black text-primary uppercase">{overRuns} Runs</span></div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {over.map((d, idx) => (
-                              <div key={idx} className={cn("w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black border shadow-sm", d.isWicket ? "bg-red-600 text-white border-red-700" : d.runsScored === 4 ? "bg-green-100 text-green-700 border-green-200" : d.runsScored === 6 ? "bg-purple-100 text-purple-700 border-purple-200" : "bg-white text-slate-700 border-slate-200")}>{d.isWicket ? "W" : d.runsScored === 0 ? "•" : d.runsScored}</div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : <p className="py-12 text-center text-slate-300 font-black text-[9px] uppercase">No deliveries recorded</p>}
-                </CardContent>
-              </Card>
+              <HistoryCard 
+                title="Recent History" 
+                groups={match.currentInningNumber === 2 ? overGroups2 : overGroups1} 
+                isLoading={match.currentInningNumber === 2 ? isInn2Loading : isInn1Loading} 
+                icon={Zap}
+              />
+              {match.currentInningNumber === 2 && (
+                <HistoryCard 
+                  title="Previous History" 
+                  groups={overGroups1} 
+                  isLoading={isInn1Loading} 
+                  icon={History}
+                />
+              )}
             </div>
           </div>
         </TabsContent>
@@ -588,8 +617,8 @@ export default function MatchScoreboardPage() {
               {match.currentInningNumber >= 2 && <Button size="sm" variant={activeInningView === 2 ? 'default' : 'outline'} onClick={() => setActiveInningView(2)} className="font-black text-[10px] uppercase">2nd Innings</Button>}
             </div>
           </div>
-          {overGroups && Object.keys(overGroups).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => {
-            const overBalls = overGroups[parseInt(oNum)];
+          {(activeInningView === 1 ? overGroups1 : overGroups2) && Object.keys(activeInningView === 1 ? overGroups1! : overGroups2!).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => {
+            const overBalls = (activeInningView === 1 ? overGroups1! : overGroups2!)[parseInt(oNum)];
             const bId = overBalls[0]?.bowlerId || overBalls[0]?.bowlerPlayerId;
             return (
               <Card key={oNum} className="overflow-hidden border-l-4 border-l-slate-200">
