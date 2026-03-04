@@ -74,7 +74,6 @@ export default function TeamsPage() {
         const match = allMatches.find(m => m.id === matchId); if (!match) return;
         const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
         
-        // Accurate NRR Calculation based on delivery path and match roles
         const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
         const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
         const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;

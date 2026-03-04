@@ -1,6 +1,6 @@
 
 /**
- * @fileOverview Utility functions for match statistics and professional, single-page HTML scorecard generation.
+ * @fileOverview Utility functions for match statistics, professional scorecard generation, and match flow timeline logic.
  */
 
 export const getExtendedInningStats = (deliveries: any[]) => {
@@ -86,8 +86,10 @@ export const getExtendedInningStats = (deliveries: any[]) => {
         batter1Runs: 0,
         batter2Runs: 0,
         batter1Balls: 0,
-        batter2Balls: 0
-      };
+        batter2Balls: 0,
+        wicketNum: currentWickets + 1,
+        milestoneSet: new Set()
+      } as any;
     }
 
     if (idx === deliveries.length - 1 && currentPartnership.balls > 0) {
@@ -108,6 +110,112 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     fow,
     partnerships
   };
+};
+
+export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]) => {
+  if (!deliveries || deliveries.length === 0) return [];
+  const events: any[] = [];
+  
+  const getPName = (id: string) => players.find(p => p.id === id)?.name || 'Unknown';
+  const getPShort = (id: string) => getPName(id).split(' ')[0];
+
+  events.push({ type: 'header', title: `${teamName} innings` });
+
+  let totalRuns = 0;
+  let totalWickets = 0;
+  let totalBalls = 0;
+  let extras = 0;
+  
+  const batterStats: Record<string, { runs: number, balls: number, milestones: Set<number>, fours: number, sixes: number }> = {};
+  const currentPartnership = { 
+    runs: 0, balls: 0, b1Id: '', b2Id: '', b1Runs: 0, b2Runs: 0, 
+    wicketNum: 1, milestones: new Set<number>() 
+  };
+
+  const scoreMilestones = new Set<number>();
+
+  deliveries.forEach((d, idx) => {
+    const isLegal = d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye';
+    totalRuns += (d.totalRunsOnDelivery || 0);
+    if (isLegal) totalBalls += 1;
+    extras += (d.extraRuns || 0);
+
+    const sId = d.strikerPlayerId;
+    if (!batterStats[sId]) batterStats[sId] = { runs: 0, balls: 0, milestones: new Set(), fours: 0, sixes: 0 };
+    
+    if (isLegal) batterStats[sId].balls += 1;
+    batterStats[sId].runs += (d.runsScored || 0);
+    if (d.runsScored === 4) batterStats[sId].fours += 1;
+    if (d.runsScored === 6) batterStats[sId].sixes += 1;
+
+    currentPartnership.runs += (d.totalRunsOnDelivery || 0);
+    if (isLegal) currentPartnership.balls += 1;
+    if (!currentPartnership.b1Id) {
+      currentPartnership.b1Id = d.strikerPlayerId;
+      currentPartnership.b2Id = d.nonStrikerPlayerId;
+    }
+    if (sId === currentPartnership.b1Id) currentPartnership.b1Runs += (d.runsScored || 0);
+    else if (sId === currentPartnership.b2Id) currentPartnership.b2Runs += (d.runsScored || 0);
+
+    const overVal = Math.floor(totalBalls / 6);
+    const ballVal = totalBalls % 6;
+    const overStr = `${overVal}.${ballVal}`;
+
+    // Powerplay (6.0 overs)
+    if (totalBalls === 36) {
+      events.push({ type: 'normal', title: `Powerplay: Overs 0.1 - 6.0`, detail: `(Mandatory - ${totalRuns} runs, ${totalWickets} wickets)` });
+      events.push({ type: 'normal', title: `Drinks: ${teamName} - ${totalRuns}/${totalWickets} in 6.0 overs`, detail: `(${getPShort(d.strikerPlayerId)} ${batterStats[d.strikerPlayerId].runs}, ${getPShort(d.nonStrikerPlayerId)} ${batterStats[d.nonStrikerPlayerId].runs})` });
+    }
+
+    // Drinks (14.0 overs)
+    if (totalBalls === 84) {
+      events.push({ type: 'normal', title: `Drinks: ${teamName} - ${totalRuns}/${totalWickets} in 14.0 overs`, detail: `(${getPShort(d.strikerPlayerId)} ${batterStats[d.strikerPlayerId].runs}, ${getPShort(d.nonStrikerPlayerId)} ${batterStats[d.nonStrikerPlayerId].runs})` });
+    }
+
+    // Score Milestones
+    [50, 100, 150, 200, 250, 300].forEach(m => {
+      if (totalRuns >= m && !scoreMilestones.has(m)) {
+        scoreMilestones.add(m);
+        events.push({ type: 'normal', title: `${teamName}: ${m} runs in ${overStr} overs (${totalBalls} balls), Extras ${extras}` });
+      }
+    });
+
+    // Individual Milestones
+    [50, 100].forEach(m => {
+      const b = batterStats[sId];
+      if (b.runs >= m && !b.milestones.has(m)) {
+        b.milestones.add(m);
+        events.push({ type: 'milestone', title: `${getPName(sId)}: ${m} off ${b.balls} balls (${b.fours} x 4, ${b.sixes} x 6)` });
+      }
+    });
+
+    // Partnership Milestones
+    [50, 100, 150].forEach(m => {
+      if (currentPartnership.runs >= m && !currentPartnership.milestones.has(m)) {
+        currentPartnership.milestones.add(m);
+        const suffix = ['st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'th', 'th', 'th', 'th'][currentPartnership.wicketNum - 1] || 'th';
+        events.push({ type: 'normal', title: `${currentPartnership.wicketNum}${suffix} Wicket: ${m} runs in ${currentPartnership.balls} balls`, detail: `(${getPShort(currentPartnership.b1Id)} ${currentPartnership.b1Runs}, ${getPShort(currentPartnership.b2Id)} ${currentPartnership.b2Runs})` });
+      }
+    });
+
+    if (d.isWicket) {
+      totalWickets += 1;
+      currentPartnership.runs = 0;
+      currentPartnership.balls = 0;
+      currentPartnership.b1Id = '';
+      currentPartnership.b2Id = '';
+      currentPartnership.b1Runs = 0;
+      currentPartnership.b2Runs = 0;
+      currentPartnership.wicketNum += 1;
+      currentPartnership.milestones = new Set();
+    }
+
+    if (idx === deliveries.length - 1) {
+      events.push({ type: 'normal', title: `Innings Break: ${teamName} - ${totalRuns}/${totalWickets} in ${overStr} overs`, detail: `(${getPShort(d.strikerPlayerId)} ${batterStats[d.strikerPlayerId].runs}, ${getPShort(d.nonStrikerPlayerId)} ${batterStats[d.nonStrikerPlayerId].runs})` });
+    }
+  });
+
+  return events;
 };
 
 export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any, stats2: any, teams: any[], players: any[]) => {

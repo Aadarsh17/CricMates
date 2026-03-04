@@ -149,7 +149,7 @@ export default function PlayerProfilePage() {
                   <TableRow key={log.matchId} className="hover:bg-slate-50">
                     <TableCell className="py-3">
                       <p className="text-[10px] font-black truncate max-w-[120px]">{log.matchName}</p>
-                      <div className="flex items-center gap-1 text-[8px] text-slate-400 font-bold uppercase"><Calendar className="w-2.5 h-2.5" />{log.date ? new Date(log.date).toLocaleDateString('en-GB') : '---'}</div>
+                      <div className="flex items-center gap-1 text-[8px] text-slate-400 font-bold uppercase"><Calendar className="w-2.5 h-2.5" />{log.date ? new Date(log.date).toLocaleDateString() : '---'}</div>
                     </TableCell>
                     <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.batting.runs}</TableCell>
                     <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.bowling.wickets}</TableCell>
