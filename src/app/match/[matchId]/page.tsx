@@ -47,10 +47,23 @@ export default function MatchScoreboardPage() {
   const [isUndoing, setIsUndoing] = useState(false);
   const [isFixing, setIsFixing] = useState(false);
 
+  const [wicketForm, setWicketForm] = useState({
+    type: 'bowled',
+    batterOutId: '',
+    fielderId: 'none',
+    decision: 'next'
+  });
+
+  const [retireForm, setRetireForm] = useState({
+    batterId: '',
+    decision: 'next'
+  });
+
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
+  // ALL HOOKS MUST BE AT TOP LEVEL
   const matchRef = useMemoFirebase(() => doc(db, 'matches', matchId), [db, matchId]);
   const { data: match, isLoading: isMatchLoading } = useDoc(matchRef);
 
@@ -80,13 +93,37 @@ export default function MatchScoreboardPage() {
   const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || []), [inn1Deliveries]);
   const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || []), [inn2Deliveries]);
 
+  const activeInningData = useMemo(() => {
+    if (!match) return null;
+    return match.currentInningNumber === 1 ? inn1 : (match.currentInningNumber === 2 ? inn2 : null);
+  }, [match?.currentInningNumber, inn1, inn2]);
+
+  const currentBattingSquad = useMemo(() => {
+    if (!match || !activeInningData || !allPlayers) return [];
+    const battingTid = activeInningData.battingTeamId;
+    return allPlayers.filter(p => p.teamId === battingTid || (match.commonPlayerId && p.id === match.commonPlayerId));
+  }, [match?.commonPlayerId, activeInningData?.battingTeamId, allPlayers]);
+
+  const currentBowlingSquad = useMemo(() => {
+    if (!match || !activeInningData || !allPlayers) return [];
+    const bowlingTid = activeInningData.bowlingTeamId;
+    return allPlayers.filter(p => p.teamId === bowlingTid || (match.commonPlayerId && p.id === match.commonPlayerId));
+  }, [match?.commonPlayerId, activeInningData?.bowlingTeamId, allPlayers]);
+
+  const definitivelyOutIds = useMemo(() => {
+    const currentDeliveries = (match?.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries) || [];
+    const outSet = new Set<string>();
+    currentDeliveries.forEach(d => {
+      if (d.isWicket && d.dismissalType !== 'retired') {
+        outSet.add(d.batsmanOutPlayerId || d.strikerPlayerId);
+      }
+    });
+    return outSet;
+  }, [match?.currentInningNumber, inn1Deliveries, inn2Deliveries]);
+
   const currentInningStats = useMemo(() => activeInningView === 1 ? stats1 : stats2, [activeInningView, stats1, stats2]);
   const currentDeliveriesList = useMemo(() => activeInningView === 1 ? inn1Deliveries : inn2Deliveries, [activeInningView, inn1Deliveries, inn2Deliveries]);
   const isHistoryLoading = useMemo(() => activeInningView === 1 ? isInn1Loading : isInn2Loading, [activeInningView, isInn1Loading, isInn2Loading]);
-
-  const activeInningData = useMemo(() => {
-    return match?.currentInningNumber === 1 ? inn1 : (match?.currentInningNumber === 2 ? inn2 : null);
-  }, [match?.currentInningNumber, inn1, inn2]);
 
   const getPlayerName = (pid: string) => {
     if (!pid || pid === 'none' || pid === '') return '---';
@@ -161,45 +198,6 @@ export default function MatchScoreboardPage() {
       cvp: calculatePlayerCVP(ps as any)
     })).sort((a, b) => b.cvp - a.cvp);
   }, [stats1, stats2, allPlayers]);
-
-  const definitivelyOutIds = useMemo(() => {
-    const currentDeliveries = (match?.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries) || [];
-    const outSet = new Set<string>();
-    currentDeliveries.forEach(d => {
-      if (d.isWicket && d.dismissalType !== 'retired') {
-        outSet.add(d.batsmanOutPlayerId || d.strikerPlayerId);
-      }
-    });
-    return outSet;
-  }, [match?.currentInningNumber, inn1Deliveries, inn2Deliveries]);
-
-  const currentBattingSquad = useMemo(() => {
-    if (!match || !activeInningData || !allPlayers) return [];
-    const squadIds = activeInningData.battingTeamId === match.team1Id 
-      ? match.team1SquadPlayerIds 
-      : match.team2SquadPlayerIds;
-    return allPlayers.filter(p => squadIds?.includes(p.id));
-  }, [match, activeInningData, allPlayers]);
-
-  const currentBowlingSquad = useMemo(() => {
-    if (!match || !activeInningData || !allPlayers) return [];
-    const squadIds = activeInningData.bowlingTeamId === match.team1Id 
-      ? match.team1SquadPlayerIds 
-      : match.team2SquadPlayerIds;
-    return allPlayers.filter(p => squadIds?.includes(p.id));
-  }, [match, activeInningData, allPlayers]);
-
-  const [wicketForm, setWicketForm] = useState({
-    type: 'bowled',
-    batterOutId: '',
-    fielderId: 'none',
-    decision: 'next'
-  });
-
-  const [retireForm, setRetireForm] = useState({
-    batterId: '',
-    decision: 'next'
-  });
 
   const handleHandleAiSummary = async () => {
     if (!match || isGeneratingSummary) return;
@@ -1137,10 +1135,10 @@ export default function MatchScoreboardPage() {
 
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
         <DialogContent className="rounded-xl border-t-8 border-t-primary">
-          <DialogHeader><DialogTitle className="font-black uppercase tracking-widest">Assign Positions</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-center py-2">Assign Positions</DialogTitle></DialogHeader>
+          <div className="space-y-6 py-4">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
+              <div className="space-y-2">
                 <Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label>
                 <Select 
                   value={activeInningData?.strikerPlayerId || undefined} 
@@ -1150,7 +1148,7 @@ export default function MatchScoreboardPage() {
                     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), updates);
                   }}
                 >
-                  <SelectTrigger className="font-bold"><SelectValue placeholder="Striker" /></SelectTrigger>
+                  <SelectTrigger className="font-bold h-12"><SelectValue placeholder="Striker" /></SelectTrigger>
                   <SelectContent>
                     {currentBattingSquad
                       .filter(p => !definitivelyOutIds.has(p.id))
@@ -1165,7 +1163,7 @@ export default function MatchScoreboardPage() {
                 </Select>
               </div>
               {!activeInningData?.isLastManActive && (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label>
                   <Select 
                     value={activeInningData?.nonStrikerPlayerId || undefined} 
@@ -1175,7 +1173,7 @@ export default function MatchScoreboardPage() {
                       updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), updates);
                     }}
                   >
-                    <SelectTrigger className="font-bold"><SelectValue placeholder="Non-Striker" /></SelectTrigger>
+                    <SelectTrigger className="font-bold h-12"><SelectValue placeholder="Non-Striker" /></SelectTrigger>
                     <SelectContent>
                       {currentBattingSquad
                         .filter(p => !definitivelyOutIds.has(p.id))
@@ -1191,7 +1189,7 @@ export default function MatchScoreboardPage() {
                 </div>
               )}
             </div>
-            <div className="space-y-1">
+            <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-400">Current Bowler</Label>
               <Select 
                 value={activeInningData?.currentBowlerPlayerId || undefined} 
@@ -1202,7 +1200,7 @@ export default function MatchScoreboardPage() {
                   updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), updates);
                 }}
               >
-                <SelectTrigger className="font-bold"><SelectValue placeholder="Bowler" /></SelectTrigger>
+                <SelectTrigger className="font-bold h-12"><SelectValue placeholder="Bowler" /></SelectTrigger>
                 <SelectContent>
                   {currentBowlingSquad.filter(p => p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId).map(p => (
                     <SelectItem key={`bowl-sel-${p.id}`} value={p.id} className="font-bold">
@@ -1214,7 +1212,7 @@ export default function MatchScoreboardPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter><Button onClick={() => setIsPlayerAssignmentOpen(false)} className="w-full h-12 font-black uppercase tracking-widest shadow-lg">Confirm Rotation</Button></DialogFooter>
+          <DialogFooter><Button onClick={() => setIsPlayerAssignmentOpen(false)} className="w-full h-14 font-black uppercase tracking-widest shadow-xl">Confirm Rotation</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
