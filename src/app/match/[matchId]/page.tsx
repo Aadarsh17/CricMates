@@ -63,19 +63,30 @@ export default function MatchScoreboardPage() {
     query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
     [db, matchId]
   );
-  const { data: inn1Deliveries } = useCollection(inn1DeliveriesQuery);
+  const { data: inn1Deliveries, isLoading: isInn1Loading } = useCollection(inn1DeliveriesQuery);
 
   const inn2DeliveriesQuery = useMemoFirebase(() => 
     query(collection(db, 'matches', matchId, 'innings', 'inning_2', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
     [db, matchId]
   );
-  const { data: inn2Deliveries } = useCollection(inn2DeliveriesQuery);
+  const { data: inn2Deliveries, isLoading: isInn2Loading } = useCollection(inn2DeliveriesQuery);
 
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
 
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
+
+  const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || []), [inn1Deliveries]);
+  const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || []), [inn2Deliveries]);
+
+  const currentInningStats = useMemo(() => activeInningView === 1 ? stats1 : stats2, [activeInningView, stats1, stats2]);
+  const currentDeliveriesList = useMemo(() => activeInningView === 1 ? inn1Deliveries : inn2Deliveries, [activeInningView, inn1Deliveries, inn2Deliveries]);
+  const isHistoryLoading = useMemo(() => activeInningView === 1 ? isInn1Loading : isInn2Loading, [activeInningView, isInn1Loading, isInn2Loading]);
+
+  const activeInningData = useMemo(() => {
+    return match?.currentInningNumber === 1 ? inn1 : (match?.currentInningNumber === 2 ? inn2 : null);
+  }, [match?.currentInningNumber, inn1, inn2]);
 
   const getPlayerName = (pid: string) => {
     if (!pid || pid === 'none' || pid === '') return '---';
@@ -86,12 +97,6 @@ export default function MatchScoreboardPage() {
     if (!tid) return '---';
     return allTeams?.find(t => t.id === tid)?.name || 'Unknown Team';
   };
-
-  const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || []), [inn1Deliveries]);
-  const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || []), [inn2Deliveries]);
-
-  const currentInningStats = activeInningView === 1 ? stats1 : stats2;
-  const currentDeliveriesList = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
 
   const wormData = useMemo(() => {
     const data: any[] = [];
@@ -167,10 +172,6 @@ export default function MatchScoreboardPage() {
     });
     return outSet;
   }, [match?.currentInningNumber, inn1Deliveries, inn2Deliveries]);
-
-  const activeInningData = useMemo(() => {
-    return match?.currentInningNumber === 1 ? inn1 : (match?.currentInningNumber === 2 ? inn2 : null);
-  }, [match, inn1, inn2]);
 
   const currentBattingSquad = useMemo(() => {
     if (!match || !activeInningData || !allPlayers) return [];
@@ -939,7 +940,12 @@ export default function MatchScoreboardPage() {
               )}
            </div>
            <div className="space-y-4">
-              {currentDeliveriesList && currentDeliveriesList.length > 0 ? (
+              {isHistoryLoading ? (
+                <div className="py-20 text-center flex flex-col items-center gap-2">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Loading delivery history...</p>
+                </div>
+              ) : currentDeliveriesList && currentDeliveriesList.length > 0 ? (
                 (() => {
                   const overs: Record<number, any[]> = {};
                   currentDeliveriesList.forEach(d => {
@@ -1064,7 +1070,7 @@ export default function MatchScoreboardPage() {
                 </Select>
               </div>
             </div>
-            <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Result Description</Label><Input value={match.resultDescription} onChange={e => updateDocumentNonBlocking(matchRef, {resultDescription: e.target.value})} className="font-bold text-primary h-12 shadow-sm" /></div>
+            <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Result Description</Label><Input value={match.resultDescription || ''} onChange={e => updateDocumentNonBlocking(matchRef, {resultDescription: e.target.value})} className="font-bold text-primary h-12 shadow-sm" /></div>
             
             <div className="p-4 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200">
               <h4 className="text-[10px] font-black uppercase text-slate-400 mb-3">Professional Recovery</h4>
