@@ -535,7 +535,7 @@ export default function MatchScoreboardPage() {
         wickets: newWickets,
         oversCompleted: newOvers,
         ballsInCurrentOver: newBalls,
-        isDeclaredFinished: false // Reset finish state so they can continue if balls are deleted
+        isDeclaredFinished: false
       }, { merge: true });
 
       toast({ title: "Summary Fixed", description: "Innings has been reopened for scoring." });
@@ -860,15 +860,15 @@ export default function MatchScoreboardPage() {
                        </AreaChart>
                     </ResponsiveContainer>
                  </CardContent>
-              </AreaChart>
+              </Card>
 
               {/* MANHATTAN CHART */}
               <Card className="shadow-sm">
                  <CardHeader className="flex flex-row items-center justify-between">
                     <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><BarChart className="w-4 h-4" /> Manhattan Chart</CardTitle>
                     <div className="flex gap-1">
-                       <Button size="xs" variant={activeInningView === 1 ? 'secondary' : 'ghost'} className="h-6 text-[8px] font-black" onClick={() => setActiveInningView(1)}>INN 1</Button>
-                       <Button size="xs" variant={activeInningView === 2 ? 'secondary' : 'ghost'} className="h-6 text-[8px] font-black" onClick={() => setActiveInningView(2)}>INN 2</Button>
+                       <Button size="sm" variant={activeInningView === 1 ? 'secondary' : 'ghost'} className="h-6 text-[8px] font-black" onClick={() => setActiveInningView(1)}>INN 1</Button>
+                       <Button size="sm" variant={activeInningView === 2 ? 'secondary' : 'ghost'} className="h-6 text-[8px] font-black" onClick={() => setActiveInningView(2)}>INN 2</Button>
                     </div>
                  </CardHeader>
                  <CardContent className="h-[300px]">
