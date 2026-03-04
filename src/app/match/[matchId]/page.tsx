@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
@@ -271,7 +270,7 @@ export default function MatchScoreboardPage() {
           <Icon className="w-4 h-4 text-primary" /> {title}
         </CardTitle>
       </CardHeader>
-      <CardContent className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
+      <CardContent className="p-4 space-y-4 max-h-[400px] overflow-y-auto scrollbar-hide">
         {isLoading ? (
           <div className="py-12 text-center"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></div>
         ) : groups && Object.keys(groups).length > 0 ? (
@@ -349,17 +348,17 @@ export default function MatchScoreboardPage() {
               </TableHeader>
               <TableBody>
                 {inningData.currentBowlerPlayerId && (() => {
-                  const b = stats.bowling.find((bw: any) => bw.id === inningData.currentBowlerPlayerId) || { oversDisplay: '0.0', runs: 0, wickets: 0, balls: 0 };
+                  const bowlerStats = stats.bowling.find((bw: any) => bw.id === inningData.currentBowlerPlayerId) || { oversDisplay: '0.0', runs: 0, wickets: 0, balls: 0 };
                   return (
                     <TableRow>
                       <TableCell className="py-2 px-3">
                         <p className="font-black text-sm uppercase">{getPlayerName(inningData.currentBowlerPlayerId)}</p>
                         <p className="text-[8px] text-slate-400 uppercase font-bold">Current Spell</p>
                       </TableCell>
-                      <TableCell className="text-right font-bold">{b.oversDisplay}</TableCell>
-                      <TableCell className="text-right text-xs text-slate-500">{b.runs}</TableCell>
-                      <TableCell className="text-right font-black text-primary">{b.wickets}</TableCell>
-                      <TableCell className="text-right text-xs font-bold text-slate-400">{b.balls > 0 ? (b.runs/(b.balls/6)).toFixed(2) : '0.00'}</TableCell>
+                      <TableCell className="text-right font-bold">{bowlerStats.oversDisplay}</TableCell>
+                      <TableCell className="text-right text-xs text-slate-500">{bowlerStats.runs}</TableCell>
+                      <TableCell className="text-right font-black text-primary">{bowlerStats.wickets}</TableCell>
+                      <TableCell className="text-right text-xs font-bold text-slate-400">{bowlerStats.balls > 0 ? (bowlerStats.runs/(bowlerStats.balls/6)).toFixed(2) : '0.00'}</TableCell>
                     </TableRow>
                   );
                 })()}

@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Utility functions for match statistics, professional scorecard generation, and match flow timeline logic.
  */
