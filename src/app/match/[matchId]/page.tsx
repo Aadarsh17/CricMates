@@ -9,7 +9,7 @@ import { doc, collection, query, orderBy, writeBatch, getDocs, limit, setDoc } f
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { CheckCircle2, Trophy, Info, ArrowLeftRight, Trash2, Download, Loader2, Zap, Sparkles, LineChart as LineChartIcon, BarChart } from 'lucide-react';
+import { CheckCircle2, Trophy, Info, ArrowLeftRight, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart as ReBarChart, Bar, Cell, AreaChart, Area, Line } from "recharts";
@@ -134,7 +134,13 @@ export default function MatchScoreboardPage() {
       const d1 = inn1Deliveries?.[i]; const d2 = inn2Deliveries?.[i];
       if (d1) score1 += (d1.totalRunsOnDelivery || 0);
       if (d2) score2 += (d2.totalRunsOnDelivery || 0);
-      data.push({ ball: i + 1, team1: d1 ? score1 : null, team2: d2 ? score2 : null, team1Wicket: d1?.isWicket ? score1 : null, team2Wicket: d2?.isWicket ? score2 : null });
+      data.push({ 
+        ball: i + 1, 
+        team1: d1 ? score1 : null, 
+        team2: d2 ? score2 : null, 
+        team1Wicket: d1?.isWicket && d1.dismissalType !== 'retired' ? score1 : null, 
+        team2Wicket: d2?.isWicket && d2.dismissalType !== 'retired' ? score2 : null 
+      });
     }
     return data;
   }, [inn1Deliveries, inn2Deliveries]);
@@ -277,12 +283,13 @@ export default function MatchScoreboardPage() {
   const calculateResult = (i1: any, i2: any) => {
     if (!i1 || !i2 || !match) return "Match in Progress";
     const s1 = i1.score || 0; const s2 = i2.score || 0;
-    const t1 = getTeamName(i1.battingTeamId); const t2 = getTeamName(i2.battingTeamId);
-    if (s1 > s2) return `${t1} won by ${s1 - s2} runs`;
+    const tBat1 = getTeamName(i1.battingTeamId); const tBat2 = getTeamName(i2.battingTeamId);
+    if (s1 > s2) return `${tBat1} won by ${s1 - s2} runs`;
     if (s2 > s1) {
-      const squadSize = match.team2SquadPlayerIds?.length || 11;
+      const battingTeamSquadSize = i2.battingTeamId === match.team1Id ? match.team1SquadPlayerIds?.length : match.team2SquadPlayerIds?.length;
+      const squadSize = battingTeamSquadSize || 11;
       const remainingWickets = Math.max(0, squadSize - (i2.wickets || 0));
-      return `${t2} won by ${remainingWickets} wickets`;
+      return `${tBat2} won by ${remainingWickets} wickets`;
     }
     return "Match Tied";
   };
@@ -433,27 +440,51 @@ export default function MatchScoreboardPage() {
               {isUmpire && <Button size="sm" variant="secondary" className="h-8 text-[9px] font-black uppercase tracking-widest border-2 border-primary/20 shadow-md" onClick={() => handleFixSummary(activeInningView)}><Zap className="w-3 h-3 mr-1.5" /> Fix Summary & Resume</Button>}
            </div>
            <div className="space-y-4">
-              {isHistoryLoading ? (<div className="py-20 text-center flex flex-col items-center gap-2"><Loader2 className="w-8 h-8 text-primary animate-spin" /><p className="text-slate-400 text-[10px] font-black uppercase">Loading...</p></div>) : currentDeliveriesList && currentDeliveriesList.length > 0 ? (() => {
-                  const overs: Record<number, any[]> = {};
-                  currentDeliveriesList.forEach(d => { if (!overs[d.overNumber]) overs[d.overNumber] = []; overs[d.overNumber].push(d); });
-                  return Object.keys(overs).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => (
+              {isHistoryLoading ? (
+                <div className="py-20 text-center flex flex-col items-center gap-2">
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                  <p className="text-slate-400 text-[10px] font-black uppercase">Loading...</p>
+                </div>
+              ) : currentDeliveriesList && currentDeliveriesList.length > 0 ? (
+                (() => {
+                  const overGroups: Record<number, any[]> = {};
+                  currentDeliveriesList.forEach(d => {
+                    if (!overGroups[d.overNumber]) overGroups[d.overNumber] = [];
+                    overGroups[d.overNumber].push(d);
+                  });
+                  return Object.keys(overGroups).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => (
                     <Card key={`over-card-${oNum}`} className="overflow-hidden border-l-4 border-l-slate-200">
-                      <div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b"><h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4></div>
+                      <div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b">
+                        <h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4>
+                      </div>
                       <div className="p-4 space-y-3">
-                        {overs[parseInt(oNum)].map((d, idx) => (
+                        {overGroups[parseInt(oNum)].map((d, idx) => (
                           <div key={d.id || `ball-${idx}`} className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                              <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white" : "bg-white text-slate-700")}>{d.isWicket ? "W" : d.runsScored}</div>
-                              <div className="flex flex-col"><p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p><p className="text-[8px] text-slate-400 font-bold uppercase">{d.runsScored} runs</p></div>
+                              <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white" : "bg-white text-slate-700")}>
+                                {d.isWicket ? "W" : d.runsScored}
+                              </div>
+                              <div className="flex flex-col">
+                                <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
+                                <p className="text-[8px] text-slate-400 font-bold uppercase">{d.totalRunsOnDelivery} runs {d.extraType !== 'none' ? `(${d.extraType})` : ''}</p>
+                              </div>
                             </div>
-                            {isUmpire && <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => { if (confirm("Delete this ball?")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', d.id)); toast({ title: "Ball Removed" }); } }}><Trash2 className="w-3.5 h-3.5" /></Button>}
+                            {isUmpire && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => { if (confirm("Delete this ball?")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', d.id)); toast({ title: "Ball Removed" }); } }}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            )}
                           </div>
                         ))}
                       </div>
                     </Card>
                   ));
                 })()
-              ) : (<div className="py-20 text-center border-2 border-dashed rounded-3xl bg-slate-50/50"><p className="text-slate-400 text-[10px] font-black uppercase">No deliveries found</p></div>)}
+              ) : (
+                <div className="py-20 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+                  <p className="text-slate-400 text-[10px] font-black uppercase">No deliveries found</p>
+                </div>
+              )}
            </div>
         </TabsContent>
 
