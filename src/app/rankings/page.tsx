@@ -57,7 +57,6 @@ export default function RankingsPage() {
         name: t.name, 
         logoUrl: t.logoUrl, 
         played: 0, won: 0, lost: 0, tied: 0, nr: 0, points: 0, 
-        nrr: 0,
         forR: 0, forB: 0, agR: 0, agB: 0,
         form: [] as ('W' | 'L' | 'T' | 'NR')[]
       };
@@ -90,7 +89,6 @@ export default function RankingsPage() {
       }
     });
 
-    // Calculate NRR from deliveries
     allDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       const match = matches.find(m => m.id === matchId);

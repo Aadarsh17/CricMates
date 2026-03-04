@@ -361,12 +361,12 @@ export default function MatchScoreboardPage() {
           <span className="text-[10px] font-black uppercase text-slate-900 text-right truncate max-w-[100px]">{getPlayerName(p.batter2Id)}</span>
         </div>
         <div className="flex justify-between items-center px-1 text-[8px] font-bold text-slate-400 uppercase">
-          <span>{p.batter1Runs} ({p.balls - (p.batter2Balls || 0)})</span>
+          <span>{p.batter1Runs} ({p.batter1Balls || 0})</span>
           <div className="flex-1 mx-4 h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
             <div style={{ width: `${b1Pct}%` }} className="bg-primary/60 h-full" />
             <div style={{ width: `${100 - b1Pct}%` }} className="bg-slate-300 h-full" />
           </div>
-          <span>{p.batter2Runs} ({p.batter2Balls || '?'})</span>
+          <span>{p.batter2Runs} ({p.batter2Balls || 0})</span>
         </div>
       </div>
     );
@@ -416,22 +416,18 @@ export default function MatchScoreboardPage() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="space-y-3 flex-1 w-full">
               <div className="flex items-center justify-between group">
-                <span className={cn("font-black text-xl md:text-2xl uppercase tracking-tighter truncate max-w-[200px]", match.currentInningNumber === 1 ? "text-slate-900" : "text-slate-400")}>{getTeamName(match.team1Id)}</span>
-                <div className="flex items-center gap-3">
-                  <span className="font-black text-2xl md:text-3xl text-slate-900">{inn1?.score || 0}/{inn1?.wickets || 0}</span>
-                  <Badge variant="outline" className="text-[10px] font-black uppercase h-6 px-2 bg-slate-50 border-slate-200">
-                    {inn1?.oversCompleted || 0}.{inn1?.ballsInCurrentOver || 0}/{match.totalOvers} OV
-                  </Badge>
+                <div className="flex flex-col">
+                  <span className={cn("font-black text-xl md:text-2xl uppercase tracking-tighter truncate max-w-[200px]", match.currentInningNumber === 1 ? "text-slate-900" : "text-slate-400")}>{getTeamName(match.team1Id)}</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase">({inn1?.oversCompleted || 0}.{inn1?.ballsInCurrentOver || 0}/{match.totalOvers} OV)</span>
                 </div>
+                <span className="font-black text-2xl md:text-3xl text-slate-900">{inn1?.score || 0}/{inn1?.wickets || 0}</span>
               </div>
               <div className="flex items-center justify-between group">
-                <span className={cn("font-black text-xl md:text-2xl uppercase tracking-tighter truncate max-w-[200px]", match.currentInningNumber === 2 ? "text-slate-900" : "text-slate-400")}>{getTeamName(match.team2Id)}</span>
-                <div className="flex items-center gap-3">
-                  <span className="font-black text-2xl md:text-3xl text-slate-900">{inn2?.score || 0}/{inn2?.wickets || 0}</span>
-                  <Badge variant="outline" className="text-[10px] font-black uppercase h-6 px-2 bg-slate-50 border-slate-200">
-                    {inn2?.oversCompleted || 0}.{inn2?.ballsInCurrentOver || 0}/{match.totalOvers} OV
-                  </Badge>
+                <div className="flex flex-col">
+                  <span className={cn("font-black text-xl md:text-2xl uppercase tracking-tighter truncate max-w-[200px]", match.currentInningNumber === 2 ? "text-slate-900" : "text-slate-400")}>{getTeamName(match.team2Id)}</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase">({inn2?.oversCompleted || 0}.{inn2?.ballsInCurrentOver || 0}/{match.totalOvers} OV)</span>
                 </div>
+                <span className="font-black text-2xl md:text-3xl text-slate-900">{inn2?.score || 0}/{inn2?.wickets || 0}</span>
               </div>
             </div>
             <div className="w-px h-20 bg-slate-100 hidden md:block mx-4" />
@@ -734,7 +730,7 @@ export default function MatchScoreboardPage() {
                        </AreaChart>
                     </ResponsiveContainer>
                  </CardContent>
-              </AreaChart>
+              </Card>
               
               <Card className="shadow-sm border-none overflow-hidden">
                  <CardHeader className="flex flex-row items-center justify-between">
