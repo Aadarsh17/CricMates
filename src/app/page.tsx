@@ -45,42 +45,58 @@ export default function Home() {
   }, [db, isMounted]);
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
-  // GHOST DATA PROTECTION: Map Top 3 based on active history only
   const topPlayers = useMemo(() => {
     if (!players || !allMatches || !rawDeliveries || !isMounted) return [];
     
     const activeMatchIds = new Set(allMatches.map(m => m.id));
-    const stats: Record<string, any> = {};
-
-    players.forEach(p => {
-      stats[p.id] = { id: p.id, name: p.name, role: p.role, cvp: 0, runs: 0, wickets: 0, ballsFaced: 0, ballsBowled: 0, catches: 0, stumpings: 0, runOuts: 0, fours: 0, sixes: 0, maidens: 0, runsConceded: 0 };
-    });
+    const playerMatchStats: Record<string, Record<string, any>> = {};
 
     rawDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       if (!matchId || !activeMatchIds.has(matchId)) return;
 
-      if (stats[d.strikerPlayerId]) {
-        stats[d.strikerPlayerId].runs += d.runsScored || 0;
-        if (d.extraType !== 'wide') stats[d.strikerPlayerId].ballsFaced += 1;
+      const pIds = [d.strikerPlayerId, d.bowlerId || d.bowlerPlayerId, d.fielderPlayerId].filter(id => id && id !== 'none');
+      
+      pIds.forEach(pid => {
+        if (!playerMatchStats[pid]) playerMatchStats[pid] = {};
+        if (!playerMatchStats[pid][matchId]) {
+          playerMatchStats[pid][matchId] = { id: pid, name: '', runs: 0, wickets: 0, ballsFaced: 0, ballsBowled: 0, catches: 0, stumpings: 0, runOuts: 0, fours: 0, sixes: 0, maidens: 0, runsConceded: 0 };
+        }
+      });
+
+      const sStats = playerMatchStats[d.strikerPlayerId]?.[matchId];
+      if (sStats) {
+        sStats.runs += d.runsScored || 0;
+        if (d.extraType !== 'wide') sStats.ballsFaced += 1;
       }
-      if (stats[d.bowlerPlayerId]) {
-        stats[d.bowlerPlayerId].runsConceded += d.totalRunsOnDelivery || 0;
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') stats[d.bowlerPlayerId].ballsBowled += 1;
-        if (d.isWicket && d.dismissalType !== 'runout') stats[d.bowlerPlayerId].wickets += 1;
+
+      const bId = d.bowlerId || d.bowlerPlayerId;
+      const bStats = playerMatchStats[bId]?.[matchId];
+      if (bStats) {
+        bStats.runsConceded += d.totalRunsOnDelivery || 0;
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') bStats.ballsBowled += 1;
+        if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') bStats.wickets += 1;
       }
-      if (d.fielderPlayerId && stats[d.fielderPlayerId]) {
-        if (d.dismissalType === 'caught') stats[d.fielderPlayerId].catches += 1;
-        if (d.dismissalType === 'stumped') stats[d.fielderPlayerId].stumpings += 1;
-        if (d.dismissalType === 'runout') stats[d.fielderPlayerId].runOuts += 1;
+
+      if (d.fielderPlayerId && playerMatchStats[d.fielderPlayerId]?.[matchId]) {
+        const fStats = playerMatchStats[d.fielderPlayerId][matchId];
+        if (d.dismissalType === 'caught') fStats.catches += 1;
+        if (d.dismissalType === 'stumped') fStats.stumpings += 1;
+        if (d.dismissalType === 'runout') fStats.runOuts += 1;
       }
     });
 
-    return Object.values(stats)
-      .map(s => ({ ...s, cvp: calculatePlayerCVP(s) }))
-      .filter(s => s.cvp > 0)
-      .sort((a, b) => b.cvp - a.cvp)
-      .slice(0, 3);
+    return players.map(p => {
+      const mStats = playerMatchStats[p.id] || {};
+      let totalCvp = 0;
+      Object.values(mStats).forEach(ms => {
+        totalCvp += calculatePlayerCVP(ms);
+      });
+      return { ...p, cvp: totalCvp };
+    })
+    .filter(s => s.cvp > 0)
+    .sort((a, b) => b.cvp - a.cvp)
+    .slice(0, 3);
   }, [players, allMatches, rawDeliveries, isMounted]);
 
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);

@@ -181,18 +181,18 @@ export default function MatchScoreboardPage() {
 
   const playerCVPList = useMemo(() => {
     if (!allPlayers) return [];
-    const playerStats: Record<string, any> = {};
+    const pMatchStats: Record<string, any> = {};
     [stats1, stats2].forEach(stats => {
       stats.batting.forEach((b: any) => {
-        if (!playerStats[b.id]) playerStats[b.id] = { id: b.id, name: getPlayerName(b.id), runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
-        playerStats[b.id].runs += b.runs; playerStats[b.id].ballsFaced += b.balls; playerStats[b.id].fours += b.fours; playerStats[b.id].sixes += b.sixes;
+        if (!pMatchStats[b.id]) pMatchStats[b.id] = { id: b.id, name: getPlayerName(b.id), runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+        pMatchStats[b.id].runs += b.runs; pMatchStats[b.id].ballsFaced += b.balls; pMatchStats[b.id].fours += b.fours; pMatchStats[b.id].sixes += b.sixes;
       });
       stats.bowling.forEach((b: any) => {
-        if (!playerStats[b.id]) playerStats[b.id] = { id: b.id, name: getPlayerName(b.id), runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
-        playerStats[b.id].wickets += b.wickets; playerStats[b.id].maidens += b.maidens; playerStats[b.id].ballsBowled += b.balls; playerStats[b.id].runsConceded += b.runs;
+        if (!pMatchStats[b.id]) pMatchStats[b.id] = { id: b.id, name: getPlayerName(b.id), runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+        pMatchStats[b.id].wickets += b.wickets; pMatchStats[b.id].maidens += b.maidens; pMatchStats[b.id].ballsBowled += b.balls; pMatchStats[b.id].runsConceded += b.runs;
       });
     });
-    return Object.values(playerStats).map(ps => ({ ...ps, cvp: calculatePlayerCVP(ps as any) })).sort((a, b) => b.cvp - a.cvp);
+    return Object.values(pMatchStats).map(ps => ({ ...ps, cvp: calculatePlayerCVP(ps as any) })).sort((a, b) => b.cvp - a.cvp);
   }, [stats1, stats2, allPlayers]);
 
   const isCurrentInningFinished = useMemo(() => {
@@ -439,7 +439,7 @@ export default function MatchScoreboardPage() {
         <TabsContent value="analytics" className="space-y-6 pt-4">
            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="shadow-sm">
-                 <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><LineChartIcon className="w-4 h-4" /> Worm Chart (Cumulative Runs)</CardTitle></CardHeader>
+                 <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><LineChartIcon className="w-4 h-4" /> Worm Chart</CardTitle></CardHeader>
                  <CardContent className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                        <AreaChart data={wormData}>
@@ -458,7 +458,7 @@ export default function MatchScoreboardPage() {
               </Card>
               <Card className="shadow-sm">
                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><BarChart className="w-4 h-4" /> Manhattan Chart (Runs Per Over)</CardTitle>
+                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><BarChart className="w-4 h-4" /> Manhattan Chart</CardTitle>
                     <div className="flex gap-1">
                        <Button size="sm" variant={activeInningView === 1 ? 'secondary' : 'ghost'} className="h-6 text-[8px] font-black" onClick={() => setActiveInningView(1)}>INN 1</Button>
                        <Button size="sm" variant={activeInningView === 2 ? 'secondary' : 'ghost'} className="h-6 text-[8px] font-black" onClick={() => setActiveInningView(2)}>INN 2</Button>
@@ -490,9 +490,9 @@ export default function MatchScoreboardPage() {
               {isHistoryLoading ? (
                 <div className="py-20 text-center flex flex-col items-center gap-2">
                   <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                  <p className="text-slate-400 text-[10px] font-black uppercase">Loading...</p>
+                  <p className="text-slate-400 text-[10px] font-black uppercase">Loading history...</p>
                 </div>
-              ) : overGroups && Object.keys(overGroups).length > 0 ? (
+              ) : (overGroups && Object.keys(overGroups).length > 0) ? (
                 Object.keys(overGroups).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => {
                   const overBalls = overGroups[parseInt(oNum)];
                   const bowlerId = overBalls[0]?.bowlerId;
