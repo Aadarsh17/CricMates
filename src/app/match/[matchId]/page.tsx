@@ -338,7 +338,7 @@ export default function MatchScoreboardPage() {
     toast({ title: "Match Completed", description: resStr });
   };
 
-  if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse">SYNCING MATCH...</div>;
+  if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse text-slate-400">SYNCING MATCH DATA...</div>;
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
 
   const chaseLogic = (() => {

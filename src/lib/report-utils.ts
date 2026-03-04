@@ -32,8 +32,8 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     
     if (!sId) return;
 
-    if (!bat[sId]) bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
-    if (nsId && nsId !== 'none' && !bat[nsId]) bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
+    if (!bat[sId]) bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', bowlerId: '', fielderId: '' };
+    if (nsId && nsId !== 'none' && !bat[nsId]) bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', bowlerId: '', fielderId: '' };
     
     if (d.extraType !== 'wide') {
       bat[sId].balls += 1;
@@ -47,7 +47,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
 
     if (!currentPartnership.batter1Id) {
       currentPartnership.batter1Id = sId;
-      currentPartnership.batter2Id = nsId;
+      currentPartnership.batter2Id = nsId && nsId !== 'none' ? nsId : '';
     }
 
     currentPartnership.runs += (d.totalRunsOnDelivery || 0);
@@ -56,7 +56,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     if (sId === currentPartnership.batter1Id) {
       currentPartnership.batter1Runs += (d.runsScored || 0);
       if (d.extraType !== 'wide') currentPartnership.batter1Balls += 1;
-    } else {
+    } else if (sId === currentPartnership.batter2Id) {
       currentPartnership.batter2Runs += (d.runsScored || 0);
       if (d.extraType !== 'wide') currentPartnership.batter2Balls += 1;
     }
@@ -67,6 +67,8 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       if (bat[outPid]) {
         bat[outPid].out = true;
         bat[outPid].dismissal = d.dismissalType || 'out';
+        bat[outPid].bowlerId = bId;
+        bat[outPid].fielderId = d.fielderPlayerId;
       }
       
       fow.push({
@@ -79,17 +81,15 @@ export const getExtendedInningStats = (deliveries: any[]) => {
 
       partnerships.push({...currentPartnership});
       currentPartnership = {
-        batter1Id: d.batsmanOutPlayerId === currentPartnership.batter1Id ? '' : currentPartnership.batter1Id,
-        batter2Id: d.batsmanOutPlayerId === currentPartnership.batter2Id ? '' : currentPartnership.batter2Id,
+        batter1Id: outPid === currentPartnership.batter1Id ? '' : currentPartnership.batter1Id,
+        batter2Id: outPid === currentPartnership.batter2Id ? '' : currentPartnership.batter2Id,
         runs: 0,
         balls: 0,
         batter1Runs: 0,
         batter2Runs: 0,
         batter1Balls: 0,
-        batter2Balls: 0,
-        wicketNum: currentWickets + 1,
-        milestoneSet: new Set()
-      } as any;
+        batter2Balls: 0
+      };
     }
 
     if (idx === deliveries.length - 1 && currentPartnership.balls > 0) {
@@ -117,7 +117,10 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
   const events: any[] = [];
   
   const getPName = (id: string) => players.find(p => p.id === id)?.name || 'Unknown';
-  const getPShort = (id: string) => getPName(id).split(' ')[0];
+  const getPShort = (id: string) => {
+    const name = getPName(id);
+    return name === 'Unknown' ? '---' : name.split(' ')[0];
+  };
 
   events.push({ type: 'header', title: `${teamName} innings` });
 
@@ -141,18 +144,23 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
     extras += (d.extraRuns || 0);
 
     const sId = d.strikerPlayerId;
-    if (!batterStats[sId]) batterStats[sId] = { runs: 0, balls: 0, milestones: new Set(), fours: 0, sixes: 0 };
+    const nsId = d.nonStrikerPlayerId;
+
+    if (sId && !batterStats[sId]) batterStats[sId] = { runs: 0, balls: 0, milestones: new Set(), fours: 0, sixes: 0 };
+    if (nsId && nsId !== 'none' && !batterStats[nsId]) batterStats[nsId] = { runs: 0, balls: 0, milestones: new Set(), fours: 0, sixes: 0 };
     
-    if (isLegal) batterStats[sId].balls += 1;
-    batterStats[sId].runs += (d.runsScored || 0);
-    if (d.runsScored === 4) batterStats[sId].fours += 1;
-    if (d.runsScored === 6) batterStats[sId].sixes += 1;
+    if (isLegal && sId && batterStats[sId]) batterStats[sId].balls += 1;
+    if (sId && batterStats[sId]) {
+      batterStats[sId].runs += (d.runsScored || 0);
+      if (d.runsScored === 4) batterStats[sId].fours += 1;
+      if (d.runsScored === 6) batterStats[sId].sixes += 1;
+    }
 
     currentPartnership.runs += (d.totalRunsOnDelivery || 0);
     if (isLegal) currentPartnership.balls += 1;
-    if (!currentPartnership.b1Id) {
-      currentPartnership.b1Id = d.strikerPlayerId;
-      currentPartnership.b2Id = d.nonStrikerPlayerId;
+    if (!currentPartnership.b1Id && sId) {
+      currentPartnership.b1Id = sId;
+      currentPartnership.b2Id = nsId;
     }
     if (sId === currentPartnership.b1Id) currentPartnership.b1Runs += (d.runsScored || 0);
     else if (sId === currentPartnership.b2Id) currentPartnership.b2Runs += (d.runsScored || 0);
@@ -164,12 +172,6 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
     // Powerplay (6.0 overs)
     if (totalBalls === 36) {
       events.push({ type: 'normal', title: `Powerplay: Overs 0.1 - 6.0`, detail: `(Mandatory - ${totalRuns} runs, ${totalWickets} wickets)` });
-      events.push({ type: 'normal', title: `Drinks: ${teamName} - ${totalRuns}/${totalWickets} in 6.0 overs`, detail: `(${getPShort(d.strikerPlayerId)} ${batterStats[d.strikerPlayerId].runs}, ${getPShort(d.nonStrikerPlayerId)} ${batterStats[d.nonStrikerPlayerId].runs})` });
-    }
-
-    // Drinks (14.0 overs)
-    if (totalBalls === 84) {
-      events.push({ type: 'normal', title: `Drinks: ${teamName} - ${totalRuns}/${totalWickets} in 14.0 overs`, detail: `(${getPShort(d.strikerPlayerId)} ${batterStats[d.strikerPlayerId].runs}, ${getPShort(d.nonStrikerPlayerId)} ${batterStats[d.nonStrikerPlayerId].runs})` });
     }
 
     // Score Milestones
@@ -181,13 +183,15 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
     });
 
     // Individual Milestones
-    [50, 100].forEach(m => {
-      const b = batterStats[sId];
-      if (b.runs >= m && !b.milestones.has(m)) {
-        b.milestones.add(m);
-        events.push({ type: 'milestone', title: `${getPName(sId)}: ${m} off ${b.balls} balls (${b.fours} x 4, ${b.sixes} x 6)` });
-      }
-    });
+    if (sId && batterStats[sId]) {
+      [50, 100].forEach(m => {
+        const b = batterStats[sId];
+        if (b.runs >= m && !b.milestones.has(m)) {
+          b.milestones.add(m);
+          events.push({ type: 'milestone', title: `${getPName(sId)}: ${m} off ${b.balls} balls (${b.fours} x 4, ${b.sixes} x 6)` });
+        }
+      });
+    }
 
     // Partnership Milestones
     [50, 100, 150].forEach(m => {
@@ -211,7 +215,13 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
     }
 
     if (idx === deliveries.length - 1) {
-      events.push({ type: 'normal', title: `Innings Break: ${teamName} - ${totalRuns}/${totalWickets} in ${overStr} overs`, detail: `(${getPShort(d.strikerPlayerId)} ${batterStats[d.strikerPlayerId].runs}, ${getPShort(d.nonStrikerPlayerId)} ${batterStats[d.nonStrikerPlayerId].runs})` });
+      const sRuns = (sId && batterStats[sId]) ? batterStats[sId].runs : 0;
+      const nsRuns = (nsId && nsId !== 'none' && batterStats[nsId]) ? batterStats[nsId].runs : 0;
+      events.push({ 
+        type: 'normal', 
+        title: `Innings Break: ${teamName} - ${totalRuns}/${totalWickets} in ${overStr} overs`, 
+        detail: `(${getPShort(sId)} ${sRuns}, ${getPShort(nsId)} ${nsRuns})` 
+      });
     }
   });
 
@@ -332,7 +342,6 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
         <div class="result">${match.resultDescription}</div>
       </div>
 
-      <!-- INNINGS 1 -->
       <div class="inning-title">
         <span>1st Inn: ${getTeam(inn1?.battingTeamId)}</span>
         <span>${inn1?.score}/${inn1?.wickets} (${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver})</span>
@@ -351,7 +360,6 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
       <div class="inning-subtitle">Bowling: ${getTeam(inn1?.bowlingTeamId)}</div>
       ${renderBowlingTable(stats1.bowling)}
 
-      <!-- INNINGS 2 -->
       <div class="inning-title">
         <span>2nd Inn: ${getTeam(inn2?.battingTeamId)}</span>
         <span>${inn2?.score}/${inn2?.wickets} (${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver})</span>

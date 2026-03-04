@@ -28,12 +28,12 @@ export default function PlayerProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
+
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({
     name: '', role: '', battingStyle: '', isWicketKeeper: false, imageUrl: ''
   });
-
-  useEffect(() => { setIsMounted(true); }, []);
 
   const playerRef = useMemoFirebase(() => {
     if (!db || !playerId || !isMounted) return null;
