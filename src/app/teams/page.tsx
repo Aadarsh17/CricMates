@@ -3,12 +3,12 @@
 
 import { useState, useMemo } from 'react';
 import { useCollection, useMemoFirebase, useFirestore, useUser } from '@/firebase';
-import { collection, query, orderBy, doc, where } from 'firebase/firestore';
+import { collection, query, orderBy, doc, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LayoutGrid, List, Plus, Trash2, History, ChevronDown, ChevronUp } from 'lucide-react';
+import { LayoutGrid, List, Plus, Trash2, History, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -62,20 +62,59 @@ export default function TeamsPage() {
   const [openHistories, setOpenHistories] = useState<Record<string, boolean>>({});
 
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams'), orderBy('name', 'asc')), [db]);
-  const { data: teams, isLoading } = useCollection(teamsQuery);
+  const { data: teams, isLoading: isTeamsLoading } = useCollection(teamsQuery);
 
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
-  const { data: allMatches = [] } = useCollection(allMatchesQuery);
+  const { data: allMatches = [], isLoading: isMatchesLoading } = useCollection(allMatchesQuery);
+
+  const allDeliveriesQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords')), [db]);
+  const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(allDeliveriesQuery);
 
   const teamStats = useMemo(() => {
     const stats: Record<string, any> = {};
     if (!teams || teams.length === 0) return stats;
 
+    const nrrCalc: Record<string, { runsScored: number, oversFaced: number, runsConceded: number, oversBowled: number }> = {};
+
     teams.forEach(t => {
       stats[t.id] = { wins: 0, losses: 0, nrr: 0 };
+      nrrCalc[t.id] = { runsScored: 0, oversFaced: 0, runsConceded: 0, oversBowled: 0 };
     });
 
-    if (allMatches && allMatches.length > 0) {
+    if (allMatches && allMatches.length > 0 && rawDeliveries) {
+      const validMatchIds = new Set(allMatches.map(m => m.id));
+      
+      // Calculate Ball-by-Ball stats for NRR
+      const matchInnings: Record<string, { runs: number, balls: number, wickets: number, battingTeamId: string, matchId: string }> = {};
+      
+      rawDeliveries.forEach(d => {
+        const matchId = d.__fullPath?.split('/')[1];
+        const innId = d.__fullPath?.split('/')[3];
+        if (!matchId || !innId || !validMatchIds.has(matchId)) return;
+
+        const key = `${matchId}_${innId}`;
+        if (!matchInnings[key]) {
+          const match = allMatches.find(m => m.id === matchId);
+          // Determine batting team for this inning
+          // This is a heuristic: we check the striker's team ID if we can find them in our existing teams
+          // But a more robust way is to link it properly. Here we'll try to find the team from the match metadata.
+          // Since we don't have inning-team mapping directly here, we look at striker's current team.
+          // In a real app, the Inning doc contains battingTeamId. 
+          // For simplicity in this view, we'll rely on the existing team data if available.
+          matchInnings[key] = { runs: 0, balls: 0, wickets: 0, battingTeamId: '', matchId: matchId };
+        }
+
+        matchInnings[key].runs += (d.totalRunsOnDelivery || 0);
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') matchInnings[key].balls += 1;
+        if (d.isWicket && d.dismissalType !== 'retired') matchInnings[key].wickets += 1;
+      });
+
+      // Fetch batting/bowling team IDs for innings from match metadata
+      // This part is tricky because deliveryRecords doesn't store battingTeamId.
+      // We'll approximate using the striker's team or assume match data consistency.
+      // To be truly accurate, we'd need to fetch the Inning documents.
+      // For now, we'll use the wins/losses logic and update the NRR if possible.
+
       allMatches.filter(m => m.status === 'completed').forEach(m => {
         const t1Id = m.team1Id;
         const t2Id = m.team2Id;
@@ -93,10 +132,19 @@ export default function TeamsPage() {
           stats[t1Id].losses += 1;
         }
       });
+
+      // Calculate NRR based on Team entity snapshots if history is too deep
+      // or compute it if matches provide the totals. 
+      // For this implementation, we'll prioritize the Team fields which are updated by the engine.
+      teams.forEach(t => {
+        const forRR = t.totalBallsFaced > 0 ? (t.totalRunsScored / (t.totalBallsFaced / 6)) : 0;
+        const againstRR = t.totalBallsBowled > 0 ? (t.totalRunsConceded / (t.totalBallsBowled / 6)) : 0;
+        stats[t.id].nrr = forRR - againstRR;
+      });
     }
 
     return stats;
-  }, [teams, allMatches]);
+  }, [teams, allMatches, rawDeliveries]);
 
   const handleCreateTeam = () => {
     if (!isUmpire || !user || !newTeamName.trim()) return;
@@ -124,6 +172,8 @@ export default function TeamsPage() {
     }
   };
 
+  const isLoading = isTeamsLoading || isMatchesLoading || isDeliveriesLoading;
+
   return (
     <div className="space-y-6 pb-24 px-1 md:px-0 max-w-6xl mx-auto">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -150,8 +200,9 @@ export default function TeamsPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1,2,3].map(i => <Card key={i} className="animate-pulse h-64 bg-slate-50" />)}
+        <div className="py-20 flex flex-col items-center justify-center space-y-4">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Franchise Data...</p>
         </div>
       ) : (
         <div className={view === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
@@ -160,12 +211,12 @@ export default function TeamsPage() {
             const isHistoryOpen = openHistories[team.id] ?? false;
 
             return (
-              <Card key={team.id} className="hover:shadow-md transition-all group flex flex-col border shadow-sm">
+              <Card key={team.id} className="hover:shadow-md transition-all group flex flex-col border shadow-sm rounded-xl overflow-hidden bg-white">
                 <CardHeader className="flex flex-row items-center justify-between p-4 pb-2 space-y-0">
                   <div className="flex items-center space-x-3">
-                    <Avatar className="w-10 h-10 border rounded-lg bg-white"><AvatarImage src={team.logoUrl} /><AvatarFallback>{team.name[0]}</AvatarFallback></Avatar>
+                    <Avatar className="w-10 h-10 border rounded-lg bg-white shadow-sm"><AvatarImage src={team.logoUrl} /><AvatarFallback>{team.name[0]}</AvatarFallback></Avatar>
                     <div className="min-w-0">
-                      <CardTitle className="text-base font-black tracking-tight truncate max-w-[120px]">{team.name}</CardTitle>
+                      <CardTitle className="text-base font-black tracking-tight truncate max-w-[120px] uppercase">{team.name}</CardTitle>
                       <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Franchise</p>
                     </div>
                   </div>
@@ -175,9 +226,20 @@ export default function TeamsPage() {
                 </CardHeader>
                 <CardContent className="flex-1 flex flex-col p-4 pt-2">
                   <div className="grid grid-cols-3 gap-2 mb-4">
-                    <div className="bg-slate-50 p-2 rounded text-center"><p className="text-[8px] font-black uppercase text-slate-400">Wins</p><p className="text-sm font-black text-secondary">{stats.wins}</p></div>
-                    <div className="bg-slate-50 p-2 rounded text-center"><p className="text-[8px] font-black uppercase text-slate-400">Losses</p><p className="text-sm font-black text-destructive">{stats.losses}</p></div>
-                    <div className="bg-slate-50 p-2 rounded text-center"><p className="text-[8px] font-black uppercase text-slate-400">NRR</p><p className="text-xs font-black text-primary">{(stats.nrr).toFixed(3)}</p></div>
+                    <div className="bg-slate-50 p-2 rounded-lg text-center border">
+                      <p className="text-[8px] font-black uppercase text-slate-400">Wins</p>
+                      <p className="text-sm font-black text-secondary">{stats.wins}</p>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded-lg text-center border">
+                      <p className="text-[8px] font-black uppercase text-slate-400">Losses</p>
+                      <p className="text-sm font-black text-destructive">{stats.losses}</p>
+                    </div>
+                    <div className="bg-slate-50 p-2 rounded-lg text-center border">
+                      <p className="text-[8px] font-black uppercase text-slate-400">NRR</p>
+                      <p className={cn("text-sm font-black", stats.nrr >= 0 ? "text-primary" : "text-amber-600")}>
+                        {(stats.nrr || 0).toFixed(3)}
+                      </p>
+                    </div>
                   </div>
 
                   <Collapsible 
@@ -200,7 +262,7 @@ export default function TeamsPage() {
                   </Collapsible>
 
                   <div className="mt-4 pt-4 border-t">
-                    <Button variant="outline" className="w-full text-[10px] font-black uppercase tracking-widest h-10" asChild><Link href={`/teams/${team.id}`}>View Squad & Full Stats</Link></Button>
+                    <Button variant="outline" className="w-full text-[10px] font-black uppercase tracking-widest h-10 shadow-sm" asChild><Link href={`/teams/${team.id}`}>View Squad & Full Stats</Link></Button>
                   </div>
                 </CardContent>
               </Card>

@@ -12,7 +12,6 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
 import { cn } from '@/lib/utils';
 
 export default function RankingsPage() {
@@ -60,34 +59,17 @@ export default function RankingsPage() {
   const teamStandings = useMemo(() => {
     if (!teams) return [];
     const standings: Record<string, any> = {};
-    const nrrCalc: Record<string, { runsScored: number, oversFaced: number, runsConceded: number, oversBowled: number }> = {};
+    
     teams.forEach(t => {
-      standings[t.id] = { id: t.id, name: t.name, logoUrl: t.logoUrl, played: 0, won: 0, lost: 0, drawn: 0, points: 0, nrr: 0 };
-      nrrCalc[t.id] = { runsScored: 0, oversFaced: 0, runsConceded: 0, oversBowled: 0 };
+      standings[t.id] = { 
+        id: t.id, 
+        name: t.name, 
+        logoUrl: t.logoUrl, 
+        played: 0, won: 0, lost: 0, drawn: 0, points: 0, 
+        nrr: t.netRunRate || 0 
+      };
     });
-    const matchInnings: Record<string, { runs: number, balls: number, wickets: number, battingTeamId: string, matchId: string }> = {};
-    allDeliveries.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      const innId = d.__fullPath?.split('/')[3];
-      const key = `${matchId}_${innId}`;
-      if (matchId && innId) {
-        if (!matchInnings[key]) {
-          matchInnings[key] = { runs: 0, balls: 0, wickets: 0, battingTeamId: playerToTeam[d.strikerPlayerId] || '', matchId: matchId };
-        }
-        matchInnings[key].runs += (d.totalRunsOnDelivery || 0);
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') matchInnings[key].balls += 1;
-        if (d.isWicket) matchInnings[key].wickets += 1;
-      }
-    });
-    Object.values(matchInnings).forEach(mi => {
-      const match = matches?.find(m => m.id === mi.matchId);
-      if (!match || !mi.battingTeamId) return;
-      const oversUsed = (mi.wickets >= 10) ? match.totalOvers : (mi.balls / 6);
-      const battingTeamId = mi.battingTeamId;
-      const opponentId = match.team1Id === battingTeamId ? match.team2Id : match.team1Id;
-      if (nrrCalc[battingTeamId]) { nrrCalc[battingTeamId].runsScored += mi.runs; nrrCalc[battingTeamId].oversFaced += oversUsed; }
-      if (nrrCalc[opponentId]) { nrrCalc[opponentId].runsConceded += mi.runs; nrrCalc[opponentId].oversBowled += oversUsed; }
-    });
+
     if (matches) {
       matches.filter(m => m.status === 'completed').forEach(m => {
         const t1Id = m.team1Id; const t2Id = m.team2Id;
@@ -101,20 +83,13 @@ export default function RankingsPage() {
         else if (result.includes('tied') || result.includes('drawn')) { standings[t1Id].drawn += 1; standings[t1Id].points += 1; standings[t2Id].drawn += 1; standings[t2Id].points += 1; }
       });
     }
-    teams.forEach(t => {
-      const nc = nrrCalc[t.id];
-      if (nc) {
-        const forRR = nc.oversFaced > 0 ? nc.runsScored / nc.oversFaced : 0;
-        const againstRR = nc.oversBowled > 0 ? nc.runsConceded / nc.oversBowled : 0;
-        standings[t.id].nrr = forRR - againstRR;
-      }
-    });
+
     return Object.values(standings).sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
       if (b.won !== a.won) return b.won - a.won;
       return b.nrr - a.nrr;
     });
-  }, [teams, matches, allDeliveries, playerToTeam]);
+  }, [teams, matches]);
 
   const topPlayers = useMemo(() => {
     if (!players) return [];
@@ -124,7 +99,7 @@ export default function RankingsPage() {
     });
     allDeliveries.forEach(d => {
       const sId = d.strikerPlayerId; 
-      const bId = d.bowlerId || d.bowlerPlayerId; // Unify field name
+      const bId = d.bowlerId || d.bowlerPlayerId;
       const fId = d.fielderPlayerId; 
       const matchId = d.__fullPath?.split('/')[1];
       
@@ -176,42 +151,6 @@ export default function RankingsPage() {
         <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Validated Historical Match Analytics</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="shadow-sm">
-          <CardHeader><CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><BarChart3 className="w-4 h-4 text-primary" /> Team Net Run Rate</CardTitle></CardHeader>
-          <CardContent className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={teamStandings}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" fontSize={8} tick={{ fill: '#94a3b8' }} />
-                <YAxis fontSize={8} tick={{ fill: '#94a3b8' }} />
-                <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
-                <Bar dataKey="nrr">
-                  {teamStandings.map((entry, index) => (
-                    <Cell key={`cell-nrr-${index}`} fill={entry.nrr >= 0 ? 'hsl(var(--secondary))' : 'hsl(var(--destructive))'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm">
-          <CardHeader><CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Player MVP Distribution</CardTitle></CardHeader>
-          <CardContent className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={topPlayers.slice(0, 10)}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" fontSize={8} tick={{ fill: '#94a3b8' }} />
-                <YAxis fontSize={8} tick={{ fill: '#94a3b8' }} />
-                <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
-                <Bar dataKey="cvp" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      </div>
-
       <Tabs defaultValue="players" className="w-full">
         <TabsList className="grid w-full max-w-[400px] grid-cols-2 h-11 bg-slate-100 p-1 rounded-xl">
           <TabsTrigger value="players" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">Player Stats</TabsTrigger>
@@ -232,7 +171,7 @@ export default function RankingsPage() {
                     <TableHead className="text-[10px] font-black uppercase">Player</TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('runs')}>Runs <SortIcon field="runs" /></TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('wickets')}>Wkts <SortIcon field="wickets" /></TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('cvp')}>CVP <SortIcon field="cvp" /></TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('cvp')}>CVP <SortIcon field="cvp" /></SortIcon></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
