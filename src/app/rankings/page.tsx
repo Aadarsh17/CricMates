@@ -7,12 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, ChevronRight, UserCircle, Loader2, ArrowUp, ArrowDown, TrendingUp, BarChart3 } from 'lucide-react';
+import { Trophy, ChevronRight, UserCircle, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
-import { cn } from '@/lib/utils';
 
 export default function RankingsPage() {
   const db = useFirestore();
@@ -37,15 +36,6 @@ export default function RankingsPage() {
     return query(collectionGroup(db, 'deliveryRecords'));
   }, [db, isMounted]);
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(allDeliveriesQuery);
-
-  const playerToTeam = useMemo(() => {
-    const map: Record<string, string> = {};
-    if (!players) return map;
-    players.forEach(p => {
-      if (p.teamId) map[p.id] = p.teamId;
-    });
-    return map;
-  }, [players]);
 
   const allDeliveries = useMemo(() => {
     if (!rawDeliveries || !matches || matches.length === 0) return [];
@@ -171,7 +161,7 @@ export default function RankingsPage() {
                     <TableHead className="text-[10px] font-black uppercase">Player</TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('runs')}>Runs <SortIcon field="runs" /></TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('wickets')}>Wkts <SortIcon field="wickets" /></TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('cvp')}>CVP <SortIcon field="cvp" /></SortIcon></TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('cvp')}>CVP <SortIcon field="cvp" /></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
