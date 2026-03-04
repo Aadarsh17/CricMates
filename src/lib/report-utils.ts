@@ -26,18 +26,22 @@ export const getExtendedInningStats = (deliveries: any[]) => {
   deliveries.forEach((d, idx) => {
     const sId = d.strikerPlayerId;
     const nsId = d.nonStrikerPlayerId;
+    // Unify field name: Use bowlerId as primary identifier
+    const bId = d.bowlerId || d.bowlerPlayerId;
     
+    if (!sId) return;
+
     if (!bat[sId]) bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
-    if (nsId && !bat[nsId]) bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
+    if (nsId && nsId !== 'none' && !bat[nsId]) bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '' };
     
     if (d.extraType !== 'wide') {
       bat[sId].balls += 1;
-      bat[sId].runs += d.runsScored;
+      bat[sId].runs += (d.runsScored || 0);
       if (d.runsScored === 4) bat[sId].fours += 1;
       if (d.runsScored === 6) bat[sId].sixes += 1;
     }
 
-    currentScore += d.totalRunsOnDelivery;
+    currentScore += (d.totalRunsOnDelivery || 0);
     if (d.extraType !== 'wide' && d.extraType !== 'noball') currentBalls += 1;
 
     if (!currentPartnership.batter1Id) {
@@ -45,12 +49,12 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       currentPartnership.batter2Id = nsId;
     }
 
-    currentPartnership.runs += d.totalRunsOnDelivery;
+    currentPartnership.runs += (d.totalRunsOnDelivery || 0);
     if (d.extraType !== 'wide' && d.extraType !== 'noball') currentPartnership.balls += 1;
     if (sId === currentPartnership.batter1Id) {
-      currentPartnership.batter1Runs += d.runsScored;
+      currentPartnership.batter1Runs += (d.runsScored || 0);
     } else {
-      currentPartnership.batter2Runs += d.runsScored;
+      currentPartnership.batter2Runs += (d.runsScored || 0);
     }
 
     if (d.isWicket) {
@@ -84,10 +88,12 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       partnerships.push({...currentPartnership});
     }
 
-    if (!bowl[d.bowlerPlayerId]) bowl[d.bowlerPlayerId] = { id: d.bowlerPlayerId, overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
-    bowl[d.bowlerPlayerId].runs += d.totalRunsOnDelivery;
-    if (d.isWicket && d.dismissalType !== 'runout') bowl[d.bowlerPlayerId].wickets += 1;
-    if (d.extraType !== 'wide' && d.extraType !== 'noball') bowl[d.bowlerPlayerId].balls += 1;
+    if (bId) {
+      if (!bowl[bId]) bowl[bId] = { id: bId, overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
+      bowl[bId].runs += (d.totalRunsOnDelivery || 0);
+      if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') bowl[bId].wickets += 1;
+      if (d.extraType !== 'wide' && d.extraType !== 'noball') bowl[bId].balls += 1;
+    }
   });
 
   return {
@@ -189,7 +195,7 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
       <div class="header">
         <h1>OFFICIAL MATCH SCORECARD</h1>
         <div style="font-weight: 700; color: #94a3b8; font-size: 6px; text-transform: uppercase;">
-          ${new Date(match.matchDate).toLocaleDateString('en-GB')} | ${match.totalOvers} OV MATCH
+          ${match.matchDate ? new Date(match.matchDate).toLocaleDateString('en-GB') : '---'} | ${match.totalOvers} OV MATCH
         </div>
       </div>
 

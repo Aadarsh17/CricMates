@@ -74,7 +74,7 @@ export default function RankingsPage() {
         if (!matchInnings[key]) {
           matchInnings[key] = { runs: 0, balls: 0, wickets: 0, battingTeamId: playerToTeam[d.strikerPlayerId] || '', matchId: matchId };
         }
-        matchInnings[key].runs += d.totalRunsOnDelivery || 0;
+        matchInnings[key].runs += (d.totalRunsOnDelivery || 0);
         if (d.extraType !== 'wide' && d.extraType !== 'noball') matchInnings[key].balls += 1;
         if (d.isWicket) matchInnings[key].wickets += 1;
       }
@@ -123,10 +123,29 @@ export default function RankingsPage() {
       pStats[p.id] = { id: p.id, name: p.name, role: p.role, imageUrl: p.imageUrl, runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0, matchCount: 0, cvp: 0, matchesSeen: new Set<string>() };
     });
     allDeliveries.forEach(d => {
-      const sId = d.strikerPlayerId; const bId = d.bowlerPlayerId; const fId = d.fielderPlayerId; const matchId = d.__fullPath?.split('/')[1];
-      if (pStats[sId]) { pStats[sId].runs += d.runsScored || 0; if (d.extraType !== 'wide') pStats[sId].ballsFaced += 1; if (d.runsScored === 4) pStats[sId].fours += 1; if (d.runsScored === 6) pStats[sId].sixes += 1; if (matchId) pStats[sId].matchesSeen.add(matchId); }
-      if (pStats[bId]) { pStats[bId].runsConceded += d.totalRunsOnDelivery || 0; if (d.extraType !== 'wide' && d.extraType !== 'noball') pStats[bId].ballsBowled += 1; if (d.isWicket && d.dismissalType !== 'runout') pStats[bId].wickets += 1; if (matchId) pStats[bId].matchesSeen.add(matchId); }
-      if (fId && pStats[fId]) { if (d.dismissalType === 'caught') pStats[fId].catches += 1; if (d.dismissalType === 'stumped') pStats[fId].stumpings += 1; if (d.dismissalType === 'runout') pStats[fId].runOuts += 1; }
+      const sId = d.strikerPlayerId; 
+      const bId = d.bowlerId || d.bowlerPlayerId; // Unify field name
+      const fId = d.fielderPlayerId; 
+      const matchId = d.__fullPath?.split('/')[1];
+      
+      if (pStats[sId]) { 
+        pStats[sId].runs += (d.runsScored || 0); 
+        if (d.extraType !== 'wide') pStats[sId].ballsFaced += 1; 
+        if (d.runsScored === 4) pStats[sId].fours += 1; 
+        if (d.runsScored === 6) pStats[sId].sixes += 1; 
+        if (matchId) pStats[sId].matchesSeen.add(matchId); 
+      }
+      if (bId && pStats[bId]) { 
+        pStats[bId].runsConceded += (d.totalRunsOnDelivery || 0); 
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') pStats[bId].ballsBowled += 1; 
+        if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') pStats[bId].wickets += 1; 
+        if (matchId) pStats[bId].matchesSeen.add(matchId); 
+      }
+      if (fId && pStats[fId]) { 
+        if (d.dismissalType === 'caught') pStats[fId].catches += 1; 
+        if (d.dismissalType === 'stumped') pStats[fId].stumpings += 1; 
+        if (d.dismissalType === 'runout') pStats[fId].runOuts += 1; 
+      }
     });
     return Object.values(pStats).map((ps: any) => {
       ps.matchCount = ps.matchesSeen.size;
@@ -169,7 +188,7 @@ export default function RankingsPage() {
                 <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
                 <Bar dataKey="nrr">
                   {teamStandings.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.nrr >= 0 ? 'hsl(var(--secondary))' : 'hsl(var(--destructive))'} />
+                    <Cell key={`cell-nrr-${index}`} fill={entry.nrr >= 0 ? 'hsl(var(--secondary))' : 'hsl(var(--destructive))'} />
                   ))}
                 </Bar>
               </BarChart>
@@ -218,7 +237,7 @@ export default function RankingsPage() {
                 </TableHeader>
                 <TableBody>
                   {topPlayers.map((player, idx) => (
-                    <TableRow key={player.id}>
+                    <TableRow key={`rank-row-${player.id}-${idx}`}>
                       <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
                       <TableCell>
                         <Link href={`/players/${player.id}`} className="font-black text-primary hover:underline text-xs flex items-center gap-2 uppercase tracking-tighter">
@@ -250,7 +269,7 @@ export default function RankingsPage() {
               </TableHeader>
               <TableBody>
                 {teamStandings.map((team, idx) => (
-                  <TableRow key={team.id}>
+                  <TableRow key={`team-row-${team.id}-${idx}`}>
                     <TableCell className="text-center font-black text-xs text-slate-400 py-4">{idx + 1}</TableCell>
                     <TableCell className="py-4">
                       <Link href={`/teams/${team.id}`} className="flex items-center gap-3">
