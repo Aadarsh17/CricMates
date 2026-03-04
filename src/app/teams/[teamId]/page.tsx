@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Upload } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Upload, AlertCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -46,14 +46,15 @@ export default function TeamDetailsPage() {
   }, [db, isMounted]);
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(squadDeliveriesQuery);
 
+  const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
+
   const allDeliveries = useMemo(() => {
     if (!rawDeliveries || !allMatches || allMatches.length === 0) return [];
-    const validMatchIds = new Set(allMatches.map(m => m.id));
     return rawDeliveries.filter(d => {
       const matchId = d.__fullPath?.split('/')[1];
-      return matchId && validMatchIds.has(matchId);
+      return matchId && activeMatchIds.has(matchId);
     });
-  }, [rawDeliveries, allMatches]);
+  }, [rawDeliveries, allMatches, activeMatchIds]);
 
   const standingsForThisTeam = useMemo(() => {
     if (!teamId || !allMatches || !allMatches.length) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
@@ -80,7 +81,7 @@ export default function TeamDetailsPage() {
     if (!players || players.length === 0) return {};
     const stats: Record<string, any> = {};
     players.forEach(p => {
-      stats[p.id] = { runs: 0, wickets: 0, cvp: 0, ballsFaced: 0, fours: 0, sixes: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0, maidens: 0 };
+      stats[p.id] = { id: p.id, name: p.name, runs: 0, wickets: 0, cvp: 0, ballsFaced: 0, fours: 0, sixes: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0, maidens: 0, wides: 0, noBalls: 0 };
     });
 
     allDeliveries.forEach(d => {
@@ -88,10 +89,13 @@ export default function TeamDetailsPage() {
         stats[d.strikerPlayerId].runs += d.runsScored || 0;
         if (d.extraType !== 'wide') stats[d.strikerPlayerId].ballsFaced += 1;
       }
-      if (stats[d.bowlerPlayerId]) {
-        stats[d.bowlerPlayerId].runsConceded += d.totalRunsOnDelivery || 0;
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') stats[d.bowlerPlayerId].ballsBowled += 1;
-        if (d.isWicket && d.dismissalType !== 'runout') stats[d.bowlerPlayerId].wickets += 1;
+      if (stats[d.bowlerId || d.bowlerPlayerId]) {
+        const bId = d.bowlerId || d.bowlerPlayerId;
+        stats[bId].runsConceded += d.totalRunsOnDelivery || 0;
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') stats[bId].ballsBowled += 1;
+        if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') stats[bId].wickets += 1;
+        if (d.extraType === 'wide') stats[bId].wides += 1;
+        if (d.extraType === 'noball') stats[bId].noBalls += 1;
       }
       if (d.fielderPlayerId && stats[d.fielderPlayerId]) {
         if (d.dismissalType === 'caught') stats[d.fielderPlayerId].catches += 1;
@@ -105,6 +109,17 @@ export default function TeamDetailsPage() {
     });
     return stats;
   }, [players, allDeliveries]);
+
+  const extrasLeaderboard = useMemo(() => {
+    return Object.values(squadStats)
+      .map((s: any) => ({
+        ...s,
+        totalExtras: s.wides + s.noBalls
+      }))
+      .filter(s => s.totalExtras > 0)
+      .sort((a, b) => b.totalExtras - a.totalExtras)
+      .slice(0, 5);
+  }, [squadStats]);
 
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [isEditPlayerOpen, setIsEditPlayerOpen] = useState(false);
@@ -180,13 +195,13 @@ export default function TeamDetailsPage() {
       role: player.role,
       imageUrl: player.imageUrl || ''
     });
-    setIsEditPlayerOpen(true);
+    setIsEditOpen(true);
   };
 
   const handleUpdatePlayer = () => {
     if (!editingPlayerId) return;
     updateDocumentNonBlocking(doc(db, 'players', editingPlayerId), editForm);
-    setIsEditPlayerOpen(false);
+    setIsEditOpen(false);
     toast({ title: "Profile Updated" });
   };
 
@@ -234,6 +249,26 @@ export default function TeamDetailsPage() {
           </Card>
         ))}
       </div>
+
+      {extrasLeaderboard.length > 0 && (
+        <Card className="border-t-4 border-t-amber-500 shadow-sm">
+          <CardHeader className="py-4">
+            <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-500" /> Extras contribution
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {extrasLeaderboard.map((player) => (
+              <div key={player.id} className="flex items-center justify-between p-2 bg-slate-50 rounded-lg border">
+                <span className="font-black text-xs uppercase truncate max-w-[150px]">{player.name}</span>
+                <span className="font-bold text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                  {player.totalExtras} - [{player.wides} WD & {player.noBalls} NB]
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex justify-between items-center gap-4">
         <h2 className="text-lg md:text-2xl font-black uppercase tracking-tight">Active Squad</h2>
