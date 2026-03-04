@@ -334,7 +334,7 @@ export default function MatchScoreboardPage() {
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
 
   const chaseLogic = (() => {
-    if (match.currentInningNumber !== 2 || !inn1 || !inn2) return null;
+    if (match.currentInningNumber !== 2 || !inn1 || !inn2 || match.status === 'completed') return null;
     const target = (inn1.score || 0) + 1;
     const runsNeeded = Math.max(0, target - (inn2.score || 0));
     const totalBalls = match.totalOvers * 6;
@@ -445,68 +445,59 @@ export default function MatchScoreboardPage() {
         <TabsContent value="live" className="space-y-6 pt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              <Card className="shadow-lg border-none overflow-hidden bg-slate-900 text-white">
-                <CardHeader className="bg-white/5 border-b border-white/5 py-4">
-                  <div className="flex justify-between items-center">
-                    <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Official Scorer</CardTitle>
-                    {isUmpire && activeInningData && !isCurrentInningFinished && (
+              {isUmpire && activeInningData && !isCurrentInningFinished && (
+                <Card className="shadow-lg border-none overflow-hidden bg-slate-900 text-white">
+                  <CardHeader className="bg-white/5 border-b border-white/5 py-4">
+                    <div className="flex justify-between items-center">
+                      <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Official Scorer</CardTitle>
                       <div className="flex items-center gap-2">
                         <Button size="icon" variant="ghost" className="h-8 w-8 rounded-full hover:bg-white/10" onClick={handleSwapStrike}><ArrowLeftRight className="w-4 h-4" /></Button>
                         <Button size="sm" variant="outline" className="h-8 text-[9px] font-black border-white/20 text-white" onClick={() => setIsPlayerAssignmentOpen(true)}>Edit XI</Button>
                       </div>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="p-6 space-y-6">
-                    {isUmpire && activeInningData && !isCurrentInningFinished ? (
-                      <div className="space-y-6">
-                        <div className="grid grid-cols-4 gap-2 md:gap-3">
-                          {[0, 1, 2, 3, 4, 6].map(r => (
-                            <Button key={`r-${r}`} onClick={() => handleRecordBall(r)} className={cn("h-14 md:h-16 text-xl md:text-2xl font-black bg-white/5 border-2 border-white/10 hover:bg-white/20 hover:border-primary transition-all", r >= 4 ? "text-primary border-primary/40" : "text-white")}>
-                              {r === 0 ? "•" : r}
-                            </Button>
-                          ))}
-                          <Button onClick={() => handleRecordBall(1, 'none', true)} className="h-14 md:h-16 flex flex-col items-center justify-center bg-secondary/20 border-2 border-secondary/40 text-secondary hover:bg-secondary/30 transition-all">
-                            <span className="text-lg md:text-xl font-black">1D</span>
-                            <span className="text-[6px] md:text-[7px] font-bold uppercase tracking-tighter opacity-70">No Strike</span>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="p-6 space-y-6">
+                      <div className="grid grid-cols-4 gap-2 md:gap-3">
+                        {[0, 1, 2, 3, 4, 6].map(r => (
+                          <Button key={`r-${r}`} onClick={() => handleRecordBall(r)} className={cn("h-14 md:h-16 text-xl md:text-2xl font-black bg-white/5 border-2 border-white/10 hover:bg-white/20 hover:border-primary transition-all", r >= 4 ? "text-primary border-primary/40" : "text-white")}>
+                            {r === 0 ? "•" : r}
                           </Button>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3">
-                          <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-10 md:h-12 font-black text-[9px] md:text-[10px] border-amber-500/40 text-amber-500 hover:bg-amber-500/10 uppercase">Wide</Button>
-                          <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-10 md:h-12 font-black text-[9px] md:text-[10px] border-amber-500/40 text-amber-500 hover:bg-amber-500/10 uppercase">No Ball</Button>
-                          <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-10 md:h-12 font-black text-[9px] md:text-[10px] border-red-500/40 text-red-500 hover:bg-red-500/10 uppercase">Wicket</Button>
-                          <Button variant="outline" onClick={handleUndoLastBall} disabled={isUndoing} className="h-10 md:h-12 font-black text-[9px] md:text-[10px] border-white/20 text-white hover:bg-white/10 uppercase">Undo</Button>
-                        </div>
+                        ))}
+                        <Button onClick={() => handleRecordBall(1, 'none', true)} className="h-14 md:h-16 flex flex-col items-center justify-center bg-secondary/20 border-2 border-secondary/40 text-secondary hover:bg-secondary/30 transition-all">
+                          <span className="text-lg md:text-xl font-black">1D</span>
+                          <span className="text-[6px] md:text-[7px] font-bold uppercase tracking-tighter opacity-70">No Strike</span>
+                        </Button>
                       </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3">
+                        <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-10 md:h-12 font-black text-[9px] md:text-[10px] border-amber-500/40 text-amber-500 hover:bg-amber-500/10 uppercase">Wide</Button>
+                        <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-10 md:h-12 font-black text-[9px] md:text-[10px] border-amber-500/40 text-amber-500 hover:bg-amber-500/10 uppercase">No Ball</Button>
+                        <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-10 md:h-12 font-black text-[9px] md:text-[10px] border-red-500/40 text-red-500 hover:bg-red-500/10 uppercase">Wicket</Button>
+                        <Button variant="outline" onClick={handleUndoLastBall} disabled={isUndoing} className="h-10 md:h-12 font-black text-[9px] md:text-[10px] border-white/20 text-white hover:bg-white/10 uppercase">Undo</Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {isUmpire && activeInningData?.isDeclaredFinished && (
+                <Card className="shadow-lg border-none overflow-hidden bg-slate-900 text-white p-12 text-center">
+                  <div className="space-y-6">
+                    <CheckCircle2 className="w-16 h-16 text-primary mx-auto" />
+                    <h3 className="text-2xl font-black uppercase tracking-tight">Innings Complete</h3>
+                    {match.currentInningNumber === 1 ? (
+                      <Button onClick={() => {
+                        const batch = writeBatch(db);
+                        batch.update(doc(db, 'matches', matchId), { currentInningNumber: 2 });
+                        batch.set(doc(db, 'matches', matchId, 'innings', 'inning_2'), { id: 'inning_2', matchId, inningNumber: 2, score: 0, wickets: 0, oversCompleted: 0, ballsInCurrentOver: 0, battingTeamId: inn1?.bowlingTeamId, bowlingTeamId: inn1?.battingTeamId, strikerPlayerId: '', nonStrikerPlayerId: '', currentBowlerPlayerId: '', matchStatus: 'live', isDeclaredFinished: false, isLastManActive: false });
+                        batch.commit(); setIsPlayerAssignmentOpen(true);
+                      }} className="w-full h-14 bg-primary font-black uppercase tracking-widest">Start 2nd Innings</Button>
                     ) : (
-                      <div className="py-12 text-center">
-                        {!isUmpire ? (
-                          <div className="space-y-2">
-                            <Info className="w-12 h-12 text-slate-700 mx-auto opacity-20" />
-                            <p className="text-xs font-black uppercase text-slate-500 tracking-widest">Read-Only Viewer Mode</p>
-                          </div>
-                        ) : activeInningData?.isDeclaredFinished ? (
-                          <div className="space-y-6">
-                            <CheckCircle2 className="w-16 h-16 text-primary mx-auto" />
-                            <h3 className="text-2xl font-black uppercase tracking-tight">Innings Complete</h3>
-                            {match.currentInningNumber === 1 ? (
-                              <Button onClick={() => {
-                                const batch = writeBatch(db);
-                                batch.update(doc(db, 'matches', matchId), { currentInningNumber: 2 });
-                                batch.set(doc(db, 'matches', matchId, 'innings', 'inning_2'), { id: 'inning_2', matchId, inningNumber: 2, score: 0, wickets: 0, oversCompleted: 0, ballsInCurrentOver: 0, battingTeamId: inn1?.bowlingTeamId, bowlingTeamId: inn1?.battingTeamId, strikerPlayerId: '', nonStrikerPlayerId: '', currentBowlerPlayerId: '', matchStatus: 'live', isDeclaredFinished: false, isLastManActive: false });
-                                batch.commit(); setIsPlayerAssignmentOpen(true);
-                              }} className="w-full h-14 bg-primary font-black uppercase tracking-widest">Start 2nd Innings</Button>
-                            ) : (
-                              <Button onClick={handleEndMatch} className="w-full h-14 bg-secondary font-black uppercase tracking-widest">Finalize Match Result</Button>
-                            )}
-                          </div>
-                        ) : null}
-                      </div>
+                      <Button onClick={handleEndMatch} className="w-full h-14 bg-secondary font-black uppercase tracking-widest">Finalize Match Result</Button>
                     )}
                   </div>
-                </CardContent>
-              </Card>
+                </Card>
+              )}
 
               <Card className="shadow-sm border-none bg-white overflow-hidden">
                 <div className="overflow-x-auto scrollbar-hide">
