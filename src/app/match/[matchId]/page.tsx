@@ -23,6 +23,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 
+const CustomWicketDot = (props: any) => {
+  const { cx, cy, value, stroke } = props;
+  if (value === null || value === undefined) return null;
+  return (
+    <g key={`wkt-dot-${cx}-${cy}`}>
+      <circle cx={cx} cy={cy} r={7} fill={stroke} stroke="#fff" strokeWidth={1} />
+      <text x={cx} y={cy} dy={3} textAnchor="middle" fill="white" fontSize="8px" fontWeight="900">W</text>
+    </g>
+  );
+};
+
 export default function MatchScoreboardPage() {
   const params = useParams();
   const matchId = params.matchId as string;
@@ -177,7 +188,8 @@ export default function MatchScoreboardPage() {
   const isCurrentInningFinished = useMemo(() => {
     if (!match || !activeInningData) return false;
     if (activeInningData.isDeclaredFinished) return true;
-    const squadSize = match.currentInningNumber === 1 ? match.team1SquadPlayerIds?.length : match.team2SquadPlayerIds?.length;
+    const battingTeamId = activeInningData.battingTeamId;
+    const squadSize = battingTeamId === match.team1Id ? match.team1SquadPlayerIds?.length : match.team2SquadPlayerIds?.length;
     const maxWickets = (squadSize || 11);
     return activeInningData.oversCompleted >= match.totalOvers || activeInningData.wickets >= maxWickets;
   }, [match, activeInningData]);
@@ -226,7 +238,9 @@ export default function MatchScoreboardPage() {
     else { updates.strikerPlayerId = wicketForm.batterOutId === activeInningData.strikerPlayerId ? '' : activeInningData.strikerPlayerId; updates.nonStrikerPlayerId = wicketForm.batterOutId === activeInningData.nonStrikerPlayerId ? '' : activeInningData.nonStrikerPlayerId; }
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), updates);
     setIsWicketDialogOpen(false); toast({ title: "OUT!", variant: "destructive" });
-    if (newWickets < (match.team1SquadPlayerIds?.length || 11) && wicketForm.decision !== 'finish') setIsPlayerAssignmentOpen(true);
+    const battingTeamId = activeInningData.battingTeamId;
+    const squadSize = battingTeamId === match.team1Id ? match.team1SquadPlayerIds?.length : match.team2SquadPlayerIds?.length;
+    if (newWickets < (squadSize || 11) && wicketForm.decision !== 'finish') setIsPlayerAssignmentOpen(true);
   };
 
   const handleRetire = async () => {
@@ -282,7 +296,7 @@ export default function MatchScoreboardPage() {
 
   const handleDownloadReport = () => {
     if (!match || !inn1) return;
-    const reportContent = generateHTMLReport(match, inn1, inn2, stats1, stats2, allTeams || [], allPlayers || []);
+    const reportContent = generateHTMLReport(match, inn1, inn2 || null, stats1, stats2, allTeams || [], allPlayers || []);
     const blob = new Blob([reportContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -301,8 +315,8 @@ export default function MatchScoreboardPage() {
     const tBat1 = getTeamName(i1.battingTeamId); const tBat2 = getTeamName(i2.battingTeamId);
     if (s1 > s2) return `${tBat1} won by ${s1 - s2} runs`;
     if (s2 > s1) {
-      const battingTeamSquadSize = i2.battingTeamId === match.team1Id ? match.team1SquadPlayerIds?.length : match.team2SquadPlayerIds?.length;
-      const squadSize = battingTeamSquadSize || 11;
+      const battingTeamId = i2.battingTeamId;
+      const squadSize = (battingTeamId === match.team1Id ? match.team1SquadPlayerIds?.length : match.team2SquadPlayerIds?.length) || 11;
       const remainingWickets = Math.max(0, squadSize - (i2.wickets || 0));
       return `${tBat2} won by ${remainingWickets} wickets`;
     }
@@ -401,32 +415,41 @@ export default function MatchScoreboardPage() {
               <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Bowling</span></div>
               <Table><TableHeader className="bg-slate-50/50"><TableRow><TableHead className="text-[8px] font-black uppercase">Bowler</TableHead><TableHead className="text-right text-[8px] font-black uppercase">O</TableHead><TableHead className="text-right text-[8px] font-black uppercase">R</TableHead><TableHead className="text-right text-[8px] font-black uppercase">W</TableHead></TableRow></TableHeader><TableBody>{currentInningStats.bowling.map((b, idx) => (<TableRow key={`bowl-${b.id || idx}`}><TableCell className="py-2"><p className="font-bold text-xs">{getPlayerName(b.id)}</p></TableCell><TableCell className="text-right text-xs">{b.oversDisplay}</TableCell><TableCell className="text-right text-sm font-bold">{b.runs}</TableCell><TableCell className="text-right text-sm font-black text-primary">{b.wickets}</TableCell></TableRow>))}</TableBody></Table>
            </Card>
-           <Card className="rounded-xl overflow-hidden border shadow-sm">
-              <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Fall of Wickets</span></div>
-              <Table><TableHeader className="bg-slate-50/50"><TableRow><TableHead className="text-[8px] font-black uppercase">Wkt</TableHead><TableHead className="text-[8px] font-black uppercase">Score</TableHead><TableHead className="text-[8px] font-black uppercase">Over</TableHead></TableRow></TableHeader><TableBody>{currentInningStats.fow.map((f, idx) => (<TableRow key={`fow-${idx}`}><TableCell className="py-2 text-[10px] font-black">{f.wicketNum}</TableCell><TableCell className="py-2 text-[10px] font-black">{f.scoreAtWicket}</TableCell><TableCell className="py-2 text-[10px] text-slate-500">{f.overs}</TableCell></TableRow>))}</TableBody></Table>
-           </Card>
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+             <Card className="rounded-xl overflow-hidden border shadow-sm">
+                <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Fall of Wickets</span></div>
+                <Table><TableHeader className="bg-slate-50/50"><TableRow><TableHead className="text-[8px] font-black uppercase">Wkt</TableHead><TableHead className="text-[8px] font-black uppercase">Score</TableHead><TableHead className="text-[8px] font-black uppercase">Over</TableHead></TableRow></TableHeader><TableBody>{currentInningStats.fow.map((f, idx) => (<TableRow key={`fow-${idx}`}><TableCell className="py-2 text-[10px] font-black">{f.wicketNum}</TableCell><TableCell className="py-2 text-[10px] font-black">{f.scoreAtWicket}</TableCell><TableCell className="py-2 text-[10px] text-slate-500">{f.overs}</TableCell></TableRow>))}</TableBody></Table>
+             </Card>
+             <Card className="rounded-xl overflow-hidden border shadow-sm">
+                <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Partnerships</span></div>
+                <Table><TableHeader className="bg-slate-50/50"><TableRow><TableHead className="text-[8px] font-black uppercase">Pair</TableHead><TableHead className="text-right text-[8px] font-black uppercase">Runs</TableHead></TableRow></TableHeader><TableBody>{currentInningStats.partnerships.map((p, idx) => (<TableRow key={`part-${idx}`}><TableCell className="py-2"><p className="text-[10px] font-bold">{getPlayerName(p.batter1Id)} & {getPlayerName(p.batter2Id)}</p></TableCell><TableCell className="text-right text-[10px] font-black">{p.runs} ({p.balls})</TableCell></TableRow>))}</TableBody></Table>
+             </Card>
+           </div>
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-6 pt-4">
            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="shadow-sm">
-                 <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><LineChartIcon className="w-4 h-4" /> Worm Chart</CardTitle></CardHeader>
+                 <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><LineChartIcon className="w-4 h-4" /> Worm Chart (Cumulative Runs)</CardTitle></CardHeader>
                  <CardContent className="h-[300px]">
                     <ResponsiveContainer width="100%" height="100%">
                        <AreaChart data={wormData}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                          <XAxis dataKey="ball" fontSize={8} /><YAxis fontSize={8} /><Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} /><Legend wrapperStyle={{ fontSize: '10px' }} />
+                          <XAxis dataKey="ball" fontSize={8} label={{ value: 'Balls', position: 'insideBottom', offset: -5, fontSize: 10 }} />
+                          <YAxis fontSize={8} label={{ value: 'Runs', angle: -90, position: 'insideLeft', fontSize: 10 }} />
+                          <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
+                          <Legend wrapperStyle={{ fontSize: '10px' }} />
                           <Area type="monotone" dataKey="team1" name={getTeamName(match.team1Id)} stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.1} />
                           <Area type="monotone" dataKey="team2" name={getTeamName(match.team2Id)} stroke="hsl(var(--secondary))" fill="hsl(var(--secondary))" fillOpacity={0.1} />
-                          <Line type="monotone" dataKey="team1Wicket" name="Wkt (T1)" stroke="none" dot={{ r: 4, fill: 'red' }} />
-                          <Line type="monotone" dataKey="team2Wicket" name="Wkt (T2)" stroke="none" dot={{ r: 4, fill: 'orange' }} />
+                          <Line type="monotone" dataKey="team1Wicket" name="Wkt (T1)" stroke="none" dot={<CustomWicketDot stroke="hsl(var(--primary))" />} />
+                          <Line type="monotone" dataKey="team2Wicket" name="Wkt (T2)" stroke="none" dot={<CustomWicketDot stroke="hsl(var(--secondary))" />} />
                        </AreaChart>
                     </ResponsiveContainer>
                  </CardContent>
               </Card>
               <Card className="shadow-sm">
                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><BarChart className="w-4 h-4" /> Manhattan Chart</CardTitle>
+                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><BarChart className="w-4 h-4" /> Manhattan Chart (Runs Per Over)</CardTitle>
                     <div className="flex gap-1">
                        <Button size="sm" variant={activeInningView === 1 ? 'secondary' : 'ghost'} className="h-6 text-[8px] font-black" onClick={() => setActiveInningView(1)}>INN 1</Button>
                        <Button size="sm" variant={activeInningView === 2 ? 'secondary' : 'ghost'} className="h-6 text-[8px] font-black" onClick={() => setActiveInningView(2)}>INN 2</Button>
