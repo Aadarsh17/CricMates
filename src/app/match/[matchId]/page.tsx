@@ -168,25 +168,25 @@ export default function MatchScoreboardPage() {
     return outSet;
   }, [match?.currentInningNumber, inn1Deliveries, inn2Deliveries]);
 
+  const activeInningData = useMemo(() => {
+    return match?.currentInningNumber === 1 ? inn1 : (match?.currentInningNumber === 2 ? inn2 : null);
+  }, [match, inn1, inn2]);
+
   const currentBattingSquad = useMemo(() => {
-    const activeData = match?.currentInningNumber === 1 ? inn1 : (match?.currentInningNumber === 2 ? inn2 : null);
-    if (!match || !activeData || !allPlayers) return [];
-    const squadIds = activeData.battingTeamId === match.team1Id 
+    if (!match || !activeInningData || !allPlayers) return [];
+    const squadIds = activeInningData.battingTeamId === match.team1Id 
       ? match.team1SquadPlayerIds 
       : match.team2SquadPlayerIds;
     return allPlayers.filter(p => squadIds?.includes(p.id));
-  }, [match, inn1, inn2, allPlayers]);
+  }, [match, activeInningData, allPlayers]);
 
   const currentBowlingSquad = useMemo(() => {
-    const activeData = match?.currentInningNumber === 1 ? inn1 : (match?.currentInningNumber === 2 ? inn2 : null);
-    if (!match || !activeData || !allPlayers) return [];
-    const squadIds = activeData.bowlingTeamId === match.team1Id 
+    if (!match || !activeInningData || !allPlayers) return [];
+    const squadIds = activeInningData.bowlingTeamId === match.team1Id 
       ? match.team1SquadPlayerIds 
       : match.team2SquadPlayerIds;
     return allPlayers.filter(p => squadIds?.includes(p.id));
-  }, [match, inn1, inn2, allPlayers]);
-
-  const activeInningData = match?.currentInningNumber === 1 ? inn1 : (match?.currentInningNumber === 2 ? inn2 : null);
+  }, [match, activeInningData, allPlayers]);
 
   const [wicketForm, setWicketForm] = useState({
     type: 'bowled',
