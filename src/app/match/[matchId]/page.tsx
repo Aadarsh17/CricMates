@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart as ReBarChart, Bar, Cell } from "recharts";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart as ReBarChart, Bar, Cell, AreaChart, Area } from "recharts";
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
@@ -112,6 +112,41 @@ export default function MatchScoreboardPage() {
 
   const currentInningStats = activeInningView === 1 ? stats1 : stats2;
   const currentDeliveriesList = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
+
+  // DATA CALCULATIONS FOR CHARTS
+  const wormData = useMemo(() => {
+    const data: any[] = [];
+    const maxBalls = Math.max(inn1Deliveries?.length || 0, inn2Deliveries?.length || 0);
+    
+    let score1 = 0;
+    let score2 = 0;
+
+    for (let i = 0; i < maxBalls; i++) {
+      if (inn1Deliveries?.[i]) score1 += inn1Deliveries[i].totalRunsOnDelivery;
+      if (inn2Deliveries?.[i]) score2 += inn2Deliveries[i].totalRunsOnDelivery;
+      
+      data.push({
+        ball: i + 1,
+        team1: inn1Deliveries?.[i] ? score1 : null,
+        team2: inn2Deliveries?.[i] ? score2 : null,
+      });
+    }
+    return data;
+  }, [inn1Deliveries, inn2Deliveries]);
+
+  const manhattanData = useMemo(() => {
+    const currentDeliveries = activeInningView === 1 ? inn1Deliveries : inn2Deliveries;
+    if (!currentDeliveries) return [];
+    
+    const overs: Record<number, { over: number, runs: number, wickets: number }> = {};
+    currentDeliveries.forEach(d => {
+      const oNum = d.overNumber;
+      if (!overs[oNum]) overs[oNum] = { over: oNum, runs: 0, wickets: 0 };
+      overs[oNum].runs += d.totalRunsOnDelivery;
+      if (d.isWicket && d.dismissalType !== 'retired') overs[oNum].wickets += 1;
+    });
+    return Object.values(overs).sort((a, b) => a.over - b.over);
+  }, [activeInningView, inn1Deliveries, inn2Deliveries]);
 
   const definitivelyOutIds = useMemo(() => {
     const currentDeliveries = match?.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries;
@@ -745,6 +780,47 @@ export default function MatchScoreboardPage() {
 
         <TabsContent value="analytics" className="space-y-6 pt-4">
            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* WORM CHART */}
+              <Card className="shadow-sm">
+                 <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><LineChartIcon className="w-4 h-4" /> Worm Chart (Progression)</CardTitle></CardHeader>
+                 <CardContent className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <AreaChart data={wormData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="ball" fontSize={8} label={{ value: 'Legal Deliveries', position: 'insideBottom', offset: -5, fontSize: 8 }} />
+                          <YAxis fontSize={8} />
+                          <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
+                          <Legend wrapperStyle={{ fontSize: '10px' }} />
+                          <Area type="monotone" dataKey="team1" name={getTeamName(match.team1Id)} stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.1} />
+                          <Area type="monotone" dataKey="team2" name={getTeamName(match.team2Id)} stroke="hsl(var(--secondary))" fill="hsl(var(--secondary))" fillOpacity={0.1} />
+                       </AreaChart>
+                    </ResponsiveContainer>
+                 </CardContent>
+              </Card>
+
+              {/* MANHATTAN CHART */}
+              <Card className="shadow-sm">
+                 <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-xs font-black uppercase tracking-widest flex items-center gap-2"><BarChart className="w-4 h-4" /> Manhattan Chart</CardTitle>
+                    <div className="flex gap-1">
+                       <Button size="xs" variant={activeInningView === 1 ? 'secondary' : 'ghost'} className="h-6 text-[8px] font-black" onClick={() => setActiveInningView(1)}>INN 1</Button>
+                       <Button size="xs" variant={activeInningView === 2 ? 'secondary' : 'ghost'} className="h-6 text-[8px] font-black" onClick={() => setActiveInningView(2)}>INN 2</Button>
+                    </div>
+                 </CardHeader>
+                 <CardContent className="h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                       <ReBarChart data={manhattanData}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="over" fontSize={8} label={{ value: 'Overs', position: 'insideBottom', offset: -5, fontSize: 8 }} />
+                          <YAxis fontSize={8} />
+                          <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
+                          <Bar dataKey="runs" name="Runs" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                       </ReBarChart>
+                    </ResponsiveContainer>
+                 </CardContent>
+              </Card>
+
+              {/* PARTNERSHIP BREAKDOWN */}
               <Card className="shadow-sm">
                  <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest">Partnership Breakdown</CardTitle></CardHeader>
                  <CardContent className="h-[300px]">
@@ -760,6 +836,7 @@ export default function MatchScoreboardPage() {
                  </CardContent>
               </Card>
 
+              {/* CVP PERFORMANCES */}
               <Card className="shadow-sm">
                  <CardHeader><CardTitle className="text-xs font-black uppercase tracking-widest">Top CVP Performers</CardTitle></CardHeader>
                  <CardContent className="h-[300px]">
@@ -847,6 +924,53 @@ export default function MatchScoreboardPage() {
                   <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No deliveries found for Inning {activeInningView}</p>
                 </div>
               )}
+           </div>
+        </TabsContent>
+
+        <TabsContent value="info" className="space-y-6 pt-4">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="shadow-sm">
+                 <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><Info className="w-4 h-4 text-primary" /> Match Metadata</CardTitle></CardHeader>
+                 <CardContent className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4 border-b pb-4">
+                       <div><p className="text-[10px] font-black text-slate-400 uppercase">Date</p><p className="text-xs font-bold">{match.matchDate ? new Date(match.matchDate).toLocaleDateString() : '---'}</p></div>
+                       <div><p className="text-[10px] font-black text-slate-400 uppercase">Format</p><p className="text-xs font-bold">{match.totalOvers} Overs</p></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 border-b pb-4">
+                       <div><p className="text-[10px] font-black text-slate-400 uppercase">Toss Winner</p><p className="text-xs font-bold">{getTeamName(match.tossWinnerTeamId)}</p></div>
+                       <div><p className="text-[10px] font-black text-slate-400 uppercase">Decision</p><p className="text-xs font-bold uppercase">{match.tossDecision}</p></div>
+                    </div>
+                    <div>
+                       <p className="text-[10px] font-black text-slate-400 uppercase">Official Umpire</p>
+                       <div className="flex items-center gap-2 mt-1">
+                          <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                          <p className="text-xs font-bold">{match.umpireId === 'anonymous' ? 'League Official' : 'Registered Umpire'}</p>
+                       </div>
+                    </div>
+                 </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                 <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2"><UsersIcon className="w-4 h-4 text-primary" /> Squad Registry</CardTitle></CardHeader>
+                 <CardContent className="space-y-6">
+                    <div className="space-y-2">
+                       <p className="text-[10px] font-black text-primary uppercase border-b pb-1">{getTeamName(match.team1Id)}</p>
+                       <div className="flex flex-wrap gap-1.5">
+                          {allPlayers?.filter(p => match.team1SquadPlayerIds?.includes(p.id)).map(p => (
+                             <Badge key={p.id} variant="outline" className="text-[8px] font-bold uppercase">{p.name} {p.id === match.commonPlayerId && '(CP)'}</Badge>
+                          ))}
+                       </div>
+                    </div>
+                    <div className="space-y-2">
+                       <p className="text-[10px] font-black text-secondary uppercase border-b pb-1">{getTeamName(match.team2Id)}</p>
+                       <div className="flex flex-wrap gap-1.5">
+                          {allPlayers?.filter(p => match.team2SquadPlayerIds?.includes(p.id)).map(p => (
+                             <Badge key={p.id} variant="outline" className="text-[8px] font-bold uppercase">{p.name} {p.id === match.commonPlayerId && '(CP)'}</Badge>
+                          ))}
+                       </div>
+                    </div>
+                 </CardContent>
+              </Card>
            </div>
         </TabsContent>
       </Tabs>
