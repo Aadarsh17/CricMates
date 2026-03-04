@@ -156,10 +156,11 @@ export default function PlayerProfilePage() {
         log.batting.out = true;
       }
 
-      if (d.bowlerPlayerId === playerId) {
+      // Use unified bowlerId
+      if ((d.bowlerId || d.bowlerPlayerId) === playerId) {
         log.bowling.runsConceded += d.totalRunsOnDelivery || 0;
         if (d.extraType !== 'wide' && d.extraType !== 'noball') log.bowling.ballsBowled += 1;
-        if (d.isWicket && d.dismissalType !== 'runout') log.bowling.wickets += 1;
+        if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') log.bowling.wickets += 1;
       }
 
       if (d.fielderPlayerId === playerId) {
@@ -185,7 +186,7 @@ export default function PlayerProfilePage() {
       highestScore: 0,
       ducks: 0, goldenDucks: 0, diamondDucks: 0, totalDucks: 0,
       thirties: 0, fifties: 0, hundreds: 0,
-      twoWkts: 0, threeWkts: 0, fourWkts: 0, fiveWkts: 0,
+      oneWkt: 0, twoWkts: 0, threeWkts: 0, fourWkts: 0, fiveWkts: 0,
       bestBowling: { wkts: 0, runs: 0, display: '0/0' }
     };
 
@@ -218,6 +219,7 @@ export default function PlayerProfilePage() {
       else if (log.bowling.wickets === 4) stats.fourWkts += 1;
       else if (log.bowling.wickets === 3) stats.threeWkts += 1;
       else if (log.bowling.wickets === 2) stats.twoWkts += 1;
+      else if (log.bowling.wickets === 1) stats.oneWkt += 1;
 
       if (log.bowling.wickets > stats.bestBowling.wkts || (log.bowling.wickets === stats.bestBowling.wkts && log.bowling.runsConceded < stats.bestBowling.runs)) {
         stats.bestBowling = { wkts: log.bowling.wickets, runs: log.bowling.runsConceded, display: `${log.bowling.wickets}/${log.bowling.runsConceded}` };
@@ -352,7 +354,7 @@ export default function PlayerProfilePage() {
                     { label: 'Maidens', value: historyStats.maidens },
                     { label: 'Best Bowling (BBF)', value: historyStats.bestBowling.display },
                     { label: 'Economy Rate', value: historyStats.ballsBowled >= 6 ? (historyStats.runsConceded / (historyStats.ballsBowled / 6)).toFixed(2) : '0.00' },
-                    { label: '2w / 3w / 4w / 5w', value: `${historyStats.twoWkts} / ${historyStats.threeWkts} / ${historyStats.fourWkts} / ${historyStats.fiveWkts}` },
+                    { label: '1w / 2w / 3w / 4w / 5w', value: `${historyStats.oneWkt} / ${historyStats.twoWkts} / ${historyStats.threeWkts} / ${historyStats.fourWkts} / ${historyStats.fiveWkts}` },
                   ].map((row, idx) => (
                     <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
                       <TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell>
