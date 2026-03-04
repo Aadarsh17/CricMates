@@ -34,7 +34,7 @@ export default function PlayersPage() {
     const careerTotals: Record<string, any> = {};
 
     players.forEach(p => {
-      careerTotals[p.id] = { runs: 0, wickets: 0, cvp: 0 };
+      careerTotals[p.id] = { id: p.id, name: p.name, runs: 0, wickets: 0, cvp: 0 };
     });
 
     allDeliveries.forEach(d => {
@@ -57,7 +57,7 @@ export default function PlayersPage() {
         const sStats = pMatchStats[sId][matchId];
         sStats.runs += d.runsScored || 0;
         if (d.extraType !== 'wide') sStats.ballsFaced += 1;
-        careerTotals[sId].runs += d.runsScored || 0;
+        if (careerTotals[sId]) careerTotals[sId].runs += d.runsScored || 0;
       }
 
       if (bId && pMatchStats[bId]?.[matchId]) {
@@ -66,7 +66,7 @@ export default function PlayersPage() {
         if (d.extraType !== 'wide' && d.extraType !== 'noball') bStats.ballsBowled += 1;
         if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') {
           bStats.wickets += 1;
-          careerTotals[bId].wickets += 1;
+          if (careerTotals[bId]) careerTotals[bId].wickets += 1;
         }
       }
 
