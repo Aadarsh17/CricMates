@@ -101,7 +101,6 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') bowl[bId].wickets += 1;
       if (d.extraType !== 'wide' && d.extraType !== 'noball') {
         bowl[bId].balls += 1;
-        // Simple maiden check: this is indicative, usually checked ball-by-ball
       }
     }
   });
@@ -171,12 +170,7 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
     const ballVal = totalBalls % 6;
     const overStr = `${overVal}.${ballVal}`;
 
-    // Powerplay (6.0 overs)
-    if (totalBalls === 36) {
-      events.push({ type: 'normal', title: `Powerplay: Overs 0.1 - 6.0`, detail: `(Mandatory - ${totalRuns} runs, ${totalWickets} wickets)` });
-    }
-
-    // Score Milestones
+    // Milestones
     [50, 100, 150, 200, 250, 300].forEach(m => {
       if (totalRuns >= m && !scoreMilestones.has(m)) {
         scoreMilestones.add(m);
@@ -184,7 +178,6 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
       }
     });
 
-    // Individual Milestones
     if (sId && batterStats[sId]) {
       [50, 100].forEach(m => {
         const b = batterStats[sId];
@@ -194,15 +187,6 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
         }
       });
     }
-
-    // Partnership Milestones
-    [50, 100, 150].forEach(m => {
-      if (currentPartnership.runs >= m && !currentPartnership.milestones.has(m)) {
-        currentPartnership.milestones.add(m);
-        const suffix = ['st', 'nd', 'rd', 'th', 'th', 'th', 'th', 'th', 'th', 'th', 'th'][currentPartnership.wicketNum - 1] || 'th';
-        events.push({ type: 'normal', title: `${currentPartnership.wicketNum}${suffix} Wicket: ${m} runs in ${currentPartnership.balls} balls`, detail: `(${getPShort(currentPartnership.b1Id)} ${currentPartnership.b1Runs}, ${getPShort(currentPartnership.b2Id)} ${currentPartnership.b2Runs})` });
-      }
-    });
 
     if (d.isWicket) {
       totalWickets += 1;

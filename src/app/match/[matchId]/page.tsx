@@ -4,11 +4,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, writeBatch, getDocs, limit, setDoc } from 'firebase/firestore';
+import { doc, collection, query, orderBy, getDocs, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { CheckCircle2, Trophy, Info, ArrowLeftRight, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History } from 'lucide-react';
+import { Trophy, Info, ArrowLeftRight, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, Line, BarChart as ReBarChart, Bar, Cell } from "recharts";
@@ -16,7 +16,6 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
 import { generateHTMLReport, getExtendedInningStats, getMatchFlow } from '@/lib/report-utils';
-import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -37,7 +36,6 @@ export default function MatchScoreboardPage() {
   const params = useParams();
   const matchId = params.matchId as string;
   const db = useFirestore();
-  const { user } = useUser();
   const { isUmpire } = useApp();
   
   const [isMounted, setIsMounted] = useState(false);
@@ -48,7 +46,6 @@ export default function MatchScoreboardPage() {
   const [activeInningView, setActiveInningView] = useState<number>(1);
   const [activeScorecardSubTab, setActiveScorecardSubTab] = useState<'inn1' | 'inn2' | 'flow'>('inn1');
   const [isUndoing, setIsUndoing] = useState(false);
-  const [isFixing, setIsFixing] = useState(false);
 
   const [wicketForm, setWicketForm] = useState({
     type: 'bowled',
@@ -110,7 +107,6 @@ export default function MatchScoreboardPage() {
   const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || []), [inn1Deliveries]);
   const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || []), [inn2Deliveries]);
 
-  const currentInningStats = useMemo(() => activeInningView === 1 ? stats1 : stats2, [activeInningView, stats1, stats2]);
   const currentDeliveriesList = useMemo(() => activeInningView === 1 ? inn1Deliveries : inn2Deliveries, [activeInningView, inn1Deliveries, inn2Deliveries]);
   const isHistoryLoading = useMemo(() => activeInningView === 1 ? isInn1Loading : isInn2Loading, [activeInningView, isInn1Loading, isInn2Loading]);
 
@@ -230,8 +226,8 @@ export default function MatchScoreboardPage() {
     const totalBalls = match.totalOvers * 6;
     const ballsBowled = (inn2.oversCompleted * 6) + (inn2.ballsInCurrentOver || 0);
     const ballsRemaining = Math.max(0, totalBalls - ballsBowled);
-    const crr = ballsBowled > 0 ? ((inn2.score / ballsBowled) * 6).toFixed(2) : '0.00';
-    const rrr = ballsRemaining > 0 ? ((runsNeeded / ballsRemaining) * 6).toFixed(2) : '---';
+    const crr = ballsBowled > 0 ? ((inn2.score / (ballsBowled / 6))).toFixed(2) : '0.00';
+    const rrr = ballsRemaining > 0 ? ((runsNeeded / (ballsRemaining / 6))).toFixed(2) : '---';
     return { runsNeeded, ballsRemaining, crr, rrr, target };
   })();
 
@@ -315,7 +311,7 @@ export default function MatchScoreboardPage() {
               </TableHeader>
               <TableBody>
                 {inningData.currentBowlerPlayerId && (() => {
-                  const b = stats.bowling.find((bw: any) => b.id === inningData.currentBowlerPlayerId) || { oversDisplay: '0.0', runs: 0, wickets: 0, balls: 0 };
+                  const b = stats.bowling.find((bw: any) => bw.id === inningData.currentBowlerPlayerId) || { oversDisplay: '0.0', runs: 0, wickets: 0, balls: 0 };
                   return (
                     <TableRow>
                       <TableCell className="py-2 px-3">
