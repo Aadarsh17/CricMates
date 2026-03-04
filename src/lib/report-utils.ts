@@ -131,11 +131,6 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
   let extras = 0;
   
   const batterStats: Record<string, { runs: number, balls: number, milestones: Set<number>, fours: number, sixes: number }> = {};
-  const currentPartnership = { 
-    runs: 0, balls: 0, b1Id: '', b2Id: '', b1Runs: 0, b2Runs: 0, 
-    wicketNum: 1, milestones: new Set<number>() 
-  };
-
   const scoreMilestones = new Set<number>();
 
   deliveries.forEach((d, idx) => {
@@ -156,15 +151,6 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
       if (d.runsScored === 4) batterStats[sId].fours += 1;
       if (d.runsScored === 6) batterStats[sId].sixes += 1;
     }
-
-    currentPartnership.runs += (d.totalRunsOnDelivery || 0);
-    if (isLegal) currentPartnership.balls += 1;
-    if (!currentPartnership.b1Id && sId) {
-      currentPartnership.b1Id = sId;
-      currentPartnership.b2Id = nsId;
-    }
-    if (sId === currentPartnership.b1Id) currentPartnership.b1Runs += (d.runsScored || 0);
-    else if (sId === currentPartnership.b2Id) currentPartnership.b2Runs += (d.runsScored || 0);
 
     const overVal = Math.floor(totalBalls / 6);
     const ballVal = totalBalls % 6;
@@ -190,25 +176,22 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
 
     if (d.isWicket) {
       totalWickets += 1;
-      currentPartnership.runs = 0;
-      currentPartnership.balls = 0;
-      currentPartnership.b1Id = '';
-      currentPartnership.b2Id = '';
-      currentPartnership.b1Runs = 0;
-      currentPartnership.b2Runs = 0;
-      currentPartnership.wicketNum += 1;
-      currentPartnership.milestones = new Set();
     }
 
     if (idx === deliveries.length - 1) {
       const sId = d.strikerPlayerId;
       const nsId = d.nonStrikerPlayerId;
+      
       const sRuns = (sId && batterStats[sId]) ? batterStats[sId].runs : 0;
       const nsRuns = (nsId && nsId !== 'none' && batterStats[nsId]) ? batterStats[nsId].runs : 0;
+      
+      const sName = sId ? getPShort(sId) : '---';
+      const nsName = nsId && nsId !== 'none' ? getPShort(nsId) : '---';
+
       events.push({ 
         type: 'normal', 
         title: `Innings Break: ${teamName} - ${totalRuns}/${totalWickets} in ${overStr} overs`, 
-        detail: `(${getPShort(sId)} ${sRuns}, ${getPShort(nsId)} ${nsRuns})` 
+        detail: `(${sName} ${sRuns}, ${nsName} ${nsRuns})` 
       });
     }
   });

@@ -347,21 +347,20 @@ export default function MatchScoreboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {inningData.currentBowlerPlayerId && (() => {
-                  const bowlerStats = stats.bowling.find((bw: any) => bw.id === inningData.currentBowlerPlayerId) || { oversDisplay: '0.0', runs: 0, wickets: 0, balls: 0 };
-                  return (
-                    <TableRow>
-                      <TableCell className="py-2 px-3">
-                        <p className="font-black text-sm uppercase">{getPlayerName(inningData.currentBowlerPlayerId)}</p>
-                        <p className="text-[8px] text-slate-400 uppercase font-bold">Current Spell</p>
-                      </TableCell>
-                      <TableCell className="text-right font-bold">{bowlerStats.oversDisplay}</TableCell>
-                      <TableCell className="text-right text-xs text-slate-500">{bowlerStats.runs}</TableCell>
-                      <TableCell className="text-right font-black text-primary">{bowlerStats.wickets}</TableCell>
-                      <TableCell className="text-right text-xs font-bold text-slate-400">{bowlerStats.balls > 0 ? (bowlerStats.runs/(bowlerStats.balls/6)).toFixed(2) : '0.00'}</TableCell>
-                    </TableRow>
-                  );
-                })()}
+                {stats.bowling.map((bw: any) => (
+                  <TableRow key={bw.id}>
+                    <TableCell className="py-2 px-3">
+                      <p className="font-black text-sm uppercase">{getPlayerName(bw.id)}</p>
+                      <p className="text-[8px] text-slate-400 uppercase font-bold">
+                        {bw.id === inningData.currentBowlerPlayerId ? "Current Spell" : "Spell Figures"}
+                      </p>
+                    </TableCell>
+                    <TableCell className="text-right font-bold">{bw.oversDisplay}</TableCell>
+                    <TableCell className="text-right text-xs text-slate-500">{bw.runs}</TableCell>
+                    <TableCell className="text-right font-black text-primary">{bw.wickets}</TableCell>
+                    <TableCell className="text-right text-xs font-bold text-slate-400">{bw.balls > 0 ? (bw.runs/(bw.balls/6)).toFixed(2) : '0.00'}</TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>
