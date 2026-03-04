@@ -534,10 +534,11 @@ export default function MatchScoreboardPage() {
         score: newScore,
         wickets: newWickets,
         oversCompleted: newOvers,
-        ballsInCurrentOver: newBalls
+        ballsInCurrentOver: newBalls,
+        isDeclaredFinished: false // Reset finish state so they can continue if balls are deleted
       }, { merge: true });
 
-      toast({ title: "Summary Fixed" });
+      toast({ title: "Summary Fixed", description: "Innings has been reopened for scoring." });
     } catch (e) {
       toast({ title: "Fix Failed", variant: "destructive" });
     } finally {
@@ -552,7 +553,7 @@ export default function MatchScoreboardPage() {
     deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${inningNum}`, 'deliveryRecords', ballId));
     toast({ 
       title: "Ball Removed", 
-      description: "Note: Click 'Fix Summary' above to update scoreboard."
+      description: "Note: Click 'Fix Summary' above to update scoreboard and resume scoring."
     });
   };
 
@@ -859,7 +860,7 @@ export default function MatchScoreboardPage() {
                        </AreaChart>
                     </ResponsiveContainer>
                  </CardContent>
-              </Card>
+              </AreaChart>
 
               {/* MANHATTAN CHART */}
               <Card className="shadow-sm">
@@ -932,8 +933,8 @@ export default function MatchScoreboardPage() {
                 {(match.currentInningNumber >= 2 || inn2) && <Button size="sm" variant={activeInningView === 2 ? 'default' : 'outline'} onClick={() => setActiveInningView(2)} className="font-black text-[10px] uppercase">2nd Innings</Button>}
               </div>
               {isUmpire && (
-                <Button size="sm" variant="secondary" className="h-8 text-[9px] font-black uppercase tracking-widest" onClick={() => handleFixSummary(activeInningView)}>
-                  <Zap className="w-3 h-3 mr-1.5" /> Fix Summary
+                <Button size="sm" variant="secondary" className="h-8 text-[9px] font-black uppercase tracking-widest border-2 border-primary/20 shadow-md animate-pulse" onClick={() => handleFixSummary(activeInningView)}>
+                  <Zap className="w-3 h-3 mr-1.5" /> Fix Summary & Resume
                 </Button>
               )}
            </div>
@@ -1070,6 +1071,7 @@ export default function MatchScoreboardPage() {
               <Button onClick={() => handleFixSummary()} disabled={isFixing} variant="secondary" className="w-full h-12 font-black uppercase tracking-widest text-[10px]">
                 {isFixing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />} Fix Summary (Recalculate from Balls)
               </Button>
+              <p className="text-[8px] text-slate-400 mt-2 italic text-center">Use this after deleting balls to reopen an inning for scoring.</p>
             </div>
           </div>
           <DialogFooter><Button onClick={() => setIsEditFullMatchOpen(false)} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl">CLOSE TOOLS</Button></DialogFooter>
