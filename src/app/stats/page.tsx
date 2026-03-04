@@ -103,7 +103,6 @@ export default function StatsPage() {
         const matchCvp = calculatePlayerCVP(ms);
         career.cvp += matchCvp;
         
-        // Batting specific impact (rough approximation for leaderboard)
         const batOnly = { ...ms, wickets: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
         career.batCvp += calculatePlayerCVP(batOnly);
       });
@@ -142,48 +141,45 @@ export default function StatsPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-24">
-      {/* Boundary Meter */}
+    <div className="max-w-4xl mx-auto space-y-8 pb-24 px-1 md:px-4">
       <Card className="border shadow-sm overflow-hidden">
         <div className="bg-slate-50 px-4 py-3 border-b flex items-center justify-between">
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">League Boundary Meter</span>
         </div>
         <div className="grid grid-cols-2">
-          <div className="p-6 border-r flex items-center justify-between hover:bg-slate-50 transition-colors">
+          <div className="p-4 md:p-6 border-r flex flex-col md:flex-row items-center justify-between hover:bg-slate-50 transition-colors gap-2">
             <div className="flex items-center gap-4">
               <div className="bg-purple-600 w-10 h-10 rounded-lg flex items-center justify-center text-white font-black">6s</div>
-              <span className="text-3xl font-black text-slate-900">{aggregatedStats?.total6s || 0}</span>
+              <span className="text-2xl md:text-3xl font-black text-slate-900">{aggregatedStats?.total6s || 0}</span>
             </div>
-            <Link href="/rankings" className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">Most 6s <ChevronRight className="w-3 h-3"/></Link>
+            <Link href="/rankings" className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">Most 6s <ChevronRight className="w-3 h-3"/></Link>
           </div>
-          <div className="p-6 flex items-center justify-between hover:bg-slate-50 transition-colors">
+          <div className="p-4 md:p-6 flex flex-col md:flex-row items-center justify-between hover:bg-slate-50 transition-colors gap-2">
             <div className="flex items-center gap-4">
               <div className="bg-emerald-500 w-10 h-10 rounded-lg flex items-center justify-center text-white font-black">4s</div>
-              <span className="text-3xl font-black text-slate-900">{aggregatedStats?.total4s || 0}</span>
+              <span className="text-2xl md:text-3xl font-black text-slate-900">{aggregatedStats?.total4s || 0}</span>
             </div>
-            <Link href="/rankings" className="text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">Most 4s <ChevronRight className="w-3 h-3"/></Link>
+            <Link href="/rankings" className="text-[8px] md:text-[10px] font-bold text-slate-400 uppercase flex items-center gap-1">Most 4s <ChevronRight className="w-3 h-3"/></Link>
           </div>
         </div>
       </Card>
 
-      {/* Top Performances */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Trophy className="w-5 h-5 text-secondary" />
           <h2 className="text-lg font-black uppercase tracking-tight">Top Performances</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Top Run Scorers */}
-          <Card className="border shadow-sm">
+          <Card className="border shadow-sm overflow-hidden">
             <CardHeader className="py-3 px-4 border-b bg-slate-50/50"><CardTitle className="text-[10px] font-black uppercase text-slate-500">Top Run Scorers</CardTitle></CardHeader>
             <CardContent className="p-0">
-              {leaders.runs.map((player, idx) => (
+              {leaders.runs.map((player) => (
                 <Link key={player.id} href={`/players/${player.id}`} className="flex items-center gap-4 p-4 border-b last:border-none hover:bg-slate-50 transition-colors group">
-                  <Avatar className="w-12 h-12 rounded-xl border group-hover:border-primary transition-colors"><AvatarImage src={player.imageUrl} className="object-cover"/><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
+                  <Avatar className="w-12 h-12 rounded-xl border group-hover:border-primary transition-colors shrink-0"><AvatarImage src={player.imageUrl} className="object-cover"/><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="font-black text-sm truncate uppercase tracking-tight">{player.name} <span className="text-[8px] text-slate-400 font-bold ml-1">{getTeamCode(player.teamId)}, {player.role.toLowerCase()}</span></p>
+                    <p className="font-black text-sm truncate uppercase tracking-tight">{player.name} <span className="text-[8px] text-slate-400 font-bold ml-1">{getTeamCode(player.teamId)}</span></p>
                     <p className="text-2xl font-black text-slate-900">{player.runs}</p>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Innings: {player.inningsBatted} | Average: {player.batAvg.toFixed(2)}</p>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Innings: {player.inningsBatted} | AVG: {player.batAvg.toFixed(2)}</p>
                   </div>
                 </Link>
               ))}
@@ -191,17 +187,16 @@ export default function StatsPage() {
             </CardContent>
           </Card>
 
-          {/* Top Wicket Takers */}
-          <Card className="border shadow-sm">
+          <Card className="border shadow-sm overflow-hidden">
             <CardHeader className="py-3 px-4 border-b bg-slate-50/50"><CardTitle className="text-[10px] font-black uppercase text-slate-500">Top Wicket Takers</CardTitle></CardHeader>
             <CardContent className="p-0">
-              {leaders.wickets.map((player, idx) => (
+              {leaders.wickets.map((player) => (
                 <Link key={player.id} href={`/players/${player.id}`} className="flex items-center gap-4 p-4 border-b last:border-none hover:bg-slate-50 transition-colors group">
-                  <Avatar className="w-12 h-12 rounded-xl border group-hover:border-primary transition-colors"><AvatarImage src={player.imageUrl} className="object-cover"/><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
+                  <Avatar className="w-12 h-12 rounded-xl border group-hover:border-primary transition-colors shrink-0"><AvatarImage src={player.imageUrl} className="object-cover"/><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
                   <div className="flex-1 min-w-0">
-                    <p className="font-black text-sm truncate uppercase tracking-tight">{player.name} <span className="text-[8px] text-slate-400 font-bold ml-1">{getTeamCode(player.teamId)}, {player.role.toLowerCase()}</span></p>
+                    <p className="font-black text-sm truncate uppercase tracking-tight">{player.name} <span className="text-[8px] text-slate-400 font-bold ml-1">{getTeamCode(player.teamId)}</span></p>
                     <p className="text-2xl font-black text-slate-900">{player.wickets}</p>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Innings: {player.inningsBowled} | Average: {player.bowlAvg.toFixed(2)}</p>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Innings: {player.inningsBowled} | AVG: {player.bowlAvg.toFixed(2)}</p>
                   </div>
                 </Link>
               ))}
@@ -211,51 +206,46 @@ export default function StatsPage() {
         </div>
       </div>
 
-      {/* Efficiency Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="border shadow-sm">
+        <Card className="border shadow-sm overflow-hidden">
           <CardHeader className="py-3 px-4 border-b bg-slate-50/50"><CardTitle className="text-[10px] font-black uppercase text-slate-500">Best Batting Strike Rates</CardTitle></CardHeader>
           <CardContent className="p-0">
             {leaders.sr.map((player) => (
               <Link key={player.id} href={`/players/${player.id}`} className="flex items-center gap-4 p-4 border-b last:border-none hover:bg-slate-50 transition-colors group">
-                <Avatar className="w-12 h-12 rounded-xl border"><AvatarImage src={player.imageUrl} className="object-cover"/><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
+                <Avatar className="w-12 h-12 rounded-xl border shrink-0"><AvatarImage src={player.imageUrl} className="object-cover"/><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="font-black text-sm truncate uppercase tracking-tight">{player.name} <span className="text-[8px] text-slate-400 font-bold ml-1">{getTeamCode(player.teamId)}, {player.role.toLowerCase()}</span></p>
+                  <p className="font-black text-sm truncate uppercase tracking-tight">{player.name} <span className="text-[8px] text-slate-400 font-bold ml-1">{getTeamCode(player.teamId)}</span></p>
                   <p className="text-2xl font-black text-slate-900">{player.batSR.toFixed(2)}</p>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Innings: {player.inningsBatted} | Average: {player.batAvg.toFixed(2)}</p>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">SR Leaders (Min 20 balls faced)</p>
                 </div>
               </Link>
             ))}
-            <div className="p-3 text-center border-t"><Link href="/rankings" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline">View full list</Link></div>
           </CardContent>
         </Card>
 
-        <Card className="border shadow-sm">
+        <Card className="border shadow-sm overflow-hidden">
           <CardHeader className="py-3 px-4 border-b bg-slate-50/50"><CardTitle className="text-[10px] font-black uppercase text-slate-500">Best Bowling Economy</CardTitle></CardHeader>
           <CardContent className="p-0">
             {leaders.econ.map((player) => (
               <Link key={player.id} href={`/players/${player.id}`} className="flex items-center gap-4 p-4 border-b last:border-none hover:bg-slate-50 transition-colors group">
-                <Avatar className="w-12 h-12 rounded-xl border"><AvatarImage src={player.imageUrl} className="object-cover"/><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
+                <Avatar className="w-12 h-12 rounded-xl border shrink-0"><AvatarImage src={player.imageUrl} className="object-cover"/><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
                 <div className="flex-1 min-w-0">
-                  <p className="font-black text-sm truncate uppercase tracking-tight">{player.name} <span className="text-[8px] text-slate-400 font-bold ml-1">{getTeamCode(player.teamId)}, {player.role.toLowerCase()}</span></p>
+                  <p className="font-black text-sm truncate uppercase tracking-tight">{player.name} <span className="text-[8px] text-slate-400 font-bold ml-1">{getTeamCode(player.teamId)}</span></p>
                   <p className="text-2xl font-black text-slate-900">{player.bowlEcon.toFixed(2)}</p>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Innings: {player.inningsBowled} | Average: {player.bowlAvg.toFixed(2)}</p>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">ECON Leaders (Min 12 balls bowled)</p>
                 </div>
               </Link>
             ))}
-            <div className="p-3 text-center border-t"><Link href="/rankings" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline">View full list</Link></div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Smart Stats / Impact */}
       <div className="space-y-4">
         <div className="flex items-center gap-2">
           <Zap className="w-5 h-5 text-amber-500" />
           <h2 className="text-lg font-black uppercase tracking-tight">Smart Stats</h2>
         </div>
         <div className="space-y-6">
-          {/* Total Impact */}
           <div className="space-y-3">
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Total Impact</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -263,17 +253,15 @@ export default function StatsPage() {
                 <Link key={player.id} href={`/players/${player.id}`} className="group relative bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-all flex items-center gap-4">
                   <Avatar className="w-14 h-14 rounded-full border-2 border-slate-100 group-hover:border-primary transition-colors overflow-hidden shrink-0"><AvatarImage src={player.imageUrl} className="object-cover"/><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
                   <div className="min-w-0">
-                    <p className="font-black text-[10px] truncate uppercase text-slate-400">{player.name} <span className="text-slate-300 ml-1">{getTeamCode(player.teamId)}, {player.role[0]}</span></p>
+                    <p className="font-black text-[10px] truncate uppercase text-slate-400">{player.name}</p>
                     <p className="text-xl font-black text-slate-900">{player.cvp.toFixed(1)}</p>
                     <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Impact pts | R: {player.runs} W: {player.wickets}</p>
                   </div>
                 </Link>
               ))}
             </div>
-            <div className="pt-2 text-center"><Link href="/rankings" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline">View full list</Link></div>
           </div>
 
-          {/* Bat Impact */}
           <div className="space-y-3">
             <h3 className="text-sm font-black uppercase tracking-widest text-slate-400">Bat Impact</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -281,14 +269,13 @@ export default function StatsPage() {
                 <Link key={player.id} href={`/players/${player.id}`} className="group relative bg-white border rounded-xl p-4 shadow-sm hover:shadow-md transition-all flex items-center gap-4">
                   <Avatar className="w-14 h-14 rounded-full border-2 border-slate-100 group-hover:border-primary transition-colors overflow-hidden shrink-0"><AvatarImage src={player.imageUrl} className="object-cover"/><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
                   <div className="min-w-0">
-                    <p className="font-black text-[10px] truncate uppercase text-slate-400">{player.name} <span className="text-slate-300 ml-1">{getTeamCode(player.teamId)}, {player.role[0]}</span></p>
+                    <p className="font-black text-[10px] truncate uppercase text-slate-400">{player.name}</p>
                     <p className="text-xl font-black text-slate-900">{player.batCvp.toFixed(1)}</p>
-                    <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Batting Impact | Actual Runs: {player.runs}</p>
+                    <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Batting Impact | Runs: {player.runs}</p>
                   </div>
                 </Link>
               ))}
             </div>
-            <div className="pt-2 text-center"><Link href="/rankings" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline">View full list</Link></div>
           </div>
         </div>
       </div>

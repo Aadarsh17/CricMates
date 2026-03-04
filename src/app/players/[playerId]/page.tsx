@@ -133,12 +133,98 @@ export default function PlayerProfilePage() {
       </div>
       <Tabs defaultValue="match log" className="w-full">
         <div className="bg-primary px-2 border-t border-white/10 sticky top-16 z-40 shadow-md"><TabsList className="bg-transparent h-12 flex justify-start gap-2 p-0 w-full overflow-x-auto scrollbar-hide">{['Match Log', 'Career Stats'].map((tab) => (<TabsTrigger key={tab} value={tab.toLowerCase()} className="text-white/60 font-black data-[state=active]:text-white data-[state=active]:bg-transparent border-b-4 border-transparent data-[state=active]:border-white rounded-none px-6 h-full uppercase text-[11px] tracking-widest whitespace-nowrap">{tab}</TabsTrigger>))}</TabsList></div>
-        <TabsContent value="match log" className="p-0"><Table><TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Match/Date</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Wkts</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Total CVP</TableHead></TableRow></TableHeader><TableBody>{matchWiseLog.map((log) => (<TableRow key={log.matchId} className="hover:bg-slate-50"><TableCell className="py-3"><p className="text-[10px] font-black truncate max-w-[120px]">{log.matchName}</p><div className="flex items-center gap-1 text-[8px] text-slate-400 font-bold uppercase"><Calendar className="w-2.5 h-2.5" />{log.date ? new Date(log.date).toLocaleDateString('en-GB') : '---'}</div></TableCell><TableCell className="text-right font-bold text-[10px] text-slate-600">{log.batting.runs}</TableCell><TableCell className="text-right font-bold text-[10px] text-slate-600">{log.bowling.wickets}</TableCell><TableCell className="text-right"><Badge variant="secondary" className="font-black text-[10px] h-5">{log.totalCVP.toFixed(1)}</Badge></TableCell></TableRow>))}</TableBody></Table></TabsContent>
+        <TabsContent value="match log" className="p-0">
+          <div className="overflow-x-auto scrollbar-hide">
+            <Table className="min-w-max w-full">
+              <TableHeader className="bg-slate-50">
+                <TableRow>
+                  <TableHead className="text-[9px] font-black uppercase">Match/Date</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase">Wkts</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase">Total CVP</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {matchWiseLog.map((log) => (
+                  <TableRow key={log.matchId} className="hover:bg-slate-50">
+                    <TableCell className="py-3">
+                      <p className="text-[10px] font-black truncate max-w-[120px]">{log.matchName}</p>
+                      <div className="flex items-center gap-1 text-[8px] text-slate-400 font-bold uppercase"><Calendar className="w-2.5 h-2.5" />{log.date ? new Date(log.date).toLocaleDateString('en-GB') : '---'}</div>
+                    </TableCell>
+                    <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.batting.runs}</TableCell>
+                    <TableCell className="text-right font-bold text-[10px] text-slate-600">{log.bowling.wickets}</TableCell>
+                    <TableCell className="text-right"><Badge variant="secondary" className="font-black text-[10px] h-5">{log.totalCVP.toFixed(1)}</Badge></TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
         <TabsContent value="career stats" className="p-0"><Tabs defaultValue="batting" className="w-full"><div className="bg-slate-50 border-b"><TabsList className="bg-transparent h-10 flex justify-start gap-2 p-0 w-full overflow-x-auto scrollbar-hide">{['Batting', 'Bowling', 'Fielding'].map((tab) => (<TabsTrigger key={tab} value={tab.toLowerCase()} className="text-slate-500 font-black data-[state=active]:text-primary border-b-2 border-transparent data-[state=active]:border-primary rounded-none px-6 h-full uppercase text-[10px] tracking-widest">{tab}</TabsTrigger>))}</TabsList></div>
-            <TabsContent value="batting" className="p-0"><Table><TableBody>{[{ label: 'Matches Played', value: historyStats.matchesPlayed }, { label: 'Innings Batted', value: historyStats.inningsBatted }, { label: 'Total Runs', value: historyStats.runs }, { label: 'Batting Average', value: historyStats.timesOut > 0 ? (historyStats.runs / historyStats.timesOut).toFixed(2) : (historyStats.runs > 0 ? historyStats.runs.toFixed(2) : '0.00') }, { label: 'Balls Faced', value: historyStats.ballsFaced }, { label: 'Highest Score', value: historyStats.highestScore }, { label: 'Strike Rate', value: historyStats.ballsFaced > 0 ? ((historyStats.runs / historyStats.ballsFaced) * 100).toFixed(2) : '0.00' }, { label: 'Fours / Sixes', value: `${historyStats.fours} / ${historyStats.sixes}` }, { label: '10s / 20s / 30s / 40s / 50s / 100s', value: `${historyStats.tens} / ${historyStats.twenties} / ${historyStats.thirties} / ${historyStats.forties} / ${historyStats.fifties} / ${historyStats.hundreds}` }].map((row, idx) => (<TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}><TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell><TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell></TableRow>))}</TableBody></Table></TabsContent>
-            <TabsContent value="bowling" className="p-0"><Table><TableBody>{[{ label: 'Matches Played', value: historyStats.matchesPlayed }, { label: 'Innings Bowled', value: historyStats.inningsBowled }, { label: 'Wickets', value: historyStats.wickets }, { label: 'Bowling Average', value: historyStats.wickets > 0 ? (historyStats.runsConceded / historyStats.wickets).toFixed(2) : '0.00' }, { label: 'Bowling Strike Rate', value: historyStats.wickets > 0 ? (historyStats.ballsBowled / historyStats.wickets).toFixed(2) : '0.00' }, { label: 'Runs Conceded', value: historyStats.runsConceded }, { label: 'Overs Bowled', value: `${Math.floor(historyStats.ballsBowled / 6)}.${historyStats.ballsBowled % 6}` }, { label: 'Best Bowling (BBF)', value: historyStats.bestBowling.display }, { label: 'Economy Rate', value: historyStats.ballsBowled >= 6 ? (historyStats.runsConceded / (historyStats.ballsBowled / 6)).toFixed(2) : '0.00' }, { label: '1w / 2w / 3w / 4w / 5w', value: `${historyStats.oneWkt} / ${historyStats.twoWkts} / ${historyStats.threeWkts} / ${historyStats.fourWkts} / ${historyStats.fiveWkts}` }, { label: 'Extras Conceded', value: `${historyStats.wides + historyStats.noBalls} (${historyStats.wides} WD & ${historyStats.noBalls} NB)` }].map((row, idx) => (<TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}><TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell><TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell></TableRow>))}</TableBody></Table></TabsContent>
-            <TabsContent value="fielding" className="p-0"><Table><TableBody>{[{ label: 'Catches', value: historyStats.catches }, { label: 'Stumpings', value: historyStats.stumpings }, { label: 'Run Outs', value: historyStats.runOuts }].map((row, idx) => (<TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}><TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell><TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell></TableRow>))}</TableBody></Table></TabsContent>
-          </Tabs></TabsContent>
+            <TabsContent value="batting" className="p-0">
+              <Table>
+                <TableBody>
+                  {[
+                    { label: 'Matches Played', value: historyStats.matchesPlayed },
+                    { label: 'Innings Batted', value: historyStats.inningsBatted },
+                    { label: 'Total Runs', value: historyStats.runs },
+                    { label: 'Batting Average', value: historyStats.timesOut > 0 ? (historyStats.runs / historyStats.timesOut).toFixed(2) : (historyStats.runs > 0 ? historyStats.runs.toFixed(2) : '0.00') },
+                    { label: 'Balls Faced', value: historyStats.ballsFaced },
+                    { label: 'Highest Score', value: historyStats.highestScore },
+                    { label: 'Strike Rate', value: historyStats.ballsFaced > 0 ? ((historyStats.runs / historyStats.ballsFaced) * 100).toFixed(2) : '0.00' },
+                    { label: 'Fours / Sixes', value: `${historyStats.fours} / ${historyStats.sixes}` },
+                    { label: '10s / 20s / 30s / 40s / 50s / 100s', value: `${historyStats.tens} / ${historyStats.twenties} / ${historyStats.thirties} / ${historyStats.forties} / ${historyStats.fifties} / ${historyStats.hundreds}` }
+                  ].map((row, idx) => (
+                    <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                      <TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell>
+                      <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+            <TabsContent value="bowling" className="p-0">
+              <Table>
+                <TableBody>
+                  {[
+                    { label: 'Matches Played', value: historyStats.matchesPlayed },
+                    { label: 'Innings Bowled', value: historyStats.inningsBowled },
+                    { label: 'Wickets', value: historyStats.wickets },
+                    { label: 'Bowling Average', value: historyStats.wickets > 0 ? (historyStats.runsConceded / historyStats.wickets).toFixed(2) : '0.00' },
+                    { label: 'Bowling Strike Rate', value: historyStats.wickets > 0 ? (historyStats.ballsBowled / historyStats.wickets).toFixed(2) : '0.00' },
+                    { label: 'Runs Conceded', value: historyStats.runsConceded },
+                    { label: 'Overs Bowled', value: `${Math.floor(historyStats.ballsBowled / 6)}.${historyStats.ballsBowled % 6}` },
+                    { label: 'Best Bowling (BBF)', value: historyStats.bestBowling.display },
+                    { label: 'Economy Rate', value: historyStats.ballsBowled >= 6 ? (historyStats.runsConceded / (historyStats.ballsBowled / 6)).toFixed(2) : '0.00' },
+                    { label: '1w / 2w / 3w / 4w / 5w', value: `${historyStats.oneWkt} / ${historyStats.twoWkts} / ${historyStats.threeWkts} / ${historyStats.fourWkts} / ${historyStats.fiveWkts}` },
+                    { label: 'Extras Conceded', value: `${historyStats.wides + historyStats.noBalls} (${historyStats.wides} WD & ${historyStats.noBalls} NB)` }
+                  ].map((row, idx) => (
+                    <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                      <TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell>
+                      <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+            <TabsContent value="fielding" className="p-0">
+              <Table>
+                <TableBody>
+                  {[
+                    { label: 'Catches', value: historyStats.catches },
+                    { label: 'Stumpings', value: historyStats.stumpings },
+                    { label: 'Run Outs', value: historyStats.runOuts }
+                  ].map((row, idx) => (
+                    <TableRow key={row.label} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                      <TableCell className="text-[11px] font-black text-slate-400 py-3 pl-4 uppercase tracking-tighter">{row.label}</TableCell>
+                      <TableCell className="text-right text-[11px] font-black text-slate-900 pr-4">{row.value}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
       </Tabs>
     </div>
   );

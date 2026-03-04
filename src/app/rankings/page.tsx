@@ -57,7 +57,8 @@ export default function RankingsPage() {
         name: t.name, 
         logoUrl: t.logoUrl, 
         played: 0, won: 0, lost: 0, tied: 0, nr: 0, points: 0, 
-        nrr: t.netRunRate || 0,
+        nrr: 0,
+        forR: 0, forB: 0, agR: 0, agB: 0,
         form: [] as ('W' | 'L' | 'T' | 'NR')[]
       };
     });
@@ -89,12 +90,37 @@ export default function RankingsPage() {
       }
     });
 
-    return Object.values(standings).sort((a, b) => {
+    // Calculate NRR from deliveries
+    allDeliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      const match = matches.find(m => m.id === matchId);
+      if (!match) return;
+      
+      const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
+      const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
+      const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
+      const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+
+      if (standings[battingTeamId]) {
+        standings[battingTeamId].forR += (d.totalRunsOnDelivery || 0);
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') standings[battingTeamId].forB += 1;
+      }
+      if (standings[bowlingTeamId]) {
+        standings[bowlingTeamId].agR += (d.totalRunsOnDelivery || 0);
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') standings[bowlingTeamId].agB += 1;
+      }
+    });
+
+    return Object.values(standings).map((s: any) => {
+      const forRR = s.forB > 0 ? (s.forR / (s.forB / 6)) : 0;
+      const agRR = s.agB > 0 ? (s.agR / (s.agB / 6)) : 0;
+      return { ...s, nrr: forRR - agRR };
+    }).sort((a, b) => {
       if (b.points !== a.points) return b.points - a.points;
       if (b.won !== a.won) return b.won - a.won;
       return b.nrr - a.nrr;
     });
-  }, [teams, matches]);
+  }, [teams, matches, allDeliveries]);
 
   const topPlayers = useMemo(() => {
     if (!players) return [];
@@ -183,63 +209,63 @@ export default function RankingsPage() {
         </TabsList>
 
         <TabsContent value="teams">
-          <Card className="bg-white border shadow-sm rounded-none overflow-hidden">
-            <Table>
-              <TableHeader className="bg-slate-50">
-                <TableRow className="hover:bg-transparent border-b">
-                  <TableHead className="w-12 text-[10px] font-bold uppercase text-slate-500 text-center">Pos</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase text-slate-500">Teams</TableHead>
-                  <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500 underline underline-offset-4">M</TableHead>
-                  <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">W</TableHead>
-                  <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">L</TableHead>
-                  <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">T</TableHead>
-                  <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">N/R</TableHead>
-                  <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500 underline underline-offset-4">PTS</TableHead>
-                  <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">NRR</TableHead>
-                  <TableHead className="text-[10px] font-bold uppercase text-slate-500 pl-6">Series Form</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {teamStandings.map((team, idx) => (
-                  <TableRow key={`team-row-${team.id}`} className={cn("hover:bg-slate-50 transition-colors border-b", idx === 1 ? "bg-sky-50/50" : "")}>
-                    <TableCell className="text-center font-medium text-xs text-slate-400 py-4">{idx + 1}</TableCell>
-                    <TableCell className="py-4">
-                      <Link href={`/teams/${team.id}`} className="flex items-center gap-3 group">
-                        <Avatar className="h-6 w-6 rounded-none border-none">
-                          <AvatarImage src={team.logoUrl} className="object-contain" />
-                          <AvatarFallback className="bg-slate-100 text-[10px]">{team.name[0]}</AvatarFallback>
-                        </Avatar>
-                        <span className="font-black text-slate-800 text-xs uppercase tracking-tight group-hover:text-primary transition-colors">{team.name}</span>
-                        {idx === 1 && <div className="w-1.5 h-1.5 rounded-full bg-rose-400 ml-1" />}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-center text-xs font-medium text-slate-600">{team.played}</TableCell>
-                    <TableCell className="text-center text-xs font-medium text-slate-600">{team.won}</TableCell>
-                    <TableCell className="text-center text-xs font-medium text-slate-600">{team.lost}</TableCell>
-                    <TableCell className="text-center text-xs font-medium text-slate-600">{team.tied}</TableCell>
-                    <TableCell className="text-center text-xs font-medium text-slate-600">{team.nr}</TableCell>
-                    <TableCell className="text-center text-xs font-black text-slate-900">{team.points}</TableCell>
-                    <TableCell className="text-center text-xs font-medium text-slate-500">{(team.nrr || 0).toFixed(3)}</TableCell>
-                    <TableCell className="py-4 pl-6">
-                      <div className="flex items-center gap-1.5">
-                        {team.form.slice(-5).map((res, fIdx) => (
-                          <div 
-                            key={`form-${team.id}-${fIdx}`} 
-                            className={cn(
-                              "w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-sm border border-white/20",
-                              res === 'W' ? "bg-emerald-500" : res === 'L' ? "bg-rose-500" : "bg-slate-400"
-                            )}
-                          >
-                            {res}
-                          </div>
-                        ))}
-                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-1 cursor-pointer hover:text-slate-600 transition-colors" />
-                      </div>
-                    </TableCell>
+          <Card className="bg-white border shadow-sm rounded-xl overflow-hidden">
+            <div className="overflow-x-auto scrollbar-hide">
+              <Table className="min-w-max w-full">
+                <TableHeader className="bg-slate-50">
+                  <TableRow className="hover:bg-transparent border-b">
+                    <TableHead className="w-12 text-[10px] font-bold uppercase text-slate-500 text-center">Pos</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase text-slate-500">Teams</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500 underline underline-offset-4">M</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">W</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">L</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">T</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">N/R</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500 underline underline-offset-4">PTS</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">NRR</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase text-slate-500 pl-6">Series Form</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {teamStandings.map((team, idx) => (
+                    <TableRow key={`team-row-${team.id}`} className={cn("hover:bg-slate-50 transition-colors border-b", idx === 0 ? "bg-sky-50/50" : "")}>
+                      <TableCell className="text-center font-black text-xs text-slate-400 py-4">{idx + 1}</TableCell>
+                      <TableCell className="py-4">
+                        <Link href={`/teams/${team.id}`} className="flex items-center gap-3 group">
+                          <Avatar className="h-6 w-6 rounded-none border-none">
+                            <AvatarImage src={team.logoUrl} className="object-contain" />
+                            <AvatarFallback className="bg-slate-100 text-[10px]">{team.name[0]}</AvatarFallback>
+                          </Avatar>
+                          <span className="font-black text-slate-800 text-xs uppercase tracking-tight group-hover:text-primary transition-colors">{team.name}</span>
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-center text-xs font-bold text-slate-600">{team.played}</TableCell>
+                      <TableCell className="text-center text-xs font-bold text-slate-600">{team.won}</TableCell>
+                      <TableCell className="text-center text-xs font-bold text-slate-600">{team.lost}</TableCell>
+                      <TableCell className="text-center text-xs font-bold text-slate-600">{team.tied}</TableCell>
+                      <TableCell className="text-center text-xs font-bold text-slate-600">{team.nr}</TableCell>
+                      <TableCell className="text-center text-xs font-black text-slate-900">{team.points}</TableCell>
+                      <TableCell className="text-center text-xs font-bold text-slate-500">{(team.nrr || 0).toFixed(3)}</TableCell>
+                      <TableCell className="py-4 pl-6">
+                        <div className="flex items-center gap-1.5">
+                          {team.form.slice(-5).map((res, fIdx) => (
+                            <div 
+                              key={`form-${team.id}-${fIdx}`} 
+                              className={cn(
+                                "w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-sm border border-white/20",
+                                res === 'W' ? "bg-emerald-500" : res === 'L' ? "bg-rose-500" : "bg-slate-400"
+                              )}
+                            >
+                              {res}
+                            </div>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </Card>
         </TabsContent>
 
@@ -251,32 +277,34 @@ export default function RankingsPage() {
             </div>
           ) : (
             <Card className="shadow-sm border rounded-xl overflow-hidden bg-white">
-              <Table>
-                <TableHeader className="bg-slate-50">
-                  <TableRow>
-                    <TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead>
-                    <TableHead className="text-[10px] font-black uppercase">Player</TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('runs')}>Runs <SortIcon field="runs" /></TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('wickets')}>Wkts <SortIcon field="wickets" /></TableHead>
-                    <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('cvp')}>CVP <SortIcon field="cvp" /></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topPlayers.map((player, idx) => (
-                    <TableRow key={`rank-row-${player.id}-${idx}`}>
-                      <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
-                      <TableCell>
-                        <Link href={`/players/${player.id}`} className="font-black text-primary hover:underline text-xs flex items-center gap-2 uppercase tracking-tighter">
-                          {player.name} <ChevronRight className="w-3 h-3 text-slate-300" />
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-right font-black text-xs">{player.runs}</TableCell>
-                      <TableCell className="text-right font-black text-xs">{player.wickets}</TableCell>
-                      <TableCell className="text-right"><Badge variant="outline" className="font-black text-[10px]">{player.cvp.toFixed(1)}</Badge></TableCell>
+              <div className="overflow-x-auto scrollbar-hide">
+                <Table className="min-w-max w-full">
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase">Player</TableHead>
+                      <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('runs')}>Runs <SortIcon field="runs" /></TableHead>
+                      <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('wickets')}>Wkts <SortIcon field="wickets" /></TableHead>
+                      <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('cvp')}>CVP <SortIcon field="cvp" /></TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {topPlayers.map((player, idx) => (
+                      <TableRow key={`rank-row-${player.id}-${idx}`}>
+                        <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
+                        <TableCell>
+                          <Link href={`/players/${player.id}`} className="font-black text-primary hover:underline text-xs flex items-center gap-2 uppercase tracking-tighter">
+                            {player.name} <ChevronRight className="w-3 h-3 text-slate-300" />
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-right font-black text-xs">{player.runs}</TableCell>
+                        <TableCell className="text-right font-black text-xs">{player.wickets}</TableCell>
+                        <TableCell className="text-right"><Badge variant="outline" className="font-black text-[10px]">{player.cvp.toFixed(1)}</Badge></TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             </Card>
           )}
         </TabsContent>
