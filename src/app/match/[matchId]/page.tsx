@@ -63,7 +63,7 @@ export default function MatchScoreboardPage() {
     setIsMounted(true);
   }, []);
 
-  // ALL HOOKS MUST BE AT TOP LEVEL
+  // --- ALL HOOKS AT TOP LEVEL ---
   const matchRef = useMemoFirebase(() => doc(db, 'matches', matchId), [db, matchId]);
   const { data: match, isLoading: isMatchLoading } = useDoc(matchRef);
 
@@ -90,17 +90,19 @@ export default function MatchScoreboardPage() {
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
-  const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || []), [inn1Deliveries]);
-  const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || []), [inn2Deliveries]);
-
+  // Derived Values
   const activeInningData = useMemo(() => {
     if (!match) return null;
     return match.currentInningNumber === 1 ? inn1 : (match.currentInningNumber === 2 ? inn2 : null);
   }, [match?.currentInningNumber, inn1, inn2]);
 
+  const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || []), [inn1Deliveries]);
+  const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || []), [inn2Deliveries]);
+
   const currentBattingSquad = useMemo(() => {
     if (!match || !activeInningData || !allPlayers) return [];
     const battingTid = activeInningData.battingTeamId;
+    // Show players from this team OR the shared common player
     return allPlayers.filter(p => p.teamId === battingTid || (match.commonPlayerId && p.id === match.commonPlayerId));
   }, [match?.commonPlayerId, activeInningData?.battingTeamId, allPlayers]);
 
@@ -114,6 +116,7 @@ export default function MatchScoreboardPage() {
     const currentDeliveries = (match?.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries) || [];
     const outSet = new Set<string>();
     currentDeliveries.forEach(d => {
+      // Retirement is NOT a wicket, so they can re-enter
       if (d.isWicket && d.dismissalType !== 'retired') {
         outSet.add(d.batsmanOutPlayerId || d.strikerPlayerId);
       }
@@ -859,7 +862,7 @@ export default function MatchScoreboardPage() {
                        </AreaChart>
                     </ResponsiveContainer>
                  </CardContent>
-              </Card>
+              </AreaChart>
 
               {/* MANHATTAN CHART */}
               <Card className="shadow-sm">
