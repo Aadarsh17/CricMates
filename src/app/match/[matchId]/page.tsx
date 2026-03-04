@@ -356,7 +356,6 @@ export default function MatchScoreboardPage() {
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
-      {/* PROFESSIONAL BROADCAST HEADER */}
       <div className="bg-white rounded-2xl shadow-xl border-t-8 border-t-primary overflow-hidden">
         <div className="p-6 md:p-8 space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -404,7 +403,6 @@ export default function MatchScoreboardPage() {
         </div>
       </div>
 
-      {/* NAVIGATION TABS */}
       <div className="sticky top-16 z-50 bg-white/80 backdrop-blur-md border-b shadow-sm overflow-x-auto">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="flex w-full justify-start rounded-none bg-transparent h-auto p-0 scrollbar-hide">
@@ -419,7 +417,6 @@ export default function MatchScoreboardPage() {
         <TabsContent value="live" className="space-y-6 pt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              {/* LIVE SCORING PANEL */}
               <Card className="shadow-lg border-none overflow-hidden bg-slate-900 text-white">
                 <CardHeader className="bg-white/5 border-b border-white/5 py-4">
                   <div className="flex justify-between items-center">
@@ -483,7 +480,6 @@ export default function MatchScoreboardPage() {
                 </CardContent>
               </Card>
 
-              {/* LIVE PLAYERS TABLE */}
               <Card className="shadow-sm border-none bg-white overflow-hidden">
                 <Table>
                   <TableHeader className="bg-slate-50">
@@ -524,7 +520,6 @@ export default function MatchScoreboardPage() {
               </Card>
             </div>
 
-            {/* BALL-BY-BALL STRIP */}
             <div className="space-y-4">
               <Card className="shadow-sm border-none bg-white">
                 <CardHeader className="py-4 border-b">
@@ -748,7 +743,6 @@ export default function MatchScoreboardPage() {
         </TabsContent>
       </Tabs>
 
-      {/* DIALOGS */}
       <Dialog open={isEditFullMatchOpen} onOpenChange={setIsEditFullMatchOpen}>
         <DialogContent className="max-w-2xl rounded-xl border-t-8 border-t-primary"><DialogHeader><DialogTitle className="font-black uppercase text-xl">Umpire Dashboard</DialogTitle></DialogHeader><div className="space-y-6 py-6"><div className="grid grid-cols-2 gap-6"><div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Match Status</Label><Select value={match.status} onValueChange={v => updateDocumentNonBlocking(matchRef, {status: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="live">Live</SelectItem><SelectItem value="completed">Completed</SelectItem></SelectContent></Select></div><div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Active Inning</Label><Select value={match.currentInningNumber.toString()} onValueChange={v => updateDocumentNonBlocking(matchRef, {currentInningNumber: parseInt(v)})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="1">Inning 1</SelectItem><SelectItem value="2">Inning 2</SelectItem></SelectContent></Select></div></div><div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Result Description</Label><Input value={match.resultDescription || ''} onChange={e => updateDocumentNonBlocking(matchRef, {resultDescription: e.target.value})} className="font-bold text-primary h-12 shadow-sm" /></div><Button onClick={() => handleFixSummary()} disabled={isFixing} variant="secondary" className="w-full h-12 font-black uppercase">Recalculate Current Inning</Button></div><DialogFooter><Button onClick={() => setIsEditFullMatchOpen(false)} className="w-full h-14 font-black uppercase shadow-xl">CLOSE TOOLS</Button></DialogFooter></DialogContent>
       </Dialog>
