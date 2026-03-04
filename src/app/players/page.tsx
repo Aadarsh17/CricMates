@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 import { collection, query, orderBy, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -15,6 +15,11 @@ import { calculatePlayerCVP } from '@/lib/cvp-utils';
 export default function PlayersPage() {
   const db = useFirestore();
   const [searchTerm, setSearchTerm] = useState('');
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
@@ -22,7 +27,10 @@ export default function PlayersPage() {
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: matches, isLoading: isMatchesLoading } = useCollection(matchesQuery);
 
-  const allDeliveriesQuery = useMemoFirebase(() => query(collectionGroup(db, 'deliveryRecords')), [db]);
+  const allDeliveriesQuery = useMemoFirebase(() => {
+    if (!isMounted) return null;
+    return query(collectionGroup(db, 'deliveryRecords'));
+  }, [db, isMounted]);
   const { data: allDeliveries, isLoading: isDeliveriesLoading } = useCollection(allDeliveriesQuery);
 
   const activeMatchIds = useMemo(() => new Set(matches?.map(m => m.id) || []), [matches]);
@@ -95,7 +103,9 @@ export default function PlayersPage() {
     p.role.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const isLoading = isPlayersLoading || isDeliveriesLoading || isMatchesLoading;
+  const isLoading = !isMounted || isPlayersLoading || isDeliveriesLoading || isMatchesLoading;
+
+  if (!isMounted) return null;
 
   return (
     <div className="space-y-6 pb-24 px-4 max-w-5xl mx-auto">

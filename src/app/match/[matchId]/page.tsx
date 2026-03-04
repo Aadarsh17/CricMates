@@ -186,8 +186,7 @@ export default function MatchScoreboardPage() {
     if (!allPlayers || !match) return [];
     const pMatchStats: Record<string, any> = {};
     
-    [inn1Deliveries, inn2Deliveries].forEach((deliveries) => {
-      if (!deliveries) return;
+    [inn1Deliveries || [], inn2Deliveries || []].forEach((deliveries) => {
       deliveries.forEach(d => {
         const involvedIds = [d.strikerPlayerId, d.bowlerId || d.bowlerPlayerId, d.fielderPlayerId].filter(id => id && id !== 'none');
         involvedIds.forEach(pid => {
