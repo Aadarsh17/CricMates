@@ -187,6 +187,22 @@ export default function MatchScoreboardPage() {
 
   const topCVPPlayer = playerCVPList[0];
 
+  const currentBattingSquad = useMemo(() => {
+    if (!match || !activeInningData || !allPlayers) return [];
+    const squadIds = activeInningData.battingTeamId === match.team1Id 
+      ? match.team1SquadPlayerIds 
+      : match.team2SquadPlayerIds;
+    return allPlayers.filter(p => squadIds?.includes(p.id));
+  }, [match, activeInningData, allPlayers]);
+
+  const currentBowlingSquad = useMemo(() => {
+    if (!match || !activeInningData || !allPlayers) return [];
+    const squadIds = activeInningData.bowlingTeamId === match.team1Id 
+      ? match.team1SquadPlayerIds 
+      : match.team2SquadPlayerIds;
+    return allPlayers.filter(p => squadIds?.includes(p.id));
+  }, [match, activeInningData, allPlayers]);
+
   const handleHandleAiSummary = async () => {
     if (!match || isGeneratingSummary) return;
     setIsGeneratingSummary(true);
@@ -584,22 +600,6 @@ export default function MatchScoreboardPage() {
 
   if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse">SYNCING MATCH...</div>;
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
-
-  const currentBattingSquad = useMemo(() => {
-    if (!match || !activeInningData || !allPlayers) return [];
-    const squadIds = activeInningData.battingTeamId === match.team1Id 
-      ? match.team1SquadPlayerIds 
-      : match.team2SquadPlayerIds;
-    return allPlayers.filter(p => squadIds?.includes(p.id));
-  }, [match, activeInningData, allPlayers]);
-
-  const currentBowlingSquad = useMemo(() => {
-    if (!match || !activeInningData || !allPlayers) return [];
-    const squadIds = activeInningData.bowlingTeamId === match.team1Id 
-      ? match.team1SquadPlayerIds 
-      : match.team2SquadPlayerIds;
-    return allPlayers.filter(p => squadIds?.includes(p.id));
-  }, [match, activeInningData, allPlayers]);
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
