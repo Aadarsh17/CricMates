@@ -102,7 +102,6 @@ export default function MatchScoreboardPage() {
   const currentBattingSquad = useMemo(() => {
     if (!match || !activeInningData || !allPlayers) return [];
     const battingTid = activeInningData.battingTeamId;
-    // Show players from this team OR the shared common player
     return allPlayers.filter(p => p.teamId === battingTid || (match.commonPlayerId && p.id === match.commonPlayerId));
   }, [match?.commonPlayerId, activeInningData?.battingTeamId, allPlayers]);
 
@@ -116,7 +115,6 @@ export default function MatchScoreboardPage() {
     const currentDeliveries = (match?.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries) || [];
     const outSet = new Set<string>();
     currentDeliveries.forEach(d => {
-      // Retirement is NOT a wicket, so they can re-enter
       if (d.isWicket && d.dismissalType !== 'retired') {
         outSet.add(d.batsmanOutPlayerId || d.strikerPlayerId);
       }
@@ -856,13 +854,12 @@ export default function MatchScoreboardPage() {
                           <Legend wrapperStyle={{ fontSize: '10px' }} />
                           <Area type="monotone" dataKey="team1" name={getTeamName(match.team1Id)} stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.1} />
                           <Area type="monotone" dataKey="team2" name={getTeamName(match.team2Id)} stroke="hsl(var(--secondary))" fill="hsl(var(--secondary))" fillOpacity={0.1} />
-                          {/* Wicket Dots */}
                           <Line type="monotone" dataKey="team1Wicket" name="Wkt (T1)" stroke="none" dot={{ r: 4, fill: 'red', strokeWidth: 2 }} />
                           <Line type="monotone" dataKey="team2Wicket" name="Wkt (T2)" stroke="none" dot={{ r: 4, fill: 'orange', strokeWidth: 2 }} />
                        </AreaChart>
                     </ResponsiveContainer>
                  </CardContent>
-              </AreaChart>
+              </Card>
 
               {/* MANHATTAN CHART */}
               <Card className="shadow-sm">
