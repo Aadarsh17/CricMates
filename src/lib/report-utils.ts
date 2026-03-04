@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Utility functions for match statistics, professional scorecard generation, and match flow timeline logic.
  */
@@ -100,7 +99,10 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       if (!bowl[bId]) bowl[bId] = { id: bId, overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
       bowl[bId].runs += (d.totalRunsOnDelivery || 0);
       if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') bowl[bId].wickets += 1;
-      if (d.extraType !== 'wide' && d.extraType !== 'noball') bowl[bId].balls += 1;
+      if (d.extraType !== 'wide' && d.extraType !== 'noball') {
+        bowl[bId].balls += 1;
+        // Simple maiden check: this is indicative, usually checked ball-by-ball
+      }
     }
   });
 
@@ -215,6 +217,8 @@ export const getMatchFlow = (deliveries: any[], teamName: string, players: any[]
     }
 
     if (idx === deliveries.length - 1) {
+      const sId = d.strikerPlayerId;
+      const nsId = d.nonStrikerPlayerId;
       const sRuns = (sId && batterStats[sId]) ? batterStats[sId].runs : 0;
       const nsRuns = (nsId && nsId !== 'none' && batterStats[nsId]) ? batterStats[nsId].runs : 0;
       events.push({ 

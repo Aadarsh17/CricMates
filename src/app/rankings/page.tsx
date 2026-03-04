@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
@@ -226,7 +225,7 @@ export default function RankingsPage() {
                 </TableHeader>
                 <TableBody>
                   {teamStandings.map((team, idx) => (
-                    <TableRow key={`team-row-${team.id}`} className={cn("hover:bg-slate-50 transition-colors border-b", idx === 0 ? "bg-sky-50/50" : "")}>
+                    <TableRow key={team.id} className={cn("hover:bg-slate-50 transition-colors border-b", idx === 0 ? "bg-sky-50/50" : "")}>
                       <TableCell className="text-center font-black text-xs text-slate-400 py-4">{idx + 1}</TableCell>
                       <TableCell className="py-4">
                         <Link href={`/teams/${team.id}`} className="flex items-center gap-3 group">
@@ -247,15 +246,7 @@ export default function RankingsPage() {
                       <TableCell className="py-4 pl-6">
                         <div className="flex items-center gap-1.5">
                           {team.form.slice(-5).map((res, fIdx) => (
-                            <div 
-                              key={`form-${team.id}-${fIdx}`} 
-                              className={cn(
-                                "w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-sm border border-white/20",
-                                res === 'W' ? "bg-emerald-500" : res === 'L' ? "bg-rose-500" : "bg-slate-400"
-                              )}
-                            >
-                              {res}
-                            </div>
+                            <div key={fIdx} className={cn("w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-sm border border-white/20", res === 'W' ? "bg-emerald-500" : res === 'L' ? "bg-rose-500" : "bg-slate-400")}>{res}</div>
                           ))}
                         </div>
                       </TableCell>
@@ -288,7 +279,7 @@ export default function RankingsPage() {
                   </TableHeader>
                   <TableBody>
                     {topPlayers.map((player, idx) => (
-                      <TableRow key={`rank-row-${player.id}-${idx}`}>
+                      <TableRow key={player.id}>
                         <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
                         <TableCell>
                           <Link href={`/players/${player.id}`} className="font-black text-primary hover:underline text-xs flex items-center gap-2 uppercase tracking-tighter">
