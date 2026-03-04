@@ -20,13 +20,14 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     runs: 0,
     balls: 0,
     batter1Runs: 0,
-    batter2Runs: 0
+    batter2Runs: 0,
+    batter1Balls: 0,
+    batter2Balls: 0
   };
 
   deliveries.forEach((d, idx) => {
     const sId = d.strikerPlayerId;
     const nsId = d.nonStrikerPlayerId;
-    // Unify field name: Use bowlerId as primary identifier
     const bId = d.bowlerId || d.bowlerPlayerId;
     
     if (!sId) return;
@@ -51,10 +52,13 @@ export const getExtendedInningStats = (deliveries: any[]) => {
 
     currentPartnership.runs += (d.totalRunsOnDelivery || 0);
     if (d.extraType !== 'wide' && d.extraType !== 'noball') currentPartnership.balls += 1;
+    
     if (sId === currentPartnership.batter1Id) {
       currentPartnership.batter1Runs += (d.runsScored || 0);
+      if (d.extraType !== 'wide') currentPartnership.batter1Balls += 1;
     } else {
       currentPartnership.batter2Runs += (d.runsScored || 0);
+      if (d.extraType !== 'wide') currentPartnership.batter2Balls += 1;
     }
 
     if (d.isWicket) {
@@ -80,7 +84,9 @@ export const getExtendedInningStats = (deliveries: any[]) => {
         runs: 0,
         balls: 0,
         batter1Runs: 0,
-        batter2Runs: 0
+        batter2Runs: 0,
+        batter1Balls: 0,
+        batter2Balls: 0
       };
     }
 

@@ -313,7 +313,7 @@ export default function MatchScoreboardPage() {
     if (!i1 || !i2 || !match) return "Match in Progress";
     const s1 = i1.score || 0; const s2 = i2.score || 0;
     const tBat1 = getTeamName(i1.battingTeamId); const tBat2 = getTeamName(i2.battingTeamId);
-    if (s1 > s2) return `${tBat1} won by ${s1 - s2} runs`;
+    if (s1 > s2 && (i2.oversCompleted >= match.totalOvers || i2.isDeclaredFinished)) return `${tBat1} won by ${s1 - s2} runs`;
     if (s2 > s1) {
       const battingTeamId = i2.battingTeamId;
       const squadSize = (battingTeamId === match.team1Id ? match.team1SquadPlayerIds?.length : match.team2SquadPlayerIds?.length) || 11;
@@ -344,6 +344,33 @@ export default function MatchScoreboardPage() {
     const rrr = ballsRemaining > 0 ? ((runsNeeded / ballsRemaining) * 6).toFixed(2) : '---';
     return { runsNeeded, ballsRemaining, crr, rrr, target };
   })();
+
+  const PartnershipRow = ({ p, pIdx }: { p: any, pIdx: number }) => {
+    const totalRuns = p.runs || 0;
+    const b1Runs = p.batter1Runs || 0;
+    const b2Runs = p.batter2Runs || 0;
+    const b1Pct = totalRuns > 0 ? (b1Runs / totalRuns) * 100 : 50;
+
+    return (
+      <div key={`p-row-${pIdx}`} className="space-y-1 py-3 border-b last:border-none">
+        <div className="flex justify-between items-center px-1">
+          <span className="text-[10px] font-black uppercase text-slate-900 truncate max-w-[100px]">{getPlayerName(p.batter1Id)}</span>
+          <div className="flex flex-col items-center">
+            <span className="text-[11px] font-black text-slate-900">{p.runs} ({p.balls})</span>
+          </div>
+          <span className="text-[10px] font-black uppercase text-slate-900 text-right truncate max-w-[100px]">{getPlayerName(p.batter2Id)}</span>
+        </div>
+        <div className="flex justify-between items-center px-1 text-[8px] font-bold text-slate-400 uppercase">
+          <span>{p.batter1Runs} ({p.balls - (p.batter2Balls || 0)})</span>
+          <div className="flex-1 mx-4 h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
+            <div style={{ width: `${b1Pct}%` }} className="bg-primary/60 h-full" />
+            <div style={{ width: `${100 - b1Pct}%` }} className="bg-slate-300 h-full" />
+          </div>
+          <span>{p.batter2Runs} ({p.batter2Balls || '?'})</span>
+        </div>
+      </div>
+    );
+  };
 
   const renderLiveBatterRow = (pid: string, isStriker: boolean) => {
     if (!pid || pid === 'none') return null;
@@ -387,19 +414,23 @@ export default function MatchScoreboardPage() {
       <div className="bg-white rounded-2xl shadow-xl border-t-8 border-t-primary overflow-hidden">
         <div className="p-6 md:p-8 space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            <div className="space-y-2 flex-1 w-full">
+            <div className="space-y-3 flex-1 w-full">
               <div className="flex items-center justify-between group">
                 <span className={cn("font-black text-xl md:text-2xl uppercase tracking-tighter truncate max-w-[200px]", match.currentInningNumber === 1 ? "text-slate-900" : "text-slate-400")}>{getTeamName(match.team1Id)}</span>
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-center gap-3">
                   <span className="font-black text-2xl md:text-3xl text-slate-900">{inn1?.score || 0}/{inn1?.wickets || 0}</span>
-                  {inn1 && <span className="text-[10px] font-bold text-slate-400">({inn1.oversCompleted}.{inn1.ballsInCurrentOver || 0}/{match.totalOvers} OV)</span>}
+                  <Badge variant="outline" className="text-[10px] font-black uppercase h-6 px-2 bg-slate-50 border-slate-200">
+                    {inn1?.oversCompleted || 0}.{inn1?.ballsInCurrentOver || 0}/{match.totalOvers} OV
+                  </Badge>
                 </div>
               </div>
               <div className="flex items-center justify-between group">
                 <span className={cn("font-black text-xl md:text-2xl uppercase tracking-tighter truncate max-w-[200px]", match.currentInningNumber === 2 ? "text-slate-900" : "text-slate-400")}>{getTeamName(match.team2Id)}</span>
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-center gap-3">
                   <span className="font-black text-2xl md:text-3xl text-slate-900">{inn2?.score || 0}/{inn2?.wickets || 0}</span>
-                  {inn2 && <span className="text-[10px] font-bold text-slate-400">({inn2.oversCompleted}.{inn2.ballsInCurrentOver || 0}/{match.totalOvers} OV)</span>}
+                  <Badge variant="outline" className="text-[10px] font-black uppercase h-6 px-2 bg-slate-50 border-slate-200">
+                    {inn2?.oversCompleted || 0}.{inn2?.ballsInCurrentOver || 0}/{match.totalOvers} OV
+                  </Badge>
                 </div>
               </div>
             </div>
@@ -629,7 +660,7 @@ export default function MatchScoreboardPage() {
            </Card>
 
            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="rounded-xl overflow-hidden border shadow-sm">
+              <Card className="rounded-xl overflow-hidden border shadow-sm h-fit">
                 <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Fall of Wickets</span></div>
                 <div className="p-4 space-y-2">
                   {currentInningStats.fow.length > 0 ? currentInningStats.fow.map((f, i) => (
@@ -643,19 +674,11 @@ export default function MatchScoreboardPage() {
               </Card>
 
               <Card className="rounded-xl overflow-hidden border shadow-sm">
-                <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Key Partnerships</span></div>
-                <div className="p-4 space-y-2">
+                <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Partnerships</span></div>
+                <div className="bg-slate-100/50 px-4 py-1.5 border-b"><span className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{activeInningView === 1 ? 'First Innings' : 'Second Innings'}</span></div>
+                <div className="p-4 space-y-0">
                   {currentInningStats.partnerships.length > 0 ? currentInningStats.partnerships.map((p, i) => (
-                    <div key={`part-${i}`} className="flex flex-col gap-1 border-b pb-2 last:border-none last:pb-0">
-                      <div className="flex justify-between items-center text-[10px]">
-                        <span className="font-black text-primary">{p.runs} ({p.balls})</span>
-                        <span className="font-bold text-slate-500 truncate max-w-[150px]">{getPlayerName(p.batter1Id)} & {getPlayerName(p.batter2Id)}</span>
-                      </div>
-                      <div className="flex justify-between text-[8px] text-slate-400 font-bold px-1">
-                        <span>{p.batter1Runs} runs</span>
-                        <span>{p.batter2Runs} runs</span>
-                      </div>
-                    </div>
+                    <PartnershipRow key={`part-${i}`} p={p} pIdx={i} />
                   )) : <p className="text-[9px] text-slate-300 font-black uppercase text-center py-4">No data available</p>}
                 </div>
               </Card>
@@ -711,7 +734,7 @@ export default function MatchScoreboardPage() {
                        </AreaChart>
                     </ResponsiveContainer>
                  </CardContent>
-              </Card>
+              </AreaChart>
               
               <Card className="shadow-sm border-none overflow-hidden">
                  <CardHeader className="flex flex-row items-center justify-between">
@@ -770,7 +793,7 @@ export default function MatchScoreboardPage() {
                                 <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
                                 {d.isWicket ? (
                                   <p className="text-[8px] text-red-600 font-bold uppercase">
-                                    OUT: {d.dismissalType} {d.fielderPlayerId && d.fielderPlayerId !== 'none' ? `(by ${getPlayerName(d.fielderPlayerId)})` : ''} b {getPlayerName(bId)}
+                                    OUT: {d.dismissalType} {d.fielderPlayerId && d.fielderPlayerId !== 'none' ? `c ${getPlayerName(d.fielderPlayerId)}` : ''} b {getPlayerName(bId)}
                                   </p>
                                 ) : (
                                   <p className="text-[8px] text-slate-400 font-bold uppercase">{d.totalRunsOnDelivery} runs {d.extraType !== 'none' ? `(${d.extraType})` : ''}</p>
