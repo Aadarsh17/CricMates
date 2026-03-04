@@ -62,7 +62,6 @@ export default function RankingsPage() {
       };
     });
 
-    // Sort matches oldest to newest to build form
     const sortedMatches = [...matches].sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
 
     sortedMatches.forEach(m => {
