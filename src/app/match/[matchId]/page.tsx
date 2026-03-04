@@ -217,7 +217,7 @@ export default function MatchScoreboardPage() {
     return activeInningData.oversCompleted >= match.totalOvers || activeInningData.wickets >= 10;
   }, [match, activeInningData]);
 
-  const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none') => {
+  const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none', noStrikeChange: boolean = false) => {
     if (!match || !activeInningData || !isUmpire || isCurrentInningFinished) return;
     
     if (!activeInningData.strikerPlayerId || (!activeInningData.isLastManActive && !activeInningData.nonStrikerPlayerId) || !activeInningData.currentBowlerPlayerId) {
@@ -252,7 +252,8 @@ export default function MatchScoreboardPage() {
       nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || 'none',
       bowlerId: activeInningData.currentBowlerPlayerId,
       runsScored: ballRuns, extraRuns, extraType, totalRunsOnDelivery,
-      isWicket: false, timestamp: Date.now()
+      isWicket: false, timestamp: Date.now(),
+      noStrikeChange // Flag for 1D logic if needed in history
     };
 
     addDocumentNonBlocking(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords'), deliveryData);
@@ -263,7 +264,7 @@ export default function MatchScoreboardPage() {
       ballsInCurrentOver: newBalls
     };
 
-    if (!activeInningData.isLastManActive) {
+    if (!activeInningData.isLastManActive && !noStrikeChange) {
       if (runs % 2 !== 0) {
         updates.strikerPlayerId = activeInningData.nonStrikerPlayerId;
         updates.nonStrikerPlayerId = activeInningData.strikerPlayerId;
@@ -276,6 +277,20 @@ export default function MatchScoreboardPage() {
       setIsPlayerAssignmentOpen(true);
       toast({ title: "Over Complete", description: "Assign next bowler." });
     }
+  };
+
+  const handleSwapStrike = () => {
+    if (!match || !activeInningData || !isUmpire || activeInningData.isLastManActive) return;
+    
+    const currentInningId = `inning_${match.currentInningNumber}`;
+    const inningRef = doc(db, 'matches', matchId, 'innings', currentInningId);
+    
+    updateDocumentNonBlocking(inningRef, {
+      strikerPlayerId: activeInningData.nonStrikerPlayerId,
+      nonStrikerPlayerId: activeInningData.strikerPlayerId
+    });
+    
+    toast({ title: "Strikers Swapped", description: "Strike position manually updated." });
   };
 
   const handleWicket = async () => {
@@ -403,7 +418,8 @@ export default function MatchScoreboardPage() {
         if (nonStrikerPlayerId === 'none') nonStrikerPlayerId = '';
         isLastManActive = lastBall.nonStrikerPlayerId === 'none';
       } else {
-        if (!isLastManActive && lastBall.runsScored % 2 !== 0) {
+        // Only undo swap if it wasn't a "noStrikeChange" delivery (1D)
+        if (!isLastManActive && !lastBall.noStrikeChange && lastBall.runsScored % 2 !== 0) {
           const temp = strikerPlayerId;
           strikerPlayerId = nonStrikerPlayerId;
           nonStrikerPlayerId = temp;
@@ -615,27 +631,65 @@ export default function MatchScoreboardPage() {
               <div className="space-y-6">
                 {!isCurrentInningFinished ? (
                   <>
-                    <div className="bg-slate-900 text-white p-4 rounded-xl shadow-lg cursor-pointer" onClick={() => setIsPlayerAssignmentOpen(true)}>
-                      <div className="flex justify-between items-center">
-                        <div className="space-y-1">
-                          <p className="text-[9px] font-black text-primary uppercase">On Strike</p>
+                    <div className="bg-slate-900 text-white p-4 rounded-xl shadow-lg relative group overflow-hidden">
+                      <div className="flex justify-between items-center relative z-10">
+                        <div className="space-y-1 flex-1" onClick={() => setIsPlayerAssignmentOpen(true)}>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[9px] font-black text-primary uppercase tracking-widest">On Strike</p>
+                            <Sparkles className="w-2.5 h-2.5 text-primary animate-pulse" />
+                          </div>
                           <p className="text-sm font-black">{getPlayerName(activeInningData.strikerPlayerId)}*</p>
                           {!activeInningData.isLastManActive && <p className="text-[9px] text-slate-400 font-bold uppercase">Non-Strike: {getPlayerName(activeInningData.nonStrikerPlayerId)}</p>}
                         </div>
-                        <div className="text-right space-y-1">
-                          <p className="text-[9px] font-black text-slate-400 uppercase">Current Bowler</p>
+                        
+                        <div className="flex flex-col items-center gap-2 px-4 border-x border-white/10">
+                           <Button 
+                             size="icon" 
+                             variant="ghost" 
+                             className="h-10 w-10 rounded-full bg-white/5 hover:bg-primary/20 hover:text-primary transition-all shadow-inner"
+                             onClick={handleSwapStrike}
+                             title="Swap Strikers"
+                           >
+                             <ArrowLeftRight className="w-5 h-5" />
+                           </Button>
+                           <span className="text-[7px] font-black uppercase text-slate-500 tracking-tighter">Swap Strike</span>
+                        </div>
+
+                        <div className="text-right space-y-1 flex-1" onClick={() => setIsPlayerAssignmentOpen(true)}>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Current Bowler</p>
                           <p className="text-sm font-black">{getPlayerName(activeInningData.currentBowlerPlayerId)}</p>
                         </div>
                       </div>
+                      <div className="absolute inset-0 bg-gradient-to-r from-primary/10 via-transparent to-transparent opacity-50 pointer-events-none" />
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[0, 1, 2, 3, 4, 6].map(r => <Button key={r} onClick={() => handleRecordBall(r)} className="h-16 font-black text-2xl bg-white text-slate-900 border-2 border-slate-200 hover:border-primary shadow-sm">{r === 0 ? "•" : r}</Button>)}
+
+                    <div className="grid grid-cols-4 gap-3">
+                      {[0, 1, 2, 3, 4, 6].map(r => (
+                        <Button 
+                          key={r} 
+                          onClick={() => handleRecordBall(r)} 
+                          className={cn(
+                            "h-16 font-black text-2xl bg-white text-slate-900 border-2 border-slate-200 hover:border-primary shadow-sm",
+                            r >= 4 ? "text-primary border-primary/20" : ""
+                          )}
+                        >
+                          {r === 0 ? "•" : r}
+                        </Button>
+                      ))}
+                      <Button 
+                        onClick={() => handleRecordBall(1, 'none', true)} 
+                        className="h-16 font-black text-xl bg-slate-50 text-secondary border-2 border-secondary/20 hover:border-secondary shadow-sm flex flex-col items-center justify-center gap-0"
+                      >
+                        <span className="text-lg">1D</span>
+                        <span className="text-[7px] uppercase tracking-tighter opacity-70">No Swap</span>
+                      </Button>
                     </div>
+
                     <div className="grid grid-cols-2 gap-3">
-                      <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">WIDE</Button>
-                      <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs">NO BALL</Button>
-                      <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-14 font-black text-red-700 bg-red-50 uppercase tracking-widest text-xs">WICKET</Button>
-                      <Button variant="outline" onClick={() => setIsRetireDialogOpen(true)} className="h-14 font-black text-blue-700 bg-blue-50 uppercase tracking-widest text-xs">RETIRE</Button>
+                      <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs border-amber-200">WIDE</Button>
+                      <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-14 font-black text-amber-700 bg-amber-50 uppercase tracking-widest text-xs border-amber-200">NO BALL</Button>
+                      <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-14 font-black text-red-700 bg-red-50 uppercase tracking-widest text-xs border-red-200">WICKET</Button>
+                      <Button variant="outline" onClick={() => setIsRetireDialogOpen(true)} className="h-14 font-black text-blue-700 bg-blue-50 uppercase tracking-widest text-xs border-blue-200">RETIRE</Button>
                       <Button variant="outline" onClick={handleUndoLastBall} disabled={isUndoing} className="h-14 font-black text-slate-700 bg-slate-100 uppercase tracking-widest text-xs">
                         {isUndoing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Undo2 className="w-4 h-4 mr-2" />} UNDO
                       </Button>
@@ -753,7 +807,7 @@ export default function MatchScoreboardPage() {
                               </div>
                               <div className="flex flex-col">
                                 <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
-                                <p className="text-[8px] text-slate-400 font-bold uppercase">{d.extraType !== 'none' ? `(+${d.extraRuns} extras)` : `${d.runsScored} runs`}</p>
+                                <p className="text-[8px] text-slate-400 font-bold uppercase">{d.extraType !== 'none' ? `(+${d.extraRuns} extras)` : `${d.runsScored} runs`}{d.noStrikeChange && " [Declared]"}</p>
                               </div>
                             </div>
                             {isUmpire && (
