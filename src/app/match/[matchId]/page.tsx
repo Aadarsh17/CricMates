@@ -253,7 +253,7 @@ export default function MatchScoreboardPage() {
       bowlerId: activeInningData.currentBowlerPlayerId,
       runsScored: ballRuns, extraRuns, extraType, totalRunsOnDelivery,
       isWicket: false, timestamp: Date.now(),
-      noStrikeChange // Flag for 1D logic if needed in history
+      noStrikeChange
     };
 
     addDocumentNonBlocking(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords'), deliveryData);
@@ -418,7 +418,6 @@ export default function MatchScoreboardPage() {
         if (nonStrikerPlayerId === 'none') nonStrikerPlayerId = '';
         isLastManActive = lastBall.nonStrikerPlayerId === 'none';
       } else {
-        // Only undo swap if it wasn't a "noStrikeChange" delivery (1D)
         if (!isLastManActive && !lastBall.noStrikeChange && lastBall.runsScored % 2 !== 0) {
           const temp = strikerPlayerId;
           strikerPlayerId = nonStrikerPlayerId;
@@ -551,8 +550,21 @@ export default function MatchScoreboardPage() {
   if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse">SYNCING MATCH...</div>;
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
 
-  const currentBattingSquad = allPlayers?.filter(p => match.currentInningNumber === 1 ? match.team1SquadPlayerIds?.includes(p.id) : match.team2SquadPlayerIds?.includes(p.id)) || [];
-  const currentBowlingSquad = allPlayers?.filter(p => match.currentInningNumber === 1 ? match.team2SquadPlayerIds?.includes(p.id) : match.team1SquadPlayerIds?.includes(p.id)) || [];
+  const currentBattingSquad = useMemo(() => {
+    if (!match || !activeInningData || !allPlayers) return [];
+    const squadIds = activeInningData.battingTeamId === match.team1Id 
+      ? match.team1SquadPlayerIds 
+      : match.team2SquadPlayerIds;
+    return allPlayers.filter(p => squadIds?.includes(p.id));
+  }, [match, activeInningData, allPlayers]);
+
+  const currentBowlingSquad = useMemo(() => {
+    if (!match || !activeInningData || !allPlayers) return [];
+    const squadIds = activeInningData.bowlingTeamId === match.team1Id 
+      ? match.team1SquadPlayerIds 
+      : match.team2SquadPlayerIds;
+    return allPlayers.filter(p => squadIds?.includes(p.id));
+  }, [match, activeInningData, allPlayers]);
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
