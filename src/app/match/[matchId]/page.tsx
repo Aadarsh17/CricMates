@@ -387,34 +387,37 @@ export default function MatchScoreboardPage() {
       <div className="bg-white rounded-2xl shadow-xl border-t-8 border-t-primary overflow-hidden">
         <div className="p-6 md:p-8 space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            <div className="space-y-4 flex-1 w-full">
-              <div className="flex items-center justify-between">
-                <span className="font-black text-xl md:text-2xl uppercase tracking-tighter text-slate-400 truncate max-w-[150px]">{getTeamName(match.team1Id)}</span>
-                <span className="font-black text-2xl md:text-3xl text-slate-900">{inn1?.score || 0}/{inn1?.wickets || 0}</span>
+            <div className="space-y-2 flex-1 w-full">
+              <div className="flex items-center justify-between group">
+                <span className={cn("font-black text-xl md:text-2xl uppercase tracking-tighter truncate max-w-[200px]", match.currentInningNumber === 1 ? "text-slate-900" : "text-slate-400")}>{getTeamName(match.team1Id)}</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-black text-2xl md:text-3xl text-slate-900">{inn1?.score || 0}/{inn1?.wickets || 0}</span>
+                  {inn1 && <span className="text-[10px] font-bold text-slate-400">({inn1.oversCompleted}.{inn1.ballsInCurrentOver || 0}/{match.totalOvers} OV)</span>}
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="font-black text-xl md:text-2xl uppercase tracking-tighter truncate max-w-[150px]">{getTeamName(match.team2Id)}</span>
-                <div className="flex items-baseline gap-3">
-                  <span className="font-black text-3xl md:text-4xl text-slate-900">{inn2?.score || 0}/{inn2?.wickets || 0}</span>
-                  <span className="text-xs md:text-sm font-black text-slate-400">({inn2?.oversCompleted}.{inn2?.ballsInCurrentOver || 0}/{match.totalOvers} OV)</span>
+              <div className="flex items-center justify-between group">
+                <span className={cn("font-black text-xl md:text-2xl uppercase tracking-tighter truncate max-w-[200px]", match.currentInningNumber === 2 ? "text-slate-900" : "text-slate-400")}>{getTeamName(match.team2Id)}</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-black text-2xl md:text-3xl text-slate-900">{inn2?.score || 0}/{inn2?.wickets || 0}</span>
+                  {inn2 && <span className="text-[10px] font-bold text-slate-400">({inn2.oversCompleted}.{inn2.ballsInCurrentOver || 0}/{match.totalOvers} OV)</span>}
                 </div>
               </div>
             </div>
-            <div className="w-px h-24 bg-slate-100 hidden md:block mx-4" />
+            <div className="w-px h-20 bg-slate-100 hidden md:block mx-4" />
             <div className="flex flex-row md:flex-col items-center md:items-end gap-3 w-full md:w-auto">
-              {isUmpire && <Button variant="outline" onClick={() => setIsEditFullMatchOpen(true)} className="flex-1 md:flex-none h-10 px-6 font-black text-[10px] md:text-xs uppercase border-primary text-primary hover:bg-primary/5">Umpire Dashboard</Button>}
-              <Button size="sm" variant="secondary" className="flex-1 md:flex-none h-10 px-6 font-black text-[10px] md:text-xs uppercase" onClick={() => {
+              <Button size="sm" variant="secondary" className="flex-1 md:flex-none h-12 px-6 font-black text-[10px] md:text-xs uppercase bg-secondary text-white hover:bg-secondary/90 shadow-md" onClick={() => {
                 const report = generateHTMLReport(match, inn1, inn2, stats1, stats2, allTeams || [], allPlayers || []);
                 const blob = new Blob([report], { type: 'text/html' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a'); a.href = url; a.download = `CricMates_${matchId}.html`; a.click();
               }}><Download className="w-4 h-4 mr-2" /> Match Report</Button>
+              {isUmpire && <Button variant="outline" onClick={() => setIsEditFullMatchOpen(true)} className="flex-1 md:flex-none h-10 px-6 font-black text-[10px] md:text-xs uppercase border-primary text-primary hover:bg-primary/5">Umpire Dashboard</Button>}
             </div>
           </div>
 
           {chaseLogic && (
-            <div className="bg-slate-50 p-4 md:p-5 rounded-2xl border-2 border-dashed border-slate-200">
-              <p className="text-base md:text-lg font-black text-slate-900 uppercase tracking-tight">
+            <div className="bg-slate-50 p-4 rounded-xl border-2 border-dashed border-slate-200">
+              <p className="text-base font-black text-slate-900 uppercase tracking-tight">
                 {getTeamName(inn2?.battingTeamId)} need {chaseLogic.runsNeeded} runs in {chaseLogic.ballsRemaining} balls.
               </p>
               <div className="flex flex-wrap gap-4 mt-2">
