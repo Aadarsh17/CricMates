@@ -43,7 +43,6 @@ export default function MatchScoreboardPage() {
   
   const [isMounted, setIsMounted] = useState(false);
   const [isWicketDialogOpen, setIsWicketDialogOpen] = useState(false);
-  const [isRetireDialogOpen, setIsRetireDialogOpen] = useState(false);
   const [isPlayerAssignmentOpen, setIsPlayerAssignmentOpen] = useState(false);
   const [isEditFullMatchOpen, setIsEditFullMatchOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('live');
@@ -55,11 +54,6 @@ export default function MatchScoreboardPage() {
     type: 'bowled',
     batterOutId: '',
     fielderId: 'none',
-    decision: 'next'
-  });
-
-  const [retireForm, setRetireForm] = useState({
-    batterId: '',
     decision: 'next'
   });
 
@@ -136,7 +130,6 @@ export default function MatchScoreboardPage() {
   const currentDeliveriesList = useMemo(() => activeInningView === 1 ? inn1Deliveries : inn2Deliveries, [activeInningView, inn1Deliveries, inn2Deliveries]);
   const isHistoryLoading = useMemo(() => activeInningView === 1 ? isInn1Loading : isInn2Loading, [activeInningView, isInn1Loading, isInn2Loading]);
 
-  // Ball-by-ball strip data
   const overGroups = useMemo(() => {
     if (!currentDeliveriesList) return null;
     const groups: Record<number, any[]> = {};
@@ -662,7 +655,7 @@ export default function MatchScoreboardPage() {
                        </AreaChart>
                     </ResponsiveContainer>
                  </CardContent>
-              </AreaChart>
+              </Card>
               
               <Card className="shadow-sm border-none">
                  <CardHeader className="flex flex-row items-center justify-between">
