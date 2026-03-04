@@ -625,6 +625,39 @@ export default function MatchScoreboardPage() {
               </div>
            </Card>
 
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="rounded-xl overflow-hidden border shadow-sm">
+                <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Fall of Wickets</span></div>
+                <div className="p-4 space-y-2">
+                  {currentInningStats.fow.length > 0 ? currentInningStats.fow.map((f, i) => (
+                    <div key={`fow-${i}`} className="flex justify-between items-center text-[10px] border-b pb-1 last:border-none last:pb-0">
+                      <span className="font-black text-slate-400">{f.wicketNum}-{f.scoreAtWicket}</span>
+                      <span className="font-bold truncate max-w-[120px]">{getPlayerName(f.playerOutId)}</span>
+                      <span className="text-slate-400">({f.overs} ov)</span>
+                    </div>
+                  )) : <p className="text-[9px] text-slate-300 font-black uppercase text-center py-4">No wickets recorded</p>}
+                </div>
+              </Card>
+
+              <Card className="rounded-xl overflow-hidden border shadow-sm">
+                <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Key Partnerships</span></div>
+                <div className="p-4 space-y-2">
+                  {currentInningStats.partnerships.length > 0 ? currentInningStats.partnerships.map((p, i) => (
+                    <div key={`part-${i}`} className="flex flex-col gap-1 border-b pb-2 last:border-none last:pb-0">
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-black text-primary">{p.runs} ({p.balls})</span>
+                        <span className="font-bold text-slate-500 truncate max-w-[150px]">{getPlayerName(p.batter1Id)} & {getPlayerName(p.batter2Id)}</span>
+                      </div>
+                      <div className="flex justify-between text-[8px] text-slate-400 font-bold px-1">
+                        <span>{p.batter1Runs} runs</span>
+                        <span>{p.batter2Runs} runs</span>
+                      </div>
+                    </div>
+                  )) : <p className="text-[9px] text-slate-300 font-black uppercase text-center py-4">No data available</p>}
+                </div>
+              </Card>
+           </div>
+
            <Card className="rounded-xl overflow-hidden border shadow-sm">
               <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Bowling Analysis</span></div>
               <div className="overflow-x-auto scrollbar-hide">
