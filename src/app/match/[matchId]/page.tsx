@@ -195,8 +195,8 @@ export default function MatchScoreboardPage() {
 
     const deliveryData = { 
       id: doc(collection(db, 'temp')).id, 
-      overNumber: newBalls === 0 && isLegalBall ? newOvers : newOvers + 1, 
-      ballNumberInOver: newBalls === 0 && isLegalBall ? 6 : newBalls, 
+      overNumber: (newBalls === 0 && isLegalBall) ? newOvers : newOvers + 1, 
+      ballNumberInOver: (newBalls === 0 && isLegalBall) ? 6 : newBalls, 
       strikerPlayerId: activeInningData.strikerPlayerId, 
       nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || 'none', 
       bowlerId: activeInningData.currentBowlerPlayerId, 
@@ -761,7 +761,38 @@ export default function MatchScoreboardPage() {
                           {d.isWicket ? <p className="text-[8px] text-red-600 font-bold uppercase">OUT: {d.dismissalType} {d.fielderPlayerId && d.fielderPlayerId !== 'none' ? `c ${getPlayerName(d.fielderPlayerId)}` : ''} b ${getPlayerName(bId)}</p> : <p className="text-[8px] text-slate-400 font-bold uppercase">{d.totalRunsOnDelivery} runs {d.extraType !== 'none' ? `(${d.extraType})` : ''}</p>}
                         </div>
                       </div>
-                      {isUmpire && <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => { if(confirm("Delete ball?")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', d.id)); toast({ title: "Ball Deleted" }); } }}><Trash2 className="w-3.5 h-3.5"/></Button>}
+                      {isUmpire && (
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-8 w-8 text-slate-300 hover:text-destructive" 
+                          onClick={() => { 
+                            if(confirm("Delete ball and update score?")) { 
+                              const targetInning = activeInningView === 1 ? inn1 : inn2;
+                              const targetInningRef = activeInningView === 1 ? inn1Ref : inn2Ref;
+                              if (targetInning && targetInningRef) {
+                                const isLegal = d.extraType !== 'wide' && d.extraType !== 'noball' && d.dismissalType !== 'retired';
+                                let { score, wickets, oversCompleted, ballsInCurrentOver } = targetInning;
+                                score = Math.max(0, score - (d.totalRunsOnDelivery || 0));
+                                if (d.isWicket && d.dismissalType !== 'retired') wickets = Math.max(0, wickets - 1);
+                                if (isLegal) {
+                                  if (ballsInCurrentOver === 0) {
+                                    oversCompleted = Math.max(0, oversCompleted - 1);
+                                    ballsInCurrentOver = 5;
+                                  } else {
+                                    ballsInCurrentOver -= 1;
+                                  }
+                                }
+                                updateDocumentNonBlocking(targetInningRef, { score, wickets, oversCompleted, ballsInCurrentOver });
+                              }
+                              deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', d.id)); 
+                              toast({ title: "Ball Deleted" }); 
+                            } 
+                          }}
+                        >
+                          <Trash2 className="w-3.5 h-3.5"/>
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
