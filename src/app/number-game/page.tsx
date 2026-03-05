@@ -49,7 +49,9 @@ export default function NumberGame() {
   const [history, setHistory] = useState<any[]>([]);
   const [consecutiveDots, setConsecutiveDots] = useState(0);
   const [ballsInOver, setBallsInOver] = useState(0);
+  
   const [isWicketOpen, setIsWicketOpen] = useState(false);
+  const [isNoBallOpen, setIsNoBallOpen] = useState(false);
   const [wicketForm, setWicketForm] = useState({ type: 'caught', fielderId: 'none' });
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
@@ -143,12 +145,11 @@ export default function NumberGame() {
         };
       }
       if (p.id === bowlerId) {
-        const extraRun = (extra === 'wide' || extra === 'noball') ? 1 : 0;
         return {
           ...p,
           bowling: {
             ...p.bowling,
-            runs: p.bowling.runs + runs + extraRun,
+            runs: p.bowling.runs + runs,
             balls: p.bowling.balls + (extra === 'none' ? 1 : 0)
           }
         };
@@ -156,7 +157,7 @@ export default function NumberGame() {
       return p;
     }));
 
-    // Dot logic: Extras reset the dots
+    // Dot logic: Extras (Wide/NoBall) reset the dots
     if (extra !== 'none') {
       setConsecutiveDots(0);
     } else if (runs === 0) {
@@ -178,6 +179,8 @@ export default function NumberGame() {
         setBallsInOver(nextBalls);
       }
     }
+    
+    setIsNoBallOpen(false);
   };
 
   const handleWicket = (type: string, fielderId: string = 'none') => {
@@ -229,12 +232,11 @@ export default function NumberGame() {
         };
       }
       if (p.id === last.bowlerId) {
-        const extraRun = (last.extra === 'wide' || last.extra === 'noball') ? 1 : 0;
         return {
           ...p,
           bowling: {
             ...p.bowling,
-            runs: p.bowling.runs - (last.runs + extraRun),
+            runs: p.bowling.runs - last.runs,
             balls: Math.max(0, p.bowling.balls - (last.extra === 'none' ? 1 : 0)),
             wickets: p.bowling.wickets - (last.isWicket ? 1 : 0)
           }
@@ -276,7 +278,7 @@ export default function NumberGame() {
             </tbody>
           </table>
 
-          <h2>Bowling Scorecard (Reverse Entry Order)</h2>
+          <h2>Bowling Scorecard (Reverse Rotation)</h2>
           <table border="1" style="width:100%; border-collapse: collapse;">
             <thead style="background: #f1f5f9;"><tr><th>Seq</th><th>Player</th><th>O</th><th>R</th><th>W</th><th>Econ</th></tr></thead>
             <tbody>
@@ -400,7 +402,7 @@ export default function NumberGame() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <Card className="border-t-8 border-t-primary">
-            <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest text-primary">Batting Honors</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest text-primary">Batting Leaderboard (Sorted by Runs)</CardTitle></CardHeader>
             <CardContent>
               <Table>
                 <TableHeader><TableRow><TableHead className="text-[10px] uppercase font-black">Rank</TableHead><TableHead className="text-[10px] uppercase font-black">Player</TableHead><TableHead className="text-right text-[10px] uppercase font-black">Runs</TableHead></TableRow></TableHeader>
@@ -418,7 +420,7 @@ export default function NumberGame() {
           </Card>
 
           <Card className="border-t-8 border-t-secondary">
-            <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest text-secondary">Bowling Rotation Ranking</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm font-black uppercase tracking-widest text-secondary">Bowling Sequence (Reverse Rotation)</CardTitle></CardHeader>
             <CardContent>
               <Table>
                 <TableHeader><TableRow><TableHead className="text-[10px] uppercase font-black">Pos</TableHead><TableHead className="text-[10px] uppercase font-black">Player</TableHead><TableHead className="text-right text-[10px] uppercase font-black">Wickets</TableHead></TableRow></TableHeader>
@@ -530,8 +532,8 @@ export default function NumberGame() {
                 <Button variant="destructive" onClick={() => setIsWicketOpen(true)} className="h-12 md:h-14 font-black text-[10px] uppercase shadow-lg">Wicket</Button>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                <Button variant="outline" onClick={() => handleScore(1, 'wide')} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">Wide (+1)</Button>
-                <Button variant="outline" onClick={() => handleScore(1, 'noball')} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">No Ball (+1)</Button>
+                <Button variant="outline" onClick={() => handleScore(0, 'wide')} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">Wide</Button>
+                <Button variant="outline" onClick={() => setIsNoBallOpen(true)} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">No Ball</Button>
                 <Button variant="outline" onClick={undoLastAction} disabled={history.length === 0} className="h-10 border-white/20 text-white font-black text-[10px] uppercase"><Undo2 className="w-3 h-3 mr-1"/> Undo</Button>
               </div>
             </div>
@@ -634,7 +636,7 @@ export default function NumberGame() {
                           <span className="font-black text-xs uppercase">{p.name}</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-bold text-xs">{Math.floor(p.bowling.balls / 6)}.{p.bowling.balls % 6}</TableCell>
+                      <TableCell className="text-right font-bold text-xs">{Math.floor(p.bowling.balls / 6)}.${p.bowling.balls % 6}</TableCell>
                       <TableCell className="text-right font-bold text-xs">{p.bowling.runs}</TableCell>
                       <TableCell className="text-right font-black text-sm text-secondary">{p.bowling.wickets}</TableCell>
                       <TableCell className="text-right text-[10px] font-black text-slate-400">{p.bowling.balls > 0 ? (p.bowling.runs / (p.bowling.balls / 6)).toFixed(2) : '0.00'}</TableCell>
@@ -655,7 +657,7 @@ export default function NumberGame() {
               {[
                 { label: '3-Dot Rule', desc: '3 consecutive dot balls = OUT. Extras reset streak.' },
                 { label: 'Rotation', desc: 'Bat: 1→N. Bowl: N→1. 6 balls/over.' },
-                { label: 'Extras', desc: 'Wide/NB (+1 run). Does not count as ball.' },
+                { label: 'Extras', desc: 'Wide/NB (No automatic +1). Does not count as ball.' },
                 { label: 'Session Profile', desc: 'Tracks high score & best wickets per user.' },
               ].map((r, i) => (
                 <li key={i} className="flex flex-col border-l-2 border-white/10 pl-3">
@@ -685,6 +687,35 @@ export default function NumberGame() {
           </Card>
         </div>
       </div>
+
+      {/* No Ball Selection Dialog */}
+      <Dialog open={isNoBallOpen} onOpenChange={setIsNoBallOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-amber-500">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tight text-amber-600">No Ball Results</DialogTitle>
+            <DialogDescription className="font-bold uppercase text-[10px]">Select runs scored on this illegal delivery</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-3 gap-2 py-4">
+            {[0, 1, 2, 4, 6].map(r => (
+              <Button 
+                key={`nb-${r}`} 
+                onClick={() => handleScore(r, 'noball')} 
+                variant="outline"
+                className="h-16 font-black text-xl border-amber-200 hover:bg-amber-500 hover:text-white"
+              >
+                {r === 0 ? "Dot" : r}
+              </Button>
+            ))}
+            <Button 
+              onClick={() => setIsNoBallOpen(false)}
+              variant="ghost"
+              className="h-16 font-black uppercase text-xs"
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Dismissal Dialog */}
       <Dialog open={isWicketOpen} onOpenChange={setIsWicketOpen}>
