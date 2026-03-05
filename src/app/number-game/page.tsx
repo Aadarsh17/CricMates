@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target } from 'lucide-react';
+import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target, CheckCircle2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +38,9 @@ interface Player {
 }
 
 export default function NumberGame() {
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => { setIsMounted(true); }, []);
+
   const [gameState, setGameState] = useState<'setup' | 'playing' | 'finished'>('setup');
   const [playerNames, setPlayerNames] = useState<string[]>(['', '', '']);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -318,6 +321,8 @@ export default function NumberGame() {
     setConsecutiveDots(0);
     setBallsInOver(0);
   };
+
+  if (!isMounted) return null;
 
   if (gameState === 'setup') {
     return (
