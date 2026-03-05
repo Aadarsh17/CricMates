@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, User, Target, Zap } from 'lucide-react';
+import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, User, Target, Zap, Users } from 'lucide-react';
 
 export default function NewMatchPage() {
   const db = useFirestore();
