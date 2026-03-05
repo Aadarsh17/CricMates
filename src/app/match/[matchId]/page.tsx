@@ -4,12 +4,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, getDocs, limit } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Info, ArrowLeftRight, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History } from 'lucide-react';
+import { Trophy, Info, ArrowLeftRight, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History, PlayCircle, CheckCircle2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, Line, BarChart as ReBarChart, Bar, Cell } from "recharts";
@@ -38,6 +38,7 @@ export default function MatchScoreboardPage() {
   const matchId = params.matchId as string;
   const db = useFirestore();
   const { isUmpire } = useApp();
+  const { user } = useUser();
   
   const [isMounted, setIsMounted] = useState(false);
   const [isWicketDialogOpen, setIsWicketDialogOpen] = useState(false);
@@ -108,6 +109,39 @@ export default function MatchScoreboardPage() {
   const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || []), [inn1Deliveries]);
   const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || []), [inn2Deliveries]);
 
+  const currentBattingSquadIds = useMemo(() => {
+    if (!match) return [];
+    if (match.currentInningNumber === 1) {
+      return match.tossWinnerTeamId === match.team1Id 
+        ? (match.tossDecision === 'bat' ? match.team1SquadPlayerIds : match.team2SquadPlayerIds)
+        : (match.tossDecision === 'bat' ? match.team2SquadPlayerIds : match.team1SquadPlayerIds);
+    } else {
+      return match.tossWinnerTeamId === match.team1Id 
+        ? (match.tossDecision === 'bat' ? match.team2SquadPlayerIds : match.team1SquadPlayerIds)
+        : (match.tossDecision === 'bat' ? match.team1SquadPlayerIds : match.team2SquadPlayerIds);
+    }
+  }, [match]);
+
+  const currentBowlingSquadIds = useMemo(() => {
+    if (!match) return [];
+    if (match.currentInningNumber === 1) {
+      return match.tossWinnerTeamId === match.team1Id 
+        ? (match.tossDecision === 'bat' ? match.team2SquadPlayerIds : match.team1SquadPlayerIds)
+        : (match.tossDecision === 'bat' ? match.team1SquadPlayerIds : match.team2SquadPlayerIds);
+    } else {
+      return match.tossWinnerTeamId === match.team1Id 
+        ? (match.tossDecision === 'bat' ? match.team1SquadPlayerIds : match.team2SquadPlayerIds)
+        : (match.tossDecision === 'bat' ? match.team2SquadPlayerIds : match.team1SquadPlayerIds);
+    }
+  }, [match]);
+
+  const isInningsOver = useMemo(() => {
+    if (!activeInningData || !match) return false;
+    const isAllOut = activeInningData.wickets >= currentBattingSquadIds.length - (activeInningData.isLastManActive ? 0 : 1);
+    const isOversDone = activeInningData.oversCompleted >= match.totalOvers;
+    return isAllOut || isOversDone || activeInningData.isDeclaredFinished;
+  }, [activeInningData, match, currentBattingSquadIds]);
+
   const overGroups1 = useMemo(() => {
     if (!inn1Deliveries) return null;
     const groups: Record<number, any[]> = {};
@@ -161,14 +195,14 @@ export default function MatchScoreboardPage() {
   }, [activeInningView, inn1Deliveries, inn2Deliveries]);
 
   const flowEvents = useMemo(() => {
-    if (!match || !allPlayers) return [];
-    const flow1 = getMatchFlow(inn1Deliveries || [], getTeamName(inn1?.battingTeamId), allPlayers || []);
-    const flow2 = getMatchFlow(inn2Deliveries || [], getTeamName(inn2?.battingTeamId), allPlayers || []);
+    if (!match || !allPlayers || !inn1) return [];
+    const flow1 = getMatchFlow(inn1Deliveries || [], getTeamName(inn1.battingTeamId), allPlayers || []);
+    const flow2 = inn2 ? getMatchFlow(inn2Deliveries || [], getTeamName(inn2.battingTeamId), allPlayers || []) : [];
     return [...flow1, ...flow2];
-  }, [match, inn1Deliveries, inn2Deliveries, allPlayers, inn1?.battingTeamId, inn2?.battingTeamId]);
+  }, [match, inn1Deliveries, inn2Deliveries, allPlayers, inn1, inn2]);
 
   const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none', noStrikeChange: boolean = false) => {
-    if (!match || !activeInningData || !isUmpire) return;
+    if (!match || !activeInningData || !isUmpire || isInningsOver) return;
     
     if (!activeInningData.currentBowlerPlayerId) {
       setIsPlayerAssignmentOpen(true);
@@ -181,6 +215,7 @@ export default function MatchScoreboardPage() {
     if (extraType === 'wide') { extraRuns = runs + 1; ballRuns = 0; isLegalBall = false; }
     else if (extraType === 'noball') { extraRuns = 1; ballRuns = runs; isLegalBall = false; }
     else if (extraType === 'bye' || extraType === 'legbye') { extraRuns = runs; ballRuns = 0; }
+    
     const totalRunsOnDelivery = ballRuns + extraRuns;
     const newScore = activeInningData.score + totalRunsOnDelivery;
     let newBalls = activeInningData.ballsInCurrentOver + (isLegalBall ? 1 : 0);
@@ -192,6 +227,9 @@ export default function MatchScoreboardPage() {
       newBalls = 0; 
       shouldClearBowler = true;
     }
+
+    // Terminal check for overs limit
+    const isTerminallyFinished = newOvers >= match.totalOvers && isLegalBall && newBalls === 0;
 
     const deliveryData = { 
       id: doc(collection(db, 'temp')).id, 
@@ -212,6 +250,7 @@ export default function MatchScoreboardPage() {
     
     const updates: any = { score: newScore, oversCompleted: newOvers, ballsInCurrentOver: newBalls };
     if (shouldClearBowler) updates.currentBowlerPlayerId = '';
+    if (isTerminallyFinished) updates.isDeclaredFinished = true;
     
     if (!activeInningData.isLastManActive && !noStrikeChange) { 
       if (runs % 2 !== 0) { 
@@ -221,10 +260,51 @@ export default function MatchScoreboardPage() {
     }
     
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), updates);
-    if (shouldClearBowler) {
+    if (shouldClearBowler && !isTerminallyFinished) {
       toast({ title: "Over Complete", description: "Assign a new bowler for the next over." });
       setIsPlayerAssignmentOpen(true);
     }
+    if (isTerminallyFinished) {
+      toast({ title: "Innings Complete", description: "Scheduled overs have been bowled." });
+    }
+  };
+
+  const handleStartSecondInnings = () => {
+    if (!match || !inn1 || !isUmpire) return;
+    
+    const battingTeamId = inn1.bowlingTeamId;
+    const bowlingTeamId = inn1.battingTeamId;
+
+    const inningData = {
+      id: 'inning_2',
+      matchId: matchId,
+      inningNumber: 2,
+      battingTeamId,
+      bowlingTeamId,
+      score: 0,
+      wickets: 0,
+      oversCompleted: 0,
+      ballsInCurrentOver: 0,
+      strikerPlayerId: '',
+      nonStrikerPlayerId: '',
+      currentBowlerPlayerId: '',
+      umpireId: user?.uid || 'anonymous',
+      matchStatus: 'live',
+      isLastManActive: false,
+      isDeclaredFinished: false
+    };
+
+    setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), inningData, { merge: true });
+    updateDocumentNonBlocking(matchRef, { currentInningNumber: 2 });
+    
+    setIsPlayerAssignmentOpen(true);
+    toast({ title: "2nd Innings Started", description: "Please assign starting positions." });
+  };
+
+  const handleFinishMatch = () => {
+    if (!match || !isUmpire) return;
+    updateDocumentNonBlocking(matchRef, { status: 'completed' });
+    toast({ title: "Match Concluded", description: "Result has been archived." });
   };
 
   const handleSwapStrike = () => {
@@ -282,23 +362,19 @@ export default function MatchScoreboardPage() {
       
       let { score, wickets, oversCompleted, ballsInCurrentOver, strikerPlayerId, nonStrikerPlayerId, isLastManActive } = activeInningData;
       
-      // 1. Revert Score
       score -= (lastBall.totalRunsOnDelivery || 0);
       
-      // 2. Revert Wickets and Batter positions
       if (lastBall.isWicket) {
         if (lastBall.dismissalType !== 'retired') wickets -= 1;
         strikerPlayerId = lastBall.strikerPlayerId;
         nonStrikerPlayerId = lastBall.nonStrikerPlayerId === 'none' ? '' : lastBall.nonStrikerPlayerId;
         isLastManActive = lastBall.nonStrikerPlayerId === 'none';
       } else if (!isLastManActive && !lastBall.noStrikeChange && lastBall.runsScored % 2 !== 0) {
-        // Revert Strike Swap for odd runs
         const temp = strikerPlayerId;
         strikerPlayerId = nonStrikerPlayerId;
         nonStrikerPlayerId = temp;
       }
       
-      // 3. Revert Overs/Balls
       const isLegal = lastBall.extraType !== 'wide' && lastBall.extraType !== 'noball' && lastBall.dismissalType !== 'retired';
       if (isLegal) {
         if (ballsInCurrentOver === 0) {
@@ -309,7 +385,6 @@ export default function MatchScoreboardPage() {
         }
       }
       
-      // 4. Revert Bowler
       const newBowlerId = lastBall.bowlerId || lastBall.bowlerPlayerId;
 
       const updates = { 
@@ -481,14 +556,6 @@ export default function MatchScoreboardPage() {
   if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse text-slate-400">SYNCING MATCH DATA...</div>;
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
 
-  const currentBattingSquadIds = match.currentInningNumber === 1 
-    ? (match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1SquadPlayerIds : match.team2SquadPlayerIds) : (match.tossDecision === 'bat' ? match.team2SquadPlayerIds : match.team1SquadPlayerIds))
-    : (match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team2SquadPlayerIds : match.team1SquadPlayerIds) : (match.tossDecision === 'bat' ? match.team1SquadPlayerIds : match.team2SquadPlayerIds));
-
-  const currentBowlingSquadIds = match.currentInningNumber === 1 
-    ? (match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team2SquadPlayerIds : match.team1SquadPlayerIds) : (match.tossDecision === 'bat' ? match.team1SquadPlayerIds : match.team2SquadPlayerIds))
-    : (match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1SquadPlayerIds : match.team2SquadPlayerIds) : (match.tossDecision === 'bat' ? match.team2SquadPlayerIds : match.team1SquadPlayerIds));
-
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
       <div className="bg-white rounded-2xl shadow-xl border-t-8 border-t-primary overflow-hidden">
@@ -555,19 +622,43 @@ export default function MatchScoreboardPage() {
         <TabsContent value="live" className="space-y-6 pt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-8">
-              {isUmpire && activeInningData && !activeInningData.isDeclaredFinished && (
+              {isUmpire && activeInningData && (
                 <Card className="shadow-lg border-none overflow-hidden bg-slate-900 text-white">
                   <CardHeader className="bg-white/5 py-4 border-b border-white/5">
                     <div className="flex justify-between items-center">
                       <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Official Scorer</CardTitle>
-                      <div className="flex gap-2">
-                        <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-white/10" onClick={handleSwapStrike}><ArrowLeftRight className="w-4 h-4" /></Button>
-                        <Button size="sm" variant="outline" className="h-8 text-[9px] font-black border-white/20 text-white" onClick={() => setIsPlayerAssignmentOpen(true)}>Edit XI</Button>
-                      </div>
+                      {!isInningsOver && (
+                        <div className="flex gap-2">
+                          <Button size="icon" variant="ghost" className="h-8 w-8 hover:bg-white/10" onClick={handleSwapStrike}><ArrowLeftRight className="w-4 h-4" /></Button>
+                          <Button size="sm" variant="outline" className="h-8 text-[9px] font-black border-white/20 text-white" onClick={() => setIsPlayerAssignmentOpen(true)}>Edit XI</Button>
+                        </div>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="p-6">
-                    {!activeInningData.currentBowlerPlayerId ? (
+                    {isInningsOver ? (
+                      <div className="py-8 text-center space-y-6">
+                        <div className="p-4 bg-white/5 rounded-2xl border-2 border-dashed border-white/10">
+                          <Trophy className="w-12 h-12 text-amber-500 mx-auto mb-2" />
+                          <h3 className="text-xl font-black uppercase tracking-tighter">Innings Complete</h3>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            {activeInningData.oversCompleted >= match.totalOvers ? "Overs Limit Reached" : "All Out / Declared"}
+                          </p>
+                        </div>
+                        {match.currentInningNumber === 1 ? (
+                          <Button onClick={handleStartSecondInnings} className="w-full h-16 bg-primary text-white font-black uppercase text-lg tracking-widest shadow-2xl group">
+                            START 2ND INNINGS <ChevronRight className="ml-2 w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                          </Button>
+                        ) : (
+                          <Button onClick={handleFinishMatch} variant="secondary" className="w-full h-16 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-lg tracking-widest shadow-2xl">
+                            FINISH MATCH <CheckCircle2 className="ml-2 w-6 h-6" />
+                          </Button>
+                        )}
+                        <Button variant="outline" onClick={handleUndoLastBall} className="w-full h-12 border-white/20 text-white font-black uppercase tracking-widest">
+                          Mistake? Undo Last Ball
+                        </Button>
+                      </div>
+                    ) : !activeInningData.currentBowlerPlayerId ? (
                       <div className="py-12 text-center space-y-4">
                         <Zap className="w-12 h-12 text-amber-500 mx-auto animate-pulse" />
                         <p className="font-black uppercase text-sm">Waiting for New Bowler</p>
@@ -771,7 +862,7 @@ export default function MatchScoreboardPage() {
                               const targetInning = activeInningView === 1 ? inn1 : inn2;
                               const targetInningRef = activeInningView === 1 ? inn1Ref : inn2Ref;
                               if (targetInning && targetInningRef) {
-                                const isLegal = d.extraType !== 'wide' && d.extraType !== 'noball' && d.dismissalType !== 'retired';
+                                const isLegal = d.extraType !== 'none' || d.extraType === 'bye' || d.extraType === 'legbye';
                                 let { score, wickets, oversCompleted, ballsInCurrentOver } = targetInning;
                                 score = Math.max(0, score - (d.totalRunsOnDelivery || 0));
                                 if (d.isWicket && d.dismissalType !== 'retired') wickets = Math.max(0, wickets - 1);
@@ -783,7 +874,7 @@ export default function MatchScoreboardPage() {
                                     ballsInCurrentOver -= 1;
                                   }
                                 }
-                                updateDocumentNonBlocking(targetInningRef, { score, wickets, oversCompleted, ballsInCurrentOver });
+                                updateDocumentNonBlocking(targetInningRef, { score, wickets, oversCompleted, ballsInCurrentOver, isDeclaredFinished: false });
                               }
                               deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${activeInningView}`, 'deliveryRecords', d.id)); 
                               toast({ title: "Ball Deleted" }); 
