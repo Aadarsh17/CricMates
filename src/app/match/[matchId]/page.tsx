@@ -193,7 +193,21 @@ export default function MatchScoreboardPage() {
       shouldClearBowler = true;
     }
 
-    const deliveryData = { id: doc(collection(db, 'temp')).id, overNumber: newBalls === 0 && isLegalBall ? newOvers : newOvers + 1, ballNumberInOver: newBalls === 0 && isLegalBall ? 6 : newBalls, strikerPlayerId: activeInningData.strikerPlayerId, nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || 'none', bowlerId: activeInningData.currentBowlerPlayerId, runsScored: ballRuns, extraRuns, extraType, totalRunsOnDelivery, isWicket: false, timestamp: Date.now(), noStrikeChange };
+    const deliveryData = { 
+      id: doc(collection(db, 'temp')).id, 
+      overNumber: newBalls === 0 && isLegalBall ? newOvers : newOvers + 1, 
+      ballNumberInOver: newBalls === 0 && isLegalBall ? 6 : newBalls, 
+      strikerPlayerId: activeInningData.strikerPlayerId, 
+      nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || 'none', 
+      bowlerId: activeInningData.currentBowlerPlayerId, 
+      runsScored: ballRuns, 
+      extraRuns, 
+      extraType, 
+      totalRunsOnDelivery, 
+      isWicket: false, 
+      timestamp: Date.now(), 
+      noStrikeChange 
+    };
     addDocumentNonBlocking(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords'), deliveryData);
     
     const updates: any = { score: newScore, oversCompleted: newOvers, ballsInCurrentOver: newBalls };
@@ -252,21 +266,73 @@ export default function MatchScoreboardPage() {
 
   const handleUndoLastBall = async () => {
     if (!match || !activeInningData || !isUmpire || isUndoing) return;
-    setIsUndoing(true); const currentInningId = `inning_${match.currentInningNumber}`;
+    setIsUndoing(true);
+    const currentInningId = `inning_${match.currentInningNumber}`;
     const q = query(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords'), orderBy('timestamp', 'desc'), limit(1));
+    
     try {
-      const snapshot = await getDocs(q); if (snapshot.empty) return;
-      const lastBall = snapshot.docs[0].data(); const lastBallId = snapshot.docs[0].id;
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) {
+        toast({ title: "No more balls to undo", variant: "destructive" });
+        return;
+      }
+      
+      const lastBallDoc = snapshot.docs[0];
+      const lastBall = lastBallDoc.data();
+      
       let { score, wickets, oversCompleted, ballsInCurrentOver, strikerPlayerId, nonStrikerPlayerId, isLastManActive } = activeInningData;
+      
+      // 1. Revert Score
       score -= (lastBall.totalRunsOnDelivery || 0);
-      if (lastBall.isWicket) { if (lastBall.dismissalType !== 'retired') wickets -= 1; strikerPlayerId = lastBall.strikerPlayerId; nonStrikerPlayerId = lastBall.nonStrikerPlayerId === 'none' ? '' : lastBall.nonStrikerPlayerId; isLastManActive = lastBall.nonStrikerPlayerId === 'none'; }
-      else if (!isLastManActive && !lastBall.noStrikeChange && lastBall.runsScored % 2 !== 0) { const temp = strikerPlayerId; strikerPlayerId = nonStrikerPlayerId; nonStrikerPlayerId = temp; }
+      
+      // 2. Revert Wickets and Batter positions
+      if (lastBall.isWicket) {
+        if (lastBall.dismissalType !== 'retired') wickets -= 1;
+        strikerPlayerId = lastBall.strikerPlayerId;
+        nonStrikerPlayerId = lastBall.nonStrikerPlayerId === 'none' ? '' : lastBall.nonStrikerPlayerId;
+        isLastManActive = lastBall.nonStrikerPlayerId === 'none';
+      } else if (!isLastManActive && !lastBall.noStrikeChange && lastBall.runsScored % 2 !== 0) {
+        // Revert Strike Swap for odd runs
+        const temp = strikerPlayerId;
+        strikerPlayerId = nonStrikerPlayerId;
+        nonStrikerPlayerId = temp;
+      }
+      
+      // 3. Revert Overs/Balls
       const isLegal = lastBall.extraType !== 'wide' && lastBall.extraType !== 'noball' && lastBall.dismissalType !== 'retired';
-      if (isLegal) { if (ballsInCurrentOver === 0) { oversCompleted -= 1; ballsInCurrentOver = 5; } else ballsInCurrentOver -= 1; }
-      updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), { score, wickets, oversCompleted, ballsInCurrentOver, strikerPlayerId, nonStrikerPlayerId, isLastManActive, isDeclaredFinished: false });
-      deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', lastBallId));
+      if (isLegal) {
+        if (ballsInCurrentOver === 0) {
+          oversCompleted -= 1;
+          ballsInCurrentOver = 5;
+        } else {
+          ballsInCurrentOver -= 1;
+        }
+      }
+      
+      // 4. Revert Bowler
+      const newBowlerId = lastBall.bowlerId || lastBall.bowlerPlayerId;
+
+      const updates = { 
+        score: Math.max(0, score), 
+        wickets: Math.max(0, wickets), 
+        oversCompleted: Math.max(0, oversCompleted), 
+        ballsInCurrentOver: Math.max(0, ballsInCurrentOver), 
+        strikerPlayerId, 
+        nonStrikerPlayerId, 
+        isLastManActive, 
+        isDeclaredFinished: false,
+        currentBowlerPlayerId: newBowlerId
+      };
+      
+      updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), updates);
+      deleteDocumentNonBlocking(lastBallDoc.ref);
       toast({ title: "Last Ball Undone" });
-    } finally { setIsUndoing(false); }
+    } catch (e) {
+      console.error(e);
+      toast({ title: "Undo Failed", variant: "destructive" });
+    } finally {
+      setIsUndoing(false);
+    }
   };
 
   const chaseLogic = (() => {
@@ -290,7 +356,7 @@ export default function MatchScoreboardPage() {
         <div className="flex justify-between items-center px-1">
           <span className="text-[10px] font-black uppercase text-slate-900 truncate max-w-[100px]">{getPlayerName(p.batter1Id)}</span>
           <div className="flex flex-col items-center">
-            <span className="text-[11px] font-black text-slate-900">{p.runs} ({p.balls})</span>
+            <span className="text-xs font-black text-slate-900">{p.runs} ({p.balls})</span>
           </div>
           <span className="text-[10px] font-black uppercase text-slate-900 text-right truncate max-w-[100px]">{getPlayerName(p.batter2Id)}</span>
         </div>
@@ -721,7 +787,7 @@ export default function MatchScoreboardPage() {
       </Dialog>
 
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
-        <DialogContent className="max-w-[90vw] md:max-w-md rounded-xl border-t-8 border-t-primary"><DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-center py-2">Assign Positions</DialogTitle></DialogHeader><div className="space-y-6 py-4"><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label><Select value={activeInningData?.strikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { strikerPlayerId: v })}><SelectTrigger className="font-bold h-12"><SelectValue placeholder="Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id) && p.id !== activeInningData?.currentBowlerPlayerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div>{!activeInningData?.isLastManActive && (<div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label><Select value={activeInningData?.nonStrikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { nonStrikerPlayerId: v })}><SelectTrigger className="font-bold h-12"><SelectValue placeholder="Non-Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id) && p.id !== activeInningData?.currentBowlerPlayerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div>)}</div><div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Current Bowler</Label><Select value={activeInningData?.currentBowlerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: v })}><SelectTrigger className="font-bold h-12"><SelectValue placeholder="Bowler" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => currentBowlingSquadIds?.includes(p.id) && p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div></div><DialogFooter><Button onClick={() => setIsPlayerAssignmentOpen(false)} className="w-full h-14 font-black uppercase shadow-xl">Confirm Positions</Button></DialogFooter></DialogContent>
+        <DialogContent className="max-w-[90vw] md:max-w-md rounded-xl border-t-8 border-t-primary"><DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-center py-2">Assign Positions</DialogTitle></DialogHeader><div className="space-y-6 py-4"><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label><Select value={activeInningData?.strikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { strikerPlayerId: v })}><SelectTrigger className="font-bold h-12"><SelectValue placeholder="Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id) && p.id !== activeInningData?.currentBowlerPlayerId && !(match.currentInningNumber === 1 ? stats1 : stats2).batting.find(b => b.id === p.id && b.out)).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div>{!activeInningData?.isLastManActive && (<div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label><Select value={activeInningData?.nonStrikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { nonStrikerPlayerId: v })}><SelectTrigger className="font-bold h-12"><SelectValue placeholder="Non-Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id) && p.id !== activeInningData?.currentBowlerPlayerId && !(match.currentInningNumber === 1 ? stats1 : stats2).batting.find(b => b.id === p.id && b.out)).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div>)}</div><div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Current Bowler</Label><Select value={activeInningData?.currentBowlerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: v })}><SelectTrigger className="font-bold h-12"><SelectValue placeholder="Bowler" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => currentBowlingSquadIds?.includes(p.id) && p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div></div><DialogFooter><Button onClick={() => setIsPlayerAssignmentOpen(false)} className="w-full h-14 font-black uppercase shadow-xl">Confirm Positions</Button></DialogFooter></DialogContent>
       </Dialog>
     </div>
   );
