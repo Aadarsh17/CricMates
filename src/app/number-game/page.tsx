@@ -37,10 +37,10 @@ interface Player {
   };
 }
 
+const STORAGE_KEY = 'cricmates_street_pro_session';
+
 export default function NumberGame() {
   const [isMounted, setIsMounted] = useState(false);
-  useEffect(() => { setIsMounted(true); }, []);
-
   const [gameState, setGameState] = useState<'setup' | 'playing' | 'finished'>('setup');
   const [playerNames, setPlayerNames] = useState<string[]>(['', '', '']);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -56,7 +56,42 @@ export default function NumberGame() {
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
 
-  // Setup Handlers
+  // 1. Initial Mount & Load from Persistence
+  useEffect(() => {
+    setIsMounted(true);
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const d = JSON.parse(saved);
+        setGameState(d.gameState);
+        setPlayers(d.players);
+        setStrikerId(d.strikerId);
+        setBowlerId(d.bowlerId);
+        setHistory(d.history);
+        setConsecutiveDots(d.consecutiveDots);
+        setBallsInOver(d.ballsInOver);
+        toast({ title: "Session Restored", description: "Your street match has been recovered." });
+      } catch (e) {
+        console.error("Failed to restore session", e);
+      }
+    }
+  }, []);
+
+  // 2. Save to Persistence on any state change
+  useEffect(() => {
+    if (!isMounted) return;
+    const sessionData = {
+      gameState,
+      players,
+      strikerId,
+      bowlerId,
+      history,
+      consecutiveDots,
+      ballsInOver
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
+  }, [gameState, players, strikerId, bowlerId, history, consecutiveDots, ballsInOver, isMounted]);
+
   const addSetupField = () => {
     if (playerNames.length < 10) setPlayerNames([...playerNames, '']);
   };
@@ -86,9 +121,15 @@ export default function NumberGame() {
 
     setPlayers(initialPlayers);
     setStrikerId(initialPlayers[0].id);
-    // Opening bowler is the last person in the list
     setBowlerId(initialPlayers[initialPlayers.length - 1].id);
     setGameState('playing');
+  };
+
+  const resetGame = () => {
+    if (confirm("Reset current match? All progress will be lost.")) {
+      localStorage.removeItem(STORAGE_KEY);
+      window.location.reload();
+    }
   };
 
   const addMidMatchPlayer = () => {
@@ -106,16 +147,11 @@ export default function NumberGame() {
     toast({ title: `Player #${newP.order} added: ${newP.name}` });
   };
 
-  /**
-   * REFINED ROTATION LOGIC
-   * Prevents the current striker from being assigned as the bowler.
-   */
   const rotateBowler = (currentId: string, currentStrikerId: string) => {
     const index = players.findIndex(p => p.id === currentId);
     let nextIndex = index - 1;
     if (nextIndex < 0) nextIndex = players.length - 1;
     
-    // Skip if next bowler is currently batting
     if (players[nextIndex].id === currentStrikerId) {
       nextIndex = nextIndex - 1;
       if (nextIndex < 0) nextIndex = players.length - 1;
@@ -168,27 +204,20 @@ export default function NumberGame() {
       return p;
     }));
 
-    // Dot logic
     if (extra !== 'none') {
       setConsecutiveDots(0);
     } else if (runs === 0) {
       const nextDots = consecutiveDots + 1;
       setConsecutiveDots(nextDots);
-      if (nextDots === 3) {
-        handleWicket('3-Dots');
-      }
+      if (nextDots === 3) handleWicket('3-Dots');
     } else {
       setConsecutiveDots(0);
     }
 
-    // Over logic
     if (extra === 'none') {
       const nextBalls = ballsInOver + 1;
-      if (nextBalls === 6) {
-        rotateBowler(bowlerId, strikerId);
-      } else {
-        setBallsInOver(nextBalls);
-      }
+      if (nextBalls === 6) rotateBowler(bowlerId, strikerId);
+      else setBallsInOver(nextBalls);
     }
     
     setIsNoBallOpen(false);
@@ -203,7 +232,8 @@ export default function NumberGame() {
         };
       }
       if (p.id === bowlerId) {
-        const newWkts = p.bowling.wickets + (type !== 'runout' && type !== 'retired' ? 1 : 0);
+        const isBowlerWkt = !['runout', '3-Dots', 'retired'].includes(type);
+        const newWkts = p.bowling.wickets + (isBowlerWkt ? 1 : 0);
         return {
           ...p,
           bowling: { 
@@ -222,15 +252,8 @@ export default function NumberGame() {
     toast({ title: `OUT: ${type.toUpperCase()}`, variant: "destructive" });
   };
 
-  /**
-   * SAFE BATTER TRANSITION
-   * Ensures the next batter isn't the person currently bowling.
-   */
   const handleSelectNextBatter = (nextId: string) => {
-    if (nextId === bowlerId) {
-      // Current bowler is coming to bat, so rotate bowler first
-      rotateBowler(bowlerId, nextId);
-    }
+    if (nextId === bowlerId) rotateBowler(bowlerId, nextId);
     setStrikerId(nextId);
   };
 
@@ -274,71 +297,17 @@ export default function NumberGame() {
     setBowlerId(last.bowlerId);
   };
 
-  const downloadReport = () => {
-    const sortedBat = [...players].sort((a, b) => b.batting.runs - a.batting.runs);
-    const sortedBowl = [...players].sort((a, b) => b.bowling.wickets - a.bowling.wickets);
-
-    const report = `
-      <html>
-        <body style="font-family: sans-serif; padding: 20px; color: #1e293b;">
-          <h1 style="text-transform: uppercase; border-bottom: 2px solid #1e40af;">Street Pro Match Report</h1>
-          <p style="font-size: 12px; color: #64748b;">${new Date().toLocaleString()}</p>
-          
-          <h2>Batting Scorecard</h2>
-          <table border="1" style="width:100%; border-collapse: collapse; margin-bottom: 20px;">
-            <thead style="background: #f1f5f9;"><tr><th>Player</th><th>R</th><th>B</th><th>4s</th><th>6s</th><th>SR</th><th>Status</th></tr></thead>
-            <tbody>
-              ${sortedBat.map((p) => `
-                <tr>
-                  <td>${p.name}</td>
-                  <td style="font-weight: bold;">${p.batting.runs}</td>
-                  <td>${p.batting.balls}</td>
-                  <td>${p.batting.fours}</td>
-                  <td>${p.batting.sixes}</td>
-                  <td>${p.batting.balls > 0 ? ((p.batting.runs / p.batting.balls) * 100).toFixed(1) : '0.0'}</td>
-                  <td>${p.batting.out ? `OUT (${p.batting.dismissal})` : 'Not Out'}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-
-          <h2>Bowling Figures</h2>
-          <table border="1" style="width:100%; border-collapse: collapse;">
-            <thead style="background: #f1f5f9;"><tr><th>Player</th><th>O</th><th>R</th><th>W</th><th>Econ</th></tr></thead>
-            <tbody>
-              ${sortedBowl.map((p) => `
-                <tr>
-                  <td>${p.name}</td>
-                  <td>${Math.floor(p.bowling.balls / 6)}.${p.bowling.balls % 6}</td>
-                  <td>${p.bowling.runs}</td>
-                  <td style="font-weight: bold; color: #1e40af;">${p.bowling.wickets}</td>
-                  <td>${p.bowling.balls > 0 ? (p.bowling.runs / (p.bowling.balls / 6)).toFixed(2) : '0.00'}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </body>
-      </html>
-    `;
-    const blob = new Blob([report], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `CricMates_StreetPro_${Date.now()}.html`;
-    a.click();
-  };
-
   if (!isMounted) return null;
 
   if (gameState === 'setup') {
     return (
-      <div className="max-w-md mx-auto space-y-6 py-8">
+      <div className="max-w-md mx-auto space-y-6 py-8 px-4 animate-in fade-in slide-in-from-bottom-4">
         <div className="text-center space-y-2">
           <div className="bg-primary w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg rotate-3">
             <Hash className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Street Pro Setup</h1>
-          <p className="text-slate-500 text-sm font-medium italic">Isolated local session scoring</p>
+          <p className="text-slate-500 text-sm font-medium italic">Persistent Local Scoring Mode</p>
         </div>
 
         <Card className="border-t-8 border-t-primary shadow-xl">
@@ -357,8 +326,8 @@ export default function NumberGame() {
                       n[i] = e.target.value;
                       setPlayerNames(n);
                     }}
-                    placeholder={`Player ${i + 1} Name`}
-                    className="pl-10 font-bold h-12 border-slate-200"
+                    placeholder={`Player Name`}
+                    className="pl-10 font-bold h-12"
                   />
                 </div>
                 {playerNames.length > 3 && (
@@ -389,14 +358,13 @@ export default function NumberGame() {
 
   if (gameState === 'finished') {
     return (
-      <div className="max-w-4xl mx-auto space-y-8 py-8 px-4 text-center">
+      <div className="max-w-4xl mx-auto space-y-8 py-12 px-4 text-center">
         <div className="bg-emerald-500 w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-xl mb-4">
           <Trophy className="w-10 h-10 text-white" />
         </div>
         <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-900">Match Summary</h1>
         <div className="flex justify-center gap-4">
-          <Button onClick={downloadReport} className="bg-secondary font-black uppercase text-xs h-12 px-8 shadow-lg">Download Report</Button>
-          <Button variant="outline" onClick={() => setGameState('setup')} className="font-black uppercase text-xs h-12 px-8">Start New</Button>
+          <Button onClick={resetGame} variant="outline" className="font-black uppercase text-xs h-12 px-8">Start New Match</Button>
         </div>
       </div>
     );
@@ -404,13 +372,13 @@ export default function NumberGame() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-24 px-1 md:px-4">
-      {/* Live Scorer Header */}
-      <Card className={cn("border-t-8 shadow-2xl transition-all", activeStriker?.batting.out ? "border-t-destructive" : "border-t-primary")}>
+      {/* Official Scorer Dashboard (Slate-900 Consistency) */}
+      <Card className={cn("border-none shadow-2xl transition-all overflow-hidden", activeStriker?.batting.out ? "ring-4 ring-destructive" : "ring-4 ring-primary")}>
         <div className="bg-slate-900 text-white p-6 md:p-8 space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start gap-6">
             <div className="space-y-1">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary flex items-center gap-2">
-                <UserCircle className="w-3 h-3"/> Batter #{activeStriker?.order}
+                <UserCircle className="w-3 h-3"/> Active Batter
               </p>
               <h2 className="text-3xl font-black uppercase tracking-tighter">{activeStriker?.name}</h2>
               <div className="flex gap-4">
@@ -420,16 +388,16 @@ export default function NumberGame() {
             </div>
             <div className="text-left md:text-right space-y-1">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary flex items-center md:justify-end gap-2">
-                <Zap className="w-3 h-3"/> Bowler #{activeBowler?.order}
+                <Zap className="w-3 h-3"/> Active Bowler
               </p>
               <h2 className="text-xl font-black uppercase tracking-tighter text-slate-300">{activeBowler?.name}</h2>
-              <p className="text-xs font-bold text-slate-500 uppercase">Over: {ballsInOver}/6 Legal</p>
+              <p className="text-xs font-bold text-slate-500 uppercase">Over Progress: {ballsInOver}/6 Legal</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 bg-white/5 p-3 rounded-lg border border-white/10 w-fit">
             {[...Array(3)].map((_, i) => (
-              <div key={i} className={cn("w-4 h-4 rounded-full border-2", i < consecutiveDots ? "bg-red-500 border-red-600 animate-pulse" : "border-slate-700")} />
+              <div key={i} className={cn("w-4 h-4 rounded-full border-2", i < consecutiveDots ? "bg-red-500 border-red-600 animate-pulse shadow-[0_0_10px_#ef4444]" : "border-slate-700")} />
             ))}
             <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-2">Dot Ball Streak</span>
           </div>
@@ -438,7 +406,7 @@ export default function NumberGame() {
             <div className="space-y-4">
               <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                 {[0, 1, 2, 3, 4, 6].map(r => (
-                  <Button key={r} onClick={() => handleScore(r)} className={cn("h-12 md:h-14 font-black text-lg bg-white/5 border border-white/10 hover:bg-primary hover:border-primary transition-all", r >= 4 ? "text-primary border-primary/40" : "")}>
+                  <Button key={r} onClick={() => handleScore(r)} className={cn("h-12 md:h-14 font-black text-lg bg-white/5 border border-white/10 hover:bg-primary transition-all", r >= 4 ? "text-primary border-primary/40" : "text-white")}>
                     {r === 0 ? "•" : r}
                   </Button>
                 ))}
@@ -451,10 +419,10 @@ export default function NumberGame() {
               </div>
             </div>
           ) : (
-            <div className="p-6 bg-destructive/10 border-2 border-dashed border-destructive/30 rounded-xl text-center space-y-4">
-              <p className="text-lg font-black text-destructive uppercase italic">Batter is OUT ({activeStriker?.batting.dismissal})</p>
+            <div className="p-6 bg-destructive/10 border-2 border-dashed border-destructive/30 rounded-xl text-center space-y-4 animate-in zoom-in-95">
+              <p className="text-lg font-black text-destructive uppercase italic">Dismissed: {activeStriker?.batting.dismissal}</p>
               <div className="max-w-xs mx-auto space-y-2 text-left">
-                <Label className="text-[10px] font-black uppercase text-slate-400">Select Next Batter</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-400">Assign Next Batter</Label>
                 <Select value="" onValueChange={handleSelectNextBatter}>
                   <SelectTrigger className="bg-white text-slate-900 font-bold h-12">
                     <SelectValue placeholder="Choose successor..." />
@@ -471,37 +439,56 @@ export default function NumberGame() {
         </div>
       </Card>
 
-      {/* Global Actions */}
       <div className="flex gap-2">
         <Button onClick={() => setIsAddPlayerOpen(true)} variant="secondary" className="flex-1 font-black uppercase text-[10px] h-12 shadow-md">
-          <UserPlus className="w-4 h-4 mr-2" /> Add Mid-Match
+          <UserPlus className="w-4 h-4 mr-2" /> Add Participant
         </Button>
         <Button onClick={() => setGameState('finished')} variant="default" className="flex-1 font-black uppercase text-[10px] h-12 shadow-md bg-emerald-600">
-          <CheckCircle2 className="w-4 h-4 mr-2" /> End Match
+          <CheckCircle2 className="w-4 h-4 mr-2" /> Finalize Match
+        </Button>
+        <Button onClick={resetGame} variant="outline" size="icon" className="h-12 w-12 text-slate-400 hover:text-destructive">
+          <Trash2 className="w-4 h-4" />
         </Button>
       </div>
 
       {/* Scorecards */}
       <div className="space-y-6">
-        <Card className="rounded-xl overflow-hidden shadow-sm border">
-          <div className="bg-slate-50 px-4 py-3 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Batting Scorecard</span></div>
-          <Table>
-            <TableHeader className="bg-slate-50/50"><TableRow><TableHead className="text-[9px] font-black uppercase">Batter</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">B</TableHead><TableHead className="text-right text-[9px] font-black uppercase">4s/6s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {players.map(p => (
-                <TableRow key={p.id} className={cn(p.id === strikerId ? "bg-primary/5" : "")}>
-                  <TableCell className="py-3">
-                    <p className="font-black text-xs uppercase">{p.name}{p.id === strikerId ? "*" : ""}</p>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase italic">{p.batting.out ? `OUT (${p.batting.dismissal})` : 'Not Out'}</p>
-                  </TableCell>
-                  <TableCell className="text-right font-black">{p.batting.runs}</TableCell>
-                  <TableCell className="text-right text-xs">{p.batting.balls}</TableCell>
-                  <TableCell className="text-right text-[10px] font-bold">{p.batting.fours}/{p.batting.sixes}</TableCell>
-                  <TableCell className="text-right text-[10px] font-black text-primary">{p.batting.balls > 0 ? ((p.batting.runs/p.batting.balls)*100).toFixed(1) : '0.0'}</TableCell>
+        <Card className="rounded-xl overflow-hidden shadow-sm border bg-white">
+          <div className="bg-slate-50 px-4 py-3 border-b flex justify-between items-center">
+            <span className="text-[10px] font-black uppercase text-slate-500">Live Player Stats</span>
+            <Badge variant="outline" className="text-[8px] font-black uppercase text-primary border-primary/20">Street Pro v1.0</Badge>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-slate-50/50">
+                <TableRow>
+                  <TableHead className="text-[9px] font-black uppercase">Player</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase">Balls</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase">Wkts</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase">Econ</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {players.map(p => (
+                  <TableRow key={p.id} className={cn(p.id === strikerId ? "bg-primary/5" : "")}>
+                    <TableCell className="py-3">
+                      <p className="font-black text-xs uppercase">{p.name}{p.id === strikerId ? "*" : ""}</p>
+                      <p className={cn("text-[8px] font-bold uppercase italic", p.batting.out ? "text-destructive" : "text-slate-400")}>
+                        {p.batting.out ? `OUT (${p.batting.dismissal})` : 'Active'}
+                      </p>
+                    </TableCell>
+                    <TableCell className="text-right font-black">{p.batting.runs}</TableCell>
+                    <TableCell className="text-right text-xs">{p.batting.balls}</TableCell>
+                    <TableCell className="text-right font-black text-primary">{p.bowling.wickets}</TableCell>
+                    <TableCell className="text-right text-[10px] font-bold text-slate-400">
+                      {p.bowling.balls > 0 ? (p.bowling.runs / (p.bowling.balls / 6)).toFixed(2) : '0.00'}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </Card>
       </div>
 
@@ -522,11 +509,31 @@ export default function NumberGame() {
 
       <Dialog open={isWicketOpen} onOpenChange={setIsWicketOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-destructive">
-          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-destructive">Register Dismissal</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tight text-destructive">Register Dismissal</DialogTitle>
+            <DialogDescription className="text-xs">Confirm mode of out for {activeStriker?.name}</DialogDescription>
+          </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Type</Label><Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}><SelectTrigger className="font-bold"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="caught">Caught</SelectItem><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumped">Stumped</SelectItem><SelectItem value="3-Dots">3-Dots</SelectItem></SelectContent></Select></div>
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Type</Label>
+              <Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}>
+                <SelectTrigger className="font-bold h-12">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="caught" className="font-bold">Caught</SelectItem>
+                  <SelectItem value="bowled" className="font-bold">Bowled</SelectItem>
+                  <SelectItem value="runout" className="font-bold">Run Out</SelectItem>
+                  <SelectItem value="stumped" className="font-bold">Stumped</SelectItem>
+                  <SelectItem value="lbw" className="font-bold">LBW</SelectItem>
+                  <SelectItem value="3-Dots" className="font-bold text-destructive">3-Dots Streak</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <DialogFooter><Button variant="destructive" onClick={() => handleWicket(wicketForm.type)} className="w-full h-14 font-black uppercase">Confirm Wicket</Button></DialogFooter>
+          <DialogFooter>
+            <Button variant="destructive" onClick={() => handleWicket(wicketForm.type)} className="w-full h-14 font-black uppercase shadow-xl">Confirm Wicket</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
