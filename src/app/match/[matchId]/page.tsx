@@ -290,8 +290,6 @@ export default function MatchScoreboardPage() {
 
     if (inn2Score > inn1Score) { 
       const squadSize = match.team2SquadPlayerIds?.length || 11;
-      // Wicket margin fix: (Total available wickets) - (lost wickets)
-      // Standard is squadSize - 1 (because you need 1 player left to bat)
       const wicketsRemaining = Math.max(0, (squadSize - 1) - inn2Wickets);
       result = `${team2Name} won by ${wicketsRemaining} ${wicketsRemaining === 1 ? 'wicket' : 'wickets'}.`; 
     }
@@ -595,7 +593,9 @@ export default function MatchScoreboardPage() {
             <Card key={`${inningId}-${oNum}`} className={cn("overflow-hidden border-l-4 mb-4", inningId === 'inning_1' ? "border-l-primary" : "border-l-secondary")}>
               <div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b">
                 <h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4>
-                <span className={cn("text-[9px] font-black uppercase", inningId === 'inning_1' ? "text-primary" : "text-secondary")}>Bowler: {getPlayerName(overBalls[0]?.bowlerId)}</span>
+                <Link href={`/players/${overBalls[0]?.bowlerId}`} className="hover:opacity-80 transition-opacity">
+                  <span className={cn("text-[9px] font-black uppercase", inningId === 'inning_1' ? "text-primary" : "text-secondary")}>Bowler: {getPlayerName(overBalls[0]?.bowlerId)}</span>
+                </Link>
               </div>
               <div className="p-4 space-y-3">
                 {overBalls.map((d, idx) => (
@@ -831,7 +831,12 @@ export default function MatchScoreboardPage() {
                 </div>
                 <div className="space-y-1 pt-2 border-t">
                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Officials</p>
-                  <div className="flex items-center gap-2"><Badge variant="outline" className="text-[8px] font-black uppercase border-primary/20 text-primary">Umpire</Badge><p className="text-xs font-bold">{getPlayerName(match.umpireId)}</p></div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[8px] font-black uppercase border-primary/20 text-primary">Umpire</Badge>
+                    <Link href={`/players/${match.umpireId}`} className="text-xs font-bold hover:text-primary hover:underline">
+                      {getPlayerName(match.umpireId)}
+                    </Link>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -844,7 +849,7 @@ export default function MatchScoreboardPage() {
                   <div className="flex flex-wrap gap-2">
                     {match.team1SquadPlayerIds?.map((pid: string) => (
                       <Link key={pid} href={`/players/${pid}`}>
-                        <Badge variant="secondary" className="bg-slate-100 hover:bg-primary hover:text-white transition-colors text-[9px] font-black uppercase px-2 py-1 cursor-pointer border shadow-sm">
+                        <Badge variant="secondary" className="bg-slate-100 text-slate-900 hover:bg-primary hover:text-white transition-colors text-[9px] font-black uppercase px-2 py-1 cursor-pointer border shadow-sm border-slate-200">
                           {getPlayerName(pid)}
                         </Badge>
                       </Link>
@@ -856,7 +861,7 @@ export default function MatchScoreboardPage() {
                   <div className="flex flex-wrap gap-2">
                     {match.team2SquadPlayerIds?.map((pid: string) => (
                       <Link key={pid} href={`/players/${pid}`}>
-                        <Badge variant="secondary" className="bg-slate-100 hover:bg-primary hover:text-white transition-colors text-[9px] font-black uppercase px-2 py-1 cursor-pointer border shadow-sm">
+                        <Badge variant="secondary" className="bg-slate-100 text-slate-900 hover:bg-primary hover:text-white transition-colors text-[9px] font-black uppercase px-2 py-1 cursor-pointer border shadow-sm border-slate-200">
                           {getPlayerName(pid)}
                         </Badge>
                       </Link>
