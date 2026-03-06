@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 
 const CustomWicketDot = (props: any) => {
-  const { cx, cy, payload, team, dataKey } = props;
+  const { cx, cy, payload, team } = props;
   const isWicket = team === 'team1' ? payload.team1Wicket : payload.team2Wicket;
   if (!isWicket) return null;
   return (
@@ -268,25 +268,26 @@ export default function MatchScoreboardPage() {
   };
 
   const handleFinishMatch = async () => {
-    if (!match || !isUmpire || isFinalizing) return;
+    if (!match || !isUmpire || isFinalizing || !inn1 || !inn2) return;
     setIsFinalizing(true);
     
     let result = "Match Finished";
-    // Team batting 1st is inn1, Team batting 2nd is inn2
-    const t1Name = getTeamName(inn1?.battingTeamId);
-    const t2Name = getTeamName(inn2?.battingTeamId);
+    const team1Name = getTeamName(inn1.battingTeamId); // Defending Team
+    const team2Name = getTeamName(inn2.battingTeamId); // Chasing Team
 
     if (inn2Score > inn1Score) { 
-      const remainingWickets = (match.team2SquadPlayerIds?.length || 11) - inn2Wickets;
-      result = `${t2Name} won by ${remainingWickets} wickets.`; 
+      const squadSize = match.team2SquadPlayerIds?.length || 11;
+      const remainingWickets = squadSize - inn2Wickets;
+      result = `${team2Name} won by ${remainingWickets} wickets.`; 
     }
     else if (inn1Score > inn2Score) { 
-      result = `${t1Name} won by ${inn1Score - inn2Score} runs.`; 
+      result = `${team1Name} won by ${inn1Score - inn2Score} runs.`; 
     }
     else { 
       result = "Match Tied."; 
     }
 
+    // POTM Calculation
     const playerMatchStats: Record<string, any> = {};
     const allBalls = [...(inn1Deliveries || []), ...(inn2Deliveries || [])];
     allBalls.forEach(d => {
@@ -301,7 +302,8 @@ export default function MatchScoreboardPage() {
     Object.values(playerMatchStats).forEach(ps => { const cvp = calculatePlayerCVP(ps); if (cvp > bestCvp) { bestCvp = cvp; bestPid = ps.id; } });
 
     updateDocumentNonBlocking(matchRef, { status: 'completed', resultDescription: result, potmPlayerId: bestPid, potmCvpScore: bestCvp });
-    setIsFinalizing(false); toast({ title: "Match Finalized" });
+    setIsFinalizing(false); 
+    toast({ title: "Match Finalized", description: result });
   };
 
   const handleWicket = async () => {
@@ -318,7 +320,6 @@ export default function MatchScoreboardPage() {
     let nextNonStriker = wicketForm.batterOutId === activeInningData.nonStrikerPlayerId ? '' : activeInningData.nonStrikerPlayerId;
 
     if (newBalls === 0 && !activeInningData.isLastManActive) {
-      // Rotation at end of over after wicket
       [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
     }
 
@@ -358,7 +359,6 @@ export default function MatchScoreboardPage() {
     const lastBall = snapshot.docs[0].data();
     await deleteDocumentNonBlocking(snapshot.docs[0].ref);
 
-    // Recalculate basic state
     const isLegal = lastBall.extraType === 'none' || lastBall.extraType === 'bye' || lastBall.extraType === 'legbye';
     let prevBalls = activeInningData.ballsInCurrentOver - (isLegal ? 1 : 0);
     let prevOvers = activeInningData.oversCompleted;
@@ -384,7 +384,6 @@ export default function MatchScoreboardPage() {
 
     await deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords', ball.id));
 
-    // Calculate new totals from local collections
     const currentList = inningId === 'inning_1' ? inn1Deliveries : inn2Deliveries;
     if (!currentList) return;
 
@@ -398,10 +397,9 @@ export default function MatchScoreboardPage() {
       wickets: wkts,
       oversCompleted: Math.floor(legalBalls / 6),
       ballsInCurrentOver: legalBalls % 6,
-      isDeclaredFinished: false // Always re-open if a ball is deleted
+      isDeclaredFinished: false 
     };
 
-    // Restore strike state from the new latest ball
     const sorted = [...remaining].sort((a,b) => b.timestamp - a.timestamp);
     if (sorted.length > 0) {
       const latest = sorted[0];
@@ -416,7 +414,6 @@ export default function MatchScoreboardPage() {
 
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates);
     
-    // REVERT MATCH STATUS
     if (match?.status === 'completed') {
       updateDocumentNonBlocking(matchRef, { 
         status: 'live', 
@@ -566,6 +563,48 @@ export default function MatchScoreboardPage() {
       </div>
     </div>
   );
+
+  const OverLogList = ({ groups, inningId }: { groups: Record<number, any[]> | null, inningId: string }) => {
+    if (!groups || Object.keys(groups).length === 0) return <div className="text-center py-20 font-black text-slate-300 uppercase text-xs">No over data found</div>;
+    return (
+      <div className="space-y-4">
+        {Object.keys(groups).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => {
+          const overBalls = groups[parseInt(oNum)];
+          return (
+            <Card key={`${inningId}-${oNum}`} className={cn("overflow-hidden border-l-4 mb-4", inningId === 'inning_1' ? "border-l-primary" : "border-l-secondary")}>
+              <div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b">
+                <h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4>
+                <span className={cn("text-[9px] font-black uppercase", inningId === 'inning_1' ? "text-primary" : "text-secondary")}>Bowler: {getPlayerName(overBalls[0]?.bowlerId)}</span>
+              </div>
+              <div className="p-4 space-y-3">
+                {overBalls.map((d, idx) => (
+                  <div key={idx} className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="text-[8px] font-black text-slate-400 w-6">{(d.overNumber - 1)}.{d.ballNumberInOver}</div>
+                      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white border-red-700" : "bg-white text-slate-700 border-slate-200")}>{d.isWicket ? "W" : d.runsScored}</div>
+                      <div>
+                        <Link href={`/players/${d.strikerPlayerId}`} className="hover:opacity-80 transition-opacity">
+                          <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
+                        </Link>
+                        <p className="text-[8px] text-slate-400 font-bold uppercase">
+                          {d.extraType !== 'none' ? `${d.extraType.toUpperCase()} + ${d.totalRunsOnDelivery}` : `${d.totalRunsOnDelivery} runs`}
+                        </p>
+                      </div>
+                    </div>
+                    {isUmpire && (
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => handleDeleteHistoricalBall(d, inningId)}>
+                        <Trash2 className="w-3.5 h-3.5"/>
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  };
 
   if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse text-slate-400 uppercase tracking-widest">Syncing Match Engine...</div>;
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
@@ -740,80 +779,10 @@ export default function MatchScoreboardPage() {
               <TabsTrigger value="inn2" className="font-black uppercase text-[10px]" disabled={!inn2}>2nd Innings</TabsTrigger>
             </TabsList>
             <TabsContent value="inn1">
-              {Object.keys(overGroups1 || {}).length > 0 ? (
-                Object.keys(overGroups1!).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => {
-                  const overBalls = overGroups1![parseInt(oNum)];
-                  return (
-                    <Card key={oNum} className="overflow-hidden border-l-4 border-l-primary mb-4">
-                      <div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b">
-                        <h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4>
-                        <span className="text-[9px] font-black text-primary uppercase">Bowler: {getPlayerName(overBalls[0]?.bowlerId)}</span>
-                      </div>
-                      <div className="p-4 space-y-3">
-                        {overBalls.map((d, idx) => (
-                          <div key={idx} className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="text-[8px] font-black text-slate-400 w-6">{(d.overNumber - 1)}.{d.ballNumberInOver}</div>
-                              <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white border-red-700" : "bg-white text-slate-700 border-slate-200")}>{d.isWicket ? "W" : d.runsScored}</div>
-                              <div>
-                                <Link href={`/players/${d.strikerPlayerId}`} className="hover:opacity-80 transition-opacity">
-                                  <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
-                                </Link>
-                                <p className="text-[8px] text-slate-400 font-bold uppercase">
-                                  {d.extraType !== 'none' ? `${d.extraType.toUpperCase()} + ${d.totalRunsOnDelivery}` : `${d.totalRunsOnDelivery} runs`}
-                                </p>
-                              </div>
-                            </div>
-                            {isUmpire && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => handleDeleteHistoricalBall(d, 'inning_1')}>
-                                <Trash2 className="w-3.5 h-3.5"/>
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  );
-                })
-              ) : <div className="text-center py-20 font-black text-slate-300 uppercase text-xs">No over data found</div>}
+              <OverLogList groups={overGroups1} inningId="inning_1" />
             </TabsContent>
             <TabsContent value="inn2">
-              {Object.keys(overGroups2 || {}).length > 0 ? (
-                Object.keys(overGroups2!).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => {
-                  const overBalls = overGroups2![parseInt(oNum)];
-                  return (
-                    <Card key={oNum} className="overflow-hidden border-l-4 border-l-secondary mb-4">
-                      <div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b">
-                        <h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4>
-                        <span className="text-[9px] font-black text-secondary uppercase">Bowler: {getPlayerName(overBalls[0]?.bowlerId)}</span>
-                      </div>
-                      <div className="p-4 space-y-3">
-                        {overBalls.map((d, idx) => (
-                          <div key={idx} className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="text-[8px] font-black text-slate-400 w-6">{(d.overNumber - 1)}.{d.ballNumberInOver}</div>
-                              <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white border-red-700" : "bg-white text-slate-700 border-slate-200")}>{d.isWicket ? "W" : d.runsScored}</div>
-                              <div>
-                                <Link href={`/players/${d.strikerPlayerId}`} className="hover:opacity-80 transition-opacity">
-                                  <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
-                                </Link>
-                                <p className="text-[8px] text-slate-400 font-bold uppercase">
-                                  {d.extraType !== 'none' ? `${d.extraType.toUpperCase()} + ${d.totalRunsOnDelivery}` : `${d.totalRunsOnDelivery} runs`}
-                                </p>
-                              </div>
-                            </div>
-                            {isUmpire && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => handleDeleteHistoricalBall(d, 'inning_2')}>
-                                <Trash2 className="w-3.5 h-3.5"/>
-                              </Button>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </Card>
-                  );
-                })
-              ) : <div className="text-center py-20 font-black text-slate-300 uppercase text-xs">No over data found</div>}
+              <OverLogList groups={overGroups2} inningId="inning_2" />
             </TabsContent>
           </Tabs>
         </TabsContent>
