@@ -368,11 +368,11 @@ export default function MatchScoreboardPage() {
 
   const handleDeleteHistoricalBall = async (ball: any, inningId: string) => {
     if (!isUmpire) return;
-    if (!confirm("Delete this ball? Inning totals will be synchronized.")) return;
+    if (!confirm("Delete this delivery? The match will be reverted to 'Live' status for corrections.")) return;
 
     await deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords', ball.id));
 
-    // Calculate new totals from local collections (which will update momentarily)
+    // Calculate new totals from local collections
     const currentList = inningId === 'inning_1' ? inn1Deliveries : inn2Deliveries;
     if (!currentList) return;
 
@@ -386,19 +386,34 @@ export default function MatchScoreboardPage() {
       wickets: wkts,
       oversCompleted: Math.floor(legalBalls / 6),
       ballsInCurrentOver: legalBalls % 6,
-      isDeclaredFinished: false // Re-open if terminal ball was deleted
+      isDeclaredFinished: false // Always re-open if a ball is deleted
     };
 
-    // If it was the latest ball, restore strike state
+    // Restore strike state from the new latest ball
     const sorted = [...remaining].sort((a,b) => b.timestamp - a.timestamp);
-    if (sorted.length > 0 && ball.timestamp >= sorted[0].timestamp) {
-      updates.strikerPlayerId = sorted[0].strikerPlayerId;
-      updates.nonStrikerPlayerId = sorted[0].nonStrikerPlayerId;
-      updates.currentBowlerPlayerId = sorted[0].bowlerId;
+    if (sorted.length > 0) {
+      const latest = sorted[0];
+      updates.strikerPlayerId = latest.strikerPlayerId;
+      updates.nonStrikerPlayerId = latest.nonStrikerPlayerId;
+      updates.currentBowlerPlayerId = latest.bowlerId;
+    } else {
+      updates.strikerPlayerId = '';
+      updates.nonStrikerPlayerId = '';
+      updates.currentBowlerPlayerId = '';
     }
 
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates);
-    toast({ title: "Ball Deleted", description: "Inning totals have been synchronized." });
+    
+    // REVERT MATCH STATUS
+    if (match?.status === 'completed') {
+      updateDocumentNonBlocking(matchRef, { 
+        status: 'live', 
+        resultDescription: 'Match in Progress' 
+      });
+      toast({ title: "Match Reverted", description: "The match is now LIVE. You can add corrected deliveries." });
+    } else {
+      toast({ title: "Ball Deleted", description: "Innings totals have been synchronized." });
+    }
   };
 
   const InningsLiveStats = ({ stats, title, score, wkts, overs, inningData }: { stats: any, title: string, score: number, wkts: number, overs: string, inningData: any }) => {
