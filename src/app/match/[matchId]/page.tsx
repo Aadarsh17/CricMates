@@ -112,6 +112,22 @@ export default function MatchScoreboardPage() {
     return allTeams?.find(t => t.id === tid)?.name || 'Unknown Team';
   };
 
+  const getDismissalString = (b: any) => {
+    if (!b.out) return '(not out)';
+    const bowler = getPlayerName(b.bowlerId);
+    const fielder = getPlayerName(b.fielderId);
+    
+    switch (b.dismissal) {
+      case 'bowled': return `b ${bowler}`;
+      case 'caught': return `c ${fielder} b ${bowler}`;
+      case 'lbw': return `lbw b ${bowler}`;
+      case 'runout': return `run out (${fielder})`;
+      case 'stumped': return `st ${fielder} b ${bowler}`;
+      case 'retired': return 'retired';
+      default: return `out b ${bowler}`;
+    }
+  };
+
   // Header Team Mapping Fix
   const t1Header = useMemo(() => {
     if (!match) return { name: '---', score: 0, wkts: 0, overs: '0.0' };
@@ -453,6 +469,7 @@ export default function MatchScoreboardPage() {
                       {getPlayerName(b.id)}{b.id === inningData.strikerPlayerId ? "*" : ""}
                     </p>
                   </Link>
+                  {b.out && <p className="text-[7px] text-slate-400 font-bold uppercase italic">{getDismissalString(b)}</p>}
                 </TableCell>
                 <TableCell className="text-right font-black">{b.runs}</TableCell>
                 <TableCell className="text-right text-xs text-slate-500">{b.balls}</TableCell>
@@ -517,7 +534,7 @@ export default function MatchScoreboardPage() {
             <Link href={`/players/${b.id}`} className="hover:opacity-80 transition-opacity">
               <p className="font-black text-xs uppercase text-slate-900">{getPlayerName(b.id)}</p>
             </Link>
-            <p className="text-[8px] text-slate-400 font-bold uppercase italic">{b.out ? `${b.dismissal} b ${getPlayerName(b.bowlerId)}` : '(not out)'}</p></TableCell><TableCell className="text-right font-black text-sm">{b.runs}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.balls}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.fours}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.sixes}</TableCell><TableCell className="text-right text-[10px] font-black text-primary">{b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0.0'}</TableCell></TableRow>))}</TableBody>
+            <p className="text-[8px] text-slate-400 font-bold uppercase italic">{getDismissalString(b)}</p></TableCell><TableCell className="text-right font-black text-sm">{b.runs}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.balls}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.fours}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.sixes}</TableCell><TableCell className="text-right text-[10px] font-black text-primary">{b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0.0'}</TableCell></TableRow>))}</TableBody>
         </Table></div>
       </Card>
 

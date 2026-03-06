@@ -231,6 +231,22 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
   const getPlayer = (id: string) => players.find(p => p.id === id)?.name || 'Unknown';
   const getPlayerShort = (id: string) => getPlayer(id).split(' ')[0];
 
+  const getDismissalString = (b: any) => {
+    if (!b.out) return '(not out)';
+    const bowler = getPlayer(b.bowlerId);
+    const fielder = getPlayer(b.fielderId);
+    
+    switch (b.dismissal) {
+      case 'bowled': return `b ${bowler}`;
+      case 'caught': return `c ${fielder} b ${bowler}`;
+      case 'lbw': return `lbw b ${bowler}`;
+      case 'runout': return `run out (${fielder})`;
+      case 'stumped': return `st ${fielder} b ${bowler}`;
+      case 'retired': return 'retired';
+      default: return `out b ${bowler}`;
+    }
+  };
+
   const potm = match.potmPlayerId ? players.find(p => p.id === match.potmPlayerId) : null;
 
   const renderBattingTable = (batting: any[]) => `
@@ -250,7 +266,7 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
           <tr style="border-bottom: 1px solid #f8fafc;">
             <td style="padding: 1px 2px; font-size: 7px; font-weight: 700;">
               ${getPlayer(b.id)} 
-              <span style="font-size: 5px; color: #94a3b8; font-weight: normal;">${b.out ? `(${b.dismissal})` : '(not out)'}</span>
+              <span style="font-size: 5px; color: #94a3b8; font-weight: normal;">${getDismissalString(b)}</span>
             </td>
             <td style="padding: 1px 2px; text-align: right; font-weight: 800; font-size: 7px;">${b.runs}</td>
             <td style="padding: 1px 2px; text-align: right; font-size: 7px; color: #64748b;">${b.balls}</td>
