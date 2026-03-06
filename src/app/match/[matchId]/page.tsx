@@ -305,7 +305,13 @@ export default function MatchScoreboardPage() {
             <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase py-3 px-3">Batters</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">B</TableHead><TableHead className="text-right text-[9px] font-black uppercase">4s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">6s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Status</TableHead></TableRow></TableHeader>
             <TableBody>{stats.batting.map((b: any) => (
               <TableRow key={b.id} className={b.id === inningData.strikerPlayerId ? "bg-primary/5" : ""}>
-                <TableCell className="py-2 px-3"><p className={cn("font-black text-sm uppercase", b.out ? "text-slate-400" : "text-slate-900")}>{getPlayerName(b.id)}{b.id === inningData.strikerPlayerId ? "*" : ""}</p></TableCell>
+                <TableCell className="py-2 px-3">
+                  <Link href={`/players/${b.id}`} className="group hover:opacity-80 transition-opacity">
+                    <p className={cn("font-black text-sm uppercase group-hover:text-primary transition-colors", b.out ? "text-slate-400" : "text-slate-900")}>
+                      {getPlayerName(b.id)}{b.id === inningData.strikerPlayerId ? "*" : ""}
+                    </p>
+                  </Link>
+                </TableCell>
                 <TableCell className="text-right font-black">{b.runs}</TableCell>
                 <TableCell className="text-right text-xs text-slate-500">{b.balls}</TableCell>
                 <TableCell className="text-right text-xs text-slate-500">{b.fours}</TableCell>
@@ -319,7 +325,11 @@ export default function MatchScoreboardPage() {
             <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase py-3 px-3">Bowlers</TableHead><TableHead className="text-right text-[9px] font-black uppercase">O</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">W</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Eco</TableHead></TableRow></TableHeader>
             <TableBody>{stats.bowling.map((bw: any) => (
               <TableRow key={bw.id} className={bw.id === inningData.currentBowlerPlayerId ? "bg-secondary/5" : ""}>
-                <TableCell className="py-2 px-3"><p className="font-black text-sm uppercase">{getPlayerName(bw.id)}</p></TableCell>
+                <TableCell className="py-2 px-3">
+                  <Link href={`/players/${bw.id}`} className="hover:opacity-80 transition-opacity">
+                    <p className="font-black text-sm uppercase text-slate-900">{getPlayerName(bw.id)}</p>
+                  </Link>
+                </TableCell>
                 <TableCell className="text-right font-bold">{bw.oversDisplay}</TableCell><TableCell className="text-right text-xs text-slate-500">{bw.runs}</TableCell><TableCell className="text-right font-black text-primary">{bw.wickets}</TableCell><TableCell className="text-right text-xs font-bold text-slate-400">{bw.balls > 0 ? (bw.runs/(bw.balls/6)).toFixed(2) : '0.00'}</TableCell>
               </TableRow>
             ))}</TableBody>
@@ -354,7 +364,11 @@ export default function MatchScoreboardPage() {
         </div>
         <div className="overflow-x-auto"><Table className="min-w-max w-full">
           <TableHeader className="bg-slate-50/50"><TableRow><TableHead className="text-[9px] font-black uppercase">Batter</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">B</TableHead><TableHead className="text-right text-[9px] font-black uppercase">4s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">6s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead></TableRow></TableHeader>
-          <TableBody>{stats.batting.map((b: any, idx: number) => (<TableRow key={idx} className="hover:bg-slate-50/50 transition-colors"><TableCell className="py-3 px-4"><p className="font-black text-xs uppercase text-slate-900">{getPlayerName(b.id)}</p><p className="text-[8px] text-slate-400 font-bold uppercase italic">{b.out ? `${b.dismissal} b ${getPlayerName(b.bowlerId)}` : '(not out)'}</p></TableCell><TableCell className="text-right font-black text-sm">{b.runs}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.balls}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.fours}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.sixes}</TableCell><TableCell className="text-right text-[10px] font-black text-primary">{b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0.0'}</TableCell></TableRow>))}</TableBody>
+          <TableBody>{stats.batting.map((b: any, idx: number) => (<TableRow key={idx} className="hover:bg-slate-50/50 transition-colors"><TableCell className="py-3 px-4">
+            <Link href={`/players/${b.id}`} className="hover:opacity-80 transition-opacity">
+              <p className="font-black text-xs uppercase text-slate-900">{getPlayerName(b.id)}</p>
+            </Link>
+            <p className="text-[8px] text-slate-400 font-bold uppercase italic">{b.out ? `${b.dismissal} b ${getPlayerName(b.bowlerId)}` : '(not out)'}</p></TableCell><TableCell className="text-right font-black text-sm">{b.runs}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.balls}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.fours}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.sixes}</TableCell><TableCell className="text-right text-[10px] font-black text-primary">{b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0.0'}</TableCell></TableRow>))}</TableBody>
         </Table></div>
       </Card>
 
@@ -364,7 +378,13 @@ export default function MatchScoreboardPage() {
         </div>
         <div className="overflow-x-auto"><Table className="min-w-max w-full">
           <TableHeader className="bg-slate-50/50"><TableRow><TableHead className="text-[9px] font-black uppercase">Bowler</TableHead><TableHead className="text-right text-[9px] font-black uppercase">O</TableHead><TableHead className="text-right text-[9px] font-black uppercase">M</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">W</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Eco</TableHead></TableRow></TableHeader>
-          <TableBody>{stats.bowling.map((bw: any, idx: number) => (<TableRow key={idx} className="hover:bg-slate-50/50 transition-colors"><TableCell className="py-3 px-4 font-black text-xs uppercase text-slate-900">{getPlayerName(bw.id)}</TableCell><TableCell className="text-right font-bold text-xs">{bw.oversDisplay}</TableCell><TableCell className="text-right text-xs text-slate-500">{bw.maidens || 0}</TableCell><TableCell className="text-right font-bold text-xs">{bw.runs}</TableCell><TableCell className="text-right font-black text-sm text-primary">{bw.wickets}</TableCell><TableCell className="text-right text-[10px] font-black text-slate-400">{bw.balls > 0 ? (bw.runs/(bw.balls/6)).toFixed(2) : '0.00'}</TableCell></TableRow>))}</TableBody>
+          <TableBody>{stats.bowling.map((bw: any, idx: number) => (<TableRow key={idx} className="hover:bg-slate-50/50 transition-colors">
+            <TableCell className="py-3 px-4">
+              <Link href={`/players/${bw.id}`} className="hover:opacity-80 transition-opacity">
+                <p className="font-black text-xs uppercase text-slate-900">{getPlayerName(bw.id)}</p>
+              </Link>
+            </TableCell>
+            <TableCell className="text-right font-bold text-xs">{bw.oversDisplay}</TableCell><TableCell className="text-right text-xs text-slate-500">{bw.maidens || 0}</TableCell><TableCell className="text-right font-bold text-xs">{bw.runs}</TableCell><TableCell className="text-right font-black text-sm text-primary">{bw.wickets}</TableCell><TableCell className="text-right text-[10px] font-black text-slate-400">{bw.balls > 0 ? (bw.runs/(bw.balls/6)).toFixed(2) : '0.00'}</TableCell></TableRow>))}</TableBody>
         </Table></div>
       </Card>
 
@@ -375,7 +395,9 @@ export default function MatchScoreboardPage() {
             {stats.fow.length > 0 ? stats.fow.map((f: any, idx: number) => (
               <div key={idx} className="flex justify-between items-center text-[10px] border-b border-dashed pb-2 last:border-none">
                 <span className="font-black text-slate-400">{f.wicketNum}-{f.scoreAtWicket}</span>
-                <span className="font-bold uppercase text-slate-700">{getPlayerName(f.playerOutId)}</span>
+                <Link href={`/players/${f.playerOutId}`} className="hover:opacity-80 transition-opacity">
+                  <span className="font-bold uppercase text-slate-700">{getPlayerName(f.playerOutId)}</span>
+                </Link>
                 <span className="text-slate-400 font-medium">({f.overs} OV)</span>
               </div>
             )) : <p className="text-center py-4 text-[10px] font-black uppercase text-slate-300">No wickets fell</p>}
@@ -387,9 +409,13 @@ export default function MatchScoreboardPage() {
             {stats.partnerships.length > 0 ? stats.partnerships.map((p: any, idx: number) => (
               <div key={idx} className="space-y-2 border-b border-dashed pb-3 last:border-none">
                 <div className="flex justify-between items-center text-[10px]">
-                  <div className="flex flex-col">
-                    <span className="font-black uppercase truncate max-w-[120px]">{getPlayerName(p.batter1Id)} <span className="text-primary">({p.batter1Runs})</span></span>
-                    <span className="font-black uppercase truncate max-w-[120px] mt-1">{getPlayerName(p.batter2Id)} <span className="text-secondary">({p.batter2Runs})</span></span>
+                  <div className="flex flex-col gap-1">
+                    <Link href={`/players/${p.batter1Id}`} className="hover:opacity-80 transition-opacity">
+                      <span className="font-black uppercase truncate max-w-[120px] block">{getPlayerName(p.batter1Id)} <span className="text-primary">({p.batter1Runs})</span></span>
+                    </Link>
+                    <Link href={`/players/${p.batter2Id}`} className="hover:opacity-80 transition-opacity">
+                      <span className="font-black uppercase truncate max-w-[120px] block">{getPlayerName(p.batter2Id)} <span className="text-secondary">({p.batter2Runs})</span></span>
+                    </Link>
                   </div>
                   <div className="text-right">
                     <p className="font-black text-lg text-slate-900 leading-none">{p.runs}</p>
@@ -438,7 +464,12 @@ export default function MatchScoreboardPage() {
           <div className="flex justify-between items-center border-t pt-4">
             <p className="text-[10px] md:text-xs font-black uppercase text-primary tracking-[0.2em]">{match.status === 'completed' ? match.resultDescription : "Match in Progress"}</p>
             {match.status === 'completed' && match.potmPlayerId && (
-              <Badge className="bg-amber-500 text-white font-black uppercase text-[8px] flex items-center gap-1"><Star className="w-2.5 h-2.5" /> POTM: {getPlayerName(match.potmPlayerId)}</Badge>
+              <Badge className="bg-amber-500 text-white font-black uppercase text-[8px] flex items-center gap-1">
+                <Star className="w-2.5 h-2.5" /> POTM: 
+                <Link href={`/players/${match.potmPlayerId}`} className="hover:underline ml-1">
+                  {getPlayerName(match.potmPlayerId)}
+                </Link>
+              </Badge>
             )}
           </div>
         </div>
@@ -577,7 +608,11 @@ export default function MatchScoreboardPage() {
               {Object.keys(overGroups1 || {}).length > 0 ? (
                 Object.keys(overGroups1!).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => {
                   const overBalls = overGroups1![parseInt(oNum)];
-                  return (<Card key={oNum} className="overflow-hidden border-l-4 border-l-primary mb-4"><div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b"><h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4><span className="text-[9px] font-black text-primary uppercase">Bowler: {getPlayerName(overBalls[0]?.bowlerId)}</span></div><div className="p-4 space-y-3">{overBalls.map((d, idx) => (<div key={idx} className="flex items-center justify-between"><div className="flex items-center gap-3"><div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white border-red-700" : "bg-white text-slate-700 border-slate-200")}>{d.isWicket ? "W" : d.runsScored}</div><div><p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p><p className="text-[8px] text-slate-400 font-bold uppercase">{d.totalRunsOnDelivery} runs {d.extraType !== 'none' ? `(${d.extraType})` : ''}</p></div></div>{isUmpire && <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => { if(confirm("Delete ball? This will permanently remove the delivery from history.")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords', d.id)); } }}><Trash2 className="w-3.5 h-3.5"/></Button>}</div>))}</div></Card>);
+                  return (<Card key={oNum} className="overflow-hidden border-l-4 border-l-primary mb-4"><div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b"><h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4><span className="text-[9px] font-black text-primary uppercase">Bowler: {getPlayerName(overBalls[0]?.bowlerId)}</span></div><div className="p-4 space-y-3">{overBalls.map((d, idx) => (<div key={idx} className="flex items-center justify-between"><div className="flex items-center gap-3"><div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white border-red-700" : "bg-white text-slate-700 border-slate-200")}>{d.isWicket ? "W" : d.runsScored}</div><div>
+                    <Link href={`/players/${d.strikerPlayerId}`} className="hover:opacity-80 transition-opacity">
+                      <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
+                    </Link>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase">{d.totalRunsOnDelivery} runs {d.extraType !== 'none' ? `(${d.extraType})` : ''}</p></div></div>{isUmpire && <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => { if(confirm("Delete ball? This will permanently remove the delivery from history.")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords', d.id)); } }}><Trash2 className="w-3.5 h-3.5"/></Button>}</div>))}</div></Card>);
                 })
               ) : <div className="text-center py-20 font-black text-slate-300 uppercase text-xs">No over data found</div>}
             </TabsContent>
@@ -585,7 +620,11 @@ export default function MatchScoreboardPage() {
               {Object.keys(overGroups2 || {}).length > 0 ? (
                 Object.keys(overGroups2!).sort((a, b) => parseInt(b) - parseInt(a)).map(oNum => {
                   const overBalls = overGroups2![parseInt(oNum)];
-                  return (<Card key={oNum} className="overflow-hidden border-l-4 border-l-secondary mb-4"><div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b"><h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4><span className="text-[9px] font-black text-secondary uppercase">Bowler: {getPlayerName(overBalls[0]?.bowlerId)}</span></div><div className="p-4 space-y-3">{overBalls.map((d, idx) => (<div key={idx} className="flex items-center justify-between"><div className="flex items-center gap-3"><div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white border-red-700" : "bg-white text-slate-700 border-slate-200")}>{d.isWicket ? "W" : d.runsScored}</div><div><p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p><p className="text-[8px] text-slate-400 font-bold uppercase">{d.totalRunsOnDelivery} runs {d.extraType !== 'none' ? `(${d.extraType})` : ''}</p></div></div>{isUmpire && <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => { if(confirm("Delete ball? This will permanently remove the delivery from history.")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2', 'deliveryRecords', d.id)); } }}><Trash2 className="w-3.5 h-3.5"/></Button>}</div>))}</div></Card>);
+                  return (<Card key={oNum} className="overflow-hidden border-l-4 border-l-secondary mb-4"><div className="bg-slate-50 px-4 py-2 flex justify-between items-center border-b"><h4 className="text-[10px] font-black uppercase text-slate-500">Over {oNum}</h4><span className="text-[9px] font-black text-secondary uppercase">Bowler: {getPlayerName(overBalls[0]?.bowlerId)}</span></div><div className="p-4 space-y-3">{overBalls.map((d, idx) => (<div key={idx} className="flex items-center justify-between"><div className="flex items-center gap-3"><div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white border-red-700" : "bg-white text-slate-700 border-slate-200")}>{d.isWicket ? "W" : d.runsScored}</div><div>
+                    <Link href={`/players/${d.strikerPlayerId}`} className="hover:opacity-80 transition-opacity">
+                      <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
+                    </Link>
+                    <p className="text-[8px] text-slate-400 font-bold uppercase">{d.totalRunsOnDelivery} runs {d.extraType !== 'none' ? `(${d.extraType})` : ''}</p></div></div>{isUmpire && <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive" onClick={() => { if(confirm("Delete ball? This will permanently remove the delivery from history.")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2', 'deliveryRecords', d.id)); } }}><Trash2 className="w-3.5 h-3.5"/></Button>}</div>))}</div></Card>);
                 })
               ) : <div className="text-center py-20 font-black text-slate-300 uppercase text-xs">No over data found</div>}
             </TabsContent>
@@ -623,17 +662,25 @@ export default function MatchScoreboardPage() {
               <CardContent className="space-y-6">
                 <div className="space-y-3">
                   <p className="text-[10px] font-black text-slate-900 uppercase border-b pb-1">{getTeamName(match.team1Id)}</p>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-2">
                     {match.team1SquadPlayerIds?.map((pid: string) => (
-                      <Badge key={pid} variant="secondary" className="bg-slate-50 text-[8px] font-bold uppercase">{getPlayerName(pid)}</Badge>
+                      <Link key={pid} href={`/players/${pid}`}>
+                        <Badge variant="secondary" className="bg-slate-100 hover:bg-primary hover:text-white transition-colors text-[9px] font-black uppercase px-2 py-1 cursor-pointer border shadow-sm">
+                          {getPlayerName(pid)}
+                        </Badge>
+                      </Link>
                     ))}
                   </div>
                 </div>
                 <div className="space-y-3">
                   <p className="text-[10px] font-black text-slate-900 uppercase border-b pb-1">{getTeamName(match.team2Id)}</p>
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-2">
                     {match.team2SquadPlayerIds?.map((pid: string) => (
-                      <Badge key={pid} variant="secondary" className="bg-slate-50 text-[8px] font-bold uppercase">{getPlayerName(pid)}</Badge>
+                      <Link key={pid} href={`/players/${pid}`}>
+                        <Badge variant="secondary" className="bg-slate-100 hover:bg-primary hover:text-white transition-colors text-[9px] font-black uppercase px-2 py-1 cursor-pointer border shadow-sm">
+                          {getPlayerName(pid)}
+                        </Badge>
+                      </Link>
                     ))}
                   </div>
                 </div>
