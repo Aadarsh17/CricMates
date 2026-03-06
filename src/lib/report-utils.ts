@@ -3,17 +3,20 @@
  */
 
 export const getExtendedInningStats = (deliveries: any[]) => {
-  if (!deliveries) return { batting: [], bowling: [], fow: [], partnerships: [] };
+  if (!deliveries || deliveries.length === 0) return { batting: [], bowling: [], fow: [], partnerships: [] };
+  
   const bat: Record<string, any> = {};
   const bowl: Record<string, any> = {};
   const fow: any[] = [];
   const partnerships: any[] = [];
+  const battingOrder: string[] = [];
 
   let currentScore = 0;
   let currentBalls = 0;
   let currentWickets = 0;
 
-  let currentPartnership = {
+  // Track the current partnership
+  let activePartnership = {
     batter1Id: '',
     batter2Id: '',
     runs: 0,
@@ -31,9 +34,21 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     
     if (!sId) return;
 
-    if (!bat[sId]) bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', bowlerId: '', fielderId: '' };
-    if (nsId && nsId !== 'none' && !bat[nsId]) bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', bowlerId: '', fielderId: '' };
+    // Track batting order
+    [sId, nsId].forEach(id => {
+      if (id && id !== 'none' && !battingOrder.includes(id)) {
+        battingOrder.push(id);
+      }
+    });
+
+    if (!bat[sId]) {
+      bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', bowlerId: '', fielderId: '' };
+    }
+    if (nsId && nsId !== 'none' && !bat[nsId]) {
+      bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', bowlerId: '', fielderId: '' };
+    }
     
+    // Legal ball stats
     if (d.extraType !== 'wide') {
       bat[sId].balls += 1;
       bat[sId].runs += (d.runsScored || 0);
@@ -44,22 +59,24 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     currentScore += (d.totalRunsOnDelivery || 0);
     if (d.extraType !== 'wide' && d.extraType !== 'noball') currentBalls += 1;
 
-    if (!currentPartnership.batter1Id) {
-      currentPartnership.batter1Id = sId;
-      currentPartnership.batter2Id = nsId && nsId !== 'none' ? nsId : '';
+    // Partnership Logic
+    if (!activePartnership.batter1Id) {
+      activePartnership.batter1Id = sId;
+      activePartnership.batter2Id = nsId && nsId !== 'none' ? nsId : '';
     }
 
-    currentPartnership.runs += (d.totalRunsOnDelivery || 0);
-    if (d.extraType !== 'wide' && d.extraType !== 'noball') currentPartnership.balls += 1;
+    activePartnership.runs += (d.totalRunsOnDelivery || 0);
+    if (d.extraType !== 'wide' && d.extraType !== 'noball') activePartnership.balls += 1;
     
-    if (sId === currentPartnership.batter1Id) {
-      currentPartnership.batter1Runs += (d.runsScored || 0);
-      if (d.extraType !== 'wide') currentPartnership.batter1Balls += 1;
-    } else if (sId === currentPartnership.batter2Id) {
-      currentPartnership.batter2Runs += (d.runsScored || 0);
-      if (d.extraType !== 'wide') currentPartnership.batter2Balls += 1;
+    if (sId === activePartnership.batter1Id) {
+      activePartnership.batter1Runs += (d.runsScored || 0);
+      if (d.extraType !== 'wide') activePartnership.batter1Balls += 1;
+    } else if (sId === activePartnership.batter2Id) {
+      activePartnership.batter2Runs += (d.runsScored || 0);
+      if (d.extraType !== 'wide') activePartnership.batter2Balls += 1;
     }
 
+    // Wicket Logic
     if (d.isWicket) {
       currentWickets += 1;
       const outPid = d.batsmanOutPlayerId || sId;
@@ -78,10 +95,12 @@ export const getExtendedInningStats = (deliveries: any[]) => {
         playerRuns: bat[outPid]?.runs || 0
       });
 
-      partnerships.push({...currentPartnership});
-      currentPartnership = {
-        batter1Id: outPid === currentPartnership.batter1Id ? '' : currentPartnership.batter1Id,
-        batter2Id: outPid === currentPartnership.batter2Id ? '' : currentPartnership.batter2Id,
+      partnerships.push({...activePartnership});
+      
+      // Start new partnership
+      activePartnership = {
+        batter1Id: outPid === activePartnership.batter1Id ? '' : activePartnership.batter1Id,
+        batter2Id: outPid === activePartnership.batter2Id ? '' : activePartnership.batter2Id,
         runs: 0,
         balls: 0,
         batter1Runs: 0,
@@ -91,22 +110,29 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       };
     }
 
-    if (idx === deliveries.length - 1 && currentPartnership.balls > 0) {
-      partnerships.push({...currentPartnership});
+    // End of innings partnership save
+    if (idx === deliveries.length - 1 && activePartnership.balls > 0) {
+      partnerships.push({...activePartnership});
     }
 
+    // Bowling Stats
     if (bId) {
       if (!bowl[bId]) bowl[bId] = { id: bId, overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
       bowl[bId].runs += (d.totalRunsOnDelivery || 0);
-      if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') bowl[bId].wickets += 1;
+      if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') {
+        bowl[bId].wickets += 1;
+      }
       if (d.extraType !== 'wide' && d.extraType !== 'noball') {
         bowl[bId].balls += 1;
       }
     }
   });
 
+  // Return sorted by batting order
+  const sortedBatting = battingOrder.map(id => bat[id]);
+
   return {
-    batting: Object.values(bat),
+    batting: sortedBatting,
     bowling: Object.values(bowl).map(b => ({ ...b, oversDisplay: `${Math.floor(b.balls / 6)}.${b.balls % 6}` })),
     fow,
     partnerships
