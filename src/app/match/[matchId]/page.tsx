@@ -112,6 +112,21 @@ export default function MatchScoreboardPage() {
     return allTeams?.find(t => t.id === tid)?.name || 'Unknown Team';
   };
 
+  // Header Team Mapping Fix
+  const t1Header = useMemo(() => {
+    if (!match) return { name: '---', score: 0, wkts: 0, overs: '0.0' };
+    if (inn1?.battingTeamId === match.team1Id) return { name: getTeamName(match.team1Id), score: inn1Score, wkts: inn1Wickets, overs: inn1OversDisplay };
+    if (inn2?.battingTeamId === match.team1Id) return { name: getTeamName(match.team1Id), score: inn2Score, wkts: inn2Wickets, overs: inn2OversDisplay };
+    return { name: getTeamName(match.team1Id), score: 0, wkts: 0, overs: '0.0' };
+  }, [match, inn1, inn2, inn1Score, inn1Wickets, inn1OversDisplay, inn2Score, inn2Wickets, inn2OversDisplay, allTeams]);
+
+  const t2Header = useMemo(() => {
+    if (!match) return { name: '---', score: 0, wkts: 0, overs: '0.0' };
+    if (inn1?.battingTeamId === match.team2Id) return { name: getTeamName(match.team2Id), score: inn1Score, wkts: inn1Wickets, overs: inn1OversDisplay };
+    if (inn2?.battingTeamId === match.team2Id) return { name: getTeamName(match.team2Id), score: inn2Score, wkts: inn2Wickets, overs: inn2OversDisplay };
+    return { name: getTeamName(match.team2Id), score: 0, wkts: 0, overs: '0.0' };
+  }, [match, inn1, inn2, inn1Score, inn1Wickets, inn1OversDisplay, inn2Score, inn2Wickets, inn2OversDisplay, allTeams]);
+
   const currentBattingSquadIds = useMemo(() => {
     if (!match) return '';
     if (match.currentInningNumber === 1) {
@@ -127,7 +142,7 @@ export default function MatchScoreboardPage() {
     if (!activeInningData || !match) return false;
     const currentBalls = match.currentInningNumber === 1 ? inn1BallsCount : inn2BallsCount;
     return currentBalls >= (match.totalOvers * 6) || activeInningData.isDeclaredFinished;
-  }, [activeInningData, match, inn1BallsCount, inn2BallsCount, activeInningData?.isDeclaredFinished]);
+  }, [activeInningData, match, inn1BallsCount, inn2BallsCount]);
 
   const overGroups1 = useMemo(() => {
     if (!inn1Deliveries) return null;
@@ -215,12 +230,10 @@ export default function MatchScoreboardPage() {
     let nextStriker = activeInningData.strikerPlayerId;
     let nextNonStriker = activeInningData.nonStrikerPlayerId || 'none';
 
-    // Rotation due to runs
     if (!activeInningData.isLastManActive && !noStrikeChange && runs % 2 !== 0) {
       [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
     }
 
-    // Rotation due to end of over
     if (shouldClearBowler && !activeInningData.isLastManActive) {
       [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
     }
@@ -272,13 +285,15 @@ export default function MatchScoreboardPage() {
     setIsFinalizing(true);
     
     let result = "Match Finished";
-    const team1Name = getTeamName(inn1.battingTeamId); // Defending Team
-    const team2Name = getTeamName(inn2.battingTeamId); // Chasing Team
+    const team1Name = getTeamName(inn1.battingTeamId); // Batted 1st (Defending)
+    const team2Name = getTeamName(inn2.battingTeamId); // Batted 2nd (Chasing)
 
     if (inn2Score > inn1Score) { 
       const squadSize = match.team2SquadPlayerIds?.length || 11;
-      const remainingWickets = squadSize - inn2Wickets;
-      result = `${team2Name} won by ${remainingWickets} wickets.`; 
+      // Wicket margin fix: (Total available wickets) - (lost wickets)
+      // Standard is squadSize - 1 (because you need 1 player left to bat)
+      const wicketsRemaining = Math.max(0, (squadSize - 1) - inn2Wickets);
+      result = `${team2Name} won by ${wicketsRemaining} ${wicketsRemaining === 1 ? 'wicket' : 'wickets'}.`; 
     }
     else if (inn1Score > inn2Score) { 
       result = `${team1Name} won by ${inn1Score - inn2Score} runs.`; 
@@ -287,7 +302,6 @@ export default function MatchScoreboardPage() {
       result = "Match Tied."; 
     }
 
-    // POTM Calculation
     const playerMatchStats: Record<string, any> = {};
     const allBalls = [...(inn1Deliveries || []), ...(inn2Deliveries || [])];
     allBalls.forEach(d => {
@@ -478,7 +492,14 @@ export default function MatchScoreboardPage() {
           return (
             <div key={oNum} className="space-y-2 pb-4 border-b last:border-none">
               <div className="flex justify-between items-center"><span className="text-[9px] font-black uppercase text-slate-400">Over {oNum}</span><span className="text-[9px] font-black text-primary uppercase">{over.reduce((acc, curr) => acc + curr.totalRunsOnDelivery, 0)} Runs</span></div>
-              <div className="flex flex-wrap gap-1.5">{over.map((d, idx) => (<div key={idx} className={cn("w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-black border shadow-sm", d.isWicket ? "bg-red-600 text-white border-red-700" : d.runsScored === 4 ? "bg-green-100 text-green-700 border-green-200" : d.runsScored === 6 ? "bg-purple-100 text-purple-700 border-purple-200" : "bg-white text-slate-700 border-slate-200")}>{d.isWicket ? "W" : d.runsScored === 0 ? "•" : d.runsScored}</div>))}</div>
+              <div className="flex flex-wrap gap-1.5">{over.map((d, idx) => {
+                const label = d.isWicket ? "W" : d.extraType === 'wide' ? `WD+${d.runsScored}` : d.extraType === 'noball' ? `NB+${d.runsScored}` : d.runsScored === 0 ? "•" : d.runsScored;
+                return (
+                  <div key={idx} className={cn("w-fit min-w-[28px] h-7 px-1.5 rounded-lg flex items-center justify-center text-[10px] font-black border shadow-sm", d.isWicket ? "bg-red-600 text-white border-red-700" : d.extraType !== 'none' ? "bg-amber-100 text-amber-700 border-amber-200" : d.runsScored === 4 ? "bg-green-100 text-green-700 border-green-200" : d.runsScored === 6 ? "bg-purple-100 text-purple-700 border-purple-200" : "bg-white text-slate-700 border-slate-200")}>
+                    {label}
+                  </div>
+                );
+              })}</div>
             </div>
           );
         }) : <p className="py-12 text-center text-slate-300 font-black text-[9px] uppercase">No deliveries</p>}
@@ -581,13 +602,15 @@ export default function MatchScoreboardPage() {
                   <div key={idx} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="text-[8px] font-black text-slate-400 w-6">{(d.overNumber - 1)}.{d.ballNumberInOver}</div>
-                      <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white border-red-700" : "bg-white text-slate-700 border-slate-200")}>{d.isWicket ? "W" : d.runsScored}</div>
+                      <div className={cn("w-fit min-w-[32px] h-8 px-2 rounded-full flex items-center justify-center text-[10px] font-black border-2", d.isWicket ? "bg-red-600 text-white border-red-700" : d.extraType !== 'none' ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-white text-slate-700 border-slate-200")}>
+                        {d.isWicket ? "W" : d.extraType === 'wide' ? `WD+${d.runsScored}` : d.extraType === 'noball' ? `NB+${d.runsScored}` : d.runsScored}
+                      </div>
                       <div>
                         <Link href={`/players/${d.strikerPlayerId}`} className="hover:opacity-80 transition-opacity">
                           <p className="text-[10px] font-black uppercase">{getPlayerName(d.strikerPlayerId)}</p>
                         </Link>
                         <p className="text-[8px] text-slate-400 font-bold uppercase">
-                          {d.extraType !== 'none' ? `${d.extraType.toUpperCase()} + ${d.totalRunsOnDelivery}` : `${d.totalRunsOnDelivery} runs`}
+                          {d.extraType !== 'none' ? `${d.extraType.toUpperCase()} DELIVERY` : `${d.totalRunsOnDelivery} runs`}
                         </p>
                       </div>
                     </div>
@@ -616,12 +639,12 @@ export default function MatchScoreboardPage() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="space-y-3 flex-1 w-full">
               <div className="flex items-center justify-between">
-                <div className="flex flex-col"><span className={cn("font-black text-xl md:text-2xl uppercase truncate max-w-[200px]", match.currentInningNumber === 1 ? "text-slate-900" : "text-slate-400")}>{getTeamName(match.team1Id)}</span><span className="text-[10px] font-black text-slate-400 uppercase">({inn1OversDisplay}/{match.totalOvers} OV)</span></div>
-                <span className="font-black text-2xl md:text-3xl text-slate-900">{inn1Score}/{inn1Wickets}</span>
+                <div className="flex flex-col"><span className={cn("font-black text-xl md:text-2xl uppercase truncate max-w-[200px]", match.currentInningNumber === 1 && inn1?.battingTeamId === match.team1Id ? "text-slate-900" : "text-slate-400")}>{t1Header.name}</span><span className="text-[10px] font-black text-slate-400 uppercase">({t1Header.overs}/{match.totalOvers} OV)</span></div>
+                <span className="font-black text-2xl md:text-3xl text-slate-900">{t1Header.score}/{t1Header.wkts}</span>
               </div>
               <div className="flex items-center justify-between">
-                <div className="flex flex-col"><span className={cn("font-black text-xl md:text-2xl uppercase truncate max-w-[200px]", match.currentInningNumber === 2 ? "text-slate-900" : "text-slate-400")}>{getTeamName(match.team2Id)}</span><span className="text-[10px] font-black text-slate-400 uppercase">({inn2OversDisplay}/{match.totalOvers} OV)</span></div>
-                <span className="font-black text-2xl md:text-3xl text-slate-900">{inn2Score}/{inn2Wickets}</span>
+                <div className="flex flex-col"><span className={cn("font-black text-xl md:text-2xl uppercase truncate max-w-[200px]", match.currentInningNumber === 2 && inn2?.battingTeamId === match.team2Id ? "text-slate-900" : "text-slate-400")}>{t2Header.name}</span><span className="text-[10px] font-black text-slate-400 uppercase">({t2Header.overs}/{match.totalOvers} OV)</span></div>
+                <span className="font-black text-2xl md:text-3xl text-slate-900">{t2Header.score}/{t2Header.wkts}</span>
               </div>
             </div>
             <div className="w-px h-20 bg-slate-100 hidden md:block mx-4" />
@@ -716,7 +739,7 @@ export default function MatchScoreboardPage() {
           <div className="flex gap-2 scrollbar-hide overflow-x-auto pb-2">
             {['inn1', 'inn2', 'flow'].map(s => (
               <Button key={s} size="sm" variant={activeScorecardSubTab === s ? 'default' : 'outline'} onClick={() => setActiveScorecardSubTab(s as any)} className="font-black text-[10px] uppercase shrink-0">
-                {s === 'flow' ? 'Match Flow' : s === 'inn1' ? getTeamName(match.team1Id) : getTeamName(match.team2Id)}
+                {s === 'flow' ? 'Match Flow' : s === 'inn1' ? getTeamName(inn1?.battingTeamId) : getTeamName(inn2?.battingTeamId)}
               </Button>
             ))}
           </div>
@@ -729,9 +752,9 @@ export default function MatchScoreboardPage() {
               ))}
             </div>
           ) : activeScorecardSubTab === 'inn1' ? (
-            <FullScorecardView stats={stats1} teamName={getTeamName(match.team1Id)} oppTeamName={getTeamName(match.team2Id)} />
+            <FullScorecardView stats={stats1} teamName={getTeamName(inn1?.battingTeamId)} oppTeamName={getTeamName(inn1?.bowlingTeamId)} />
           ) : (
-            <FullScorecardView stats={stats2} teamName={getTeamName(match.team2Id)} oppTeamName={getTeamName(match.team1Id)} />
+            <FullScorecardView stats={stats2} teamName={getTeamName(inn2?.battingTeamId)} oppTeamName={getTeamName(inn2?.bowlingTeamId)} />
           )}
         </TabsContent>
 
@@ -747,8 +770,8 @@ export default function MatchScoreboardPage() {
                     <YAxis fontSize={8} stroke="#94a3b8" />
                     <Tooltip contentStyle={{ fontSize: '10px', borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                     <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                    <Area type="monotone" dataKey="team1" stroke="#1e40af" fill="#1e40af" fillOpacity={0.1} strokeWidth={2} name={getTeamName(match.team1Id)} dot={<CustomWicketDot team="team1" />} />
-                    <Area type="monotone" dataKey="team2" stroke="#0d9488" fill="#0d9488" fillOpacity={0.1} strokeWidth={2} name={getTeamName(match.team2Id)} dot={<CustomWicketDot team="team2" />} />
+                    <Area type="monotone" dataKey="team1" stroke="#1e40af" fill="#1e40af" fillOpacity={0.1} strokeWidth={2} name={getTeamName(inn1?.battingTeamId)} dot={<CustomWicketDot team="team1" />} />
+                    <Area type="monotone" dataKey="team2" stroke="#0d9488" fill="#0d9488" fillOpacity={0.1} strokeWidth={2} name={getTeamName(inn2?.battingTeamId)} dot={<CustomWicketDot team="team2" />} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -763,8 +786,8 @@ export default function MatchScoreboardPage() {
                     <YAxis fontSize={8} stroke="#94a3b8" />
                     <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ fontSize: '10px', borderRadius: '8px' }} />
                     <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
-                    <Bar dataKey="team1" fill="#1e40af" radius={[2, 2, 0, 0]} name={getTeamName(match.team1Id)} />
-                    <Bar dataKey="team2" fill="#0d9488" radius={[2, 2, 0, 0]} name={getTeamName(match.team2Id)} />
+                    <Bar dataKey="team1" fill="#1e40af" radius={[2, 2, 0, 0]} name={getTeamName(inn1?.battingTeamId)} />
+                    <Bar dataKey="team2" fill="#0d9488" radius={[2, 2, 0, 0]} name={getTeamName(inn2?.battingTeamId)} />
                   </ReBarChart>
                 </ResponsiveContainer>
               </div>
