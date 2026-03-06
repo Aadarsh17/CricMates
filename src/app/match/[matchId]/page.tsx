@@ -23,7 +23,7 @@ import { Label } from '@/components/ui/label';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 
 const CustomWicketDot = (props: any) => {
-  const { cx, cy, payload, team } = props;
+  const { cx, cy, payload, team, dataKey } = props;
   const isWicket = team === 'team1' ? payload.team1Wicket : payload.team2Wicket;
   if (!isWicket) return null;
   return (
@@ -270,10 +270,22 @@ export default function MatchScoreboardPage() {
   const handleFinishMatch = async () => {
     if (!match || !isUmpire || isFinalizing) return;
     setIsFinalizing(true);
+    
     let result = "Match Finished";
-    if (inn2Score > inn1Score) { result = `${getTeamName(inn2?.battingTeamId)} won by ${(match.team1SquadPlayerIds?.length || 11) - inn2Wickets} wickets.`; }
-    else if (inn1Score > inn2Score) { result = `${getTeamName(inn1?.battingTeamId)} won by ${inn1Score - inn2Score} runs.`; }
-    else { result = "Match Tied."; }
+    // Team batting 1st is inn1, Team batting 2nd is inn2
+    const t1Name = getTeamName(inn1?.battingTeamId);
+    const t2Name = getTeamName(inn2?.battingTeamId);
+
+    if (inn2Score > inn1Score) { 
+      const remainingWickets = (match.team2SquadPlayerIds?.length || 11) - inn2Wickets;
+      result = `${t2Name} won by ${remainingWickets} wickets.`; 
+    }
+    else if (inn1Score > inn2Score) { 
+      result = `${t1Name} won by ${inn1Score - inn2Score} runs.`; 
+    }
+    else { 
+      result = "Match Tied."; 
+    }
 
     const playerMatchStats: Record<string, any> = {};
     const allBalls = [...(inn1Deliveries || []), ...(inn2Deliveries || [])];
@@ -584,7 +596,7 @@ export default function MatchScoreboardPage() {
           <div className="flex justify-between items-center border-t pt-4">
             <p className="text-[10px] md:text-xs font-black uppercase text-primary tracking-[0.2em]">{match.status === 'completed' ? match.resultDescription : "Match in Progress"}</p>
             {match.status === 'completed' && match.potmPlayerId && (
-              <Badge className="bg-amber-500 text-white font-black uppercase text-[8px] flex items-center gap-1">
+              <Badge className="bg-amber-500 text-white font-black uppercase text-[8px] flex items-center gap-1 shrink-0 whitespace-nowrap px-3 py-1.5 h-auto">
                 <Star className="w-2.5 h-2.5" /> POTM: 
                 <Link href={`/players/${match.potmPlayerId}`} className="hover:underline ml-1">
                   {getPlayerName(match.potmPlayerId)}
