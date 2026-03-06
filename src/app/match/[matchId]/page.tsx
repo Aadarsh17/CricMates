@@ -124,11 +124,11 @@ export default function MatchScoreboardPage() {
       case 'runout': return `run out (${fielder})`;
       case 'stumped': return `st ${fielder} b ${bowler}`;
       case 'retired': return 'retired';
+      case 'hit-wicket': return `hit wkt b ${bowler}`;
       default: return `out b ${bowler}`;
     }
   };
 
-  // Header Team Mapping Fix
   const t1Header = useMemo(() => {
     if (!match) return { name: '---', score: 0, wkts: 0, overs: '0.0' };
     if (inn1?.battingTeamId === match.team1Id) return { name: getTeamName(match.team1Id), score: inn1Score, wkts: inn1Wickets, overs: inn1OversDisplay };
@@ -239,18 +239,27 @@ export default function MatchScoreboardPage() {
     let newBallsInOver = activeInningData.ballsInCurrentOver + (isLegalBall ? 1 : 0);
     let newOversComp = activeInningData.oversCompleted;
     let shouldClearBowler = false;
-    if (newBallsInOver === 6) { newOversComp += 1; newBallsInOver = 0; shouldClearBowler = true; }
+    let needsOverEndRotation = false;
+
+    if (newBallsInOver === 6) { 
+      newOversComp += 1; 
+      newBallsInOver = 0; 
+      shouldClearBowler = true;
+      needsOverEndRotation = true;
+    }
 
     const isTerminallyFinished = (currentBallsCount + (isLegalBall ? 1 : 0)) >= (match.totalOvers * 6);
 
     let nextStriker = activeInningData.strikerPlayerId;
     let nextNonStriker = activeInningData.nonStrikerPlayerId || 'none';
 
+    // Mid-over rotation (based on runs)
     if (!activeInningData.isLastManActive && !noStrikeChange && runs % 2 !== 0) {
       [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
     }
 
-    if (shouldClearBowler && !activeInningData.isLastManActive) {
+    // End of over rotation
+    if (needsOverEndRotation && !activeInningData.isLastManActive) {
       [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
     }
 
@@ -338,16 +347,39 @@ export default function MatchScoreboardPage() {
     if (!match || !activeInningData || !isUmpire || !wicketForm.batterOutId) return;
     const currentInningId = `inning_${match.currentInningNumber}`;
     let newBalls = activeInningData.ballsInCurrentOver + 1; let newOvers = activeInningData.oversCompleted;
-    if (newBalls === 6) { newOvers += 1; newBalls = 0; }
+    let needsOverEndRotation = false;
+    if (newBalls === 6) { 
+      newOvers += 1; 
+      newBalls = 0; 
+      needsOverEndRotation = true;
+    }
+    
     const currentBallsCount = (match.currentInningNumber === 1 ? inn1BallsCount : inn2BallsCount) + 1;
     const isTerminallyFinished = currentBallsCount >= (match.totalOvers * 6);
-    const deliveryData = { id: doc(collection(db, 'temp')).id, overNumber: newBalls === 0 ? newOvers : newOvers + 1, ballNumberInOver: newBalls === 0 ? 6 : newBalls, strikerPlayerId: activeInningData.strikerPlayerId, nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || 'none', bowlerId: activeInningData.currentBowlerPlayerId, runsScored: 0, extraRuns: 0, extraType: 'none', totalRunsOnDelivery: 0, isWicket: true, dismissalType: wicketForm.type, batsmanOutPlayerId: wicketForm.batterOutId, fielderPlayerId: wicketForm.fielderId, timestamp: Date.now() };
+    
+    const deliveryData = { 
+      id: doc(collection(db, 'temp')).id, 
+      overNumber: newBalls === 0 ? newOvers : newOvers + 1, 
+      ballNumberInOver: newBalls === 0 ? 6 : newBalls, 
+      strikerPlayerId: activeInningData.strikerPlayerId, 
+      nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || 'none', 
+      bowlerId: activeInningData.currentBowlerPlayerId, 
+      runsScored: 0, 
+      extraRuns: 0, 
+      extraType: 'none', 
+      totalRunsOnDelivery: 0, 
+      isWicket: true, 
+      dismissalType: wicketForm.type, 
+      batsmanOutPlayerId: wicketForm.batterOutId, 
+      fielderPlayerId: wicketForm.fielderId, 
+      timestamp: Date.now() 
+    };
     addDocumentNonBlocking(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords'), deliveryData);
     
     let nextStriker = wicketForm.batterOutId === activeInningData.strikerPlayerId ? '' : activeInningData.strikerPlayerId;
     let nextNonStriker = wicketForm.batterOutId === activeInningData.nonStrikerPlayerId ? '' : activeInningData.nonStrikerPlayerId;
 
-    if (newBalls === 0 && !activeInningData.isLastManActive) {
+    if (needsOverEndRotation && !activeInningData.isLastManActive) {
       [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
     }
 
@@ -369,7 +401,8 @@ export default function MatchScoreboardPage() {
     }
     
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), updates);
-    setIsWicketDialogOpen(false); if (newBalls === 0 && !updates.isDeclaredFinished) setIsPlayerAssignmentOpen(true);
+    setIsWicketDialogOpen(false); 
+    if (newBalls === 0 && !updates.isDeclaredFinished) setIsPlayerAssignmentOpen(true);
   };
 
   const handleUndo = async () => {
@@ -891,7 +924,7 @@ export default function MatchScoreboardPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}><DialogContent className="max-w-[90vw] md:max-w-md rounded-xl border-t-8 border-t-destructive"><DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-destructive">Register Wicket</DialogTitle></DialogHeader><div className="space-y-4 py-4"><div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Type</Label><Select value={wicketForm.type} onValueChange={v => setWicketForm({...wicketForm, type: v})}><SelectTrigger className="font-bold"><SelectValue /></SelectTrigger><SelectContent>{['bowled', 'caught', 'lbw', 'runout', 'stumped', 'retired'].map(t => <SelectItem key={t} value={t} className="uppercase font-bold text-[10px]">{t}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Batter Out</Label><Select value={wicketForm.batterOutId} onValueChange={v => setWicketForm({...wicketForm, batterOutId: v})}><SelectTrigger className="font-bold"><SelectValue placeholder="Select Batter" /></SelectTrigger><SelectContent>{activeInningData?.strikerPlayerId && <SelectItem value={activeInningData.strikerPlayerId}>{getPlayerName(activeInningData.strikerPlayerId)}</SelectItem>}{activeInningData?.nonStrikerPlayerId && <SelectItem value={activeInningData.nonStrikerPlayerId}>{getPlayerName(activeInningData.nonStrikerPlayerId)}</SelectItem>}</SelectContent></Select></div>{['caught', 'runout', 'stumped'].includes(wicketForm.type) && (<div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Fielder</Label><Select value={wicketForm.fielderId} onValueChange={v => setWicketForm({...wicketForm, fielderId: v})}><SelectTrigger className="font-bold"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">---</SelectItem>{allPlayers?.filter(p => p.teamId !== activeInningData?.battingTeamId).map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select></div>)}<div className="space-y-1 p-3 bg-slate-50 rounded-lg border"><Label className="text-[10px] font-black uppercase text-primary mb-2 block">Action</Label><Select value={wicketForm.decision} onValueChange={v => setWicketForm({...wicketForm, decision: v})}><SelectTrigger className="font-bold h-12 bg-white"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="next" className="font-bold">Next Batter</SelectItem><SelectItem value="last_man" className="font-bold">Last Man</SelectItem><SelectItem value="finish" className="font-bold text-destructive">Finish Innings</SelectItem></SelectContent></Select></div></div><DialogFooter><Button variant="destructive" onClick={handleWicket} className="w-full h-12 font-black uppercase shadow-lg">Confirm</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}><DialogContent className="max-w-[90vw] md:max-w-md rounded-xl border-t-8 border-t-destructive"><DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-destructive">Register Wicket</DialogTitle></DialogHeader><div className="space-y-4 py-4"><div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Type</Label><Select value={wicketForm.type} onValueChange={v => setWicketForm({...wicketForm, type: v})}><SelectTrigger className="font-bold"><SelectValue /></SelectTrigger><SelectContent>{['bowled', 'caught', 'lbw', 'runout', 'stumped', 'retired', 'hit-wicket'].map(t => <SelectItem key={t} value={t} className="uppercase font-bold text-[10px]">{t}</SelectItem>)}</SelectContent></Select></div><div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Batter Out</Label><Select value={wicketForm.batterOutId} onValueChange={v => setWicketForm({...wicketForm, batterOutId: v})}><SelectTrigger className="font-bold"><SelectValue placeholder="Select Batter" /></SelectTrigger><SelectContent>{activeInningData?.strikerPlayerId && <SelectItem value={activeInningData.strikerPlayerId}>{getPlayerName(activeInningData.strikerPlayerId)}</SelectItem>}{activeInningData?.nonStrikerPlayerId && <SelectItem value={activeInningData.nonStrikerPlayerId}>{getPlayerName(activeInningData.nonStrikerPlayerId)}</SelectItem>}</SelectContent></Select></div>{['caught', 'runout', 'stumped'].includes(wicketForm.type) && (<div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Fielder</Label><Select value={wicketForm.fielderId} onValueChange={v => setWicketForm({...wicketForm, fielderId: v})}><SelectTrigger className="font-bold"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="none">---</SelectItem>{allPlayers?.filter(p => p.teamId !== activeInningData?.battingTeamId).map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select></div>)}<div className="space-y-1 p-3 bg-slate-50 rounded-lg border"><Label className="text-[10px] font-black uppercase text-primary mb-2 block">Action</Label><Select value={wicketForm.decision} onValueChange={v => setWicketForm({...wicketForm, decision: v})}><SelectTrigger className="font-bold h-12 bg-white"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="next" className="font-bold">Next Batter</SelectItem><SelectItem value="last_man" className="font-bold">Last Man</SelectItem><SelectItem value="finish" className="font-bold text-destructive">Finish Innings</SelectItem></SelectContent></Select></div></div><DialogFooter><Button variant="destructive" onClick={handleWicket} className="w-full h-12 font-black uppercase shadow-lg">Confirm</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}><DialogContent className="max-w-[90vw] md:max-w-md rounded-xl border-t-8 border-t-primary"><DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-center">Assign Positions</DialogTitle></DialogHeader><div className="space-y-6 py-4"><div className="grid grid-cols-2 gap-4"><div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label><Select value={activeInningData?.strikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { strikerPlayerId: v })}><SelectTrigger className="font-bold h-12"><SelectValue placeholder="Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => currentBattingSquadIds === p.teamId && p.id !== activeInningData?.currentBowlerPlayerId && !(match.currentInningNumber === 1 ? stats1 : stats2).batting.find(b => b.id === p.id && b.out)).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div>{!activeInningData?.isLastManActive && (<div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label><Select value={activeInningData?.nonStrikerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { nonStrikerPlayerId: v })}><SelectTrigger className="font-bold h-12"><SelectValue placeholder="Non-Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => currentBattingSquadIds === p.teamId && p.id !== activeInningData?.currentBowlerPlayerId && !(match.currentInningNumber === 1 ? stats1 : stats2).batting.find(b => b.id === p.id && b.out)).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div>)}</div><div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Current Bowler</Label><Select value={activeInningData?.currentBowlerPlayerId || undefined} onValueChange={v => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { currentBowlerPlayerId: v })}><SelectTrigger className="font-bold h-12"><SelectValue placeholder="Bowler" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => currentBattingSquadIds !== p.teamId && p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div></div><DialogFooter><Button onClick={() => setIsPlayerAssignmentOpen(false)} className="w-full h-14 font-black uppercase shadow-xl">Confirm</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );

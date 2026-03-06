@@ -243,6 +243,7 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
       case 'runout': return `run out (${fielder})`;
       case 'stumped': return `st ${fielder} b ${bowler}`;
       case 'retired': return 'retired';
+      case 'hit-wicket': return `hit wkt b ${bowler}`;
       default: return `out b ${bowler}`;
     }
   };
@@ -266,7 +267,8 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
           <tr style="border-bottom: 1px solid #f8fafc;">
             <td style="padding: 1px 2px; font-size: 7px; font-weight: 700;">
               ${getPlayer(b.id)} 
-              <span style="font-size: 5px; color: #94a3b8; font-weight: normal;">${getDismissalString(b)}</span>
+              <br/>
+              <span style="font-size: 5px; color: #94a3b8; font-weight: 800; text-transform: uppercase; font-style: italic;">${getDismissalString(b)}</span>
             </td>
             <td style="padding: 1px 2px; text-align: right; font-weight: 800; font-size: 7px;">${b.runs}</td>
             <td style="padding: 1px 2px; text-align: right; font-size: 7px; color: #64748b;">${b.balls}</td>
