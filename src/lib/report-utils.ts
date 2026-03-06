@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Utility functions for match statistics, professional scorecard generation, and match flow timeline logic.
  */
@@ -289,6 +290,27 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
     </table>
   `;
 
+  const renderPartnershipTable = (partnerships: any[]) => `
+    <table style="width:100%; border-collapse: collapse; margin-top: 2px;">
+      <thead>
+        <tr style="background-color: #f1f5f9; border-bottom: 1px solid #cbd5e1;">
+          <th style="padding: 1px 2px; text-align: left; font-size: 6px; text-transform: uppercase;">Partners</th>
+          <th style="padding: 1px 2px; text-align: right; font-size: 6px; text-transform: uppercase;">Runs(B)</th>
+          <th style="padding: 1px 2px; text-align: right; font-size: 6px; text-transform: uppercase;">Contribution</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${partnerships.map(p => `
+          <tr style="border-bottom: 1px solid #f8fafc;">
+            <td style="padding: 1px 2px; font-size: 6px;">${getPlayerShort(p.batter1Id)}-${getPlayerShort(p.batter2Id)}</td>
+            <td style="padding: 1px 2px; text-align: right; font-size: 6px;"><strong>${p.runs}</strong>(${p.balls})</td>
+            <td style="padding: 1px 2px; text-align: right; font-size: 5px;">${getPlayerShort(p.batter1Id)} ${p.batter1Runs}, ${getPlayerShort(p.batter2Id)} ${p.batter2Runs}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -351,7 +373,7 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
         </div>
         <div>
           <div class="col-title">Partnerships</div>
-          ${stats1.partnerships.slice(0, 5).map(p => `<div class="stats-item">${getPlayerShort(p.batter1Id)}-${getPlayerShort(p.batter2Id)}: <strong>${p.runs}</strong>(${p.balls})</div>`).join('')}
+          ${renderPartnershipTable(stats1.partnerships)}
         </div>
       </div>
       <div class="inning-subtitle">Bowling: ${getTeam(inn1?.bowlingTeamId)}</div>
@@ -369,7 +391,7 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
         </div>
         <div>
           <div class="col-title">Partnerships</div>
-          ${stats2.partnerships.slice(0, 5).map(p => `<div class="stats-item">${getPlayerShort(p.batter1Id)}-${getPlayerShort(p.batter2Id)}: <strong>${p.runs}</strong>(${p.balls})</div>`).join('')}
+          ${renderPartnershipTable(stats2.partnerships)}
         </div>
       </div>
       <div class="inning-subtitle">Bowling: ${getTeam(inn2?.bowlingTeamId)}</div>
