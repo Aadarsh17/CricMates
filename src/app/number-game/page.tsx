@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target, CheckCircle2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -628,7 +628,7 @@ export default function NumberGame() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {[...players].sort((a,b) => b.order - a.order).map(p => (
+                  {[...players].sort((a,b) => a.order - b.order).map(p => (
                     <TableRow key={p.id} className={cn(p.id === bowlerId ? "bg-secondary/5" : "")}>
                       <TableCell className="py-3">
                         <div className="flex items-center gap-2">
