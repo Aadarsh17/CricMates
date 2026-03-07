@@ -8,10 +8,11 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp } from 'lucide-react';
+import { ArrowLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export default function PlayerProfilePage() {
   const params = useParams();
@@ -67,84 +68,227 @@ export default function PlayerProfilePage() {
         if (d.dismissalType === 'runout') log.fielding.runOuts++;
       }
     });
-    return Object.values(logs).map((log: any) => ({ ...log, totalCVP: calculatePlayerCVP({ ...log.batting, ...log.bowling, ...log.fielding, id: player.id, name: player.name, maidens: 0, ballsBowled: log.bowling.ballsBowled, runsConceded: log.bowling.runsConceded }) })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return Object.values(logs).map((log: any) => ({ 
+      ...log, 
+      totalCVP: calculatePlayerCVP({ ...log.batting, ...log.bowling, ...log.fielding, id: player.id, name: player.name, maidens: 0, ballsBowled: log.bowling.ballsBowled, runsConceded: log.bowling.runsConceded }) 
+    })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allDeliveries, allMatches, player, isMounted, playerId, activeMatchIds]);
 
-  const milestones = useMemo(() => {
+  const careerStats = useMemo(() => {
     const s = { 
-      runs: 0, wkts: 0, matches: 0, cvp: 0,
-      tens: 0, twenties: 0, thirties: 0, forties: 0, fifties: 0, hundreds: 0,
-      oneWkts: 0, threeWkts: 0, fiveWkts: 0
+      matches: 0, cvp: 0,
+      batting: { innings: 0, runs: 0, balls: 0, fours: 0, sixes: 0, outs: 0, high: 0, sr: 0, avg: 0, milestones: { hundreds: 0, fifties: 0, forties: 0, thirties: 0, twenties: 0, tens: 0 } },
+      bowling: { innings: 0, overs: 0, balls: 0, runs: 0, wkts: 0, best: { wkts: 0, runs: 999 }, econ: 0, sr: 0, avg: 0, mil: { fiveW: 0, threeW: 0, oneW: 0 } },
+      fielding: { catches: 0, stumpings: 0, runouts: 0 }
     };
-    matchWiseLog.forEach(log => { 
-      s.runs += log.batting.runs; 
-      s.wkts += log.bowling.wickets; 
-      s.matches++; 
-      s.cvp += log.totalCVP; 
-      
-      const r = log.batting.runs;
-      if (r >= 100) s.hundreds++;
-      else if (r >= 50) s.fifties++;
-      else if (r >= 40) s.forties++;
-      else if (r >= 30) s.thirties++;
-      else if (r >= 20) s.twenties++;
-      else if (r >= 10) s.tens++;
 
-      const w = log.bowling.wickets;
-      if (w >= 5) s.fiveWkts++;
-      else if (w >= 3) s.threeWkts++;
-      else if (w >= 1) s.oneWkts++;
+    matchWiseLog.forEach(log => {
+      s.matches++;
+      s.cvp += log.totalCVP;
+
+      // Batting
+      if (log.batting.ballsFaced > 0) {
+        s.batting.innings++;
+        s.batting.runs += log.batting.runs;
+        s.batting.balls += log.batting.ballsFaced;
+        s.batting.fours += log.batting.fours;
+        s.batting.sixes += log.batting.sixes;
+        if (log.batting.out) s.batting.outs++;
+        if (log.batting.runs > s.batting.high) s.batting.high = log.batting.runs;
+
+        const r = log.batting.runs;
+        if (r >= 100) s.batting.milestones.hundreds++;
+        else if (r >= 50) s.batting.milestones.fifties++;
+        else if (r >= 40) s.batting.milestones.forties++;
+        else if (r >= 30) s.batting.milestones.thirties++;
+        else if (r >= 20) s.batting.milestones.twenties++;
+        else if (r >= 10) s.batting.milestones.tens++;
+      }
+
+      // Bowling
+      if (log.bowling.ballsBowled > 0) {
+        s.bowling.innings++;
+        s.bowling.balls += log.bowling.ballsBowled;
+        s.bowling.runs += log.bowling.runsConceded;
+        s.bowling.wkts += log.bowling.wickets;
+
+        if (log.bowling.wickets > s.bowling.best.wkts || (log.bowling.wickets === s.bowling.best.wkts && log.bowling.runsConceded < s.bowling.best.runs)) {
+          s.bowling.best = { wkts: log.bowling.wickets, runs: log.bowling.runsConceded };
+        }
+
+        if (log.bowling.wickets >= 5) s.bowling.mil.fiveW++;
+        else if (log.bowling.wickets >= 3) s.bowling.mil.threeW++;
+        else if (log.bowling.wickets >= 1) s.bowling.mil.oneW++;
+      }
+
+      // Fielding
+      s.fielding.catches += log.fielding.catches;
+      s.fielding.stumpings += log.fielding.stumpings;
+      s.fielding.runouts += log.fielding.runOuts;
     });
+
+    s.batting.avg = s.batting.outs > 0 ? s.batting.runs / s.batting.outs : s.batting.runs;
+    s.batting.sr = s.batting.balls > 0 ? (s.batting.runs / s.batting.balls) * 100 : 0;
+    s.bowling.overs = Math.floor(s.bowling.balls / 6) + (s.bowling.balls % 6) / 10;
+    s.bowling.econ = s.bowling.balls >= 6 ? (s.bowling.runs / (s.bowling.balls / 6)) : 0;
+    s.bowling.avg = s.bowling.wkts > 0 ? s.bowling.runs / s.bowling.wkts : 0;
+    s.bowling.sr = s.bowling.wkts > 0 ? s.bowling.balls / s.bowling.wkts : 0;
+
     return s;
   }, [matchWiseLog]);
 
-  if (!isMounted || isPlayerLoading || isHistoryLoading) return (<div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4"><Loader2 className="w-10 h-10 text-primary animate-spin" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Career Data...</p></div>);
-  if (!player) return <div className="p-20 text-center">Player profile missing.</div>;
+  if (!isMounted || isPlayerLoading || isHistoryLoading) return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
+      <Loader2 className="w-10 h-10 text-primary animate-spin" />
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Career Data...</p>
+    </div>
+  );
+  
+  if (!player) return <div className="p-20 text-center font-black uppercase text-slate-400">Player profile missing.</div>;
 
   return (
-    <div className="max-w-lg mx-auto space-y-8 pb-32 px-4">
+    <div className="max-w-2xl mx-auto space-y-8 pb-32 px-4 animate-in fade-in slide-in-from-bottom-4">
+      {/* Header Profile Section */}
       <section className="bg-slate-950 text-white rounded-3xl p-8 shadow-2xl relative overflow-hidden ring-1 ring-white/10">
         <div className="absolute top-0 right-0 p-4 opacity-10"><Zap className="w-32 h-32" /></div>
-        <div className="flex items-center gap-6 relative z-10">
-          <Avatar className="w-24 h-24 border-4 border-white/10 rounded-3xl shadow-xl overflow-hidden shrink-0"><AvatarImage src={player.imageUrl} className="object-cover" /><AvatarFallback className="text-3xl font-black bg-white/5">{player.name[0]}</AvatarFallback></Avatar>
+        <div className="flex flex-col md:flex-row items-center gap-6 relative z-10 text-center md:text-left">
+          <Avatar className="w-28 h-28 border-4 border-white/10 rounded-3xl shadow-xl overflow-hidden shrink-0">
+            <AvatarImage src={player.imageUrl} className="object-cover" />
+            <AvatarFallback className="text-4xl font-black bg-white/5">{player.name[0]}</AvatarFallback>
+          </Avatar>
           <div className="min-w-0">
-            <h1 className="text-2xl font-black uppercase tracking-tighter truncate leading-tight">{player.name}</h1>
-            <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest border-white/20 text-white h-6 px-3">{player.role}</Badge>
+            <h1 className="text-3xl font-black uppercase tracking-tighter truncate leading-tight mb-2">{player.name}</h1>
+            <div className="flex flex-wrap justify-center md:justify-start gap-2">
+              <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest border-white/20 text-white h-6 px-3">{player.role}</Badge>
+              {player.isWicketKeeper && <Badge className="bg-secondary text-white font-black text-[9px] h-6">WK</Badge>}
+            </div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 mt-8 relative z-10">
-          <div className="bg-white/5 p-4 rounded-2xl backdrop-blur-sm border border-white/5 text-center"><p className="text-[8px] font-black uppercase text-slate-500 mb-1 tracking-widest">Career CVP</p><p className="text-2xl font-black text-primary">{milestones.cvp.toFixed(1)}</p></div>
-          <div className="bg-white/5 p-4 rounded-2xl backdrop-blur-sm border border-white/5 text-center"><p className="text-[8px] font-black uppercase text-slate-500 mb-1 tracking-widest">Matches</p><p className="text-2xl font-black">{milestones.matches}</p></div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-8 relative z-10">
+          <div className="bg-white/5 p-4 rounded-2xl backdrop-blur-sm border border-white/5 text-center">
+            <p className="text-[8px] font-black uppercase text-slate-500 mb-1 tracking-widest">Career CVP</p>
+            <p className="text-2xl font-black text-primary">{careerStats.cvp.toFixed(1)}</p>
+          </div>
+          <div className="bg-white/5 p-4 rounded-2xl backdrop-blur-sm border border-white/5 text-center">
+            <p className="text-[8px] font-black uppercase text-slate-500 mb-1 tracking-widest">Matches</p>
+            <p className="text-2xl font-black">{careerStats.matches}</p>
+          </div>
+          <div className="hidden md:block bg-white/5 p-4 rounded-2xl backdrop-blur-sm border border-white/5 text-center">
+            <p className="text-[8px] font-black uppercase text-slate-500 mb-1 tracking-widest">Team</p>
+            <p className="text-sm font-black uppercase truncate">Franchise Member</p>
+          </div>
         </div>
       </section>
 
-      <Tabs defaultValue="milestones" className="w-full">
+      <Tabs defaultValue="career" className="w-full">
         <TabsList className="grid w-full grid-cols-3 h-12 bg-slate-100 p-1 rounded-xl mb-6">
-          <TabsTrigger value="milestones" className="font-black text-[10px] uppercase">Honors</TabsTrigger>
+          <TabsTrigger value="career" className="font-black text-[10px] uppercase">Career</TabsTrigger>
           <TabsTrigger value="form" className="font-black text-[10px] uppercase">Form</TabsTrigger>
           <TabsTrigger value="history" className="font-black text-[10px] uppercase">Logs</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="milestones" className="space-y-6">
-          <Card className="border-none shadow-xl rounded-3xl bg-white p-6">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2"><Medal className="w-4 h-4 text-amber-500" /> Professional Honors</h3>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div><p className="text-2xl font-black text-slate-900">{milestones.hundreds}</p><p className="text-[8px] font-black text-slate-400 uppercase">100s</p></div>
-              <div><p className="text-2xl font-black text-slate-900">{milestones.fifties}</p><p className="text-[8px] font-black text-slate-400 uppercase">50s</p></div>
-              <div><p className="text-2xl font-black text-slate-900">{milestones.forties}</p><p className="text-[8px] font-black text-slate-400 uppercase">40s</p></div>
-              <div className="pt-4"><p className="text-2xl font-black text-slate-900">{milestones.thirties}</p><p className="text-[8px] font-black text-slate-400 uppercase">30s</p></div>
-              <div className="pt-4"><p className="text-2xl font-black text-slate-900">{milestones.twenties}</p><p className="text-[8px] font-black text-slate-400 uppercase">20s</p></div>
-              <div className="pt-4"><p className="text-2xl font-black text-slate-900">{milestones.tens}</p><p className="text-[8px] font-black text-slate-400 uppercase">10s</p></div>
+        <TabsContent value="career" className="space-y-8">
+          {/* Batting Career */}
+          <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden">
+            <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Swords className="w-4 h-4 text-primary" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Batting Career</span>
+              </div>
+              <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.batting.innings} Innings</Badge>
             </div>
-            <div className="grid grid-cols-3 gap-4 text-center mt-6 pt-6 border-t">
-              <div><p className="text-2xl font-black text-secondary">{milestones.fiveWkts}</p><p className="text-[8px] font-black text-slate-400 uppercase">5W Hauls</p></div>
-              <div><p className="text-2xl font-black text-secondary">{milestones.threeWkts}</p><p className="text-[8px] font-black text-slate-400 uppercase">3W Hauls</p></div>
-              <div><p className="text-2xl font-black text-secondary">{milestones.oneWkts}</p><p className="text-[8px] font-black text-slate-400 uppercase">1W Hauls</p></div>
-            </div>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-6 text-center">
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-xl font-black text-slate-900">{careerStats.batting.runs}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">H.S.</p><p className="text-xl font-black text-slate-900">{careerStats.batting.high}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.batting.avg.toFixed(2)}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">S.R.</p><p className="text-xl font-black text-slate-900">{careerStats.batting.sr.toFixed(1)}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">4s</p><p className="text-sm font-bold">{careerStats.batting.fours}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">6s</p><p className="text-sm font-bold">{careerStats.batting.sixes}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-sm font-bold">{careerStats.batting.balls}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Outs</p><p className="text-sm font-bold">{careerStats.batting.outs}</p></div>
+              </div>
+              <div className="mt-6 pt-6 border-t">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Innings Milestones</p>
+                <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                  {[
+                    { label: '100s', val: careerStats.batting.milestones.hundreds },
+                    { label: '50s', val: careerStats.batting.milestones.fifties },
+                    { label: '40s', val: careerStats.batting.milestones.forties },
+                    { label: '30s', val: careerStats.batting.milestones.thirties },
+                    { label: '20s', val: careerStats.batting.milestones.twenties },
+                    { label: '10s', val: careerStats.batting.milestones.tens },
+                  ].map(m => (
+                    <div key={m.label} className="bg-slate-50 p-2 rounded-xl text-center border">
+                      <p className="text-sm font-black text-slate-900">{m.val}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase">{m.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
           </Card>
-          <Card className="border-none shadow-xl rounded-3xl bg-white p-6 grid grid-cols-2 gap-6">
-            <div className="space-y-1"><p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Total Runs</p><p className="text-3xl font-black text-slate-900">{milestones.runs}</p></div>
-            <div className="space-y-1"><p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">Total Wickets</p><p className="text-3xl font-black text-secondary">{milestones.wkts}</p></div>
+
+          {/* Bowling Career */}
+          <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden">
+            <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-secondary" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Bowling Career</span>
+              </div>
+              <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.bowling.innings} Innings</Badge>
+            </div>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-6 text-center">
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Wickets</p><p className="text-xl font-black text-secondary">{careerStats.bowling.wkts}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Best</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.best.wkts}/{careerStats.bowling.best.runs}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Econ</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.econ.toFixed(2)}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.avg.toFixed(2)}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Overs</p><p className="text-sm font-bold">{careerStats.bowling.overs}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-sm font-bold">{careerStats.bowling.runs}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">S.R.</p><p className="text-sm font-bold">{careerStats.bowling.sr.toFixed(1)}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-sm font-bold">{careerStats.bowling.balls}</p></div>
+              </div>
+              <div className="mt-6 pt-6 border-t">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Match Hauls</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: '5W Hauls', val: careerStats.bowling.mil.fiveW },
+                    { label: '3W Hauls', val: careerStats.bowling.mil.threeW },
+                    { label: '1W Hauls', val: careerStats.bowling.mil.oneW },
+                  ].map(m => (
+                    <div key={m.label} className="bg-slate-50 p-2 rounded-xl text-center border">
+                      <p className="text-sm font-black text-secondary">{m.val}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase">{m.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Fielding Career */}
+          <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden">
+            <div className="bg-slate-900 text-white p-4 flex items-center gap-2">
+              <Hand className="w-4 h-4 text-emerald-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest">Fielding Record</span>
+            </div>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-3 gap-6 text-center">
+                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                  <p className="text-[8px] font-black text-emerald-600 uppercase mb-1">Catches</p>
+                  <p className="text-2xl font-black text-emerald-700">{careerStats.fielding.catches}</p>
+                </div>
+                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                  <p className="text-[8px] font-black text-emerald-600 uppercase mb-1">Stumpings</p>
+                  <p className="text-2xl font-black text-emerald-700">{careerStats.fielding.stumpings}</p>
+                </div>
+                <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
+                  <p className="text-[8px] font-black text-emerald-600 uppercase mb-1">Run Outs</p>
+                  <p className="text-2xl font-black text-emerald-700">{careerStats.fielding.runouts}</p>
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </TabsContent>
 
@@ -155,10 +299,24 @@ export default function PlayerProfilePage() {
               <Card key={idx} className="border-none shadow-sm rounded-2xl bg-white overflow-hidden">
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col items-center justify-center min-w-[50px]"><Calendar className="w-3 h-3 text-slate-400 mb-1" /><span className="text-[8px] font-black text-slate-500 uppercase">{new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></div>
-                    <div className="min-w-0"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Impact</p><div className="flex items-baseline gap-2"><span className="text-xl font-black text-slate-900">{log.batting.runs} <span className="text-[8px] text-slate-400">R</span></span><span className="text-sm font-black text-secondary">{log.bowling.wickets} <span className="text-[8px] text-slate-400">W</span></span></div></div>
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col items-center justify-center min-w-[50px]">
+                      <Calendar className="w-3 h-3 text-slate-400 mb-1" />
+                      <span className="text-[8px] font-black text-slate-500 uppercase">
+                        {new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      </span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Impact Performance</p>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-xl font-black text-slate-900">{log.batting.runs} <span className="text-[8px] text-slate-400">R</span></span>
+                        <span className="text-sm font-black text-secondary">{log.bowling.wickets} <span className="text-[8px] text-slate-400">W</span></span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">CVP</p><Badge variant="secondary" className="font-black text-xs h-6">{log.totalCVP.toFixed(1)}</Badge></div>
+                  <div className="text-right">
+                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Match CVP</p>
+                    <Badge variant="secondary" className="font-black text-xs h-6">{log.totalCVP.toFixed(1)}</Badge>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -166,16 +324,36 @@ export default function PlayerProfilePage() {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-3">
-          {matchWiseLog.length > 0 ? matchWiseLog.map((log, idx) => (
-            <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-2xl border shadow-sm">
-              <span className="text-xs font-black uppercase text-slate-600">{new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-              <div className="flex gap-4">
-                <span className="text-xs font-bold text-slate-400">{log.batting.runs} runs</span>
-                <span className="text-xs font-bold text-slate-400">{log.bowling.wickets} wkts</span>
-              </div>
+          {matchWiseLog.length > 0 ? (
+            <Card className="border-none shadow-sm rounded-2xl overflow-hidden">
+              <Table>
+                <TableHeader className="bg-slate-50">
+                  <TableRow>
+                    <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase">Runs</TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase">Wkts</TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase">CVP</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {matchWiseLog.map((log, idx) => (
+                    <TableRow key={idx}>
+                      <TableCell className="text-[10px] font-bold text-slate-500 uppercase">
+                        {new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </TableCell>
+                      <TableCell className="text-right font-black text-xs">{log.batting.runs}</TableCell>
+                      <TableCell className="text-right font-black text-xs text-secondary">{log.bowling.wickets}</TableCell>
+                      <TableCell className="text-right font-black text-xs text-primary">{log.totalCVP.toFixed(1)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+          ) : (
+            <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-slate-50/50">
+              <TrendingUp className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No match records found</p>
             </div>
-          )) : (
-            <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-slate-50/50"><TrendingUp className="w-10 h-10 text-slate-200 mx-auto mb-2" /><p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No match records found</p></div>
           )}
         </TabsContent>
       </Tabs>

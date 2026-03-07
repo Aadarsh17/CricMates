@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Utility functions for match statistics, professional scorecard generation, and match flow timeline logic.
  */
@@ -132,7 +133,10 @@ export const getExtendedInningStats = (deliveries: any[]) => {
 
   return {
     batting: sortedBatting,
-    bowling: Object.values(bowl).map(b => ({ ...b, oversDisplay: b.balls > 0 ? `${Math.floor((b.balls - 1) / 6)}.${((b.balls - 1) % 6) + 1}` : '0.0' })),
+    bowling: Object.values(bowl).map(b => ({ 
+      ...b, 
+      oversDisplay: b.balls > 0 ? `${Math.floor((b.balls - 1) / 6)}.${((b.balls - 1) % 6) + 1}` : '0.0' 
+    })),
     fow,
     partnerships
   };
