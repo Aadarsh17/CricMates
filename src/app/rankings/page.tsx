@@ -40,7 +40,7 @@ export default function RankingsPage() {
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
   const teamStandings = useMemo(() => {
-    if (!teams || !matches || !rawDeliveries) return [];
+    if (!isMounted || !teams?.length || !matches || !rawDeliveries) return [];
     const standings: Record<string, any> = {};
     
     teams.forEach(t => {
@@ -48,7 +48,7 @@ export default function RankingsPage() {
         id: t.id, name: t.name, logoUrl: t.logoUrl, 
         played: 0, won: 0, lost: 0, tied: 0, nr: 0, points: 0, 
         forR: 0, forB: 0, agR: 0, agB: 0,
-        form: [] as ('W' | 'L' | 'T' | 'NR')[]
+        form: []
       };
     });
 
@@ -61,20 +61,20 @@ export default function RankingsPage() {
       const result = m.resultDescription?.toLowerCase() || '';
       
       if (result.includes('tied') || result.includes('drawn')) {
-        standings[t1Id].tied++; standings[t1Id].points += 1; standings[t1Id].form.push('T');
-        standings[t2Id].tied++; standings[t2Id].points += 1; standings[t2Id].form.push('T');
+        standings[t1Id].tied++; standings[t1Id].points += 1;
+        standings[t2Id].tied++; standings[t2Id].points += 1;
       } else if (result.includes('no result') || result.includes('abandoned')) {
-        standings[t1Id].nr++; standings[t1Id].points += 1; standings[t1Id].form.push('NR');
-        standings[t2Id].nr++; standings[t2Id].points += 1; standings[t2Id].form.push('NR');
+        standings[t1Id].nr++; standings[t1Id].points += 1;
+        standings[t2Id].nr++; standings[t2Id].points += 1;
       } else {
         const winnerId = result.includes(standings[t1Id].name.toLowerCase()) && result.includes('won') ? t1Id : (result.includes(standings[t2Id].name.toLowerCase()) && result.includes('won') ? t2Id : null);
         if (winnerId) {
           const loserId = winnerId === t1Id ? t2Id : t1Id;
-          standings[winnerId].won++; standings[winnerId].points += 2; standings[winnerId].form.push('W');
-          standings[loserId].lost++; standings[loserId].form.push('L');
+          standings[winnerId].won++; standings[winnerId].points += 2;
+          standings[loserId].lost++;
         } else {
-          standings[t1Id].tied++; standings[t1Id].points += 1; standings[t1Id].form.push('T');
-          standings[t2Id].tied++; standings[t2Id].points += 1; standings[t2Id].form.push('T');
+          standings[t1Id].tied++; standings[t1Id].points += 1;
+          standings[t2Id].tied++; standings[t2Id].points += 1;
         }
       }
     });
@@ -104,10 +104,10 @@ export default function RankingsPage() {
       const agRR = s.agB > 0 ? (s.agR / (s.agB / 6)) : 0;
       return { ...s, nrr: forRR - agRR };
     }).sort((a: any, b: any) => b.points - a.points || b.nrr - a.nrr);
-  }, [teams, matches, rawDeliveries]);
+  }, [teams, matches, rawDeliveries, isMounted]);
 
   const leaderboards = useMemo(() => {
-    if (!players || !rawDeliveries || !matches) return [];
+    if (!isMounted || !players?.length || !rawDeliveries || !matches) return [];
     const stats: Record<string, any> = {};
     players.forEach(p => stats[p.id] = { id: p.id, name: p.name, runs: 0, ballsFaced: 0, wickets: 0, ballsBowled: 0, runsConceded: 0, catches: 0, runouts: 0, potm: 0, matches: 0, outs: 0 });
 
@@ -145,9 +145,9 @@ export default function RankingsPage() {
       if (key === 'econ') return (a[key] || 99) - (b[key] || 99);
       return (b[key] || 0) - (a[key] || 0);
     }).slice(0, 10);
-  }, [players, rawDeliveries, matches, activeCategory]);
+  }, [players, rawDeliveries, matches, activeCategory, isMounted]);
 
-  if (!isMounted || isDeliveriesLoading || isMatchesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
+  if (!isMounted || isDeliveriesLoading || isMatchesLoading || isPlayersLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-32 px-4">

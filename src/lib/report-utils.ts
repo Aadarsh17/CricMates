@@ -51,10 +51,12 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     
     // Legal ball stats
     if (d.extraType !== 'wide') {
-      bat[sId].balls += 1;
-      bat[sId].runs += (d.runsScored || 0);
-      if (d.runsScored === 4) bat[sId].fours += 1;
-      if (d.runsScored === 6) bat[sId].sixes += 1;
+      if (bat[sId]) {
+        bat[sId].balls += 1;
+        bat[sId].runs += (d.runsScored || 0);
+        if (d.runsScored === 4) bat[sId].fours += 1;
+        if (d.runsScored === 6) bat[sId].sixes += 1;
+      }
     }
 
     currentScore += (d.totalRunsOnDelivery || 0);
@@ -111,12 +113,10 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       };
     }
 
-    // End of innings partnership save
     if (idx === deliveries.length - 1 && activePartnership.balls > 0) {
       partnerships.push({...activePartnership});
     }
 
-    // Bowling Stats
     if (bId) {
       if (!bowl[bId]) bowl[bId] = { id: bId, overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
       bowl[bId].runs += (d.totalRunsOnDelivery || 0);
@@ -129,7 +129,6 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     }
   });
 
-  // Return sorted by batting order
   const sortedBatting = battingOrder.map(id => bat[id]).filter(b => !!b);
 
   return {
