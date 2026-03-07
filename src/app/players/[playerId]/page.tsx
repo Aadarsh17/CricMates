@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -7,7 +8,7 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Flag, Edit2, Loader2, Calendar, Camera, Upload } from 'lucide-react';
+import { ArrowLeft, Flag, Edit2, Loader2, Calendar, Camera, Upload, Activity } from 'lucide-react';
 import { Table, TableBody, TableCell, TableRow, TableHeader, TableHead } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
@@ -17,6 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useApp } from '@/context/AppContext';
 import { toast } from '@/hooks/use-toast';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
+import { cn } from '@/lib/utils';
 
 export default function PlayerProfilePage() {
   const params = useParams();
@@ -130,6 +132,24 @@ export default function PlayerProfilePage() {
         <div className="flex items-center gap-4 mb-4"><Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white shrink-0"><ArrowLeft className="w-6 h-6"/></Button><div className="flex-1 min-w-0"><div className="flex items-center gap-2"><span className="font-black text-2xl tracking-tighter uppercase truncate">{player.name}</span>{isUmpire && <Button variant="ghost" size="icon" onClick={() => setIsEditOpen(true)} className="text-white/70 hover:text-white rounded-full h-8 w-8"><Edit2 className="w-4 h-4" /></Button>}</div><div className="flex items-center gap-2 mt-0.5 opacity-70"><Flag className="w-3 h-3" /><span className="text-[10px] font-black uppercase tracking-widest">{player.role}</span></div></div></div>
         <div className="flex items-end gap-6 pb-2"><div className="relative group/avatar"><Avatar className="w-24 h-24 border-4 border-white/20 rounded-2xl shadow-xl shrink-0 overflow-hidden"><AvatarImage src={player.imageUrl} className="object-cover" /><AvatarFallback className="text-3xl font-black bg-white/10 text-white/50">{player.name[0]}</AvatarFallback></Avatar></div><div className="flex-1 grid grid-cols-2 gap-2 mb-2"><div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">History CVP</p><p className="text-xl font-black">{historyStats.careerCVP.toFixed(1)}</p></div><div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm text-center"><p className="text-[8px] font-black uppercase text-white/50">Matches</p><p className="text-xl font-black">{historyStats.matchesPlayed}</p></div></div></div>
       </div>
+
+      <div className="p-4 bg-slate-50 border-b">
+        <div className="flex items-center gap-2 mb-4">
+          <Activity className="w-4 h-4 text-primary" />
+          <h3 className="text-xs font-black uppercase tracking-widest text-slate-500">Recent Form (Last 5)</h3>
+        </div>
+        <div className="grid grid-cols-5 gap-2">
+          {matchWiseLog.slice(0, 5).map((log, idx) => (
+            <div key={idx} className="bg-white p-3 rounded-lg border border-slate-200 shadow-sm text-center">
+              <p className="text-[8px] font-black text-slate-400 uppercase mb-1">M{idx + 1}</p>
+              <p className="text-sm font-black text-slate-900">{log.batting.runs}</p>
+              <p className="text-[10px] font-bold text-primary">{log.bowling.wickets}w</p>
+            </div>
+          ))}
+          {matchWiseLog.length === 0 && <div className="col-span-5 text-center py-4 text-[10px] font-black text-slate-300 uppercase">No Form Data</div>}
+        </div>
+      </div>
+
       <Tabs defaultValue="match log" className="w-full">
         <div className="bg-primary px-2 border-t border-white/10 sticky top-16 z-40 shadow-md"><TabsList className="bg-transparent h-12 flex justify-start gap-2 p-0 w-full overflow-x-auto scrollbar-hide">{['Match Log', 'Career Stats'].map((tab) => (<TabsTrigger key={tab} value={tab.toLowerCase()} className="text-white/60 font-black data-[state=active]:text-white data-[state=active]:bg-transparent border-b-4 border-transparent data-[state=active]:border-white rounded-none px-6 h-full uppercase text-[11px] tracking-widest whitespace-nowrap">{tab}</TabsTrigger>))}</TabsList></div>
         <TabsContent value="match log" className="p-0">

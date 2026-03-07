@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeftRight, Trophy, Zap, Target, Star, History, UserCircle, TrendingUp, CheckCircle2, Award, Activity } from 'lucide-react';
+import { Loader2, ArrowLeftRight, Trophy, Zap, Target, Star, History, UserCircle, TrendingUp, CheckCircle2, Award, Activity, FastForward } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
@@ -54,6 +54,10 @@ export default function InsightsPage() {
         timeline: [] as any[],
         stats: {
           played: 0, runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0, timesOut: 0, potm: 0
+        },
+        achievements: {
+          fastest50r: null, fastest100r: null, fastest500r: null,
+          fastest10w: null, fastest25w: null, fastest50w: null
         }
       };
     });
@@ -104,6 +108,7 @@ export default function InsightsPage() {
       const insight = playerInsights[p.id];
       let careerRuns = 0;
       let careerWickets = 0;
+      let matchesCount = 0;
       
       const counts = {
         r10: 0, r20: 0, r30: 0, r50: 0,
@@ -119,6 +124,7 @@ export default function InsightsPage() {
         const perf = matchPerformances[m.id]?.[p.id];
         if (!perf) return;
 
+        matchesCount += 1;
         insight.stats.played += 1;
         insight.stats.runs += perf.runs;
         insight.stats.ballsFaced += perf.balls;
@@ -133,6 +139,14 @@ export default function InsightsPage() {
         
         careerRuns += perf.runs;
         careerWickets += perf.wkts;
+
+        // Fastest Logic
+        if (careerRuns >= 50 && !insight.achievements.fastest50r) insight.achievements.fastest50r = matchesCount;
+        if (careerRuns >= 100 && !insight.achievements.fastest100r) insight.achievements.fastest100r = matchesCount;
+        if (careerRuns >= 500 && !insight.achievements.fastest500r) insight.achievements.fastest500r = matchesCount;
+        if (careerWickets >= 10 && !insight.achievements.fastest10w) insight.achievements.fastest10w = matchesCount;
+        if (careerWickets >= 25 && !insight.achievements.fastest25w) insight.achievements.fastest25w = matchesCount;
+        if (careerWickets >= 50 && !insight.achievements.fastest50w) insight.achievements.fastest50w = matchesCount;
 
         if (m.potmPlayerId === p.id) {
           insight.stats.potm += 1;
@@ -196,6 +210,29 @@ export default function InsightsPage() {
     return playerInsights;
   }, [players, matches, deliveries, isMounted]);
 
+  const fastestRecords = useMemo(() => {
+    if (!processedData) return null;
+    const records = {
+      r50: { player: '---', count: Infinity },
+      r100: { player: '---', count: Infinity },
+      r500: { player: '---', count: Infinity },
+      w10: { player: '---', count: Infinity },
+      w25: { player: '---', count: Infinity },
+      w50: { player: '---', count: Infinity },
+    };
+
+    Object.values(processedData).forEach((p: any) => {
+      if (p.achievements.fastest50r < records.r50.count) records.r50 = { player: p.name, count: p.achievements.fastest50r };
+      if (p.achievements.fastest100r < records.r100.count) records.r100 = { player: p.name, count: p.achievements.fastest100r };
+      if (p.achievements.fastest500r < records.r500.count) records.r500 = { player: p.name, count: p.achievements.fastest500r };
+      if (p.achievements.fastest10w < records.w10.count) records.w10 = { player: p.name, count: p.achievements.fastest10w };
+      if (p.achievements.fastest25w < records.w25.count) records.w25 = { player: p.name, count: p.achievements.fastest25w };
+      if (p.achievements.fastest50w < records.w50.count) records.w50 = { player: p.name, count: p.achievements.fastest50w };
+    });
+
+    return records;
+  }, [processedData]);
+
   if (!isMounted || isPlayersLoading || isMatchesLoading || isDeliveriesLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
       <Loader2 className="w-10 h-10 text-primary animate-spin" />
@@ -239,9 +276,10 @@ export default function InsightsPage() {
       </div>
 
       <Tabs defaultValue="comparison" className="w-full">
-        <TabsList className="grid w-full max-w-md grid-cols-2 bg-slate-100 p-1 rounded-xl mb-8 h-12">
+        <TabsList className="grid w-full max-w-lg grid-cols-3 bg-slate-100 p-1 rounded-xl mb-8 h-12">
           <TabsTrigger value="comparison" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">Comparison</TabsTrigger>
           <TabsTrigger value="milestones" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">Milestones</TabsTrigger>
+          <TabsTrigger value="fastest" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">Fastest</TabsTrigger>
         </TabsList>
 
         <TabsContent value="comparison" className="space-y-8">
@@ -319,7 +357,6 @@ export default function InsightsPage() {
 
           {selectedMilestonePlayer ? (
             <div className="space-y-10">
-              {/* Career Aggregates Row */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <Card className="bg-slate-900 text-white border-none shadow-xl overflow-hidden relative group">
                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Activity className="w-20 h-20" /></div>
@@ -345,7 +382,6 @@ export default function InsightsPage() {
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-8">
-                  {/* Match Milestones Summary */}
                   <Card className="border-t-8 border-t-amber-500 shadow-xl overflow-hidden">
                     <CardHeader className="bg-slate-50 border-b">
                       <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
@@ -378,7 +414,6 @@ export default function InsightsPage() {
                     </CardContent>
                   </Card>
 
-                  {/* Career Level Progression */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <Card className="border-none shadow-md overflow-hidden bg-slate-50/50">
                       <div className="px-4 py-3 bg-primary text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-between">
@@ -448,6 +483,75 @@ export default function InsightsPage() {
               <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Select a player to view their professional career timeline</p>
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="fastest" className="space-y-8">
+          <div className="flex items-center gap-2">
+            <FastForward className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-black uppercase tracking-tight">Fastest to Career Milestones</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <Card className="border-t-4 border-t-primary shadow-lg overflow-hidden bg-white">
+              <CardHeader className="bg-slate-50 border-b">
+                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500">Fastest Runs (by Matches)</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {[
+                  { label: 'Fastest 50 Runs', key: 'r50', icon: Zap },
+                  { label: 'Fastest 100 Runs', key: 'r100', icon: Star },
+                  { label: 'Fastest 500 Runs', key: 'r500', icon: Trophy },
+                ].map((rec, idx) => {
+                  const val = fastestRecords?.[rec.key as keyof typeof fastestRecords];
+                  return (
+                    <div key={idx} className="p-6 border-b last:border-none flex justify-between items-center group hover:bg-slate-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 bg-primary/10 rounded-lg text-primary"><rec.icon className="w-5 h-5" /></div>
+                        <div>
+                          <p className="text-sm font-black uppercase tracking-tight text-slate-900">{val?.player}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">{rec.label}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-black text-primary">{val?.count === Infinity ? '---' : val?.count}</p>
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Matches</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+
+            <Card className="border-t-4 border-t-secondary shadow-lg overflow-hidden bg-white">
+              <CardHeader className="bg-slate-50 border-b">
+                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500">Fastest Wickets (by Matches)</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                {[
+                  { label: 'Fastest 10 Wickets', key: 'w10', icon: Target },
+                  { label: 'Fastest 25 Wickets', key: 'w25', icon: Target },
+                  { label: 'Fastest 50 Wickets', key: 'w50', icon: Award },
+                ].map((rec, idx) => {
+                  const val = fastestRecords?.[rec.key as keyof typeof fastestRecords];
+                  return (
+                    <div key={idx} className="p-6 border-b last:border-none flex justify-between items-center group hover:bg-slate-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><rec.icon className="w-5 h-5" /></div>
+                        <div>
+                          <p className="text-sm font-black uppercase tracking-tight text-slate-900">{val?.player}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase">{rec.label}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-black text-secondary">{val?.count === Infinity ? '---' : val?.count}</p>
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Matches</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

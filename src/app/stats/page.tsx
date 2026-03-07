@@ -6,7 +6,7 @@ import { collection, query, collectionGroup, orderBy } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Zap, Trophy, Target, TrendingUp, ChevronRight } from 'lucide-react';
+import { Loader2, Zap, Trophy, Target, TrendingUp, ChevronRight, Medal, Calendar, Award } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import Link from 'next/link';
@@ -40,9 +40,17 @@ export default function StatsPage() {
     let total4s = 0;
     let total6s = 0;
 
+    const dayRuns: Record<string, number> = {};
+
     rawDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       if (!matchId || !validMatchIds.has(matchId)) return;
+
+      const match = matches.find(m => m.id === matchId);
+      if (match?.matchDate) {
+        const dateStr = new Date(match.matchDate).toDateString();
+        dayRuns[dateStr] = (dayRuns[dateStr] || 0) + (d.totalRunsOnDelivery || 0);
+      }
 
       if (d.runsScored === 4) total4s++;
       if (d.runsScored === 6) total6s++;
@@ -87,7 +95,8 @@ export default function StatsPage() {
       const matchHistory = pStats[p.id] || {};
       const career = { 
         id: p.id, name: p.name, teamId: p.teamId, role: p.role, imageUrl: p.imageUrl,
-        runs: 0, ballsFaced: 0, wickets: 0, ballsBowled: 0, runsConceded: 0, cvp: 0, inningsBatted: 0, inningsBowled: 0, timesOut: 0, batCvp: 0
+        runs: 0, ballsFaced: 0, wickets: 0, ballsBowled: 0, runsConceded: 0, cvp: 0, inningsBatted: 0, inningsBowled: 0, timesOut: 0, batCvp: 0,
+        maxScore: 0, max6s: 0, max4s: 0, maxWkts: 0, bestBowling: { wkts: 0, runs: 0, display: '0/0' }, maxCatches: 0, maxRunOuts: 0
       };
 
       Object.values(matchHistory).forEach((ms: any) => {
@@ -100,6 +109,17 @@ export default function StatsPage() {
         if (ms.ballsBowled > 0) career.inningsBowled++;
         if (ms.out) career.timesOut++;
         
+        career.maxScore = Math.max(career.maxScore, ms.runs);
+        career.max6s = Math.max(career.max6s, ms.sixes);
+        career.max4s = Math.max(career.max4s, ms.fours);
+        career.maxWkts = Math.max(career.maxWkts, ms.wickets);
+        career.maxCatches = Math.max(career.maxCatches, ms.catches);
+        career.maxRunOuts = Math.max(career.maxRunOuts, ms.runOuts);
+
+        if (ms.wickets > career.bestBowling.wkts || (ms.wickets === career.bestBowling.wkts && ms.runsConceded < career.bestBowling.runs)) {
+          career.bestBowling = { wkts: ms.wickets, runs: ms.runsConceded, display: `${ms.wickets}/${ms.runsConceded}` };
+        }
+
         const matchCvp = calculatePlayerCVP(ms);
         career.cvp += matchCvp;
         
@@ -116,7 +136,7 @@ export default function StatsPage() {
       };
     });
 
-    return { total4s, total6s, playerLeaderboard };
+    return { total4s, total6s, playerLeaderboard, dayRuns };
   }, [players, matches, rawDeliveries]);
 
   if (!isMounted || isDeliveriesLoading) return (
@@ -131,6 +151,19 @@ export default function StatsPage() {
     return team ? team.name.substring(0, 3).toUpperCase() : 'UNK';
   };
 
+  const records = {
+    highestScore: [...(aggregatedStats?.playerLeaderboard || [])].sort((a,b) => b.maxScore - a.maxScore)[0],
+    mostRunsDay: Object.entries(aggregatedStats?.dayRuns || {}).sort((a,b) => b[1] - a[1])[0],
+    mostSixes: [...(aggregatedStats?.playerLeaderboard || [])].sort((a,b) => b.max6s - a.max6s)[0],
+    mostFours: [...(aggregatedStats?.playerLeaderboard || [])].sort((a,b) => b.max4s - a.max4s)[0],
+    bestBowling: [...(aggregatedStats?.playerLeaderboard || [])].sort((a,b) => {
+      if (b.bestBowling.wkts !== a.bestBowling.wkts) return b.bestBowling.wkts - a.bestBowling.wkts;
+      return a.bestBowling.runs - b.bestBowling.runs;
+    })[0],
+    mostCatches: [...(aggregatedStats?.playerLeaderboard || [])].sort((a,b) => b.maxCatches - a.maxCatches)[0],
+    mostRunOuts: [...(aggregatedStats?.playerLeaderboard || [])].sort((a,b) => b.maxRunOuts - a.maxRunOuts)[0],
+  };
+
   const leaders = {
     runs: aggregatedStats?.playerLeaderboard.filter(p => p.runs > 0).sort((a, b) => b.runs - a.runs).slice(0, 3) || [],
     wickets: aggregatedStats?.playerLeaderboard.filter(p => p.wickets > 0).sort((a, b) => b.wickets - a.wickets).slice(0, 3) || [],
@@ -141,7 +174,91 @@ export default function StatsPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-24 px-1 md:px-4">
+    <div className="max-w-4xl mx-auto space-y-10 pb-24 px-1 md:px-4">
+      {/* RECORDS SECTION */}
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <Medal className="w-6 h-6 text-amber-500" />
+          <h2 className="text-2xl font-black uppercase tracking-tight text-slate-900">League Hall of Fame</h2>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="border-t-4 border-t-primary shadow-sm bg-white overflow-hidden group">
+            <CardHeader className="py-3 bg-slate-50 border-b"><CardTitle className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Batting Records</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              <div className="p-4 border-b space-y-1">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Highest Score (Match)</p>
+                <div className="flex justify-between items-center">
+                  <p className="font-black text-lg text-slate-900">{records.highestScore?.maxScore}</p>
+                  <p className="text-[9px] font-bold text-primary uppercase">{records.highestScore?.name}</p>
+                </div>
+              </div>
+              <div className="p-4 border-b space-y-1">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Most Runs in a Day</p>
+                <div className="flex justify-between items-center">
+                  <p className="font-black text-lg text-slate-900">{records.mostRunsDay?.[1] || 0}</p>
+                  <p className="text-[9px] font-bold text-primary uppercase">{records.mostRunsDay?.[0] || '---'}</p>
+                </div>
+              </div>
+              <div className="p-4 space-y-1">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Most Match Boundaries</p>
+                <div className="flex gap-4">
+                  <div><span className="text-xs font-black">{records.mostSixes?.max6s}</span> <span className="text-[8px] font-bold text-slate-400 uppercase">Sixes</span></div>
+                  <div><span className="text-xs font-black">{records.mostFours?.max4s}</span> <span className="text-[8px] font-bold text-slate-400 uppercase">Fours</span></div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-t-4 border-t-secondary shadow-sm bg-white overflow-hidden group">
+            <CardHeader className="py-3 bg-slate-50 border-b"><CardTitle className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Bowling Records</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              <div className="p-4 border-b space-y-1">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Best Figures (BBF)</p>
+                <div className="flex justify-between items-center">
+                  <p className="font-black text-lg text-secondary">{records.bestBowling?.bestBowling.display}</p>
+                  <p className="text-[9px] font-bold text-secondary uppercase">{records.bestBowling?.name}</p>
+                </div>
+              </div>
+              <div className="p-4 border-b space-y-1">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Most Wickets (Match)</p>
+                <div className="flex justify-between items-center">
+                  <p className="font-black text-lg text-slate-900">{records.bestBowling?.maxWkts}</p>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase">Wickets</p>
+                </div>
+              </div>
+              <div className="p-4 space-y-1">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Best Economy (Min 2ov)</p>
+                <div className="flex justify-between items-center">
+                  <p className="font-black text-lg text-slate-900">{aggregatedStats?.playerLeaderboard.filter(p => p.ballsBowled >= 12).sort((a,b) => a.bowlEcon - b.bowlEcon)[0]?.bowlEcon.toFixed(2) || '0.00'}</p>
+                  <Badge variant="outline" className="text-[8px] font-black">STRICT ECON</Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-t-4 border-t-destructive shadow-sm bg-white overflow-hidden group">
+            <CardHeader className="py-3 bg-slate-50 border-b"><CardTitle className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Fielding Records</CardTitle></CardHeader>
+            <CardContent className="p-0">
+              <div className="p-4 border-b space-y-1">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Most Catches (Match)</p>
+                <div className="flex justify-between items-center">
+                  <p className="font-black text-lg text-slate-900">{records.mostCatches?.maxCatches}</p>
+                  <p className="text-[9px] font-bold text-destructive uppercase">{records.mostCatches?.name}</p>
+                </div>
+              </div>
+              <div className="p-4 space-y-1">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Most Run Outs (Match)</p>
+                <div className="flex justify-between items-center">
+                  <p className="font-black text-lg text-slate-900">{records.mostRunOuts?.maxRunOuts}</p>
+                  <p className="text-[9px] font-bold text-destructive uppercase">{records.mostRunOuts?.name}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
       <Card className="border shadow-sm overflow-hidden">
         <div className="bg-slate-50 px-4 py-3 border-b flex items-center justify-between">
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">League Boundary Meter</span>

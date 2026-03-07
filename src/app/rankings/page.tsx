@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
@@ -6,17 +7,21 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, ChevronRight, Loader2, ArrowUp, ArrowDown } from 'lucide-react';
+import { Trophy, ChevronRight, Loader2, ArrowUp, ArrowDown, User, Star, Target, Zap, Shield, Hand } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { cn } from '@/lib/utils';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+type LeaderboardCategory = 'runs' | 'wickets' | 'avg' | 'sr' | 'econ' | 'catches' | 'runouts' | 'potm';
 
 export default function RankingsPage() {
   const db = useFirestore();
   const [isMounted, setIsMounted] = useState(false);
-  const [sortConfig, setSortConfig] = useState<{ key: 'runs' | 'wickets' | 'cvp', direction: 'asc' | 'desc' }>({ key: 'cvp', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'cvp', direction: 'desc' });
+  const [activeCategory, setActiveCategory] = useState<LeaderboardCategory>('runs');
 
   useEffect(() => {
     setIsMounted(true);
@@ -120,72 +125,112 @@ export default function RankingsPage() {
   }, [teams, matches, allDeliveries]);
 
   const topPlayers = useMemo(() => {
-    if (!players) return [];
+    if (!players || !matches) return [];
     const pMatchStats: Record<string, Record<string, any>> = {};
     const careerTotals: Record<string, any> = {};
 
     players.forEach(p => {
-      careerTotals[p.id] = { id: p.id, name: p.name, runs: 0, wickets: 0, cvp: 0 };
+      careerTotals[p.id] = { id: p.id, name: p.name, runs: 0, wickets: 0, cvp: 0, matches: 0, ballsFaced: 0, ballsBowled: 0, runsConceded: 0, catches: 0, runouts: 0, potm: 0, outs: 0 };
     });
+
+    const activeMatchIds = new Set(matches.map(m => m.id));
 
     allDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
+      if (!matchId || !activeMatchIds.has(matchId)) return;
+
       const sId = d.strikerPlayerId; 
       const bId = d.bowlerId || d.bowlerPlayerId;
       const fId = d.fielderPlayerId; 
 
       const involvedIds = [sId, bId, fId].filter(id => id && id !== 'none');
       involvedIds.forEach(pid => {
+        if (!careerTotals[pid]) return;
         if (!pMatchStats[pid]) pMatchStats[pid] = {};
-        if (!pMatchStats[pid][matchId!]) {
-          pMatchStats[pid][matchId!] = { id: pid, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+        if (!pMatchStats[pid][matchId]) {
+          pMatchStats[pid][matchId] = { id: pid, runs: 0, ballsFaced: 0, wickets: 0, ballsBowled: 0, runsConceded: 0, catches: 0, runOuts: 0, out: false };
+          careerTotals[pid].matches += 1;
         }
       });
 
-      if (pMatchStats[sId]?.[matchId!]) {
-        const sStats = pMatchStats[sId][matchId!];
-        sStats.runs += (d.runsScored || 0);
-        if (d.extraType !== 'wide') sStats.ballsFaced += 1;
+      if (careerTotals[sId]) {
+        pMatchStats[sId][matchId].runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') pMatchStats[sId][matchId].ballsFaced += 1;
         careerTotals[sId].runs += (d.runsScored || 0);
+        careerTotals[sId].ballsFaced += (d.extraType !== 'wide' ? 1 : 0);
       }
 
-      if (bId && pMatchStats[bId]?.[matchId!]) {
-        const bStats = pMatchStats[bId][matchId!];
-        bStats.runsConceded += (d.totalRunsOnDelivery || 0);
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') bStats.ballsBowled += 1;
+      if (bId && careerTotals[bId]) {
+        pMatchStats[bId][matchId].runsConceded += (d.totalRunsOnDelivery || 0);
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') pMatchStats[bId][matchId].ballsBowled += 1;
         if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') {
-          bStats.wickets += 1;
+          pMatchStats[bId][matchId].wickets += 1;
           careerTotals[bId].wickets += 1;
+        }
+        careerTotals[bId].runsConceded += (d.totalRunsOnDelivery || 0);
+        careerTotals[bId].ballsBowled += (d.extraType !== 'wide' && d.extraType !== 'noball' ? 1 : 0);
+      }
+
+      if (fId && careerTotals[fId]) {
+        if (d.dismissalType === 'caught') {
+          pMatchStats[fId][matchId].catches += 1;
+          careerTotals[fId].catches += 1;
+        }
+        if (d.dismissalType === 'runout') {
+          pMatchStats[fId][matchId].runOuts += 1;
+          careerTotals[fId].runouts += 1;
         }
       }
 
-      if (fId && pMatchStats[fId]?.[matchId!]) {
-        const fStats = pMatchStats[fId][matchId!];
-        if (d.dismissalType === 'caught') fStats.catches += 1;
-        if (d.dismissalType === 'stumped') fStats.stumpings += 1;
-        if (d.dismissalType === 'runout') fStats.runOuts += 1;
+      if (d.isWicket && d.batsmanOutPlayerId && careerTotals[d.batsmanOutPlayerId]) {
+        pMatchStats[d.batsmanOutPlayerId][matchId].out = true;
+        careerTotals[d.batsmanOutPlayerId].outs += 1;
+      }
+    });
+
+    matches.forEach(m => {
+      if (m.status === 'completed' && m.potmPlayerId && careerTotals[m.potmPlayerId]) {
+        careerTotals[m.potmPlayerId].potm += 1;
       }
     });
 
     return players.map(p => {
+      const stats = careerTotals[p.id];
       const matchHistory = pMatchStats[p.id] || {};
       let totalCvp = 0;
       Object.values(matchHistory).forEach(ms => {
-        totalCvp += calculatePlayerCVP(ms);
+        totalCvp += calculatePlayerCVP(ms as any);
       });
-      return { ...careerTotals[p.id], cvp: totalCvp };
-    }).sort((a: any, b: any) => {
-      const valA = a[sortConfig.key] || 0;
-      const valB = b[sortConfig.key] || 0;
-      return sortConfig.direction === 'desc' ? valB - valA : valA - valB;
-    });
-  }, [players, allDeliveries, sortConfig]);
 
-  const requestSort = (key: 'runs' | 'wickets' | 'cvp') => {
+      return { 
+        ...stats, 
+        cvp: totalCvp,
+        avg: stats.outs > 0 ? (stats.runs / stats.outs) : (stats.runs > 0 ? stats.runs : 0),
+        sr: stats.ballsFaced > 0 ? (stats.runs / stats.ballsFaced) * 100 : 0,
+        econ: stats.ballsBowled >= 6 ? (stats.runsConceded / (stats.ballsBowled / 6)) : 0
+      };
+    }).sort((a: any, b: any) => {
+      const key = activeCategory === 'avg' ? 'avg' : 
+                  activeCategory === 'sr' ? 'sr' : 
+                  activeCategory === 'econ' ? 'econ' :
+                  activeCategory === 'catches' ? 'catches' :
+                  activeCategory === 'runouts' ? 'runouts' :
+                  activeCategory === 'potm' ? 'potm' :
+                  activeCategory === 'wickets' ? 'wickets' : 'runs';
+      
+      const valA = a[key] || 0;
+      const valB = b[key] || 0;
+      
+      if (activeCategory === 'econ') return valA - valB; // Lower econ is better
+      return valB - valA;
+    });
+  }, [players, matches, allDeliveries, activeCategory]);
+
+  const requestSort = (key: string) => {
     setSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc' }));
   };
 
-  const SortIcon = ({ field }: { field: 'runs' | 'wickets' | 'cvp' }) => {
+  const SortIcon = ({ field }: { field: string }) => {
     if (sortConfig.key !== field) return null;
     return sortConfig.direction === 'asc' ? <ArrowUp className="inline w-3 h-3 ml-1" /> : <ArrowDown className="inline w-3 h-3 ml-1" />;
   };
@@ -258,7 +303,30 @@ export default function RankingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="players">
+        <TabsContent value="players" className="space-y-6">
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'runs', label: 'Most Runs', icon: Zap },
+              { id: 'wickets', label: 'Most Wickets', icon: Target },
+              { id: 'avg', label: 'Best Average', icon: User },
+              { id: 'sr', label: 'Best SR', icon: Zap },
+              { id: 'econ', label: 'Best Econ', icon: Shield },
+              { id: 'catches', label: 'Most Catches', icon: Hand },
+              { id: 'runouts', label: 'Most Run Outs', icon: Hand },
+              { id: 'potm', label: 'Most POTM', icon: Star },
+            ].map(cat => (
+              <Button 
+                key={cat.id} 
+                size="sm" 
+                variant={activeCategory === cat.id ? 'default' : 'outline'}
+                onClick={() => setActiveCategory(cat.id as any)}
+                className="font-black text-[9px] uppercase tracking-widest h-8"
+              >
+                <cat.icon className="w-3 h-3 mr-1" /> {cat.label}
+              </Button>
+            ))}
+          </div>
+
           {isDeliveriesLoading ? (
             <div className="py-20 flex flex-col items-center justify-center space-y-4">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -266,15 +334,27 @@ export default function RankingsPage() {
             </div>
           ) : (
             <Card className="shadow-sm border rounded-xl overflow-hidden bg-white">
+              <CardHeader className="bg-slate-50 border-b py-3 px-4">
+                <CardTitle className="text-xs font-black uppercase text-slate-500 tracking-[0.2em]">
+                  {activeCategory.toUpperCase()} LEADERBOARD
+                </CardTitle>
+              </CardHeader>
               <div className="overflow-x-auto scrollbar-hide">
                 <Table className="min-w-max w-full">
                   <TableHeader className="bg-slate-50">
                     <TableRow>
                       <TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead>
                       <TableHead className="text-[10px] font-black uppercase">Player</TableHead>
-                      <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('runs')}>Runs <SortIcon field="runs" /></TableHead>
-                      <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('wickets')}>Wkts <SortIcon field="wickets" /></TableHead>
-                      <TableHead className="text-right text-[10px] font-black uppercase cursor-pointer" onClick={() => requestSort('cvp')}>CVP <SortIcon field="cvp" /></TableHead>
+                      <TableHead className="text-center text-[10px] font-black uppercase">Matches</TableHead>
+                      <TableHead className="text-right text-[10px] font-black uppercase">
+                        {activeCategory === 'runs' ? 'Runs' : 
+                         activeCategory === 'wickets' ? 'Wickets' :
+                         activeCategory === 'avg' ? 'Average' :
+                         activeCategory === 'sr' ? 'Strike Rate' :
+                         activeCategory === 'econ' ? 'Economy' :
+                         activeCategory === 'catches' ? 'Catches' :
+                         activeCategory === 'runouts' ? 'Run Outs' : 'Awards'}
+                      </TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -286,9 +366,18 @@ export default function RankingsPage() {
                             {player.name} <ChevronRight className="w-3 h-3 text-slate-300" />
                           </Link>
                         </TableCell>
-                        <TableCell className="text-right font-black text-xs">{player.runs}</TableCell>
-                        <TableCell className="text-right font-black text-xs">{player.wickets}</TableCell>
-                        <TableCell className="text-right"><Badge variant="outline" className="font-black text-[10px]">{player.cvp.toFixed(1)}</Badge></TableCell>
+                        <TableCell className="text-center font-bold text-xs text-slate-500">{player.matches}</TableCell>
+                        <TableCell className="text-right">
+                          <Badge variant="secondary" className="font-black text-xs px-3">
+                            {activeCategory === 'runs' ? player.runs : 
+                             activeCategory === 'wickets' ? player.wickets :
+                             activeCategory === 'avg' ? player.avg.toFixed(2) :
+                             activeCategory === 'sr' ? player.sr.toFixed(2) :
+                             activeCategory === 'econ' ? player.econ.toFixed(2) :
+                             activeCategory === 'catches' ? player.catches :
+                             activeCategory === 'runouts' ? player.runouts : player.potm}
+                          </Badge>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
