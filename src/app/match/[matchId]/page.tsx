@@ -9,7 +9,7 @@ import { doc, collection, query, orderBy, limit, getDocs } from 'firebase/firest
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Info, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History, PlayCircle, CheckCircle2, Star, Users, Clock, Calendar as CalendarIcon, Undo2, AlertCircle, UserCheck } from 'lucide-react';
+import { Trophy, Info, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History, PlayCircle, CheckCircle2, Star, Users, Clock, Calendar as CalendarIcon, Undo2, AlertCircle, UserCheck, ArrowLeftRight } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, BarChart as ReBarChart, Bar } from "recharts";
@@ -162,7 +162,7 @@ export default function MatchScoreboardPage() {
   const isInningsOver = useMemo(() => {
     if (!activeInningData || !match) return false;
     const currentBalls = match.currentInningNumber === 1 ? inn1BallsCount : inn2BallsCount;
-    return currentBalls >= (match.totalOvers * 6) || activeInningData.isDeclaredFinished;
+    return (currentBalls >= (match.totalOvers * 6) && match.totalOvers > 0) || activeInningData.isDeclaredFinished;
   }, [activeInningData, match, inn1BallsCount, inn2BallsCount]);
 
   const overGroups1 = useMemo(() => {
@@ -253,7 +253,7 @@ export default function MatchScoreboardPage() {
       needsOverEndRotation = true;
     }
 
-    const isTerminallyFinished = (currentBallsCount + (isLegalBall ? 1 : 0)) >= (match.totalOvers * 6);
+    const isTerminallyFinished = match.totalOvers > 0 && (currentBallsCount + (isLegalBall ? 1 : 0)) >= (match.totalOvers * 6);
 
     let nextStriker = activeInningData.strikerPlayerId;
     let nextNonStriker = activeInningData.nonStrikerPlayerId || 'none';
@@ -359,7 +359,7 @@ export default function MatchScoreboardPage() {
     }
     
     const currentBallsCount = (match.currentInningNumber === 1 ? inn1BallsCount : inn2BallsCount) + 1;
-    const isTerminallyFinished = currentBallsCount >= (match.totalOvers * 6);
+    const isTerminallyFinished = match.totalOvers > 0 && currentBallsCount >= (match.totalOvers * 6);
     
     const deliveryId = doc(collection(db, 'temp')).id;
     const deliveryData = { 
@@ -480,15 +480,13 @@ export default function MatchScoreboardPage() {
 
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates);
     
-    if (match?.status === 'completed') {
-      updateDocumentNonBlocking(matchRef, { 
-        status: 'live', 
-        resultDescription: 'Match in Progress' 
-      });
-      toast({ title: "Match Reverted", description: "The match is now LIVE. You can add corrected deliveries." });
-    } else {
-      toast({ title: "Ball Deleted", description: "Innings totals have been synchronized." });
-    }
+    // Switch scoring context to the innings being corrected
+    const innNumber = parseInt(inningId.split('_')[1]);
+    const matchUpdates: any = { status: 'live', resultDescription: 'Match in Progress', currentInningNumber: innNumber };
+    updateDocumentNonBlocking(matchRef, matchUpdates);
+    
+    toast({ title: "Ball Deleted", description: `Reverting to Innings ${innNumber} for corrections.` });
+    setActiveTab('live');
   };
 
   const InningsLiveStats = ({ stats, title, score, wkts, overs, inningData }: { stats: any, title: string, score: number, wkts: number, overs: string, inningData: any }) => {
@@ -738,10 +736,20 @@ export default function MatchScoreboardPage() {
               {isUmpire && match.status !== 'completed' && activeInningData && (
                 <Card className="shadow-lg border-none overflow-hidden bg-slate-900 text-white">
                   <CardHeader className="bg-white/5 py-4 border-b border-white/5 flex flex-row justify-between items-center">
-                    <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Official Scorer</CardTitle>
-                    <Button variant="ghost" size="sm" onClick={handleUndo} className="h-8 text-[10px] font-black uppercase text-slate-400 hover:text-white hover:bg-white/10">
-                      <Undo2 className="w-3 h-3 mr-1" /> Undo Ball
-                    </Button>
+                    <div className="flex items-center gap-4">
+                      <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Official Scorer</CardTitle>
+                      <Badge variant="outline" className="text-[8px] font-black uppercase border-white/20 text-white px-2">
+                        Scoring: Innings {match.currentInningNumber}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="ghost" size="sm" onClick={() => updateDocumentNonBlocking(matchRef, { currentInningNumber: match.currentInningNumber === 1 ? 2 : 1 })} className="h-8 text-[8px] font-black uppercase text-white/40 hover:text-white">
+                        <ArrowLeftRight className="w-3 h-3 mr-1" /> Switch
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={handleUndo} className="h-8 text-[10px] font-black uppercase text-slate-400 hover:text-white hover:bg-white/10">
+                        <Undo2 className="w-3 h-3 mr-1" /> Undo Ball
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="p-6">
                     {isInningsOver ? (
@@ -776,8 +784,8 @@ export default function MatchScoreboardPage() {
                 </Card>
               )}
               <div className="space-y-8">
-                {match.currentInningNumber === 2 && <InningsLiveStats title="Second Innings" inningData={inn2} stats={stats2} score={inn2Score} wkts={inn2Wickets} overs={inn2OversDisplay} />}
-                <InningsLiveStats title={match.currentInningNumber === 2 ? "First Innings" : "Current Innings"} inningData={inn1} stats={stats1} score={inn1Score} wkts={inn1Wickets} overs={inn1OversDisplay} />
+                {inn2 && <InningsLiveStats title="Second Innings" inningData={inn2} stats={stats2} score={inn2Score} wkts={inn2Wickets} overs={inn2OversDisplay} />}
+                <InningsLiveStats title="First Innings" inningData={inn1} stats={stats1} score={inn1Score} wkts={inn1Wickets} overs={inn1OversDisplay} />
               </div>
             </div>
             <div className="space-y-4">
