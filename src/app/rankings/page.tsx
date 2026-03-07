@@ -80,12 +80,19 @@ export default function RankingsPage() {
         standings[t1Id].nr++; standings[t1Id].points += 1; standings[t1Id].form.push('NR');
         standings[t2Id].nr++; standings[t2Id].points += 1; standings[t2Id].form.push('NR');
       } else {
-        // Winner logic
-        const winnerId = result.includes(standings[t1Id].name.toLowerCase()) ? t1Id : (result.includes(standings[t2Id].name.toLowerCase()) ? t2Id : null);
+        // Simple winner logic based on result description
+        const t1Name = standings[t1Id].name.toLowerCase();
+        const t2Name = standings[t2Id].name.toLowerCase();
+        const winnerId = result.includes(t1Name) && result.includes('won') ? t1Id : (result.includes(t2Name) && result.includes('won') ? t2Id : null);
+        
         if (winnerId) {
           const loserId = winnerId === t1Id ? t2Id : t1Id;
           standings[winnerId].won++; standings[winnerId].points += 2; standings[winnerId].form.push('W');
           standings[loserId].lost++; standings[loserId].form.push('L');
+        } else {
+          // Fallback to Ties if result string is ambiguous but completed
+          standings[t1Id].tied++; standings[t1Id].points += 1; standings[t1Id].form.push('T');
+          standings[t2Id].tied++; standings[t2Id].points += 1; standings[t2Id].form.push('T');
         }
       }
     });
@@ -94,7 +101,10 @@ export default function RankingsPage() {
       const matchId = d.__fullPath?.split('/')[1];
       const match = matches.find(m => m.id === matchId);
       if (!match) return;
-      const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
+      const pathSegments = d.__fullPath?.split('/');
+      const innId = pathSegments?.[3]; 
+      const innNum = innId === 'inning_2' ? 2 : 1;
+
       const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
       const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
       const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
@@ -171,7 +181,9 @@ export default function RankingsPage() {
       const stats = careerTotals[p.id];
       const matchHistory = pMatchStats[p.id] || {};
       let totalCvp = 0;
-      Object.values(matchHistory).forEach(ms => { totalCvp += calculatePlayerCVP({ ...ms, id: p.id, name: p.name, fours: 0, sixes: 0, maidens: 0, stumpings: 0 }); });
+      Object.values(matchHistory).forEach(ms => { 
+        totalCvp += calculatePlayerCVP({ ...ms, id: p.id, name: p.name, fours: 0, sixes: 0, maidens: 0, stumpings: 0 }); 
+      });
 
       return { 
         ...stats, 

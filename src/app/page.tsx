@@ -6,7 +6,7 @@ import { collection, query, where, orderBy, limit, doc, collectionGroup } from '
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trophy, Activity, Users, ArrowRight, PlayCircle, ShieldCheck, Loader2, Star, Target, Swords, Zap, TrendingUp } from 'lucide-react';
+import { Trophy, Activity, Users, ArrowRight, PlayCircle, ShieldCheck, Loader2, Star, Target, Swords, Zap, TrendingUp, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useMemo, useState, useEffect } from 'react';
@@ -54,7 +54,6 @@ export default function Home() {
 
   return (
     <div className="space-y-10 animate-in fade-in duration-700 pb-32">
-      {/* MOBILE-OPTIMIZED HERO */}
       <section className="relative rounded-3xl overflow-hidden min-h-[400px] flex flex-col justify-end p-8 shadow-2xl border-4 border-white">
         <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: `url('https://picsum.photos/seed/crickethero/1200/800')` }} />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/60 to-transparent z-10" />
@@ -68,7 +67,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* STACKED DASHBOARD GRID */}
       <div className="grid grid-cols-1 gap-8">
         <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
           <CardHeader className="bg-slate-50 border-b py-4 px-6 flex flex-row items-center justify-between">
