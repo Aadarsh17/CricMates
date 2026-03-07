@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trophy, ChevronRight, Loader2, ArrowUp, ArrowDown, User, Star, Target, Zap, Shield, Hand } from 'lucide-react';
+import { Trophy, ChevronRight, Loader2, ArrowUp, ArrowDown, User, Star, Target, Zap, Shield, Hand, Info } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -210,6 +210,10 @@ export default function RankingsPage() {
         sr: stats.ballsFaced > 0 ? (stats.runs / stats.ballsFaced) * 100 : 0,
         econ: stats.ballsBowled >= 6 ? (stats.runsConceded / (stats.ballsBowled / 6)) : 0
       };
+    }).filter(p => {
+      if (activeCategory === 'econ') return p.ballsBowled >= 6; // Eligibility rule: Min 1 over
+      if (activeCategory === 'avg' || activeCategory === 'sr') return p.ballsFaced >= 1;
+      return true;
     }).sort((a: any, b: any) => {
       const key = activeCategory === 'avg' ? 'avg' : 
                   activeCategory === 'sr' ? 'sr' : 
@@ -328,6 +332,13 @@ export default function RankingsPage() {
             ))}
           </div>
 
+          <div className="bg-slate-50 border-l-4 border-l-primary p-3 rounded flex items-center gap-3">
+            <Info className="w-4 h-4 text-primary shrink-0" />
+            <p className="text-[9px] font-bold text-slate-500 uppercase leading-relaxed">
+              <strong>OFFICIAL RULE:</strong> Economy and Average leaderboards require a minimum of 1 Over (6 balls) or 1 Inning respectively to ensure data integrity in the 6-over format.
+            </p>
+          </div>
+
           {isDeliveriesLoading ? (
             <div className="py-20 flex flex-col items-center justify-center space-y-4">
               <Loader2 className="w-8 h-8 text-primary animate-spin" />
@@ -381,6 +392,13 @@ export default function RankingsPage() {
                         </TableCell>
                       </TableRow>
                     ))}
+                    {topPlayers.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-12 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest italic">
+                          No players meet the minimum 1-over requirement for this category yet
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>

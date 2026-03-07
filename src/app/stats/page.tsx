@@ -6,7 +6,7 @@ import { collection, query, collectionGroup, orderBy } from 'firebase/firestore'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Zap, Trophy, Target, TrendingUp, ChevronRight, Medal, Calendar, Award } from 'lucide-react';
+import { Loader2, Zap, Trophy, Target, TrendingUp, ChevronRight, Medal, Calendar, Award, Info } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import Link from 'next/link';
@@ -168,13 +168,24 @@ export default function StatsPage() {
     runs: aggregatedStats?.playerLeaderboard.filter(p => p.runs > 0).sort((a, b) => b.runs - a.runs).slice(0, 3) || [],
     wickets: aggregatedStats?.playerLeaderboard.filter(p => p.wickets > 0).sort((a, b) => b.wickets - a.wickets).slice(0, 3) || [],
     sr: aggregatedStats?.playerLeaderboard.filter(p => p.ballsFaced >= 20).sort((a, b) => b.batSR - a.batSR).slice(0, 3) || [],
-    econ: aggregatedStats?.playerLeaderboard.filter(p => p.ballsBowled >= 12).sort((a, b) => a.bowlEcon - b.bowlEcon).slice(0, 3) || [],
+    econ: aggregatedStats?.playerLeaderboard.filter(p => p.ballsBowled >= 6).sort((a, b) => a.bowlEcon - b.bowlEcon).slice(0, 3) || [],
     impact: aggregatedStats?.playerLeaderboard.filter(p => p.cvp > 0).sort((a, b) => b.cvp - a.cvp).slice(0, 3) || [],
     batImpact: aggregatedStats?.playerLeaderboard.filter(p => p.batCvp > 0).sort((a, b) => b.batCvp - a.batCvp).slice(0, 3) || []
   };
 
   return (
     <div className="max-w-4xl mx-auto space-y-10 pb-24 px-1 md:px-4">
+      {/* INFO BANNER */}
+      <div className="bg-slate-900 text-white p-4 rounded-xl shadow-lg border-l-8 border-l-primary flex items-start gap-4">
+        <Info className="w-6 h-6 text-primary shrink-0 mt-1" />
+        <div className="space-y-1">
+          <h3 className="font-black uppercase text-[10px] tracking-widest text-primary">Tournament Stats Policy</h3>
+          <p className="text-[9px] font-bold text-slate-400 uppercase leading-relaxed">
+            Matches are calculated based on a 6-over format. All bowling economy rates and records are subject to a minimum requirement of 1 complete over (6 legal balls) to ensure statistical accuracy and data integrity.
+          </p>
+        </div>
+      </div>
+
       {/* RECORDS SECTION */}
       <div className="space-y-6">
         <div className="flex items-center gap-3">
@@ -228,9 +239,9 @@ export default function StatsPage() {
                 </div>
               </div>
               <div className="p-4 space-y-1">
-                <p className="text-[8px] font-black text-slate-400 uppercase">Best Economy (Min 2ov)</p>
+                <p className="text-[8px] font-black text-slate-400 uppercase">Best Economy (Min 1ov)</p>
                 <div className="flex justify-between items-center">
-                  <p className="font-black text-lg text-slate-900">{aggregatedStats?.playerLeaderboard.filter(p => p.ballsBowled >= 12).sort((a,b) => a.bowlEcon - b.bowlEcon)[0]?.bowlEcon.toFixed(2) || '0.00'}</p>
+                  <p className="font-black text-lg text-slate-900">{aggregatedStats?.playerLeaderboard.filter(p => p.ballsBowled >= 6).sort((a,b) => a.bowlEcon - b.bowlEcon)[0]?.bowlEcon.toFixed(2) || '0.00'}</p>
                   <Badge variant="outline" className="text-[8px] font-black">STRICT ECON</Badge>
                 </div>
               </div>
@@ -243,14 +254,14 @@ export default function StatsPage() {
               <div className="p-4 border-b space-y-1">
                 <p className="text-[8px] font-black text-slate-400 uppercase">Most Catches (Match)</p>
                 <div className="flex justify-between items-center">
-                  <p className="font-black text-lg text-slate-900">{records.mostCatches?.maxCatches}</p>
+                  <p className="font-black text-lg text-destructive">{records.mostCatches?.maxCatches}</p>
                   <p className="text-[9px] font-bold text-destructive uppercase">{records.mostCatches?.name}</p>
                 </div>
               </div>
               <div className="p-4 space-y-1">
                 <p className="text-[8px] font-black text-slate-400 uppercase">Most Run Outs (Match)</p>
                 <div className="flex justify-between items-center">
-                  <p className="font-black text-lg text-slate-900">{records.mostRunOuts?.maxRunOuts}</p>
+                  <p className="font-black text-lg text-destructive">{records.mostRunOuts?.maxRunOuts}</p>
                   <p className="text-[9px] font-bold text-destructive uppercase">{records.mostRunOuts?.name}</p>
                 </div>
               </div>
@@ -349,7 +360,7 @@ export default function StatsPage() {
                 <div className="flex-1 min-w-0">
                   <p className="font-black text-sm truncate uppercase tracking-tight">{player.name} <span className="text-[8px] text-slate-400 font-bold ml-1">{getTeamCode(player.teamId)}</span></p>
                   <p className="text-2xl font-black text-slate-900">{player.bowlEcon.toFixed(2)}</p>
-                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">ECON Leaders (Min 12 balls bowled)</p>
+                  <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">ECON Leaders (Min 1 over bowled)</p>
                 </div>
               </Link>
             ))}
