@@ -36,20 +36,101 @@ export default function RankingsPage() {
 
   const teamStandings = useMemo(() => {
     if (!isMounted || !teams || !matches || !rawDeliveries) return [];
+    
     const standings: Record<string, any> = {};
-    teams.forEach(t => standings[t.id] = { id: t.id, name: t.name, played: 0, won: 0, lost: 0, tied: 0, points: 0, forR: 0, forB: 0, agR: 0, agB: 0 });
+    teams.forEach(t => standings[t.id] = { 
+      id: t.id, 
+      name: t.name, 
+      played: 0, 
+      won: 0, 
+      lost: 0, 
+      nr: 0, 
+      points: 0, 
+      forR: 0, 
+      forB: 0, 
+      agR: 0, 
+      agB: 0,
+      nrr: 0
+    });
 
+    const validMatchIds = new Set(matches.filter(m => m.status === 'completed').map(m => m.id));
+
+    // Calculate match outcomes
     matches.forEach(m => {
       if (m.status !== 'completed') return;
-      [m.team1Id, m.team2Id].forEach(tid => { if (standings[tid]) standings[tid].played++; });
+      
+      const t1 = teams.find(t => t.id === m.team1Id);
+      const t2 = teams.find(t => t.id === m.team2Id);
+      if (!t1 || !t2) return;
+
+      standings[t1.id].played++;
+      standings[t2.id].played++;
+
       const res = m.resultDescription?.toLowerCase() || '';
       if (res.includes('won')) {
         const winner = teams.find(t => res.includes(t.name.toLowerCase()))?.id;
-        if (winner) { standings[winner].won++; standings[winner].points += 2; const loser = winner === m.team1Id ? m.team2Id : m.team1Id; if (standings[loser]) standings[loser].lost++; }
-      } else { [m.team1Id, m.team2Id].forEach(tid => { if (standings[tid]) { standings[tid].tied++; standings[tid].points += 1; } }); }
+        if (winner) {
+          standings[winner].won++;
+          standings[winner].points += 2;
+          const loser = winner === m.team1Id ? m.team2Id : m.team1Id;
+          if (standings[loser]) {
+            standings[loser].lost++;
+          }
+        } else {
+          // Fallback if name matching fails
+          standings[t1.id].nr++;
+          standings[t2.id].nr++;
+          standings[t1.id].points += 1;
+          standings[t2.id].points += 1;
+        }
+      } else {
+        // Tied or No Result
+        standings[t1.id].nr++;
+        standings[t2.id].nr++;
+        standings[t1.id].points += 1;
+        standings[t2.id].points += 1;
+      }
     });
 
-    return Object.values(standings).sort((a: any, b: any) => b.points - a.points);
+    // Calculate NRR components from deliveries
+    rawDeliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      if (!matchId || !validMatchIds.has(matchId)) return;
+      
+      const match = matches.find(m => m.id === matchId);
+      if (!match) return;
+
+      const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
+      const inn1BatId = match.tossWinnerTeamId === match.team1Id 
+        ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) 
+        : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
+      
+      const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
+      const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+
+      if (standings[battingTeamId]) {
+        standings[battingTeamId].forR += (d.totalRunsOnDelivery || 0);
+        if (['none', 'bye', 'legbye'].includes(d.extraType)) standings[battingTeamId].forB += 1;
+      }
+      if (standings[bowlingTeamId]) {
+        standings[bowlingTeamId].agR += (d.totalRunsOnDelivery || 0);
+        if (['none', 'bye', 'legbye'].includes(d.extraType)) standings[bowlingTeamId].agB += 1;
+      }
+    });
+
+    // Final NRR calculation
+    Object.values(standings).forEach((s: any) => {
+      const forOvers = s.forB / 6;
+      const agOvers = s.agB / 6;
+      const forRR = forOvers > 0 ? s.forR / forOvers : 0;
+      const agRR = agOvers > 0 ? s.agR / agOvers : 0;
+      s.nrr = forRR - agRR;
+    });
+
+    return Object.values(standings).sort((a: any, b: any) => {
+      if (b.points !== a.points) return b.points - a.points;
+      return b.nrr - a.nrr;
+    });
   }, [teams, matches, rawDeliveries, isMounted]);
 
   const playerLeaderboards = useMemo(() => {
@@ -139,6 +220,9 @@ export default function RankingsPage() {
                   <TableHead className="text-[10px] font-black uppercase">Team</TableHead>
                   <TableHead className="text-center text-[10px] font-black uppercase">P</TableHead>
                   <TableHead className="text-center text-[10px] font-black uppercase">W</TableHead>
+                  <TableHead className="text-center text-[10px] font-black uppercase">L</TableHead>
+                  <TableHead className="text-center text-[10px] font-black uppercase">NR</TableHead>
+                  <TableHead className="text-center text-[10px] font-black uppercase">NRR</TableHead>
                   <TableHead className="text-center text-[10px] font-black uppercase bg-primary/5">PTS</TableHead>
                 </TableRow>
               </TableHeader>
@@ -148,7 +232,12 @@ export default function RankingsPage() {
                     <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
                     <TableCell className="font-black text-xs uppercase">{t.name}</TableCell>
                     <TableCell className="text-center text-xs font-bold">{t.played}</TableCell>
-                    <TableCell className="text-center text-xs font-bold">{t.won}</TableCell>
+                    <TableCell className="text-center text-xs font-bold text-emerald-600">{t.won}</TableCell>
+                    <TableCell className="text-center text-xs font-bold text-red-600">{t.lost}</TableCell>
+                    <TableCell className="text-center text-xs font-bold text-slate-500">{t.nr}</TableCell>
+                    <TableCell className={cn("text-center text-xs font-bold", t.nrr >= 0 ? "text-primary" : "text-amber-600")}>
+                      {t.nrr >= 0 ? '+' : ''}{t.nrr.toFixed(3)}
+                    </TableCell>
                     <TableCell className="text-center text-xs font-black text-primary bg-primary/5">{t.points}</TableCell>
                   </TableRow>
                 ))}
@@ -191,7 +280,7 @@ export default function RankingsPage() {
                       <Link href={`/players/${p.id}`} className="hover:text-primary transition-colors">{p.name}</Link>
                     </TableCell>
                     <TableCell className="text-right font-black text-primary bg-primary/5">
-                      {activeCategory === 'avg' || activeCategory === 'sr' || activeCategory === 'er' 
+                      {['avg', 'sr', 'er'].includes(activeCategory) 
                         ? p[activeCategory].toFixed(2) 
                         : p[activeCategory]}
                     </TableCell>
