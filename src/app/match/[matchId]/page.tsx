@@ -5,11 +5,11 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { doc, collection, query, orderBy, limit, getDocs, deleteDoc } from 'firebase/firestore';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Info, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History, PlayCircle, CheckCircle2, Star, Users, Clock, Calendar as CalendarIcon, Undo2, AlertCircle, UserCheck, ArrowLeftRight, Share2, Camera } from 'lucide-react';
+import { Trophy, Info, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History, PlayCircle, CheckCircle2, Star, Users, Clock, Calendar as CalendarIcon, Undo2, AlertCircle, UserCheck, ArrowLeftRight, Share2, Camera, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, BarChart as ReBarChart, Bar } from "recharts";
@@ -39,6 +39,7 @@ export default function MatchScoreboardPage() {
   const matchId = params.matchId as string;
   const db = useFirestore();
   const { isUmpire } = useApp();
+  const { user } = useUser();
   
   const [isMounted, setIsMounted] = useState(false);
   const [isWicketDialogOpen, setIsWicketDialogOpen] = useState(false);
@@ -47,12 +48,19 @@ export default function MatchScoreboardPage() {
   const [activeTab, setActiveTab] = useState<string>('live');
   const [activeScorecardSubTab, setActiveScorecardSubTab] = useState<'inn1' | 'inn2' | 'flow'>('inn1');
   const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isCorrecting, setIsCorrecting] = useState(false);
 
   const [wicketForm, setWicketForm] = useState({
     type: 'bowled',
     batterOutId: '',
     fielderId: 'none',
     decision: 'next'
+  });
+
+  const [assignmentForm, setAssignmentForm] = useState({
+    strikerId: '',
+    nonStrikerId: '',
+    bowlerId: ''
   });
 
   useEffect(() => {
@@ -374,6 +382,74 @@ export default function MatchScoreboardPage() {
     toast({ title: "Undone successfully" });
   };
 
+  const handleDeleteHistoricalBall = async (deliveryId: string, inningId: string) => {
+    if (!isUmpire || isCorrecting) return;
+    setIsCorrecting(true);
+    toast({ title: "Correcting History...", description: "Recalculating scorecard state." });
+
+    try {
+      const deliveryRef = doc(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords', deliveryId);
+      await deleteDoc(deliveryRef);
+
+      const allDeliveriesRef = collection(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords');
+      const q = query(allDeliveriesRef, orderBy('timestamp', 'asc'));
+      const snapshot = await getDocs(q);
+      const remainingDeliveries = snapshot.docs.map(d => d.data());
+
+      let newScore = 0;
+      let newWickets = 0;
+      let legalBalls = 0;
+      
+      remainingDeliveries.forEach(d => {
+        newScore += (d.totalRunsOnDelivery || 0);
+        if (d.isWicket && d.dismissalType !== 'retired') newWickets++;
+        if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') legalBalls++;
+      });
+
+      const lastBall = remainingDeliveries[remainingDeliveries.length - 1];
+      
+      const inningUpdates: any = {
+        score: newScore,
+        wickets: newWickets,
+        oversCompleted: Math.floor(legalBalls / 6),
+        ballsInCurrentOver: legalBalls % 6,
+        isDeclaredFinished: false
+      };
+
+      if (lastBall) {
+        inningUpdates.strikerPlayerId = lastBall.strikerPlayerId;
+        inningUpdates.nonStrikerPlayerId = lastBall.nonStrikerPlayerId;
+        inningUpdates.currentBowlerPlayerId = lastBall.bowlerId;
+      }
+
+      await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), inningUpdates, { merge: true });
+      
+      const matchUpdates: any = { status: 'live', resultDescription: 'Match in Progress (Correcting)' };
+      if (inningId === 'inning_1') matchUpdates.currentInningNumber = 1;
+      else matchUpdates.currentInningNumber = 2;
+
+      await setDocumentNonBlocking(matchRef, matchUpdates, { merge: true });
+      
+      setActiveTab('live');
+      toast({ title: "History Updated", description: "State recalculated. You can now add the correct delivery." });
+    } catch (e: any) {
+      toast({ title: "Correction Failed", description: e.message, variant: "destructive" });
+    } finally {
+      setIsCorrecting(false);
+    }
+  };
+
+  const handleUpdateAssignment = () => {
+    if (!match || !activeInningData || !isUmpire) return;
+    updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), {
+      strikerPlayerId: assignmentForm.strikerId,
+      nonStrikerPlayerId: assignmentForm.nonStrikerId,
+      currentBowlerPlayerId: assignmentForm.bowlerId
+    });
+    setIsPlayerAssignmentOpen(false);
+    toast({ title: "Positions Updated" });
+  };
+
   if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse text-slate-400 uppercase tracking-widest">Syncing Match Engine...</div>;
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
 
@@ -428,7 +504,6 @@ export default function MatchScoreboardPage() {
       </div>
 
       <Tabs value={activeTab}>
-        {/* ... (Existing tabs content preserved) */}
         <TabsContent value="live" className="space-y-6 pt-4">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-8">
@@ -474,24 +549,137 @@ export default function MatchScoreboardPage() {
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                           <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-10 font-black text-[9px] border-amber-500/40 text-amber-500 uppercase">Wide</Button>
                           <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-10 font-black text-[9px] border-amber-500/40 text-amber-500 uppercase">No Ball</Button>
-                          <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-10 font-black text-[9px] border-red-500/40 text-red-500 uppercase">Wicket</Button>
-                          <Button variant="outline" onClick={() => setIsPlayerAssignmentOpen(true)} className="h-10 font-black text-[9px] border-white/20 text-white uppercase">Positions</Button>
+                          <Button variant="outline" onClick={() => {
+                            setWicketForm(prev => ({ ...prev, batterOutId: activeInningData.strikerPlayerId }));
+                            setIsWicketDialogOpen(true);
+                          }} className="h-10 font-black text-[9px] border-red-500/40 text-red-500 uppercase">Wicket</Button>
+                          <Button variant="outline" onClick={() => {
+                            setAssignmentForm({
+                              strikerId: activeInningData.strikerPlayerId,
+                              nonStrikerId: activeInningData.nonStrikerPlayerId || '',
+                              bowlerId: activeInningData.currentBowlerPlayerId || ''
+                            });
+                            setIsPlayerAssignmentOpen(true);
+                          }} className="h-10 font-black text-[9px] border-white/20 text-white uppercase">Positions</Button>
                         </div>
                       </>
                     )}
                   </CardContent>
                 </Card>
               )}
-              {/* Other live tab elements... */}
+
+              {/* ACTIVE BATTERS CARD */}
+              {activeInningData && (
+                <Card className="shadow-lg border-none overflow-hidden bg-white">
+                  <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div className="space-y-6">
+                      {[
+                        { id: activeInningData.strikerPlayerId, label: 'Striker', active: true },
+                        { id: activeInningData.nonStrikerPlayerId, label: 'Non-Striker', active: false }
+                      ].map((batter, i) => {
+                        const stats = (match.currentInningNumber === 1 ? stats1 : stats2).batting.find(b => b.id === batter.id);
+                        return (
+                          <div key={i} className={cn("flex justify-between items-center p-4 rounded-xl border-2 transition-all", batter.active ? "bg-primary/5 border-primary shadow-sm" : "bg-slate-50 border-transparent opacity-60")}>
+                            <div className="min-w-0">
+                              <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{batter.label}</p>
+                              <p className="font-black text-lg truncate uppercase tracking-tight text-slate-900">{getPlayerName(batter.id)}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-2xl font-black text-slate-900 leading-none">{stats?.runs || 0}<span className="text-xs font-bold text-slate-400">({stats?.balls || 0})</span></p>
+                              <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">SR: {stats?.balls > 0 ? ((stats.runs / stats.balls) * 100).toFixed(1) : '0.0'}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="bg-slate-900 rounded-2xl p-6 text-white space-y-4">
+                      <div className="flex items-center gap-3">
+                        <Zap className="text-secondary w-5 h-5" />
+                        <div>
+                          <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Active Bowler</p>
+                          <p className="font-black text-lg truncate uppercase tracking-tight">{getPlayerName(activeInningData.currentBowlerPlayerId)}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-center">
+                        <div><p className="text-[10px] font-black text-secondary">0</p><p className="text-[6px] font-bold text-slate-500 uppercase">Wkts</p></div>
+                        <div><p className="text-[10px] font-black text-white">0</p><p className="text-[6px] font-bold text-slate-500 uppercase">Runs</p></div>
+                        <div><p className="text-[10px] font-black text-white">{activeInningData.oversCompleted}.{activeInningData.ballsInCurrentOver}</p><p className="text-[6px] font-bold text-slate-500 uppercase">Overs</p></div>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              )}
             </div>
           </div>
         </TabsContent>
-        {/* ... (Other existing tabs preserved exactly) */}
+
+        <TabsContent value="overs" className="pt-4">
+          <div className="space-y-6">
+            {[
+              { id: 'inning_1', name: getTeamName(inn1?.battingTeamId), deliveries: inn1Deliveries },
+              { id: 'inning_2', name: getTeamName(inn2?.battingTeamId), deliveries: inn2Deliveries }
+            ].map((inn) => (
+              <Card key={inn.id} className="border-none shadow-sm overflow-hidden">
+                <div className="bg-slate-50 px-6 py-3 border-b flex justify-between items-center">
+                  <h3 className="font-black uppercase text-xs tracking-widest text-slate-500">{inn.name} Deliveries</h3>
+                  <Badge variant="outline" className="text-[8px] font-black uppercase">{inn.deliveries?.length || 0} Total</Badge>
+                </div>
+                <div className="p-0 overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-16 text-[9px] font-black uppercase">Over</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase">Battle</TableHead>
+                        <TableHead className="text-center text-[9px] font-black uppercase w-20">Runs</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase">Result</TableHead>
+                        {isUmpire && <TableHead className="w-10"></TableHead>}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inn.deliveries?.slice().reverse().map((d) => (
+                        <TableRow key={d.id} className="hover:bg-slate-50 transition-colors">
+                          <TableCell className="font-black text-xs text-slate-400">{d.overNumber}.{d.ballNumberInOver}</TableCell>
+                          <TableCell>
+                            <p className="text-[9px] font-black text-slate-900 uppercase leading-none">{getPlayerName(d.strikerPlayerId)}</p>
+                            <p className="text-[7px] font-bold text-slate-400 uppercase mt-0.5">vs {getPlayerName(d.bowlerId)}</p>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className={cn("font-black h-6 w-6 rounded-full p-0 flex items-center justify-center", d.runsScored >= 4 ? "bg-primary" : "bg-slate-100 text-slate-600")}>
+                              {d.isWicket ? "W" : d.totalRunsOnDelivery}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            {d.isWicket ? (
+                              <Badge variant="destructive" className="text-[7px] font-black uppercase py-0">{d.dismissalType}</Badge>
+                            ) : (
+                              <span className="text-[8px] font-bold text-slate-400 uppercase">{d.extraType !== 'none' ? d.extraType : 'Legal'}</span>
+                            )}
+                          </TableCell>
+                          {isUmpire && (
+                            <TableCell>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-300 hover:text-destructive" onClick={() => handleDeleteHistoricalBall(d.id, inn.id)}>
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
       </Tabs>
 
       {/* SHARE CARD DIALOG */}
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
         <DialogContent className="max-w-[95vw] md:max-w-lg p-0 border-none bg-transparent shadow-none overflow-hidden">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Match Result Share Card</DialogTitle>
+            <DialogDescription>A professional visual summary of the match results and top performers.</DialogDescription>
+          </DialogHeader>
           <div className="bg-slate-900 text-white rounded-3xl overflow-hidden border-4 border-primary shadow-2xl relative">
             <div className="absolute top-0 right-0 p-8 opacity-5"><Trophy className="w-40 h-40" /></div>
             <div className="p-8 space-y-8 relative z-10">
@@ -542,7 +730,7 @@ export default function MatchScoreboardPage() {
               </div>
             </div>
           </div>
-          <div className="mt-6 flex justify-center">
+          <div className="mt-6 flex justify-center pb-6">
             <Button className="font-black uppercase tracking-widest" onClick={() => toast({ title: "Ready for Screenshot", description: "This visual is optimized for sharing." })}>
               <Camera className="mr-2 w-4 h-4" /> Screenshot to Share
             </Button>
@@ -550,7 +738,95 @@ export default function MatchScoreboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ... (Dialogs for wicket and assignment preserved) */}
+      {/* WICKET DIALOG */}
+      <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-destructive">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tight text-destructive">Register Out</DialogTitle>
+            <DialogDescription className="text-xs uppercase font-bold text-slate-400">Select dismissal details for {getPlayerName(wicketForm.batterOutId)}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Dismissal Type</Label>
+              <Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}>
+                <SelectTrigger className="font-bold h-12">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {['bowled', 'caught', 'runout', 'lbw', 'stumped', 'retired'].map(t => (
+                    <SelectItem key={t} value={t} className="font-bold uppercase text-xs">{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Fielder (Optional)</Label>
+              <Select value={wicketForm.fielderId} onValueChange={(v) => setWicketForm({...wicketForm, fielderId: v})}>
+                <SelectTrigger className="font-bold h-12">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none" className="font-bold text-slate-400">(NONE)</SelectItem>
+                  {allPlayers?.filter(p => bowlingSquadPlayerIds.includes(p.id)).map(p => (
+                    <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleWicket} className="w-full h-14 bg-destructive text-white font-black uppercase shadow-xl">Confirm Wicket</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* POSITION ASSIGNMENT DIALOG */}
+      <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-primary">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tight">Active Positions</DialogTitle>
+            <DialogDescription className="text-[10px] font-bold uppercase text-slate-400">Assign participants to their live match roles</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label>
+              <Select value={assignmentForm.strikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
+                <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Striker" /></SelectTrigger>
+                <SelectContent>
+                  {allPlayers?.filter(p => battingSquadPlayerIds.includes(p.id) && p.id !== assignmentForm.nonStrikerId).map(p => (
+                    <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label>
+              <Select value={assignmentForm.nonStrikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, nonStrikerId: v})}>
+                <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
+                <SelectContent>
+                  {allPlayers?.filter(p => battingSquadPlayerIds.includes(p.id) && p.id !== assignmentForm.strikerId).map(p => (
+                    <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Active Bowler</Label>
+              <Select value={assignmentForm.bowlerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, bowlerId: v})}>
+                <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Bowler" /></SelectTrigger>
+                <SelectContent>
+                  {allPlayers?.filter(p => bowlingSquadPlayerIds.includes(p.id)).map(p => (
+                    <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleUpdateAssignment} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl">Apply Positions</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
