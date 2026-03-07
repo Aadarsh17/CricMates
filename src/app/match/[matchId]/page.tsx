@@ -8,7 +8,7 @@ import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNon
 import { doc, collection, query, orderBy, limit, getDocs, deleteDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Trophy, Info, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History, PlayCircle, CheckCircle2, Star, Users, Clock, Calendar as CalendarIcon, Undo2, AlertCircle, UserCheck, ArrowLeftRight, Share2, Camera, X, ShieldCheck, UserMinus, UserPlus, TrendingUp, Flag, RefreshCw } from 'lucide-react';
+import { Trophy, Info, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History, PlayCircle, CheckCircle2, Star, Users, Clock, Calendar as CalendarIcon, Undo2, AlertCircle, UserCheck, ArrowLeftRight, Share2, Camera, X, ShieldCheck, UserMinus, UserPlus, TrendingUp, Flag, RefreshCw, List } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, BarChart as ReBarChart, Bar, Cell } from "recharts";
@@ -30,9 +30,7 @@ export default function MatchScoreboardPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [isWicketDialogOpen, setIsWicketDialogOpen] = useState(false);
   const [isPlayerAssignmentOpen, setIsPlayerAssignmentOpen] = useState(false);
-  const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [isFinalizing, setIsFinalizing] = useState(false);
-  const [isCorrecting, setIsCorrecting] = useState(false);
 
   // Refs for smooth scrolling navigation
   const liveRef = useRef<HTMLDivElement>(null);
@@ -92,31 +90,59 @@ export default function MatchScoreboardPage() {
     const data = [];
     let cum1 = 0; let cum2 = 0;
     
-    for (let i = 0; i <= maxOvers * 6; i++) {
-      const over = Math.floor(i / 6);
-      const d1 = inn1Deliveries?.find(d => {
+    for (let i = 0; i <= maxOvers; i++) {
+      const d1 = inn1Deliveries?.filter(d => {
         const legalBallsBefore = inn1Deliveries.filter(prev => 
           prev.timestamp < d.timestamp && (prev.extraType === 'none' || prev.extraType === 'bye' || prev.extraType === 'legbye')
         ).length;
-        return legalBallsBefore === i - 1 && (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye');
+        const overIndex = Math.floor(legalBallsBefore / 6);
+        return overIndex < i;
       });
-      if (d1) cum1 += d1.totalRunsOnDelivery;
+      cum1 = d1?.reduce((sum, d) => sum + d.totalRunsOnDelivery, 0) || 0;
 
-      const d2 = inn2Deliveries?.find(d => {
+      const d2 = inn2Deliveries?.filter(d => {
         const legalBallsBefore = inn2Deliveries.filter(prev => 
           prev.timestamp < d.timestamp && (prev.extraType === 'none' || prev.extraType === 'bye' || prev.extraType === 'legbye')
         ).length;
-        return legalBallsBefore === i - 1 && (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye');
+        const overIndex = Math.floor(legalBallsBefore / 6);
+        return overIndex < i;
       });
-      if (d2) cum2 += d2.totalRunsOnDelivery;
+      cum2 = d2?.reduce((sum, d) => sum + d.totalRunsOnDelivery, 0) || 0;
 
-      if (i % 6 === 0) {
-        data.push({ 
-          label: over.toString(), 
-          team1: cum1, 
-          team2: (inn2Deliveries && inn2Deliveries.length > 0) || cum2 > 0 ? cum2 : null
-        });
-      }
+      data.push({ 
+        label: i.toString(), 
+        team1: cum1, 
+        team2: (inn2Deliveries && inn2Deliveries.length > 0) || cum2 > 0 ? cum2 : null
+      });
+    }
+    return data;
+  }, [inn1Deliveries, inn2Deliveries, match?.totalOvers]);
+
+  const barChartData = useMemo(() => {
+    if (!inn1Deliveries && !inn2Deliveries) return [];
+    const maxOvers = match?.totalOvers || 6;
+    const data = [];
+    
+    for (let i = 1; i <= maxOvers; i++) {
+      const runs1 = inn1Deliveries?.filter(d => {
+        const legalBallsBefore = inn1Deliveries.filter(prev => 
+          prev.timestamp < d.timestamp && (prev.extraType === 'none' || prev.extraType === 'bye' || prev.extraType === 'legbye')
+        ).length;
+        return Math.floor(legalBallsBefore / 6) === i - 1;
+      }).reduce((sum, d) => sum + d.totalRunsOnDelivery, 0) || 0;
+
+      const runs2 = inn2Deliveries?.filter(d => {
+        const legalBallsBefore = inn2Deliveries.filter(prev => 
+          prev.timestamp < d.timestamp && (prev.extraType === 'none' || prev.extraType === 'bye' || prev.extraType === 'legbye')
+        ).length;
+        return Math.floor(legalBallsBefore / 6) === i - 1;
+      }).reduce((sum, d) => sum + d.totalRunsOnDelivery, 0) || 0;
+
+      data.push({ 
+        label: `OV ${i}`, 
+        team1: runs1, 
+        team2: (inn2Deliveries && inn2Deliveries.length > 0) ? runs2 : 0
+      });
     }
     return data;
   }, [inn1Deliveries, inn2Deliveries, match?.totalOvers]);
@@ -230,8 +256,27 @@ export default function MatchScoreboardPage() {
       [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
     }
 
+    // Dynamic 0.6 notation logic
+    const totalLegalSoFar = (currentDeliveries?.filter(d => d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye').length || 0) + (isLegalBall ? 1 : 0);
+    const logOver = Math.floor((totalLegalSoFar - 1) / 6);
+    const logBall = ((totalLegalSoFar - 1) % 6) + 1;
+
     const deliveryId = doc(collection(db, 'temp')).id;
-    const deliveryData = { id: deliveryId, overNumber: (newBallsInOver === 0 && isLegalBall) ? newOversComp : newOversComp + 1, ballNumberInOver: (newBallsInOver === 0 && isLegalBall) ? 6 : newBallsInOver, strikerPlayerId: activeInningData.strikerPlayerId, nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || 'none', bowlerId: activeInningData.currentBowlerPlayerId, runsScored: ballRuns, extraRuns, extraType, totalRunsOnDelivery, isWicket: false, timestamp: Date.now() };
+    const deliveryData = { 
+      id: deliveryId, 
+      overNumber: logOver, 
+      ballNumberInOver: logBall, 
+      strikerPlayerId: activeInningData.strikerPlayerId, 
+      nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || 'none', 
+      bowlerId: activeInningData.currentBowlerPlayerId, 
+      runsScored: ballRuns, 
+      extraRuns, 
+      extraType, 
+      totalRunsOnDelivery, 
+      isWicket: false, 
+      timestamp: Date.now() 
+    };
+    
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', deliveryId), deliveryData, { merge: true });
     
     const updates: any = { score: Math.max(0, newTotalScore), oversCompleted: newOversComp, ballsInCurrentOver: newBallsInOver, strikerPlayerId: nextStriker, nonStrikerPlayerId: nextNonStriker };
@@ -251,14 +296,42 @@ export default function MatchScoreboardPage() {
     let newBalls = activeInningData.ballsInCurrentOver + 1; let newOvers = activeInningData.oversCompleted;
     if (newBalls === 6) { newOvers += 1; newBalls = 0; }
     
+    const totalLegalSoFar = (currentDeliveries?.filter(d => d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye').length || 0) + 1;
+    const logOver = Math.floor((totalLegalSoFar - 1) / 6);
+    const logBall = ((totalLegalSoFar - 1) % 6) + 1;
+
     const deliveryId = doc(collection(db, 'temp')).id;
-    const deliveryData = { id: deliveryId, overNumber: newBalls === 0 ? newOvers : newOvers + 1, ballNumberInOver: newBalls === 0 ? 6 : newBalls, strikerPlayerId: activeInningData.strikerPlayerId, nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || 'none', bowlerId: activeInningData.currentBowlerPlayerId, runsScored: 0, extraRuns: 0, extraType: 'none', totalRunsOnDelivery: 0, isWicket: true, dismissalType: wicketForm.type, batsmanOutPlayerId: wicketForm.batterOutId, fielderPlayerId: wicketForm.fielderId, timestamp: Date.now() };
+    const deliveryData = { 
+      id: deliveryId, 
+      overNumber: logOver, 
+      ballNumberInOver: logBall, 
+      strikerPlayerId: activeInningData.strikerPlayerId, 
+      nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || 'none', 
+      bowlerId: activeInningData.currentBowlerPlayerId, 
+      runsScored: 0, 
+      extraRuns: 0, 
+      extraType: 'none', 
+      totalRunsOnDelivery: 0, 
+      isWicket: true, 
+      dismissalType: wicketForm.type, 
+      batsmanOutPlayerId: wicketForm.batterOutId, 
+      fielderPlayerId: wicketForm.fielderId, 
+      timestamp: Date.now() 
+    };
+    
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', deliveryId), deliveryData, { merge: true });
     
-    const updates: any = { wickets: activeInningData.wickets + (wicketForm.type === 'retired' ? 0 : 1), oversCompleted: newOvers, ballsInCurrentOver: newBalls, strikerPlayerId: '', nonStrikerPlayerId: '' };
+    const updates: any = { 
+      wickets: activeInningData.wickets + (wicketForm.type === 'retired' ? 0 : 1), 
+      oversCompleted: newOvers, 
+      ballsInCurrentOver: newBalls, 
+      strikerPlayerId: '', 
+      nonStrikerPlayerId: wicketForm.batterOutId === activeInningData.strikerPlayerId ? activeInningData.nonStrikerPlayerId : activeInningData.strikerPlayerId 
+    };
+    
     if (newBalls === 0) updates.currentBowlerPlayerId = '';
     if (wicketForm.decision === 'finish' || (newOvers >= match.totalOvers && wicketForm.decision !== 'last_man')) updates.isDeclaredFinished = true;
-    if (wicketForm.decision === 'last_man') { updates.isLastManActive = true; updates.strikerPlayerId = wicketForm.batterOutId === activeInningData.strikerPlayerId ? activeInningData.nonStrikerPlayerId : activeInningData.strikerPlayerId; }
+    if (wicketForm.decision === 'last_man') updates.isLastManActive = true;
 
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), updates);
     setIsWicketDialogOpen(false);
@@ -287,9 +360,6 @@ export default function MatchScoreboardPage() {
     toast({ title: "Match Finalized" });
   };
 
-  if (!isMounted || isMatchLoading) return <div className="flex flex-col items-center justify-center min-h-screen text-slate-400 animate-pulse font-black uppercase text-xs tracking-widest"><Loader2 className="w-10 h-10 mb-4 animate-spin text-primary" /> Syncing Professional Scoreboard...</div>;
-  if (!match) return <div className="p-20 text-center">Match missing.</div>;
-
   const scrollToSection = (ref: React.RefObject<HTMLDivElement>) => {
     if (ref.current) {
       const offset = 140; // Sticky header offset
@@ -297,6 +367,9 @@ export default function MatchScoreboardPage() {
       window.scrollTo({ top, behavior: 'smooth' });
     }
   };
+
+  if (!isMounted || isMatchLoading) return <div className="flex flex-col items-center justify-center min-h-screen text-slate-400 animate-pulse font-black uppercase text-xs tracking-widest"><Loader2 className="w-10 h-10 mb-4 animate-spin text-primary" /> Syncing Professional Scoreboard...</div>;
+  if (!match) return <div className="p-20 text-center">Match missing.</div>;
 
   return (
     <div className="space-y-6 max-w-lg mx-auto pb-32 px-4 relative">
@@ -357,9 +430,10 @@ export default function MatchScoreboardPage() {
                 <Button onClick={() => handleRecordBall(1, 'none', true)} className="bg-secondary text-white h-14 font-black rounded-2xl flex flex-col items-center justify-center shadow-lg"><span className="text-xl">1D</span><span className="text-[8px] uppercase">No Str</span></Button>
                 <Button variant="outline" onClick={() => { setWicketForm(prev => ({ ...prev, batterOutId: activeInningData?.strikerPlayerId })); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/50 text-red-500 bg-red-500/10 font-black rounded-2xl uppercase text-[10px] shadow-lg">Wicket</Button>
               </div>
-              <div className="grid grid-cols-2 gap-3 pt-2">
-                <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-12 border-amber-500/50 text-amber-500 bg-amber-500/5 font-black rounded-xl uppercase text-[10px]">Wide (+1)</Button>
-                <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-12 border-amber-500/50 text-amber-500 bg-amber-500/5 font-black rounded-xl uppercase text-[10px]">No Ball (+1)</Button>
+              <div className="grid grid-cols-3 gap-3 pt-2">
+                <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-12 border-amber-500/50 text-amber-500 bg-amber-500/5 font-black rounded-xl uppercase text-[10px]">Wide</Button>
+                <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-12 border-amber-500/50 text-amber-500 bg-amber-500/5 font-black rounded-xl uppercase text-[10px]">No Ball</Button>
+                <Button variant="outline" onClick={() => { setWicketForm({ type: 'retired', batterOutId: activeInningData?.strikerPlayerId, fielderId: 'none', decision: 'next' }); setIsWicketDialogOpen(true); }} className="h-12 border-blue-500/50 text-blue-500 bg-blue-500/5 font-black rounded-xl uppercase text-[10px]">Retire</Button>
               </div>
             </CardContent>
           </Card>
@@ -471,20 +545,40 @@ export default function MatchScoreboardPage() {
         <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-2 px-2">
           <BarChart className="text-primary w-5 h-5" /> Analytics
         </h2>
-        <Card className="p-4 shadow-xl border-none bg-white rounded-3xl overflow-hidden">
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 10, fontWeight: 900 }} />
-                <YAxis axisLine={false} tick={{ fontSize: 10, fontWeight: 900 }} />
-                <Tooltip />
-                <Area type="monotone" name={getTeamName(match.team1Id).substring(0,3)} dataKey="team1" stroke="#2563eb" strokeWidth={3} fillOpacity={0.1} fill="#2563eb" />
-                <Area type="monotone" name={getTeamName(match.team2Id).substring(0,3)} dataKey="team2" stroke="#0d9488" strokeWidth={3} fillOpacity={0.1} fill="#0d9488" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
+        <div className="space-y-6">
+          <Card className="p-4 shadow-xl border-none bg-white rounded-3xl overflow-hidden">
+            <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest px-2">Cumulative Runs (Worm)</p>
+            <div className="h-[250px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 10, fontWeight: 900 }} />
+                  <YAxis axisLine={false} tick={{ fontSize: 10, fontWeight: 900 }} />
+                  <Tooltip />
+                  <Area type="monotone" name={getTeamName(match.team1Id).substring(0,3)} dataKey="team1" stroke="#2563eb" strokeWidth={3} fillOpacity={0.1} fill="#2563eb" />
+                  <Area type="monotone" name={getTeamName(match.team2Id).substring(0,3)} dataKey="team2" stroke="#0d9488" strokeWidth={3} fillOpacity={0.1} fill="#0d9488" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <Card className="p-4 shadow-xl border-none bg-white rounded-3xl overflow-hidden">
+            <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-widest px-2">Runs Per Over Comparison</p>
+            <div className="h-[250px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <ReBarChart data={barChartData}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="label" axisLine={false} tick={{ fontSize: 10, fontWeight: 900 }} />
+                  <YAxis axisLine={false} tick={{ fontSize: 10, fontWeight: 900 }} />
+                  <Tooltip />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
+                  <Bar dataKey="team1" name={getTeamName(match.team1Id).substring(0,3)} fill="#2563eb" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="team2" name={getTeamName(match.team2Id).substring(0,3)} fill="#0d9488" radius={[4, 4, 0, 0]} />
+                </ReBarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+        </div>
       </div>
 
       {/* OVERS HISTORY SECTION */}
@@ -530,22 +624,39 @@ export default function MatchScoreboardPage() {
       {/* DIALOGS */}
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
         <DialogContent className="max-w-[90vw] rounded-3xl p-6">
-          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-red-600">Register Wicket</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tight text-red-600">Register Dismissal</DialogTitle>
+            <DialogDescription className="text-xs font-bold uppercase tracking-widest text-slate-400">Select mode of out or retirement</DialogDescription>
+          </DialogHeader>
           <div className="space-y-4 py-4">
-            <Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Dismissal Type" /></SelectTrigger><SelectContent>{['bowled', 'caught', 'runout', 'stumped', 'hit-wicket', 'retired'].map(t => (<SelectItem key={t} value={t} className="font-bold uppercase text-xs">{t}</SelectItem>))}</SelectContent></Select>
-            <Select value={wicketForm.decision} onValueChange={(v) => setWicketForm({...wicketForm, decision: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Match Control" /></SelectTrigger><SelectContent><SelectItem value="next" className="font-bold text-xs uppercase">Next Batter</SelectItem><SelectItem value="last_man" className="font-bold text-xs uppercase">Last Man Stands</SelectItem><SelectItem value="finish" className="font-bold text-xs uppercase text-red-600">End Innings</SelectItem></SelectContent></Select>
+            <Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}>
+              <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Dismissal Type" /></SelectTrigger>
+              <SelectContent>{['bowled', 'caught', 'runout', 'stumped', 'hit-wicket', 'retired'].map(t => (<SelectItem key={t} value={t} className="font-bold uppercase text-xs">{t}</SelectItem>))}</SelectContent>
+            </Select>
+            <Select value={wicketForm.decision} onValueChange={(v) => setWicketForm({...wicketForm, decision: v})}>
+              <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Match Control" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="next" className="font-bold text-xs uppercase">Next Batter</SelectItem>
+                <SelectItem value="last_man" className="font-bold text-xs uppercase">Last Man Stands</SelectItem>
+                <SelectItem value="finish" className="font-bold text-xs uppercase text-red-600">End Innings</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <DialogFooter><Button onClick={handleWicket} className="w-full h-14 bg-red-600 text-white font-black uppercase rounded-2xl shadow-lg">Confirm Out</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleWicket} className="w-full h-14 bg-red-600 text-white font-black uppercase rounded-2xl shadow-lg">Confirm Action</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
         <DialogContent className="max-w-[90vw] rounded-3xl p-6">
-          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Assign Positions</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tight">Position Control</DialogTitle>
+            <DialogDescription className="text-xs font-bold uppercase tracking-widest text-slate-400">Assign active roles for the next phase</DialogDescription>
+          </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label><Select value={assignmentForm.strikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => battingSquadPlayerIds.includes(p.id) && p.id !== assignmentForm.nonStrikerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div>
             <div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label><Select value={assignmentForm.nonStrikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, nonStrikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Non-Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => battingSquadPlayerIds.includes(p.id) && p.id !== assignmentForm.strikerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div>
             <div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Bowler</Label><Select value={assignmentForm.bowlerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, bowlerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Bowler" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => bowlingSquadPlayerIds.includes(p.id)).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}</SelectContent></Select></div>
+            <Button variant="outline" className="w-full h-10 mt-2 font-black uppercase text-[10px]" onClick={() => recalculateInningState(`inning_${match.currentInningNumber}`)}><RefreshCw className="w-3 h-3 mr-2" /> Force Sync Current Score</Button>
           </div>
           <DialogFooter><Button onClick={() => { updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { strikerPlayerId: assignmentForm.strikerId, nonStrikerPlayerId: assignmentForm.nonStrikerId, currentBowlerPlayerId: assignmentForm.bowlerId }); setIsPlayerAssignmentOpen(false); }} className="w-full h-14 bg-primary text-white font-black uppercase rounded-2xl shadow-lg">Confirm Units</Button></DialogFooter>
         </DialogContent>
