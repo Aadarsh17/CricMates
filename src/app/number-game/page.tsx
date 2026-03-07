@@ -38,7 +38,7 @@ interface Player {
   };
 }
 
-const STORAGE_KEY = 'cricmates_street_pro_session';
+const STORAGE_KEY = 'cricmates_street_pro_session_v2';
 
 export default function NumberGame() {
   const [isMounted, setIsMounted] = useState(false);
@@ -69,9 +69,9 @@ export default function NumberGame() {
         setStrikerId(d.strikerId);
         setBowlerId(d.bowlerId);
         setHistory(d.history);
-        setConsecutiveDots(d.consecutiveDots);
-        setBallsInOver(d.ballsInOver);
-        toast({ title: "Session Restored", description: "Your street match has been recovered." });
+        setConsecutiveDots(d.consecutiveDots || 0);
+        setBallsInOver(d.ballsInOver || 0);
+        toast({ title: "Session Restored", description: "Match state recovered from cache." });
       } catch (e) {
         console.error("Failed to restore session", e);
       }
@@ -94,7 +94,7 @@ export default function NumberGame() {
   }, [gameState, players, strikerId, bowlerId, history, consecutiveDots, ballsInOver, isMounted]);
 
   const addSetupField = () => {
-    if (playerNames.length < 10) setPlayerNames([...playerNames, '']);
+    if (playerNames.length < 15) setPlayerNames([...playerNames, '']);
   };
 
   const removeSetupField = (index: number) => {
@@ -108,7 +108,7 @@ export default function NumberGame() {
   const startGame = () => {
     const validNames = playerNames.filter(n => n.trim() !== '');
     if (validNames.length < 3) {
-      toast({ title: "Min 3 players required", variant: "destructive" });
+      toast({ title: "Validation Error", description: "Min 3 players required for a game.", variant: "destructive" });
       return;
     }
 
@@ -124,35 +124,27 @@ export default function NumberGame() {
     setStrikerId(initialPlayers[0].id);
     setBowlerId(initialPlayers[initialPlayers.length - 1].id);
     setGameState('playing');
+    setHistory([]);
+    setConsecutiveDots(0);
+    setBallsInOver(0);
   };
 
   const resetGame = () => {
-    if (confirm("Reset current match? All progress will be lost.")) {
+    if (confirm("Reset match? This will clear all persistent scoring data.")) {
       localStorage.removeItem(STORAGE_KEY);
-      window.location.reload();
+      setGameState('setup');
+      setPlayers([]);
+      setHistory([]);
+      setPlayerNames(['', '', '']);
     }
   };
 
-  const addMidMatchPlayer = () => {
-    if (!newPlayerName.trim()) return;
-    const newP: Player = {
-      id: `p-${players.length}-${Date.now()}`,
-      name: newPlayerName,
-      order: players.length + 1,
-      batting: { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', fielderId: '', highScore: 0 },
-      bowling: { balls: 0, runs: 0, wickets: 0, maidens: 0, bestWickets: 0 }
-    };
-    setPlayers([...players, newP]);
-    setNewPlayerName('');
-    setIsAddPlayerOpen(false);
-    toast({ title: `Player #${newP.order} added: ${newP.name}` });
-  };
-
-  const rotateBowler = (currentId: string, currentStrikerId: string) => {
-    const index = players.findIndex(p => p.id === currentId);
+  const rotateBowler = (currentBowlerId: string, currentStrikerId: string) => {
+    const index = players.findIndex(p => p.id === currentBowlerId);
     let nextIndex = index - 1;
     if (nextIndex < 0) nextIndex = players.length - 1;
     
+    // Skip the current striker to prevent self-bowling
     if (players[nextIndex].id === currentStrikerId) {
       nextIndex = nextIndex - 1;
       if (nextIndex < 0) nextIndex = players.length - 1;
@@ -160,13 +152,16 @@ export default function NumberGame() {
     
     setBowlerId(players[nextIndex].id);
     setBallsInOver(0);
-    toast({ title: `Over Changed!`, description: `New Bowler: ${players[nextIndex].name}` });
+    toast({ title: `Over Changed`, description: `New Bowler: ${players[nextIndex].name}` });
   };
 
   const handleScore = (runs: number, extra: 'none' | 'wide' | 'noball' = 'none') => {
-    const newHistory = {
-      strikerId,
-      bowlerId,
+    const prevStrikerId = strikerId;
+    const prevBowlerId = bowlerId;
+    
+    const ballRecord = {
+      strikerId: prevStrikerId,
+      bowlerId: prevBowlerId,
       runs,
       extra,
       isWicket: false,
@@ -174,10 +169,10 @@ export default function NumberGame() {
       prevBalls: ballsInOver
     };
 
-    setHistory([newHistory, ...history].slice(0, 20));
+    setHistory([ballRecord, ...history].slice(0, 30));
 
     setPlayers(prev => prev.map(p => {
-      if (p.id === strikerId) {
+      if (p.id === prevStrikerId) {
         const isLegal = extra === 'none';
         const newRuns = p.batting.runs + (extra === 'wide' ? 0 : runs);
         return {
@@ -192,7 +187,7 @@ export default function NumberGame() {
           }
         };
       }
-      if (p.id === bowlerId) {
+      if (p.id === prevBowlerId) {
         return {
           ...p,
           bowling: {
@@ -210,30 +205,49 @@ export default function NumberGame() {
     } else if (runs === 0) {
       const nextDots = consecutiveDots + 1;
       setConsecutiveDots(nextDots);
-      if (nextDots === 3) handleWicket('3-Dots');
+      if (nextDots === 3) handleWicket('3-Dots Streak');
     } else {
       setConsecutiveDots(0);
     }
 
     if (extra === 'none') {
       const nextBalls = ballsInOver + 1;
-      if (nextBalls === 6) rotateBowler(bowlerId, strikerId);
-      else setBallsInOver(nextBalls);
+      if (nextBalls === 6) {
+        rotateBowler(prevBowlerId, prevStrikerId);
+      } else {
+        setBallsInOver(nextBalls);
+      }
     }
     
     setIsNoBallOpen(false);
   };
 
   const handleWicket = (type: string, fielderId: string = 'none') => {
+    const prevStrikerId = strikerId;
+    const prevBowlerId = bowlerId;
+
+    const ballRecord = {
+      strikerId: prevStrikerId,
+      bowlerId: prevBowlerId,
+      runs: 0,
+      extra: 'none',
+      isWicket: true,
+      wicketType: type,
+      prevDots: consecutiveDots,
+      prevBalls: ballsInOver
+    };
+
+    setHistory([ballRecord, ...history].slice(0, 30));
+
     setPlayers(prev => prev.map(p => {
-      if (p.id === strikerId) {
+      if (p.id === prevStrikerId) {
         return {
           ...p,
-          batting: { ...p.batting, out: true, dismissal: type, fielderId, balls: p.batting.balls + (type === '3-Dots' ? 0 : 1) }
+          batting: { ...p.batting, out: true, dismissal: type, fielderId, balls: p.batting.balls + (type === '3-Dots Streak' ? 0 : 1) }
         };
       }
-      if (p.id === bowlerId) {
-        const isBowlerWkt = !['runout', '3-Dots', 'retired'].includes(type);
+      if (p.id === prevBowlerId) {
+        const isBowlerWkt = !['runout', '3-Dots Streak', 'retired'].includes(type);
         const newWkts = p.bowling.wickets + (isBowlerWkt ? 1 : 0);
         return {
           ...p,
@@ -241,7 +255,7 @@ export default function NumberGame() {
             ...p.bowling, 
             wickets: newWkts,
             bestWickets: Math.max(p.bowling.bestWickets, newWkts),
-            balls: p.bowling.balls + (['runout', '3-Dots', 'retired'].includes(type) ? 0 : 1)
+            balls: p.bowling.balls + (['runout', '3-Dots Streak', 'retired'].includes(type) ? 0 : 1)
           }
         };
       }
@@ -254,6 +268,7 @@ export default function NumberGame() {
   };
 
   const handleSelectNextBatter = (nextId: string) => {
+    // If we picked the bowler, rotate them first
     if (nextId === bowlerId) rotateBowler(bowlerId, nextId);
     setStrikerId(nextId);
   };
@@ -270,7 +285,7 @@ export default function NumberGame() {
           batting: {
             ...p.batting,
             runs: p.batting.runs - (last.extra === 'wide' ? 0 : last.runs),
-            balls: Math.max(0, p.batting.balls - (last.extra === 'none' ? 1 : 0)),
+            balls: Math.max(0, p.batting.balls - (last.extra === 'none' && last.wicketType !== '3-Dots Streak' ? 1 : 0)),
             fours: p.batting.fours - (last.runs === 4 && last.extra !== 'wide' ? 1 : 0),
             sixes: p.batting.sixes - (last.runs === 6 && last.extra !== 'wide' ? 1 : 0),
             out: false,
@@ -279,13 +294,14 @@ export default function NumberGame() {
         };
       }
       if (p.id === last.bowlerId) {
+        const isBowlerWkt = last.isWicket && !['runout', '3-Dots Streak', 'retired'].includes(last.wicketType || '');
         return {
           ...p,
           bowling: {
             ...p.bowling,
             runs: p.bowling.runs - last.runs - (last.extra !== 'none' ? 1 : 0),
             balls: Math.max(0, p.bowling.balls - (last.extra === 'none' ? 1 : 0)),
-            wickets: p.bowling.wickets - (last.isWicket ? 1 : 0)
+            wickets: p.bowling.wickets - (isBowlerWkt ? 1 : 0)
           }
         };
       }
@@ -296,6 +312,7 @@ export default function NumberGame() {
     setBallsInOver(last.prevBalls);
     setStrikerId(last.strikerId);
     setBowlerId(last.bowlerId);
+    toast({ title: "Action Undone" });
   };
 
   const handleDownloadReport = () => {
@@ -307,7 +324,7 @@ export default function NumberGame() {
     a.href = url;
     a.download = `CricMates_StreetPro_${Date.now()}.html`;
     a.click();
-    toast({ title: "Report Downloaded", description: "The professional scorecard is ready for review." });
+    toast({ title: "Report Downloaded", description: "The official scorecard is ready." });
   };
 
   if (!isMounted) return null;
@@ -320,12 +337,12 @@ export default function NumberGame() {
             <Hash className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Street Pro Setup</h1>
-          <p className="text-slate-500 text-sm font-medium italic">Persistent Local Scoring Mode</p>
+          <p className="text-slate-500 text-sm font-medium italic">Persistent Casual Scoring</p>
         </div>
 
         <Card className="border-t-8 border-t-primary shadow-xl">
           <CardHeader>
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-400">Player Registry (3-10 required)</CardTitle>
+            <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-400">Player Registry (3-15 participants)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {playerNames.map((name, i) => (
@@ -351,14 +368,14 @@ export default function NumberGame() {
               </div>
             ))}
             
-            {playerNames.length < 10 && (
+            {playerNames.length < 15 && (
               <Button variant="outline" onClick={addSetupField} className="w-full border-dashed border-2 h-12 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <Plus className="w-4 h-4 mr-2" /> Add Player Row
+                <Plus className="w-4 h-4 mr-2" /> Add Participant
               </Button>
             )}
 
             <Button onClick={startGame} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl group mt-4">
-              INITIALIZE MATCH <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
+              START GAME <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
             </Button>
           </CardContent>
         </Card>
@@ -375,30 +392,30 @@ export default function NumberGame() {
         <div className="bg-emerald-500 w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-xl mb-4">
           <Trophy className="w-10 h-10 text-white" />
         </div>
-        <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-900">Match Summary</h1>
-        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Official Street Pro Records Validated</p>
+        <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-900">Session Complete</h1>
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Official Records Validated</p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-lg mx-auto">
-          <Button onClick={handleDownloadReport} className="h-16 font-black uppercase tracking-widest text-lg shadow-xl bg-secondary hover:bg-secondary/90">
-            <Download className="w-6 h-6 mr-2" /> Match Report
+          <Button onClick={handleDownloadReport} className="h-16 font-black uppercase tracking-widest text-lg shadow-xl bg-secondary hover:bg-secondary/90 text-white">
+            <Download className="w-6 h-6 mr-2" /> Download Report
           </Button>
-          <Button onClick={resetGame} variant="outline" className="h-16 font-black uppercase tracking-widest text-lg border-2">
-            <RotateCcw className="w-6 h-6 mr-2" /> New Match
+          <Button onClick={resetGame} variant="outline" className="h-16 font-black uppercase tracking-widest text-lg border-2 border-primary text-primary">
+            <RotateCcw className="w-6 h-6 mr-2" /> Start New Match
           </Button>
         </div>
 
         <Card className="max-w-2xl mx-auto border-none shadow-lg mt-8 overflow-hidden">
           <div className="bg-slate-50 px-4 py-3 border-b text-left">
-            <span className="text-[10px] font-black uppercase text-slate-500">Leaderboard Overview</span>
+            <span className="text-[10px] font-black uppercase text-slate-500">Tournament Leaderboard</span>
           </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-slate-50/50">
                 <TableRow>
-                  <TableHead className="text-[9px] font-black uppercase">Player</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase">Participant</TableHead>
                   <TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead>
                   <TableHead className="text-right text-[9px] font-black uppercase">Wkts</TableHead>
-                  <TableHead className="text-right text-[9px] font-black uppercase">High Score</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase">B.S.</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -420,13 +437,12 @@ export default function NumberGame() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-24 px-1 md:px-4">
-      {/* Official Scorer Dashboard (Slate-900 Consistency) */}
       <Card className={cn("border-none shadow-2xl transition-all overflow-hidden", activeStriker?.batting.out ? "ring-4 ring-destructive" : "ring-4 ring-primary")}>
         <div className="bg-slate-900 text-white p-6 md:p-8 space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start gap-6">
             <div className="space-y-1">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary flex items-center gap-2">
-                <UserCircle className="w-3 h-3"/> Active Batter
+                <UserCircle className="w-3 h-3"/> Active Striker
               </p>
               <h2 className="text-3xl font-black uppercase tracking-tighter">{activeStriker?.name}</h2>
               <div className="flex gap-4">
@@ -447,7 +463,7 @@ export default function NumberGame() {
             {[...Array(3)].map((_, i) => (
               <div key={i} className={cn("w-4 h-4 rounded-full border-2", i < consecutiveDots ? "bg-red-500 border-red-600 animate-pulse shadow-[0_0_10px_#ef4444]" : "border-slate-700")} />
             ))}
-            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-2">Dot Ball Streak</span>
+            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-2">3-Dots Warning</span>
           </div>
 
           {!activeStriker?.batting.out ? (
@@ -463,17 +479,17 @@ export default function NumberGame() {
               <div className="grid grid-cols-3 gap-2">
                 <Button variant="outline" onClick={() => handleScore(1, 'wide')} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">Wide</Button>
                 <Button variant="outline" onClick={() => setIsNoBallOpen(true)} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">No Ball</Button>
-                <Button variant="outline" onClick={undoLastAction} disabled={history.length === 0} className="h-10 border-white/20 text-white font-black text-[10px] uppercase"><Undo2 className="w-3 h-3 mr-1"/> Undo</Button>
+                <Button variant="outline" onClick={undoLastAction} disabled={history.length === 0} className="h-10 border-white/20 text-white font-black text-[10px] uppercase"><Undo2 className="w-3 h-3 mr-1"/> Undo Ball</Button>
               </div>
             </div>
           ) : (
             <div className="p-6 bg-destructive/10 border-2 border-dashed border-destructive/30 rounded-xl text-center space-y-4 animate-in zoom-in-95">
               <p className="text-lg font-black text-destructive uppercase italic">Dismissed: {activeStriker?.batting.dismissal}</p>
               <div className="max-w-xs mx-auto space-y-2 text-left">
-                <Label className="text-[10px] font-black uppercase text-slate-400">Assign Next Batter</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-400">Assign Successor</Label>
                 <Select value="" onValueChange={handleSelectNextBatter}>
                   <SelectTrigger className="bg-white text-slate-900 font-bold h-12">
-                    <SelectValue placeholder="Choose successor..." />
+                    <SelectValue placeholder="Pick next batter..." />
                   </SelectTrigger>
                   <SelectContent>
                     {players.filter(p => !p.batting.out && p.id !== strikerId).map(p => (
@@ -489,28 +505,27 @@ export default function NumberGame() {
 
       <div className="flex gap-2">
         <Button onClick={() => setIsAddPlayerOpen(true)} variant="secondary" className="flex-1 font-black uppercase text-[10px] h-12 shadow-md">
-          <UserPlus className="w-4 h-4 mr-2" /> Add Participant
+          <UserPlus className="w-4 h-4 mr-2" /> Join Mid-Game
         </Button>
-        <Button onClick={() => setGameState('finished')} variant="default" className="flex-1 font-black uppercase text-[10px] h-12 shadow-md bg-emerald-600">
-          <CheckCircle2 className="w-4 h-4 mr-2" /> Finalize Match
+        <Button onClick={() => setGameState('finished')} variant="default" className="flex-1 font-black uppercase text-[10px] h-12 shadow-md bg-emerald-600 hover:bg-emerald-700">
+          <CheckCircle2 className="w-4 h-4 mr-2" /> Finalize Session
         </Button>
         <Button onClick={resetGame} variant="outline" size="icon" className="h-12 w-12 text-slate-400 hover:text-destructive">
           <Trash2 className="w-4 h-4" />
         </Button>
       </div>
 
-      {/* Scorecards */}
       <div className="space-y-6">
         <Card className="rounded-xl overflow-hidden shadow-sm border bg-white">
           <div className="bg-slate-50 px-4 py-3 border-b flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase text-slate-500">Live Player Stats</span>
-            <Badge variant="outline" className="text-[8px] font-black uppercase text-primary border-primary/20">Street Pro v1.0</Badge>
+            <span className="text-[10px] font-black uppercase text-slate-500">Live Player Statistics</span>
+            <Badge variant="outline" className="text-[8px] font-black uppercase text-primary border-primary/20">STREET PRO v2.0</Badge>
           </div>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader className="bg-slate-50/50">
                 <TableRow>
-                  <TableHead className="text-[9px] font-black uppercase">Player</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase">Participant</TableHead>
                   <TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead>
                   <TableHead className="text-right text-[9px] font-black uppercase">Balls</TableHead>
                   <TableHead className="text-right text-[9px] font-black uppercase">Wkts</TableHead>
@@ -545,7 +560,7 @@ export default function NumberGame() {
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-amber-500">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-tight text-amber-600">No Ball Results</DialogTitle>
-            <DialogDescription className="font-bold uppercase text-[10px]">Select runs scored on this illegal delivery</DialogDescription>
+            <DialogDescription className="font-bold uppercase text-[10px]">Select runs scored on this delivery</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-3 gap-2 py-4">
             {[0, 1, 2, 4, 6].map(r => (
@@ -558,8 +573,8 @@ export default function NumberGame() {
       <Dialog open={isWicketOpen} onOpenChange={setIsWicketOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-destructive">
           <DialogHeader>
-            <DialogTitle className="font-black uppercase tracking-tight text-destructive">Register Dismissal</DialogTitle>
-            <DialogDescription className="text-xs">Confirm mode of out for {activeStriker?.name}</DialogDescription>
+            <DialogTitle className="font-black uppercase tracking-tight text-destructive">Register Out</DialogTitle>
+            <DialogDescription className="text-xs">Select dismissal mode for {activeStriker?.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1">
@@ -574,7 +589,7 @@ export default function NumberGame() {
                   <SelectItem value="runout" className="font-bold">Run Out</SelectItem>
                   <SelectItem value="stumped" className="font-bold">Stumped</SelectItem>
                   <SelectItem value="lbw" className="font-bold">LBW</SelectItem>
-                  <SelectItem value="3-Dots" className="font-bold text-destructive">3-Dots Streak</SelectItem>
+                  <SelectItem value="3-Dots Streak" className="font-bold text-destructive">3-Dots Rule</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -587,9 +602,22 @@ export default function NumberGame() {
 
       <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-secondary">
-          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Add Player Mid-Match</DialogTitle></DialogHeader>
-          <div className="py-4"><Input value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} placeholder="Full Name" className="font-bold h-12" /></div>
-          <DialogFooter><Button onClick={addMidMatchPlayer} className="w-full h-14 font-black uppercase bg-secondary">Add Player</Button></DialogFooter>
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Add New Participant</DialogTitle></DialogHeader>
+          <div className="py-4"><Input value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} placeholder="Player Full Name" className="font-bold h-12" /></div>
+          <DialogFooter><Button onClick={() => {
+            if (!newPlayerName.trim()) return;
+            const newP: Player = {
+              id: `p-${players.length}-${Date.now()}`,
+              name: newPlayerName,
+              order: players.length + 1,
+              batting: { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', fielderId: '', highScore: 0 },
+              bowling: { balls: 0, runs: 0, wickets: 0, maidens: 0, bestWickets: 0 }
+            };
+            setPlayers([...players, newP]);
+            setNewPlayerName('');
+            setIsAddPlayerOpen(false);
+            toast({ title: "Player Joined Session" });
+          }} className="w-full h-14 font-black uppercase bg-secondary text-white">Join Game</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
