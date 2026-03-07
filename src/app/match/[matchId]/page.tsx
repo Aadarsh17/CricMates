@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, Info, TrendingUp, Trash2, ChevronLeft, Calendar, Clock, UserCheck, ShieldCheck, List, CheckCircle2, MoreVertical, UserPlus, AlertCircle, Settings2, Rewind } from 'lucide-react';
+import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, Info, TrendingUp, Trash2, ChevronLeft, Calendar, Clock, UserCheck, ShieldCheck, List, CheckCircle2, MoreVertical, UserPlus, AlertCircle, Settings2, Rewind, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -24,7 +24,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import Link from 'next/link';
 
 const chartConfig = {
-  score: { label: "Runs", color: "hsl(var(--primary))" },
+  inn1Score: { label: "1st Innings", color: "hsl(var(--primary))" },
+  inn2Score: { label: "2nd Innings", color: "hsl(var(--secondary))" },
   runs: { label: "Over Runs", color: "hsl(var(--secondary))" }
 } satisfies ChartConfig;
 
@@ -222,23 +223,41 @@ export default function MatchScoreboardPage() {
     }
   };
 
-  const getWormData = (deliveries: any[]) => {
-    const data: any[] = [{ over: 0, score: 0, isWicket: false }];
-    let runningScore = 0; let currentLegal = 0;
-    deliveries?.forEach(d => {
-      runningScore += d.totalRunsOnDelivery;
-      if (['none', 'bye', 'legbye'].includes(d.extraType)) {
-        currentLegal++;
-      }
-      data.push({ 
-        over: currentLegal / 6, 
-        score: runningScore, 
-        isWicket: d.isWicket,
-        ballLabel: d.overLabel
+  const unifiedWormData = useMemo(() => {
+    const data: any[] = [];
+    const preparePoints = (deliveries: any[], scoreKey: string, wicketKey: string) => {
+      let runningScore = 0;
+      let legalBalls = 0;
+      const pts = [{ over: 0, [scoreKey]: 0 }];
+      deliveries?.forEach(d => {
+        runningScore += d.totalRunsOnDelivery;
+        if (['none', 'bye', 'legbye'].includes(d.extraType)) legalBalls++;
+        pts.push({
+          over: legalBalls / 6,
+          [scoreKey]: runningScore,
+          [wicketKey]: d.isWicket
+        });
       });
+      return pts;
+    };
+
+    const d1 = preparePoints(inn1Deliveries || [], 'inn1Score', 'inn1Wicket');
+    const d2 = preparePoints(inn2Deliveries || [], 'inn2Score', 'inn2Wicket');
+
+    const allOvers = Array.from(new Set([...d1.map(p => p.over), ...d2.map(p => p.over)])).sort((a, b) => a - b);
+    
+    return allOvers.map(o => {
+      const p1 = d1.find(p => p.over === o);
+      const p2 = d2.find(p => p.over === o);
+      return {
+        over: o,
+        inn1Score: p1?.inn1Score,
+        inn1Wicket: p1?.inn1Wicket,
+        inn2Score: p2?.inn2Score,
+        inn2Wicket: p2?.inn2Wicket,
+      };
     });
-    return data;
-  };
+  }, [inn1Deliveries, inn2Deliveries]);
 
   const getManhattanData = (deliveries: any[]) => {
     const overRuns: Record<number, number> = {};
@@ -253,13 +272,13 @@ export default function MatchScoreboardPage() {
     return Object.entries(overRuns).map(([over, runs]) => ({ over: `O${over}`, runs }));
   };
 
-  const renderWicketDot = (props: any) => {
+  const renderWicketDot = (props: any, scoreKey: string, wicketKey: string) => {
     const { cx, cy, payload } = props;
-    if (payload.isWicket) {
+    if (payload[wicketKey]) {
       return (
-        <g key={`w-dot-${payload.over}-${payload.score}`}>
-          <circle cx={cx} cy={cy} r={10} fill="#ef4444" stroke="#fff" strokeWidth={2} />
-          <text x={cx} y={cy} dy={3.5} textAnchor="middle" fill="#fff" fontSize="10px" fontWeight="900">W</text>
+        <g key={`w-dot-${scoreKey}-${payload.over}`}>
+          <circle cx={cx} cy={cy} r={8} fill="#ef4444" stroke="#fff" strokeWidth={2} />
+          <text x={cx} y={cy} dy={3} textAnchor="middle" fill="#fff" fontSize="8px" fontWeight="900">W</text>
         </g>
       );
     }
@@ -623,10 +642,10 @@ export default function MatchScoreboardPage() {
 
           <TabsContent value="analysis" className="space-y-6">
             <Card className="border-none shadow-xl bg-white rounded-3xl p-6">
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Worm Chart (Match Flow)</h3>
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Unified Worm Chart</h3>
               <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={getWormData(currentDeliveries || [])}>
+                  <LineChart data={unifiedWormData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis 
                       dataKey="over" 
@@ -639,10 +658,20 @@ export default function MatchScoreboardPage() {
                     <ChartTooltip content={<ChartTooltipContent />} />
                     <Line 
                       type="monotone" 
-                      dataKey="score" 
+                      dataKey="inn1Score" 
+                      name="1st Innings"
                       stroke="hsl(var(--primary))" 
                       strokeWidth={4} 
-                      dot={renderWicketDot} 
+                      dot={(props) => renderWicketDot(props, 'inn1Score', 'inn1Wicket')} 
+                      activeDot={{ r: 6 }} 
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="inn2Score" 
+                      name="2nd Innings"
+                      stroke="hsl(var(--secondary))" 
+                      strokeWidth={4} 
+                      dot={(props) => renderWicketDot(props, 'inn2Score', 'inn2Wicket')} 
                       activeDot={{ r: 6 }} 
                     />
                   </LineChart>
