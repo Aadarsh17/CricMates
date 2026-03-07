@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
@@ -58,17 +57,21 @@ export default function StatsPage() {
 
       if (sId && pMatchStats[sId]) {
         const s = pMatchStats[sId][matchId];
-        s.runs += (d.runsScored || 0);
-        if (d.runsScored === 4) s.fours++;
-        if (d.runsScored === 6) s.sixes++;
+        if (s) {
+          s.runs += (d.runsScored || 0);
+          if (d.runsScored === 4) s.fours++;
+          if (d.runsScored === 6) s.sixes++;
+        }
       }
       if (bId && pMatchStats[bId]) {
         const b = pMatchStats[bId][matchId];
-        b.runsCon += (d.totalRunsOnDelivery || 0);
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsB++;
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++;
+        if (b) {
+          b.runsCon += (d.totalRunsOnDelivery || 0);
+          if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsB++;
+          if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++;
+        }
       }
-      if (fId && pMatchStats[fId]) {
+      if (fId && pMatchStats[fId] && pMatchStats[fId][matchId]) {
         if (d.dismissalType === 'caught') pMatchStats[fId][matchId].catches++;
         if (d.dismissalType === 'runout') pMatchStats[fId][matchId].runouts++;
       }

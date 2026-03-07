@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
@@ -297,15 +296,14 @@ export default function MatchScoreboardPage() {
                   <div className="grid grid-cols-3 gap-3">
                     <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px] tracking-widest">Wide</Button>
                     <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px] tracking-widest">No Ball</Button>
-                    <Button variant="outline" onClick={() => { 
+                    <Button variant="outline" onClick={async () => { 
                       const currentInningId = `inning_${match?.currentInningNumber}`;
-                      getDocs(query(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords'), orderBy('timestamp', 'desc'), limit(1))).then(s => { 
-                        if(!s.empty) { 
-                          deleteDocumentNonBlocking(s.docs[0].ref); 
-                          recalculateInningState(currentInningId); 
-                          toast({ title: "Action Undone" });
-                        } 
-                      }); 
+                      const s = await getDocs(query(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords'), orderBy('timestamp', 'desc'), limit(1)));
+                      if(!s.empty) { 
+                        deleteDocumentNonBlocking(s.docs[0].ref); 
+                        recalculateInningState(currentInningId); 
+                        toast({ title: "Action Undone" });
+                      } 
                     }} className="h-12 border-white/10 text-slate-400 uppercase font-black text-[9px] tracking-widest">Undo</Button>
                   </div>
                 </CardContent>
@@ -492,9 +490,11 @@ export default function MatchScoreboardPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={() => { 
+            <Button onClick={async () => { 
               const currentInningId = `inning_${match?.currentInningNumber}`;
-              const totalLegal = (currentDeliveries?.filter(d => d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye').length || 0) + 1;
+              const legalSnapshot = await getDocs(query(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords')));
+              const totalLegal = legalSnapshot.docs.filter(d => ['none', 'bye', 'legbye'].includes(d.data().extraType)).length + 1;
+              
               const deliveryId = doc(collection(db, 'temp')).id;
               const dData = { 
                 id: deliveryId, 

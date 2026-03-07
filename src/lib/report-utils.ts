@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Utility functions for match statistics, professional scorecard generation, and match flow timeline logic.
  */
@@ -137,4 +136,74 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     fow,
     partnerships
   };
+};
+
+/**
+ * Generates an HTML report for Street Pro sessions.
+ */
+export const generateStreetReport = (players: any[], date: string) => {
+  const sorted = [...players].sort((a, b) => b.batting.runs - a.batting.runs);
+  
+  let html = `
+    <html>
+    <head>
+      <title>CricMates Street Pro Report - ${date}</title>
+      <style>
+        body { font-family: 'Inter', sans-serif; padding: 40px; color: #1e293b; line-height: 1.5; }
+        h1 { color: #3f51b5; border-bottom: 4px solid #3f51b5; padding-bottom: 15px; margin-bottom: 5px; font-weight: 900; text-transform: uppercase; letter-spacing: -0.05em; }
+        .date { color: #64748b; font-weight: bold; font-size: 14px; margin-bottom: 30px; text-transform: uppercase; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        th, td { border: 1px solid #e2e8f0; padding: 16px; text-align: left; }
+        th { background-color: #f8fafc; font-weight: 900; text-transform: uppercase; font-size: 11px; color: #64748b; letter-spacing: 0.1em; }
+        tr:nth-child(even) { background-color: #fcfcfc; }
+        .footer { margin-top: 50px; font-size: 11px; color: #94a3b8; text-align: center; font-weight: bold; text-transform: uppercase; letter-spacing: 0.2em; }
+        .highlight { color: #3f51b5; font-weight: 900; text-transform: uppercase; }
+        .runs { font-weight: 900; font-size: 16px; }
+        .wkts { font-weight: 900; color: #009688; }
+      </style>
+    </head>
+    <body>
+      <h1>CricMates Street Pro Session</h1>
+      <p class="date">Official Scorecard • ${date}</p>
+      
+      <table>
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Participant</th>
+            <th>Runs</th>
+            <th>Balls</th>
+            <th>4s</th>
+            <th>6s</th>
+            <th>Wickets</th>
+            <th>Economy</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  sorted.forEach((p, i) => {
+    const econ = p.bowling.balls > 0 ? (p.bowling.runs / (p.bowling.balls / 6)).toFixed(2) : '0.00';
+    html += `
+      <tr>
+        <td>${i + 1}</td>
+        <td class="highlight">${p.name}</td>
+        <td class="runs">${p.batting.runs}</td>
+        <td>${p.batting.balls}</td>
+        <td>${p.batting.fours}</td>
+        <td>${p.batting.sixes}</td>
+        <td class="wkts">${p.bowling.wickets}</td>
+        <td>${econ}</td>
+      </tr>
+    `;
+  });
+
+  html += `
+        </tbody>
+      </table>
+      <div class="footer">Verified by CricMates Pro League Scoring Engine</div>
+    </body>
+    </html>
+  `;
+  return html;
 };
