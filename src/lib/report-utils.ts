@@ -1,10 +1,9 @@
-
 /**
  * @fileOverview Utility functions for match statistics, professional scorecard generation, and match flow timeline logic.
  */
 
 export const getExtendedInningStats = (deliveries: any[]) => {
-  if (!deliveries || deliveries.length === 0) return { batting: [], bowling: [], fow: [], partnerships: [] };
+  if (!deliveries || deliveries.length === 0) return { batting: [], bowling: [], fow: [], partnerships: [], history: [] };
   
   const bat: Record<string, any> = {};
   const bowl: Record<string, any> = {};
@@ -34,6 +33,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     
     if (!sId) return;
 
+    // Batting Order Tracking
     [sId, nsId].forEach(id => {
       if (id && id !== 'none' && !battingOrder.includes(id)) {
         battingOrder.push(id);
@@ -41,31 +41,31 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     });
 
     if (!bat[sId]) {
-      bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', bowlerId: '', fielderId: '' };
+      bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, status: 'Not Out', dismissal: '', bowlerId: '', fielderId: '' };
     }
     if (nsId && nsId !== 'none' && !bat[nsId]) {
-      bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', bowlerId: '', fielderId: '' };
+      bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, status: 'Not Out', dismissal: '', bowlerId: '', fielderId: '' };
     }
     
+    // Batting Stats
     if (d.extraType !== 'wide') {
-      if (bat[sId]) {
-        bat[sId].balls += 1;
-        bat[sId].runs += (d.runsScored || 0);
-        if (d.runsScored === 4) bat[sId].fours += 1;
-        if (d.runsScored === 6) bat[sId].sixes += 1;
-      }
+      bat[sId].balls += 1;
+      bat[sId].runs += (d.runsScored || 0);
+      if (d.runsScored === 4) bat[sId].fours += 1;
+      if (d.runsScored === 6) bat[sId].sixes += 1;
     }
 
     currentScore += (d.totalRunsOnDelivery || 0);
-    if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') currentBalls += 1;
+    if (['none', 'bye', 'legbye'].includes(d.extraType)) currentBalls += 1;
 
+    // Partnership Tracking
     if (!activePartnership.batter1Id) {
       activePartnership.batter1Id = sId;
       activePartnership.batter2Id = nsId && nsId !== 'none' ? nsId : '';
     }
 
     activePartnership.runs += (d.totalRunsOnDelivery || 0);
-    if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') activePartnership.balls += 1;
+    if (['none', 'bye', 'legbye'].includes(d.extraType)) activePartnership.balls += 1;
     
     if (sId === activePartnership.batter1Id) {
       activePartnership.batter1Runs += (d.runsScored || 0);
@@ -75,11 +75,13 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       if (d.extraType !== 'wide') activePartnership.batter2Balls += 1;
     }
 
+    // Wicket Processing
     if (d.isWicket) {
       currentWickets += 1;
       const outPid = d.batsmanOutPlayerId || sId;
       if (bat[outPid]) {
         bat[outPid].out = true;
+        bat[outPid].status = 'Out';
         bat[outPid].dismissal = d.dismissalType || 'out';
         bat[outPid].bowlerId = bId;
         bat[outPid].fielderId = d.fielderPlayerId;
@@ -95,6 +97,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
 
       partnerships.push({...activePartnership});
       
+      // Reset partnership
       activePartnership = {
         batter1Id: outPid === activePartnership.batter1Id ? '' : activePartnership.batter1Id,
         batter2Id: outPid === activePartnership.batter2Id ? '' : activePartnership.batter2Id,
@@ -111,13 +114,14 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       partnerships.push({...activePartnership});
     }
 
+    // Bowling Stats
     if (bId) {
-      if (!bowl[bId]) bowl[bId] = { id: bId, overs: 0, balls: 0, runs: 0, wickets: 0, maidens: 0 };
+      if (!bowl[bId]) bowl[bId] = { id: bId, balls: 0, runs: 0, wickets: 0, maidens: 0 };
       bowl[bId].runs += (d.totalRunsOnDelivery || 0);
-      if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') {
+      if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
         bowl[bId].wickets += 1;
       }
-      if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') {
+      if (['none', 'bye', 'legbye'].includes(d.extraType)) {
         bowl[bId].balls += 1;
       }
     }
@@ -129,10 +133,16 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     batting: sortedBatting,
     bowling: Object.values(bowl).map(b => ({ 
       ...b, 
-      oversDisplay: b.balls > 0 ? `${Math.floor((b.balls - 1) / 6)}.${((b.balls - 1) % 6) + 1}` : '0.0' 
+      oversDisplay: `${Math.floor(b.balls / 6)}.${b.balls % 6}`,
+      economy: b.balls > 0 ? (b.runs / (b.balls / 6)).toFixed(2) : '0.00'
     })),
     fow,
-    partnerships
+    partnerships,
+    history: deliveries.map(d => ({
+      label: d.overLabel,
+      val: d.isWicket ? 'W' : d.totalRunsOnDelivery,
+      type: d.isWicket ? 'wicket' : d.totalRunsOnDelivery >= 6 ? 'six' : d.totalRunsOnDelivery >= 4 ? 'four' : 'normal'
+    }))
   };
 };
 
