@@ -9,12 +9,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, Info, TrendingUp, Trash2, ChevronLeft, Calendar, Clock, UserCheck, ShieldCheck, List, CheckCircle2, MoreVertical, UserPlus, AlertCircle, Settings2, Rewind, RotateCcw } from 'lucide-react';
+import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, Info, TrendingUp, Trash2, ChevronLeft, Calendar, Clock, UserCheck, ShieldCheck, List, CheckCircle2, MoreVertical, UserPlus, AlertCircle, Settings2, Rewind, RotateCcw, Download, Share2, Check } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
-import { getExtendedInningStats } from '@/lib/report-utils';
+import { getExtendedInningStats, generateMatchReport } from '@/lib/report-utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -88,6 +88,32 @@ export default function MatchScoreboardPage() {
     const completed = Math.floor((legalBallIndex - 1) / 6);
     const ballNum = ((legalBallIndex - 1) % 6) + 1;
     return `${completed}.${ballNum}`;
+  };
+
+  const handleDownloadReport = () => {
+    if (!match || !allTeams || !allPlayers) return;
+    
+    const teamMap: Record<string, string> = {};
+    allTeams.forEach(t => teamMap[t.id] = t.name);
+    
+    const playerMap: Record<string, string> = {};
+    allPlayers.forEach(p => playerMap[p.id] = p.name);
+
+    const reportHtml = generateMatchReport(match, teamMap, playerMap, inn1, inn2, stats1, stats2);
+    const blob = new Blob([reportHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CricMates_Report_${matchId.substring(0,6)}_${Date.now()}.html`;
+    a.click();
+    toast({ title: "Report Generated", description: "The official match scorecard has been downloaded." });
+  };
+
+  const handleShareSummary = () => {
+    if (!match) return;
+    const summary = `🏏 *CricMates Pro Match Summary*\n\n${getTeamName(match.team1Id)} vs ${getTeamName(match.team2Id)}\n${getTeamName(inn1?.battingTeamId)}: ${inn1?.score}/${inn1?.wickets}\n${getTeamName(inn2?.battingTeamId)}: ${inn2?.score}/${inn2?.wickets}\n\n🏆 *Result:* ${match.resultDescription}\n\nView details: ${window.location.href}`;
+    navigator.clipboard.writeText(summary);
+    toast({ title: "Summary Copied", description: "Professional text summary ready to share." });
   };
 
   const recalculateInningState = async (inningId: string) => {
@@ -220,7 +246,6 @@ export default function MatchScoreboardPage() {
         resultDescription: resDesc 
       });
       toast({ title: "Match Finished", description: resDesc });
-      router.push('/matches');
     }
   };
 
@@ -423,6 +448,40 @@ export default function MatchScoreboardPage() {
           </TabsList>
 
           <TabsContent value="live" className="space-y-6">
+            {match?.status === 'completed' && (
+              <Card className="bg-slate-900 border-none rounded-3xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95">
+                <div className="p-6 text-center space-y-6">
+                  <div className="bg-emerald-500 w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-lg">
+                    <Trophy className="w-8 h-8 text-white" />
+                  </div>
+                  <div className="space-y-1">
+                    <h2 className="text-2xl font-black uppercase tracking-tighter text-white">Official Result</h2>
+                    <p className="text-emerald-400 font-black uppercase text-xs tracking-widest">{match.resultDescription}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button onClick={handleDownloadReport} className="h-14 font-black uppercase tracking-widest text-[10px] bg-white text-slate-900 hover:bg-slate-100 shadow-xl">
+                      <Download className="w-4 h-4 mr-2" /> Download Report
+                    </Button>
+                    <Button onClick={handleShareSummary} variant="outline" className="h-14 font-black uppercase tracking-widest text-[10px] border-white/20 text-white bg-white/5 hover:bg-white/10">
+                      <Share2 className="w-4 h-4 mr-2" /> Share Summary
+                    </Button>
+                  </div>
+                  <div className="pt-4 border-t border-white/5 flex gap-2">
+                    <Button asChild variant="ghost" className="flex-1 text-[9px] font-black uppercase text-slate-400">
+                      <Link href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}`}>
+                        <RefreshCw className="w-3 h-3 mr-2" /> Rematch
+                      </Link>
+                    </Button>
+                    {isUmpire && (
+                      <Button onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'live' })} variant="ghost" className="flex-1 text-[9px] font-black uppercase text-amber-500">
+                        <RotateCcw className="w-3 h-3 mr-2" /> Re-open
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            )}
+
             {isUmpire && !activeInningData?.isDeclaredFinished && match?.status === 'live' ? (
               <Card className="bg-slate-900 border-none rounded-3xl overflow-hidden shadow-2xl">
                 <CardContent className="p-6 space-y-6">
@@ -510,15 +569,6 @@ export default function MatchScoreboardPage() {
               </div>
             )}
 
-            {isUmpire && match?.status === 'completed' && (
-              <Card className="bg-amber-50 border-2 border-dashed border-amber-200 p-6 rounded-3xl text-center space-y-4">
-                <p className="text-xs font-black uppercase text-amber-700">Match Officially Closed</p>
-                <Button onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'live' })} variant="outline" className="w-full h-12 border-amber-500 text-amber-700 font-black uppercase text-[10px]">
-                  <RotateCcw className="w-4 h-4 mr-2" /> Re-open for Scoring
-                </Button>
-              </Card>
-            )}
-
             <div className="space-y-4">
               <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
                 <div className="p-3 bg-slate-100 flex items-center justify-between">
@@ -543,7 +593,7 @@ export default function MatchScoreboardPage() {
                       return (
                         <TableRow key={pid} className={idx === 0 ? "bg-primary/5" : ""}>
                           <TableCell className="font-black text-xs uppercase truncate max-w-[100px]">
-                            <Link href={`/players/${pid}`} className="hover:text-primary transition-colors">{getPlayerName(pid)}</Link> {idx === 0 ? '*' : ''}
+                            <Link href={`/players/${pid}`} className="hover:text-primary transition-colors">{getPlayerName(pid)}</Link {idx === 0 ? '*' : ''}
                           </TableCell>
                           <TableCell className="text-right font-black">{b?.runs || 0}</TableCell>
                           <TableCell className="text-right text-xs font-bold text-slate-500">{b?.balls || 0}</TableCell>
