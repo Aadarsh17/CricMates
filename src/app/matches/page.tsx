@@ -1,12 +1,13 @@
+
 'use client';
 
 import { useCollection, useMemoFirebase, useFirestore, useDoc, useUser } from '@/firebase';
-import { collection, query, orderBy, doc, getDocs, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, query, orderBy, doc, getDocs, deleteDoc } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar, Trash2, Trophy, Loader2, ChevronLeft } from 'lucide-react';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
@@ -31,10 +32,6 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
     return new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   };
 
-  /**
-   * ROBUST SEQUENTIAL DEEP DELETE
-   * Purges all ball-by-ball records before removing the match.
-   */
   const executeDeepDelete = async () => {
     if (isDeleting) return;
     setIsDeleting(true);
@@ -42,27 +39,19 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
 
     try {
       const innings = ['inning_1', 'inning_2'];
-      
       for (const innId of innings) {
         const deliveriesRef = collection(db, 'matches', match.id, 'innings', innId, 'deliveryRecords');
         const deliveriesSnapshot = await getDocs(deliveriesRef);
-        
-        // Delete all delivery records sequentially to ensure completion
         for (const docSnapshot of deliveriesSnapshot.docs) {
           await deleteDoc(docSnapshot.ref);
         }
-        
-        // Delete the inning document itself
         await deleteDoc(doc(db, 'matches', match.id, 'innings', innId));
       }
-
-      // Finally delete the match metadata
       await deleteDoc(doc(db, 'matches', match.id));
-      
-      toast({ title: "Match Deleted", description: "History has been permanently updated." });
+      toast({ title: "Match Deleted", description: "All records purged successfully." });
     } catch (e: any) {
       console.error("Purge Failed:", e);
-      toast({ title: "Deletion Error", description: "Failed to remove all records.", variant: "destructive" });
+      toast({ title: "Deletion Error", variant: "destructive" });
     } finally {
       setIsDeleting(false);
     }
@@ -100,16 +89,23 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
                   {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Match Permanently?</AlertDialogTitle><AlertDialogDescription>This will purge the match and <strong>ALL associated history records</strong>. Global rankings will update instantly.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={executeDeepDelete} className="bg-destructive">Confirm Purge</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Match Permanently?</AlertDialogTitle>
+                  <AlertDialogDescription>This will purge the match and <strong>ALL associated records</strong>. Data integrity will be maintained across rankings.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={executeDeepDelete} className="bg-destructive">Confirm Purge</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
             </AlertDialog>
           )}
         </div>
-
         <div className="space-y-1 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
           {renderInningRow(inn1)}
           {renderInningRow(inn2)}
         </div>
-
         <div className="flex gap-2 mt-4">
           <Button asChild className="flex-1 bg-primary font-bold h-10 shadow-sm"><Link href={`/match/${match.id}`}>Scorecard</Link></Button>
           {match.status === 'completed' && (
@@ -130,7 +126,6 @@ export default function MatchHistoryPage() {
 
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
   const { data: matches, isLoading: isMatchesLoading } = useCollection(matchesQuery);
-
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: teams = [] } = useCollection(teamsQuery);
 
@@ -147,35 +142,26 @@ export default function MatchHistoryPage() {
         </Button>
         <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900 uppercase">Match History</h1>
       </div>
-      
       <Tabs defaultValue="past" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6 h-12 bg-slate-100 p-1 rounded-xl">
-          <TabsTrigger value="live" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">Live</TabsTrigger>
-          <TabsTrigger value="past" className="font-bold data-[state=active]:bg-white rounded-lg">Completed</TabsTrigger>
+          <TabsTrigger value="live" className="font-bold rounded-lg">Live</TabsTrigger>
+          <TabsTrigger value="past" className="font-bold rounded-lg">Completed</TabsTrigger>
         </TabsList>
         <TabsContent value="live" className="space-y-4">
-          {isMatchesLoading ? (
-             <div className="py-20 text-center animate-pulse font-black uppercase text-[10px] text-slate-400 tracking-widest">Loading Live Matches...</div>
-          ) : liveMatches.length > 0 ? (
-            liveMatches.map(match => <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)
-          ) : (
-            <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-slate-50/50">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No live matches at the moment</p>
-            </div>
-          )}
+          {isMatchesLoading ? <div className="py-20 text-center animate-pulse text-xs font-black uppercase text-slate-400">Syncing Live Center...</div> : liveMatches.length > 0 ? liveMatches.map(m => <MatchScoreCard key={m.id} match={m} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />) : <NoMatchesMessage />}
         </TabsContent>
         <TabsContent value="past" className="space-y-4">
-          {isMatchesLoading ? (
-             <div className="py-20 text-center animate-pulse font-black uppercase text-[10px] text-slate-400 tracking-widest">Syncing History...</div>
-          ) : pastMatches.length > 0 ? (
-            pastMatches.map(match => <MatchScoreCard key={match.id} match={match} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)
-          ) : (
-            <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-slate-50/50">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No completed matches found</p>
-            </div>
-          )}
+          {isMatchesLoading ? <div className="py-20 text-center animate-pulse text-xs font-black uppercase text-slate-400">Loading History...</div> : pastMatches.length > 0 ? pastMatches.map(m => <MatchScoreCard key={m.id} match={m} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />) : <NoMatchesMessage />}
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function NoMatchesMessage() {
+  return (
+    <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-slate-50/50">
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Match Records Available</p>
     </div>
   );
 }
