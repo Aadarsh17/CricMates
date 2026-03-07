@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useUser, useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
-import { Trophy, Users, LayoutDashboard, ShieldCheck, LogIn, LogOut, Menu, X, Play, UserCircle, History, UserCog, BarChart3 } from 'lucide-react';
+import { Trophy, Users, LayoutDashboard, ShieldCheck, LogIn, LogOut, Menu, X, Play, UserCircle, History, UserCog, BarChart3, LineChart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -25,6 +25,7 @@ export default function Navbar() {
     { name: 'Players', href: '/players', icon: UserCircle },
     { name: 'Rankings', href: '/rankings', icon: Trophy },
     { name: 'Stats', href: '/stats', icon: BarChart3 },
+    { name: 'Insights', href: '/insights', icon: LineChart },
     { name: 'Number Game', href: '/number-game', icon: Play },
   ];
 
