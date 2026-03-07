@@ -9,9 +9,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeftRight, Trophy, Zap, Target, Star, History, UserCircle, TrendingUp, CheckCircle2 } from 'lucide-react';
+import { Loader2, ArrowLeftRight, Trophy, Zap, Target, Star, History, UserCircle, TrendingUp, CheckCircle2, Award, Activity } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+
+const RUN_MILESTONES = [50, 100, 200, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 10000];
+const WICKET_MILESTONES = [25, 50, 100, 150, 200, 300, 500, 1000];
 
 export default function InsightsPage() {
   const db = useFirestore();
@@ -97,12 +100,10 @@ export default function InsightsPage() {
       }
     });
 
-    // Milestone Check Logic
     players.forEach(p => {
       const insight = playerInsights[p.id];
       let careerRuns = 0;
       let careerWickets = 0;
-      let careerCatches = 0;
       
       const counts = {
         r10: 0, r20: 0, r30: 0, r50: 0,
@@ -132,7 +133,6 @@ export default function InsightsPage() {
         
         careerRuns += perf.runs;
         careerWickets += perf.wkts;
-        careerCatches += perf.catches;
 
         if (m.potmPlayerId === p.id) {
           insight.stats.potm += 1;
@@ -157,10 +157,22 @@ export default function InsightsPage() {
         if (perf.wkts >= 2) { counts.w2 += 1; if (!reached.has('2 Wickets')) { reached.add('2 Wickets'); timeline.push({ label: '2 Wickets in a Match', date: m.matchDate }); } }
         if (perf.wkts >= 3) { counts.w3 += 1; if (!reached.has('3 Wickets')) { reached.add('3 Wickets'); timeline.push({ label: '3 Wickets in a Match', date: m.matchDate }); } }
 
-        // Career Milestones
-        if (careerRuns >= 50 && !reached.has('50 Career')) { reached.add('50 Career'); timeline.push({ label: '50 Career Runs Reached', date: m.matchDate }); }
-        if (careerRuns >= 100 && !reached.has('100 Career')) { reached.add('100 Career'); timeline.push({ label: '100 Career Runs Reached', date: m.matchDate }); }
-        if (careerWickets >= 10 && !reached.has('10 Wkts Career')) { reached.add('10 Wkts Career'); timeline.push({ label: '10 Career Wickets Reached', date: m.matchDate }); }
+        // Career Cumulative Milestones (Dynamic Detection)
+        RUN_MILESTONES.forEach(threshold => {
+          const key = `Career Runs ${threshold}`;
+          if (careerRuns >= threshold && !reached.has(key)) {
+            reached.add(key);
+            timeline.push({ label: `${threshold} Career Runs Reached`, date: m.matchDate });
+          }
+        });
+
+        WICKET_MILESTONES.forEach(threshold => {
+          const key = `Career Wickets ${threshold}`;
+          if (careerWickets >= threshold && !reached.has(key)) {
+            reached.add(key);
+            timeline.push({ label: `${threshold} Career Wickets Reached`, date: m.matchDate });
+          }
+        });
         
         // Fielding
         if (perf.catches >= 1) {
@@ -175,6 +187,10 @@ export default function InsightsPage() {
 
       insight.milestoneSummary = counts;
       insight.timeline = timeline.sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      insight.careerThresholds = {
+        runs: RUN_MILESTONES.map(t => ({ val: t, achieved: careerRuns >= t })),
+        wickets: WICKET_MILESTONES.map(t => ({ val: t, achieved: careerWickets >= t }))
+      };
     });
 
     return playerInsights;
@@ -302,68 +318,128 @@ export default function InsightsPage() {
           </div>
 
           {selectedMilestonePlayer ? (
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 space-y-6">
-                <Card className="border-t-8 border-t-amber-500 shadow-xl overflow-hidden">
-                  <CardHeader className="bg-slate-50 border-b">
-                    <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                      <Trophy className="w-4 h-4 text-amber-500" /> Milestones Summary
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="grid grid-cols-2 sm:grid-cols-3 border-b">
-                      {[
-                        { label: '10+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r10, icon: Zap, color: 'text-blue-500' },
-                        { label: '20+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r20, icon: Zap, color: 'text-indigo-500' },
-                        { label: '30+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r30, icon: Zap, color: 'text-violet-500' },
-                        { label: '50+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r50, icon: Star, color: 'text-amber-500' },
-                        { label: 'Total Fours Hit', count: selectedMilestonePlayer.stats.fours, icon: Zap, color: 'text-emerald-500' },
-                        { label: 'Total Sixes Hit', count: selectedMilestonePlayer.stats.sixes, icon: Zap, color: 'text-purple-500' },
-                        { label: '1 Wicket in Match', count: selectedMilestonePlayer.milestoneSummary.w1, icon: Target, color: 'text-sky-500' },
-                        { label: '2+ Wickets in Match', count: selectedMilestonePlayer.milestoneSummary.w2, icon: Target, color: 'text-sky-600' },
-                        { label: '3+ Wickets in Match', count: selectedMilestonePlayer.milestoneSummary.w3, icon: Trophy, color: 'text-sky-700' },
-                        { label: 'Catch Taken', count: selectedMilestonePlayer.milestoneSummary.catches, icon: Zap, color: 'text-purple-500' },
-                        { label: 'Direct Run Out', count: selectedMilestonePlayer.milestoneSummary.runouts, icon: Zap, color: 'text-rose-500' },
-                        { label: 'Man of the Match', count: selectedMilestonePlayer.milestoneSummary.potm, icon: Trophy, color: 'text-amber-600' },
-                      ].map((m, i) => (
-                        <div key={i} className="p-6 border-r border-b last:border-r-0 flex flex-col items-center text-center space-y-2 hover:bg-slate-50 transition-colors">
-                          <m.icon className={cn("w-5 h-5", m.color)} />
-                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-tighter leading-none">{m.label}</span>
-                          <span className="text-2xl font-black text-slate-900">{m.count}</span>
-                        </div>
-                      ))}
+            <div className="space-y-10">
+              {/* Career Aggregates Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card className="bg-slate-900 text-white border-none shadow-xl overflow-hidden relative group">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Activity className="w-20 h-20" /></div>
+                  <CardContent className="p-8 space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Total Career Runs</p>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-5xl font-black tracking-tighter">{selectedMilestonePlayer.stats.runs}</span>
+                      <span className="text-xs font-bold text-slate-500">RUNS</span>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="bg-slate-900 text-white border-none shadow-xl overflow-hidden relative group">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Target className="w-20 h-20" /></div>
+                  <CardContent className="p-8 space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-secondary">Total Career Wickets</p>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-5xl font-black tracking-tighter">{selectedMilestonePlayer.stats.wickets}</span>
+                      <span className="text-xs font-bold text-slate-500">WKTS</span>
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
-              <div className="space-y-6">
-                <Card className="shadow-lg border-none bg-slate-900 text-white">
-                  <CardHeader className="border-b border-white/10">
-                    <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                      <History className="w-4 h-4" /> Achievement Timeline
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="relative space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-white/10">
-                      {selectedMilestonePlayer.timeline.length > 0 ? selectedMilestonePlayer.timeline.map((event: any, idx: number) => (
-                        <div key={idx} className="relative pl-10 group">
-                          <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-slate-800 border-2 border-primary flex items-center justify-center z-10 shadow-sm shadow-primary/50">
-                            <span className="text-[8px] font-black">{idx + 1}</span>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div className="lg:col-span-2 space-y-8">
+                  {/* Match Milestones Summary */}
+                  <Card className="border-t-8 border-t-amber-500 shadow-xl overflow-hidden">
+                    <CardHeader className="bg-slate-50 border-b">
+                      <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                        <Award className="w-4 h-4 text-amber-500" /> Match Records
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 border-b">
+                        {[
+                          { label: '10+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r10, icon: Zap, color: 'text-blue-500' },
+                          { label: '20+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r20, icon: Zap, color: 'text-indigo-500' },
+                          { label: '30+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r30, icon: Zap, color: 'text-violet-500' },
+                          { label: '50+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r50, icon: Star, color: 'text-amber-500' },
+                          { label: 'Total Fours Hit', count: selectedMilestonePlayer.stats.fours, icon: Zap, color: 'text-emerald-500' },
+                          { label: 'Total Sixes Hit', count: selectedMilestonePlayer.stats.sixes, icon: Zap, color: 'text-purple-500' },
+                          { label: '1 Wicket in Match', count: selectedMilestonePlayer.milestoneSummary.w1, icon: Target, color: 'text-sky-500' },
+                          { label: '2+ Wickets in Match', count: selectedMilestonePlayer.milestoneSummary.w2, icon: Target, color: 'text-sky-600' },
+                          { label: '3+ Wickets in Match', count: selectedMilestonePlayer.milestoneSummary.w3, icon: Trophy, color: 'text-sky-700' },
+                          { label: 'Catch Taken', count: selectedMilestonePlayer.milestoneSummary.catches, icon: Zap, color: 'text-purple-500' },
+                          { label: 'Direct Run Out', count: selectedMilestonePlayer.milestoneSummary.runouts, icon: Zap, color: 'text-rose-500' },
+                          { label: 'Man of the Match', count: selectedMilestonePlayer.milestoneSummary.potm, icon: Trophy, color: 'text-amber-600' },
+                        ].map((m, i) => (
+                          <div key={i} className="p-6 border-r border-b last:border-r-0 flex flex-col items-center text-center space-y-2 hover:bg-slate-50 transition-colors">
+                            <m.icon className={cn("w-5 h-5", m.color)} />
+                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-tighter leading-none">{m.label}</span>
+                            <span className="text-2xl font-black text-slate-900">{m.count}</span>
                           </div>
-                          <div>
-                            <p className="text-xs font-black uppercase tracking-tight text-white group-hover:text-primary transition-colors">{event.label}</p>
-                            <p className="text-[9px] font-bold text-slate-500 uppercase">{new Date(event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Career Level Progression */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <Card className="border-none shadow-md overflow-hidden bg-slate-50/50">
+                      <div className="px-4 py-3 bg-primary text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-between">
+                        <span>Career Runs Progression</span>
+                        <TrendingUp className="w-3 h-3" />
+                      </div>
+                      <CardContent className="p-4 space-y-2">
+                        {selectedMilestonePlayer.careerThresholds.runs.map((t: any, idx: number) => (
+                          <div key={idx} className={cn("flex items-center justify-between p-3 rounded-lg border bg-white transition-all", t.achieved ? "border-primary/20 bg-primary/5 shadow-sm" : "opacity-40 grayscale")}>
+                            <span className="text-xs font-black text-slate-700">{t.val} Runs</span>
+                            {t.achieved ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-200" />}
                           </div>
-                        </div>
-                      )) : (
-                        <div className="text-center py-12">
-                          <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">No milestones unlocked yet</p>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                        ))}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-none shadow-md overflow-hidden bg-slate-50/50">
+                      <div className="px-4 py-3 bg-secondary text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-between">
+                        <span>Career Wickets Progression</span>
+                        <Target className="w-3 h-3" />
+                      </div>
+                      <CardContent className="p-4 space-y-2">
+                        {selectedMilestonePlayer.careerThresholds.wickets.map((t: any, idx: number) => (
+                          <div key={idx} className={cn("flex items-center justify-between p-3 rounded-lg border bg-white transition-all", t.achieved ? "border-secondary/20 bg-secondary/5 shadow-sm" : "opacity-40 grayscale")}>
+                            <span className="text-xs font-black text-slate-700">{t.val} Wickets</span>
+                            {t.achieved ? <CheckCircle2 className="w-4 h-4 text-secondary" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-200" />}
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <Card className="shadow-lg border-none bg-slate-900 text-white">
+                    <CardHeader className="border-b border-white/10">
+                      <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                        <History className="w-4 h-4" /> Achievement Timeline
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="relative space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-white/10">
+                        {selectedMilestonePlayer.timeline.length > 0 ? selectedMilestonePlayer.timeline.map((event: any, idx: number) => (
+                          <div key={idx} className="relative pl-10 group">
+                            <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-slate-800 border-2 border-primary flex items-center justify-center z-10 shadow-sm shadow-primary/50">
+                              <span className="text-[8px] font-black">{idx + 1}</span>
+                            </div>
+                            <div>
+                              <p className="text-xs font-black uppercase tracking-tight text-white group-hover:text-primary transition-colors">{event.label}</p>
+                              <p className="text-[9px] font-bold text-slate-500 uppercase">{new Date(event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                            </div>
+                          </div>
+                        )) : (
+                          <div className="text-center py-12">
+                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">No milestones unlocked yet</p>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </div>
           ) : (
