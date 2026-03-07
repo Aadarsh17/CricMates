@@ -1,4 +1,3 @@
-
 /**
  * @fileOverview Utility functions for match statistics, professional scorecard generation, and match flow timeline logic.
  */
@@ -16,7 +15,6 @@ export const getExtendedInningStats = (deliveries: any[]) => {
   let currentBalls = 0;
   let currentWickets = 0;
 
-  // Track the current partnership
   let activePartnership = {
     batter1Id: '',
     batter2Id: '',
@@ -35,7 +33,6 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     
     if (!sId) return;
 
-    // Track batting order
     [sId, nsId].forEach(id => {
       if (id && id !== 'none' && !battingOrder.includes(id)) {
         battingOrder.push(id);
@@ -49,7 +46,6 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', bowlerId: '', fielderId: '' };
     }
     
-    // Legal ball stats
     if (d.extraType !== 'wide') {
       if (bat[sId]) {
         bat[sId].balls += 1;
@@ -62,7 +58,6 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     currentScore += (d.totalRunsOnDelivery || 0);
     if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') currentBalls += 1;
 
-    // Partnership Logic
     if (!activePartnership.batter1Id) {
       activePartnership.batter1Id = sId;
       activePartnership.batter2Id = nsId && nsId !== 'none' ? nsId : '';
@@ -79,7 +74,6 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       if (d.extraType !== 'wide') activePartnership.batter2Balls += 1;
     }
 
-    // Wicket Logic
     if (d.isWicket) {
       currentWickets += 1;
       const outPid = d.batsmanOutPlayerId || sId;
@@ -100,7 +94,6 @@ export const getExtendedInningStats = (deliveries: any[]) => {
 
       partnerships.push({...activePartnership});
       
-      // Start new partnership
       activePartnership = {
         batter1Id: outPid === activePartnership.batter1Id ? '' : activePartnership.batter1Id,
         batter2Id: outPid === activePartnership.batter2Id ? '' : activePartnership.batter2Id,
