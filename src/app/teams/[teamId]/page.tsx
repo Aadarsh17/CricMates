@@ -19,6 +19,7 @@ import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlo
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function TeamDetailsPage() {
   const params = useParams();
@@ -50,7 +51,6 @@ export default function TeamDetailsPage() {
 
   const activeSquad = useMemo(() => allPlayers?.filter(p => p.teamId === teamId) || [], [allPlayers, teamId]);
 
-  // Identify Former Players: Played for this team in a match, but current teamId is different
   const formerPlayers = useMemo(() => {
     if (!allMatches || !allPlayers || !teamId) return [];
     const playedForThisTeamIds = new Set<string>();
@@ -94,7 +94,7 @@ export default function TeamDetailsPage() {
       const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
       const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
       const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
-      const bowlingTeamId = battingTeamId === teamId ? match.team2Id : match.team1Id; // simplified for logic
+      const bowlingTeamId = battingTeamId === teamId ? match.team2Id : match.team1Id;
 
       if (battingTeamId === teamId) {
         forR += (d.totalRunsOnDelivery || 0);
@@ -179,6 +179,8 @@ export default function TeamDetailsPage() {
   const [newPlayer, setNewPlayer] = useState({ name: '', role: 'Batsman' });
   const [editForm, setEditForm] = useState({ name: '', role: 'Batsman', imageUrl: '' });
 
+  const defaultAvatar = PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl || '';
+
   const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader(); reader.readAsDataURL(file);
@@ -205,7 +207,7 @@ export default function TeamDetailsPage() {
   const handleAddPlayer = () => {
     if (!user || !newPlayer.name.trim()) return;
     const playerId = doc(collection(db, 'players')).id;
-    const playerData = { id: playerId, name: newPlayer.name, teamId, ownerId: user.uid, role: newPlayer.role, battingStyle: 'Right Handed Bat', isWicketKeeper: false, isRetired: false, matchesPlayed: 0, runsScored: 0, wicketsTaken: 0, highestScore: 0, bestBowlingFigures: '0/0', careerCVP: 0, imageUrl: `https://picsum.photos/seed/${playerId}/200` };
+    const playerData = { id: playerId, name: newPlayer.name, teamId, ownerId: user.uid, role: newPlayer.role, battingStyle: 'Right Handed Bat', isWicketKeeper: false, isRetired: false, matchesPlayed: 0, runsScored: 0, wicketsTaken: 0, highestScore: 0, bestBowlingFigures: '0/0', careerCVP: 0, imageUrl: defaultAvatar };
     setDocumentNonBlocking(doc(db, 'players', playerId), playerData, { merge: true });
     setIsAddPlayerOpen(false); setNewPlayer({ name: '', role: 'Batsman' }); toast({ title: "Player Added" });
   };

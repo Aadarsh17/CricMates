@@ -11,6 +11,7 @@ import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useMemo, useState, useEffect } from 'react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function Home() {
   const db = useFirestore();
@@ -41,6 +42,8 @@ export default function Home() {
 
   const getTeamName = (id: string) => allTeams?.find(t => t.id === id)?.name || id.substring(0, 8) + '...';
 
+  const heroImage = PlaceHolderImages.find(img => img.id === 'hero-cricket')?.imageUrl || '';
+
   const topPlayers = useMemo(() => {
     if (!players || !allMatches || !rawDeliveries || !isMounted) return [];
     const activeMatchIds = new Set(allMatches.map(m => m.id));
@@ -60,7 +63,7 @@ export default function Home() {
   return (
     <div className="space-y-10 animate-in fade-in duration-700 pb-32">
       <section className="relative rounded-3xl overflow-hidden min-h-[400px] flex flex-col justify-end p-8 shadow-2xl border-4 border-white">
-        <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: `url('https://picsum.photos/seed/crickethero/1200/800')` }} />
+        <div className="absolute inset-0 bg-cover bg-center z-0" style={{ backgroundImage: `url('${heroImage}')` }} />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/60 to-transparent z-10" />
         <div className="relative z-20 space-y-4">
           <Badge className="bg-primary text-white uppercase tracking-[0.2em] font-black text-[10px] px-3 py-1 rounded-full">{isUmpire ? 'OFFICIAL UMPIRE MODE' : 'PRO LEAGUE INTERFACE'}</Badge>

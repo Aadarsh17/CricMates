@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from 'react';
@@ -15,6 +16,7 @@ import { Badge } from '@/components/ui/badge';
 import { ShieldCheck, User, Camera, Save, ArrowLeft, Loader2, Sparkles, Upload, KeyRound, Lock, CheckCircle2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function UmpireProfilePage() {
   const db = useFirestore();
@@ -33,6 +35,8 @@ export default function UmpireProfilePage() {
   });
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  const defaultAvatar = PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl || '';
 
   useEffect(() => {
     setIsMounted(true);
@@ -170,7 +174,7 @@ export default function UmpireProfilePage() {
           <CardContent className="pt-8 flex flex-col items-center text-center space-y-4">
             <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <Avatar className="w-32 h-32 border-4 border-white shadow-xl rounded-3xl overflow-hidden">
-                <AvatarImage src={formData.imageUrl || `https://picsum.photos/seed/${user?.uid}/300`} className="object-cover" />
+                <AvatarImage src={formData.imageUrl || defaultAvatar} className="object-cover" />
                 <AvatarFallback className="bg-primary text-white text-4xl font-black">{formData.name?.[0] || 'U'}</AvatarFallback>
               </Avatar>
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex flex-col items-center justify-center">
