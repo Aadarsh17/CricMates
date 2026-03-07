@@ -71,7 +71,11 @@ export default function NumberGame() {
         setHistory(d.history);
         setConsecutiveDots(d.consecutiveDots || 0);
         setBallsInOver(d.ballsInOver || 0);
-        toast({ title: "Session Restored", description: "Match state recovered from cache." });
+        // If we are restoring into a setup state, we don't need to do much
+        // But if we are restoring into finished, we should have playerNames ready for reset
+        if (d.players && d.players.length > 0) {
+          setPlayerNames(d.players.map((p: any) => p.name));
+        }
       } catch (e) {
         console.error("Failed to restore session", e);
       }
@@ -129,13 +133,35 @@ export default function NumberGame() {
     setBallsInOver(0);
   };
 
+  /**
+   * Performance-based reset logic.
+   * If coming from a finished game, sort player names by runs before returning to setup.
+   */
   const resetGame = () => {
-    if (confirm("Reset match? This will clear all persistent scoring data.")) {
+    const confirmMsg = gameState === 'finished' 
+      ? "Start new match with players sorted by performance?" 
+      : "Reset match? This will clear all persistent scoring data.";
+
+    if (confirm(confirmMsg)) {
+      let nextNames = ['', '', ''];
+      
+      if (players.length > 0) {
+        // Sort by runs (desc)
+        const sorted = [...players].sort((a, b) => b.batting.runs - a.batting.runs);
+        nextNames = sorted.map(p => p.name);
+      }
+
       localStorage.removeItem(STORAGE_KEY);
       setGameState('setup');
       setPlayers([]);
       setHistory([]);
-      setPlayerNames(['', '', '']);
+      setPlayerNames(nextNames);
+      setConsecutiveDots(0);
+      setBallsInOver(0);
+      
+      if (gameState === 'finished') {
+        toast({ title: "Order Updated", description: "Players sorted by runs scored in previous game." });
+      }
     }
   };
 
