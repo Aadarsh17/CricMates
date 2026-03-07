@@ -175,6 +175,62 @@ export default function MatchScoreboardPage() {
       : (match.team1SquadPlayerIds || []);
   }, [match, activeInningData]);
 
+  /**
+   * ROBUST RECALCULATION ENGINE
+   * Re-aggregates the entire innings from source-of-truth delivery records.
+   * Prevents negative scores and data corruption.
+   */
+  const recalculateInningState = async (inningId: string) => {
+    if (!match) return;
+    const deliveriesRef = collection(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords');
+    const snapshot = await getDocs(query(deliveriesRef, orderBy('timestamp', 'asc')));
+    const deliveries = snapshot.docs.map(d => d.data());
+    
+    let totalScore = 0;
+    let totalWickets = 0;
+    let legalBalls = 0;
+    
+    deliveries.forEach(d => {
+      totalScore += (d.totalRunsOnDelivery || 0);
+      if (d.isWicket && d.dismissalType !== 'retired') totalWickets++;
+      if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') legalBalls++;
+    });
+
+    const lastBall = deliveries[deliveries.length - 1];
+    const updates: any = {
+      score: Math.max(0, totalScore),
+      wickets: Math.max(0, totalWickets),
+      oversCompleted: Math.floor(legalBalls / 6),
+      ballsInCurrentOver: legalBalls % 6,
+      isDeclaredFinished: Math.floor(legalBalls / 6) >= match.totalOvers,
+      isLastManActive: false // Reset on recalculation, can be re-detected if needed
+    };
+
+    if (lastBall) {
+      updates.strikerPlayerId = lastBall.strikerPlayerId;
+      updates.nonStrikerPlayerId = lastBall.nonStrikerPlayerId;
+      updates.currentBowlerPlayerId = lastBall.bowlerId;
+    } else {
+      updates.strikerPlayerId = '';
+      updates.nonStrikerPlayerId = '';
+      updates.currentBowlerPlayerId = '';
+    }
+
+    // Special logic for 2nd innings target completion
+    if (inningId === 'inning_2' && inn1) {
+      if (totalScore > inn1.score) {
+        updates.isDeclaredFinished = true;
+      }
+    }
+
+    await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates, { merge: true });
+    
+    // If match was completed, but we deleted/undid a ball, mark it back as live
+    if (match.status === 'completed') {
+      await setDocumentNonBlocking(matchRef, { status: 'live', currentInningNumber: inningId === 'inning_1' ? 1 : 2 }, { merge: true });
+    }
+  };
+
   const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none', noStrikeChange: boolean = false) => {
     if (!match || !activeInningData || !isUmpire) return;
     
@@ -245,7 +301,7 @@ export default function MatchScoreboardPage() {
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', deliveryId), deliveryData, { merge: true });
     
     const updates: any = { 
-      score: newTotalScore, 
+      score: Math.max(0, newTotalScore), 
       oversCompleted: newOversComp, 
       ballsInCurrentOver: newBallsInOver,
       strikerPlayerId: nextStriker,
@@ -373,46 +429,17 @@ export default function MatchScoreboardPage() {
     const q = query(deliveriesRef, orderBy('timestamp', 'desc'), limit(1));
     const snapshot = await getDocs(q);
     if (snapshot.empty) return;
-    const lastBall = snapshot.docs[0].data();
+    
     await deleteDoc(snapshot.docs[0].ref);
-    const isLegal = lastBall.extraType === 'none' || lastBall.extraType === 'bye' || lastBall.extraType === 'legbye';
-    let prevBalls = activeInningData.ballsInCurrentOver - (isLegal ? 1 : 0);
-    let prevOvers = activeInningData.oversCompleted;
-    if (prevBalls < 0) { prevBalls = 5; prevOvers -= 1; }
-    updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), {
-      score: activeInningData.score - lastBall.totalRunsOnDelivery,
-      wickets: activeInningData.wickets - (lastBall.isWicket && lastBall.dismissalType !== 'retired' ? 1 : 0),
-      ballsInCurrentOver: Math.max(0, prevBalls),
-      oversCompleted: Math.max(0, prevOvers),
-      strikerPlayerId: lastBall.strikerPlayerId,
-      nonStrikerPlayerId: lastBall.nonStrikerPlayerId,
-      currentBowlerPlayerId: lastBall.bowlerId,
-      isDeclaredFinished: false
-    });
+    // Recalculate full state from source-of-truth to prevent negative scores and corruption
+    await recalculateInningState(currentInningId);
+    toast({ title: "Action Undone", description: "State recalculated from history." });
   };
 
   const handleSyncScore = async () => {
     if (!match || !activeInningData || !isUmpire) return;
     const currentInningId = `inning_${match.currentInningNumber}`;
-    const deliveriesRef = collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords');
-    const snapshot = await getDocs(deliveriesRef);
-    let totalScore = 0;
-    let totalWickets = 0;
-    let totalLegalBalls = 0;
-    snapshot.forEach(doc => {
-      const d = doc.data();
-      totalScore += (d.totalRunsOnDelivery || 0);
-      if (d.isWicket && d.dismissalType !== 'retired') totalWickets++;
-      if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') totalLegalBalls++;
-    });
-    
-    updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), {
-      score: totalScore,
-      wickets: totalWickets,
-      oversCompleted: Math.floor(totalLegalBalls / 6),
-      ballsInCurrentOver: totalLegalBalls % 6,
-      isDeclaredFinished: Math.floor(totalLegalBalls / 6) >= match.totalOvers
-    });
+    await recalculateInningState(currentInningId);
     toast({ title: "Scores Re-Synced" });
   };
 
@@ -422,35 +449,7 @@ export default function MatchScoreboardPage() {
     try {
       const deliveryRef = doc(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords', deliveryId);
       await deleteDoc(deliveryRef);
-      const allDeliveriesRef = collection(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords');
-      const snapshot = await getDocs(query(allDeliveriesRef, orderBy('timestamp', 'asc')));
-      const remaining = snapshot.docs.map(d => d.data());
-      let ns = 0; let nw = 0; let nb = 0;
-      remaining.forEach(d => { ns += d.totalRunsOnDelivery; if (d.isWicket && d.dismissalType !== 'retired') nw++; if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') nb++; });
-      
-      const last = remaining[remaining.length - 1];
-      const updates: any = { 
-        score: ns, 
-        wickets: nw, 
-        oversCompleted: Math.floor(nb / 6), 
-        ballsInCurrentOver: nb % 6, 
-        isDeclaredFinished: false // Always allow one more ball after a deletion
-      };
-
-      if (last) { 
-        updates.strikerPlayerId = last.strikerPlayerId; 
-        updates.nonStrikerPlayerId = last.nonStrikerPlayerId; 
-        updates.currentBowlerPlayerId = last.bowlerId; 
-      } else {
-        updates.strikerPlayerId = '';
-        updates.nonStrikerPlayerId = '';
-        updates.currentBowlerPlayerId = '';
-      }
-
-      await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates, { merge: true });
-      // Revert match status if it was completed
-      await setDocumentNonBlocking(matchRef, { status: 'live', currentInningNumber: inningId === 'inning_1' ? 1 : 2 }, { merge: true });
-      
+      await recalculateInningState(inningId);
       setActiveTab('live');
       toast({ title: "History Corrected", description: "Match state recalculated and resumed." });
     } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
