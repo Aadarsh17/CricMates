@@ -26,7 +26,8 @@ import Link from 'next/link';
 const chartConfig = {
   inn1Score: { label: "1st Innings", color: "hsl(var(--primary))" },
   inn2Score: { label: "2nd Innings", color: "hsl(var(--secondary))" },
-  runs: { label: "Over Runs", color: "hsl(var(--secondary))" }
+  inn1: { label: "Innings 1", color: "hsl(var(--primary))" },
+  inn2: { label: "Innings 2", color: "hsl(var(--secondary))" }
 } satisfies ChartConfig;
 
 export default function MatchScoreboardPage() {
@@ -224,53 +225,60 @@ export default function MatchScoreboardPage() {
   };
 
   const unifiedWormData = useMemo(() => {
-    const data: any[] = [];
-    const preparePoints = (deliveries: any[], scoreKey: string, wicketKey: string) => {
+    const dataMap: Record<number, any> = {};
+    
+    const processInning = (deliveries: any[], scoreKey: string, wicketKey: string) => {
       let runningScore = 0;
       let legalBalls = 0;
-      const pts = [{ over: 0, [scoreKey]: 0 }];
+      
+      // Starting point
+      if (!dataMap[0]) dataMap[0] = { over: 0 };
+      dataMap[0][scoreKey] = 0;
+
       deliveries?.forEach(d => {
         runningScore += d.totalRunsOnDelivery;
         if (['none', 'bye', 'legbye'].includes(d.extraType)) legalBalls++;
-        pts.push({
-          over: legalBalls / 6,
-          [scoreKey]: runningScore,
-          [wicketKey]: d.isWicket
-        });
+        
+        const overVal = legalBalls / 6;
+        if (!dataMap[overVal]) dataMap[overVal] = { over: overVal };
+        dataMap[overVal][scoreKey] = runningScore;
+        if (d.isWicket) dataMap[overVal][wicketKey] = true;
       });
-      return pts;
     };
 
-    const d1 = preparePoints(inn1Deliveries || [], 'inn1Score', 'inn1Wicket');
-    const d2 = preparePoints(inn2Deliveries || [], 'inn2Score', 'inn2Wicket');
+    processInning(inn1Deliveries || [], 'inn1Score', 'inn1Wicket');
+    processInning(inn2Deliveries || [], 'inn2Score', 'inn2Wicket');
 
-    const allOvers = Array.from(new Set([...d1.map(p => p.over), ...d2.map(p => p.over)])).sort((a, b) => a - b);
-    
-    return allOvers.map(o => {
-      const p1 = d1.find(p => p.over === o);
-      const p2 = d2.find(p => p.over === o);
-      return {
-        over: o,
-        inn1Score: p1?.inn1Score,
-        inn1Wicket: p1?.inn1Wicket,
-        inn2Score: p2?.inn2Score,
-        inn2Wicket: p2?.inn2Wicket,
-      };
-    });
+    return Object.values(dataMap).sort((a, b) => a.over - b.over);
   }, [inn1Deliveries, inn2Deliveries]);
 
-  const getManhattanData = (deliveries: any[]) => {
-    const overRuns: Record<number, number> = {};
-    let currentLegal = 0;
-    deliveries?.forEach(d => {
-      const overNum = Math.floor(currentLegal / 6) + 1;
-      overRuns[overNum] = (overRuns[overNum] || 0) + d.totalRunsOnDelivery;
-      if (['none', 'bye', 'legbye'].includes(d.extraType)) {
-        currentLegal++;
-      }
-    });
-    return Object.entries(overRuns).map(([over, runs]) => ({ over: `O${over}`, runs }));
-  };
+  const unifiedManhattanData = useMemo(() => {
+    const r1: Record<number, number> = {};
+    const r2: Record<number, number> = {};
+    
+    const calculateOverRuns = (deliveries: any[], target: Record<number, number>) => {
+      let legal = 0;
+      deliveries?.forEach(d => {
+        const over = Math.floor(legal / 6) + 1;
+        target[over] = (target[over] || 0) + d.totalRunsOnDelivery;
+        if (['none', 'bye', 'legbye'].includes(d.extraType)) legal++;
+      });
+    };
+
+    calculateOverRuns(inn1Deliveries || [], r1);
+    calculateOverRuns(inn2Deliveries || [], r2);
+
+    const maxOver = Math.max(0, ...Object.keys(r1).map(Number), ...Object.keys(r2).map(Number));
+    const data = [];
+    for (let i = 1; i <= (match?.totalOvers || maxOver); i++) {
+      data.push({
+        over: `O${i}`,
+        inn1: r1[i] || 0,
+        inn2: r2[i] || 0
+      });
+    }
+    return data;
+  }, [inn1Deliveries, inn2Deliveries, match?.totalOvers]);
 
   const renderWicketDot = (props: any, scoreKey: string, wicketKey: string) => {
     const { cx, cy, payload } = props;
@@ -373,26 +381,6 @@ export default function MatchScoreboardPage() {
                 <span className="font-black text-slate-900">{f.wicketNum}-{f.scoreAtWicket}</span>
                 <span className="text-[8px] font-bold text-slate-400 uppercase">({getPlayerName(f.playerOutId).split(' ')[0]})</span>
               </Badge>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {stats?.partnerships?.length > 0 && (
-        <Card className="border-none shadow-sm p-4 bg-slate-50 rounded-2xl">
-          <h4 className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Key Partnerships</h4>
-          <div className="space-y-2">
-            {stats.partnerships.map((p: any, i: number) => (
-              <div key={i} className="flex flex-col bg-white p-3 rounded-xl border border-slate-100 gap-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-[9px] font-black uppercase truncate">{getPlayerName(p.batter1Id)} & {getPlayerName(p.batter2Id)}</span>
-                  <span className="font-black text-xs text-primary">{p.runs} <span className="text-[8px] text-slate-400">({p.balls}b)</span></span>
-                </div>
-                <div className="grid grid-cols-2 gap-4 border-t pt-2">
-                  <div className="text-[8px] font-bold text-slate-400 uppercase">{getPlayerName(p.batter1Id).split(' ')[0]}: <span className="text-slate-900">{p.batter1Runs}({p.batter1Balls})</span></div>
-                  <div className="text-[8px] font-bold text-slate-400 uppercase text-right">{getPlayerName(p.batter2Id).split(' ')[0]}: <span className="text-slate-900">{p.batter2Runs}({p.batter2Balls})</span></div>
-                </div>
-              </div>
             ))}
           </div>
         </Card>
@@ -680,15 +668,16 @@ export default function MatchScoreboardPage() {
             </Card>
 
             <Card className="border-none shadow-xl bg-white rounded-3xl p-6">
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><Activity className="w-4 h-4 text-secondary" /> Manhattan Graph (Runs Per Over)</h3>
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><Activity className="w-4 h-4 text-secondary" /> Manhattan Graph (Over-by-Over)</h3>
               <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={getManhattanData(currentDeliveries || [])}>
+                  <BarChart data={unifiedManhattanData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                     <XAxis dataKey="over" tick={{ fontSize: 10 }} />
                     <YAxis tick={{ fontSize: 10 }} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Bar dataKey="runs" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="inn1" name="Inning 1" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="inn2" name="Inning 2" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartContainer>
