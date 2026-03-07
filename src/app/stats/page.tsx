@@ -1,10 +1,11 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 import { collection, query, collectionGroup } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Zap, Trophy, Target, TrendingUp, Medal, Award, Shield, Hand } from 'lucide-react';
+import { Loader2, Zap, Trophy, Target, Medal, Shield, Hand } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 
 export default function StatsPage() {
@@ -44,28 +45,32 @@ export default function StatsPage() {
     rawDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       const sId = d.strikerPlayerId; const bId = d.bowlerId || d.bowlerPlayerId; const fId = d.fielderPlayerId;
-      const pIds = [sId, bId, fId].filter(id => id && id !== 'none');
       
+      if (!matchId) return;
+
+      const pIds = [sId, bId, fId].filter(id => id && id !== 'none');
       pIds.forEach(pid => {
         if (!pMatchStats[pid]) pMatchStats[pid] = {};
-        if (!pMatchStats[pid][matchId!]) pMatchStats[pid][matchId!] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, fours: 0, sixes: 0 };
+        if (!pMatchStats[pid][matchId]) {
+          pMatchStats[pid][matchId] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, fours: 0, sixes: 0 };
+        }
       });
 
-      if (stats[sId]) {
-        const s = pMatchStats[sId][matchId!];
+      if (sId && pMatchStats[sId]) {
+        const s = pMatchStats[sId][matchId];
         s.runs += (d.runsScored || 0);
         if (d.runsScored === 4) s.fours++;
         if (d.runsScored === 6) s.sixes++;
       }
       if (bId && pMatchStats[bId]) {
-        const b = pMatchStats[bId][matchId!];
+        const b = pMatchStats[bId][matchId];
         b.runsCon += (d.totalRunsOnDelivery || 0);
         if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsB++;
         if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++;
       }
       if (fId && pMatchStats[fId]) {
-        if (d.dismissalType === 'caught') pMatchStats[fId][matchId!].catches++;
-        if (d.dismissalType === 'runout') pMatchStats[fId][matchId!].runouts++;
+        if (d.dismissalType === 'caught') pMatchStats[fId][matchId].catches++;
+        if (d.dismissalType === 'runout') pMatchStats[fId][matchId].runouts++;
       }
     });
 
@@ -103,19 +108,19 @@ export default function StatsPage() {
         <div className="bg-primary p-3 rounded-2xl shadow-xl shadow-primary/20"><Medal className="w-6 h-6 text-white" /></div>
         <div>
           <h1 className="text-2xl font-black uppercase text-slate-900 leading-none">Records Hall</h1>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">League history top performers</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">League history all-time peaks</p>
         </div>
       </div>
 
       <section className="space-y-6">
         <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-primary pl-4">
-          <Zap className="w-5 h-5 text-primary" /> Batting Peaks
+          <Zap className="w-5 h-5 text-primary" /> Batting Records
         </h2>
         <div className="grid grid-cols-1 gap-3">
           {[
             { label: 'Highest Match Score', val: records?.batting.highestScore.val, name: records?.batting.highestScore.name, icon: Trophy },
-            { label: 'Most Sixes (Innings)', val: records?.batting.most6s.val, name: records?.batting.most6s.name, icon: Zap },
-            { label: 'Most Fours (Innings)', val: records?.batting.most4s.val, name: records?.batting.most4s.name, icon: Zap },
+            { label: 'Most Sixes (Match)', val: records?.batting.most6s.val, name: records?.batting.most6s.name, icon: Zap },
+            { label: 'Most Fours (Match)', val: records?.batting.most4s.val, name: records?.batting.most4s.name, icon: Zap },
           ].map((r, i) => (
             <Card key={i} className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -130,13 +135,13 @@ export default function StatsPage() {
 
       <section className="space-y-6">
         <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-secondary pl-4">
-          <Target className="w-5 h-5 text-secondary" /> Bowling Peaks
+          <Target className="w-5 h-5 text-secondary" /> Bowling Records
         </h2>
         <div className="grid grid-cols-1 gap-3">
           <Card className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="p-2 bg-secondary/5 rounded-lg"><Shield className="w-4 h-4 text-secondary" /></div>
-              <div><p className="text-[10px] font-black uppercase text-slate-400">Best Bowling Figures</p><p className="font-black text-slate-900 uppercase text-xs">{records?.bowling.bestFigures.name}</p></div>
+              <div><p className="text-[10px] font-black uppercase text-slate-400">Best Figures</p><p className="font-black text-slate-900 uppercase text-xs">{records?.bowling.bestFigures.name}</p></div>
             </div>
             <Badge className="text-lg font-black bg-secondary/10 text-secondary border-none h-10 px-4">{records?.bowling.bestFigures.wkts}/{records?.bowling.bestFigures.runs}</Badge>
           </Card>
@@ -152,7 +157,7 @@ export default function StatsPage() {
 
       <section className="space-y-6">
         <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-emerald-500 pl-4">
-          <Hand className="w-5 h-5 text-emerald-500" /> Fielding Peaks
+          <Hand className="w-5 h-5 text-emerald-500" /> Fielding Records
         </h2>
         <div className="grid grid-cols-1 gap-3">
           {[
