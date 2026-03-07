@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeftRight, Trophy, Zap, Target, Star, History, UserCircle, TrendingUp, CheckCircle2, Award, Activity, FastForward } from 'lucide-react';
+import { Loader2, ArrowLeftRight, Trophy, Zap, Target, Star, History, UserCircle, TrendingUp, CheckCircle2, Award, Activity, FastForward, Clock, Timer, UserCheck } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
@@ -22,6 +22,7 @@ export default function InsightsPage() {
   const [p1Id, setP1Id] = useState<string>('');
   const [p2Id, setP2Id] = useState<string>('');
   const [milestonePid, setMilestonePid] = useState<string>('');
+  const [activeFastestSubTab, setActiveFastestSubTab] = useState('matches');
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -37,8 +38,18 @@ export default function InsightsPage() {
   }, [db, isMounted]);
   const { data: deliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
+  const sortedDeliveries = useMemo(() => {
+    if (!deliveries) return [];
+    return [...deliveries].sort((a, b) => {
+      const matchA = a.__fullPath?.split('/')[1] || '';
+      const matchB = b.__fullPath?.split('/')[1] || '';
+      if (matchA !== matchB) return matchA.localeCompare(matchB);
+      return (a.timestamp || 0) - (b.timestamp || 0);
+    });
+  }, [deliveries]);
+
   const processedData = useMemo(() => {
-    if (!players || !matches || !deliveries) return null;
+    if (!players || !matches || !sortedDeliveries) return null;
 
     const validMatchIds = new Set(matches.map(m => m.id));
     const playerInsights: Record<string, any> = {};
@@ -57,14 +68,24 @@ export default function InsightsPage() {
         },
         achievements: {
           fastest50r: null, fastest100r: null, fastest500r: null,
-          fastest10w: null, fastest25w: null, fastest50w: null
+          fastest10w: null, fastest25w: null, fastest50w: null,
+          fastest30b: null, // balls to 30 in a match
+          hattricks: [], // { balls: number, date: string }
+          winningKnocks: [] // { balls: number, runs: number, date: string }
         }
       };
     });
 
     const matchPerformances: Record<string, Record<string, any>> = {};
+    const matchMeta: Record<string, any> = {};
+    matches.forEach(m => {
+      matchMeta[m.id] = { date: m.matchDate, target: 0, currentScore: 0, isWon: m.status === 'completed' };
+    });
 
-    deliveries.forEach(d => {
+    // To track targets for winning knock logic
+    const inn1Scores: Record<string, number> = {};
+
+    sortedDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       if (!matchId || !validMatchIds.has(matchId)) return;
 
@@ -73,9 +94,14 @@ export default function InsightsPage() {
       pIds.forEach(pid => {
         if (!matchPerformances[matchId]) matchPerformances[matchId] = {};
         if (!matchPerformances[matchId][pid]) {
-          matchPerformances[matchId][pid] = { runs: 0, balls: 0, fours: 0, sixes: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, out: false };
+          matchPerformances[matchId][pid] = { runs: 0, balls: 0, fours: 0, sixes: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, out: false, reached30: false, ballsAt30: 0 };
         }
       });
+
+      const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
+      if (innNum === 1) {
+        inn1Scores[matchId] = (inn1Scores[matchId] || 0) + (d.totalRunsOnDelivery || 0);
+      }
 
       const s = matchPerformances[matchId][d.strikerPlayerId];
       if (s) {
@@ -83,13 +109,52 @@ export default function InsightsPage() {
         if (d.extraType !== 'wide') s.balls += 1;
         if (d.runsScored === 4) s.fours += 1;
         if (d.runsScored === 6) s.sixes += 1;
+
+        // Fastest 30 check
+        if (s.runs >= 30 && !s.reached30) {
+          s.reached30 = true;
+          s.ballsAt30 = s.balls;
+          if (!playerInsights[d.strikerPlayerId].achievements.fastest30b || s.balls < playerInsights[d.strikerPlayerId].achievements.fastest30b) {
+            playerInsights[d.strikerPlayerId].achievements.fastest30b = s.balls;
+          }
+        }
       }
 
-      const b = matchPerformances[matchId][d.bowlerId || d.bowlerPlayerId];
+      // Winning Knock Logic
+      if (innNum === 2 && inn1Scores[matchId] !== undefined) {
+        const target = inn1Scores[matchId];
+        const prevScore = matchMeta[matchId].currentScore;
+        const newScore = prevScore + (d.totalRunsOnDelivery || 0);
+        matchMeta[matchId].currentScore = newScore;
+
+        if (prevScore <= target && newScore > target && d.strikerPlayerId) {
+          // Striker hit the winning runs
+          matchMeta[matchId].winningPlayerId = d.strikerPlayerId;
+        }
+      }
+
+      const bId = d.bowlerId || d.bowlerPlayerId;
+      const b = matchPerformances[matchId][bId];
       if (b) {
         b.runsCon += (d.totalRunsOnDelivery || 0);
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsB += 1;
-        if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') b.wkts += 1;
+        const isLegal = d.extraType !== 'wide' && d.extraType !== 'noball';
+        if (isLegal) b.ballsB += 1;
+        
+        const isWicket = d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired';
+        if (isWicket) b.wkts += 1;
+
+        // Hat-trick tracking
+        if (!b.recentBalls) b.recentBalls = [];
+        if (isLegal || isWicket) {
+          b.recentBalls.push({ isWicket, isLegal });
+          if (b.recentBalls.length >= 3) {
+            const last3 = b.recentBalls.slice(-3);
+            if (last3.every((ball: any) => ball.isWicket)) {
+              // Found a 3-in-3 sequence
+              playerInsights[bId].achievements.hattricks.push({ balls: 3, date: matchMeta[matchId].date });
+            }
+          }
+        }
       }
 
       const f = matchPerformances[matchId][d.fielderPlayerId];
@@ -140,6 +205,11 @@ export default function InsightsPage() {
         careerRuns += perf.runs;
         careerWickets += perf.wkts;
 
+        // Check if this player was the winner of this match
+        if (matchMeta[m.id].winningPlayerId === p.id) {
+          insight.achievements.winningKnocks.push({ balls: perf.balls, runs: perf.runs, date: m.matchDate });
+        }
+
         // Fastest Logic
         if (careerRuns >= 50 && !insight.achievements.fastest50r) insight.achievements.fastest50r = matchesCount;
         if (careerRuns >= 100 && !insight.achievements.fastest100r) insight.achievements.fastest100r = matchesCount;
@@ -171,7 +241,7 @@ export default function InsightsPage() {
         if (perf.wkts >= 2) { counts.w2 += 1; if (!reached.has('2 Wickets')) { reached.add('2 Wickets'); timeline.push({ label: '2 Wickets in a Match', date: m.matchDate }); } }
         if (perf.wkts >= 3) { counts.w3 += 1; if (!reached.has('3 Wickets')) { reached.add('3 Wickets'); timeline.push({ label: '3 Wickets in a Match', date: m.matchDate }); } }
 
-        // Career Cumulative Milestones (Dynamic Detection)
+        // Career Cumulative Milestones
         RUN_MILESTONES.forEach(threshold => {
           const key = `Career Runs ${threshold}`;
           if (careerRuns >= threshold && !reached.has(key)) {
@@ -188,7 +258,6 @@ export default function InsightsPage() {
           }
         });
         
-        // Fielding
         if (perf.catches >= 1) {
           counts.catches += perf.catches;
           if (!reached.has('First Catch')) { reached.add('First Catch'); timeline.push({ label: 'First Catch Taken', date: m.matchDate }); }
@@ -208,26 +277,49 @@ export default function InsightsPage() {
     });
 
     return playerInsights;
-  }, [players, matches, deliveries, isMounted]);
+  }, [players, matches, sortedDeliveries]);
 
   const fastestRecords = useMemo(() => {
     if (!processedData) return null;
-    const records = {
+    const records: any = {
       r50: { player: '---', count: Infinity },
       r100: { player: '---', count: Infinity },
       r500: { player: '---', count: Infinity },
       w10: { player: '---', count: Infinity },
       w25: { player: '---', count: Infinity },
       w50: { player: '---', count: Infinity },
+      f30b: { player: '---', balls: Infinity },
+      hattrick: { player: '---', balls: Infinity, date: '' },
+      winner: { player: '---', balls: Infinity, runs: 0, date: '' }
     };
 
     Object.values(processedData).forEach((p: any) => {
+      // By Matches
       if (p.achievements.fastest50r < records.r50.count) records.r50 = { player: p.name, count: p.achievements.fastest50r };
       if (p.achievements.fastest100r < records.r100.count) records.r100 = { player: p.name, count: p.achievements.fastest100r };
       if (p.achievements.fastest500r < records.r500.count) records.r500 = { player: p.name, count: p.achievements.fastest500r };
       if (p.achievements.fastest10w < records.w10.count) records.w10 = { player: p.name, count: p.achievements.fastest10w };
       if (p.achievements.fastest25w < records.w25.count) records.w25 = { player: p.name, count: p.achievements.fastest25w };
       if (p.achievements.fastest50w < records.w50.count) records.w50 = { player: p.name, count: p.achievements.fastest50w };
+
+      // By Balls
+      if (p.achievements.fastest30b && p.achievements.fastest30b < records.f30b.balls) {
+        records.f30b = { player: p.name, balls: p.achievements.fastest30b };
+      }
+
+      // Hat-tricks
+      p.achievements.hattricks.forEach((h: any) => {
+        if (h.balls < records.hattrick.balls) {
+          records.hattrick = { player: p.name, balls: h.balls, date: h.date };
+        }
+      });
+
+      // Winning Knocks
+      p.achievements.winningKnocks.forEach((wk: any) => {
+        if (wk.balls < records.winner.balls) {
+          records.winner = { player: p.name, balls: wk.balls, runs: wk.runs, date: wk.date };
+        }
+      });
     });
 
     return records;
@@ -486,72 +578,190 @@ export default function InsightsPage() {
         </TabsContent>
 
         <TabsContent value="fastest" className="space-y-8">
-          <div className="flex items-center gap-2">
-            <FastForward className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-black uppercase tracking-tight">Fastest to Career Milestones</h2>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div className="flex items-center gap-2">
+              <FastForward className="w-6 h-6 text-primary" />
+              <h2 className="text-xl font-black uppercase tracking-tight">Fastest Achievements</h2>
+            </div>
+            <Tabs value={activeFastestSubTab} onValueChange={setActiveFastestSubTab} className="w-full md:w-auto">
+              <TabsList className="bg-slate-100 p-1 h-10 rounded-lg w-full flex overflow-x-auto scrollbar-hide">
+                <TabsTrigger value="matches" className="text-[9px] font-black uppercase px-4 h-8 data-[state=active]:bg-white data-[state=active]:text-primary">Matches</TabsTrigger>
+                <TabsTrigger value="balls" className="text-[9px] font-black uppercase px-4 h-8 data-[state=active]:bg-white data-[state=active]:text-primary">Balls</TabsTrigger>
+                <TabsTrigger value="hattrick" className="text-[9px] font-black uppercase px-4 h-8 data-[state=active]:bg-white data-[state=active]:text-primary">Hat-trick</TabsTrigger>
+                <TabsTrigger value="winner" className="text-[9px] font-black uppercase px-4 h-8 data-[state=active]:bg-white data-[state=active]:text-primary">Winner</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <Card className="border-t-4 border-t-primary shadow-lg overflow-hidden bg-white">
-              <CardHeader className="bg-slate-50 border-b">
-                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500">Fastest Runs (by Matches)</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {[
-                  { label: 'Fastest 50 Runs', key: 'r50', icon: Zap },
-                  { label: 'Fastest 100 Runs', key: 'r100', icon: Star },
-                  { label: 'Fastest 500 Runs', key: 'r500', icon: Trophy },
-                ].map((rec, idx) => {
-                  const val = fastestRecords?.[rec.key as keyof typeof fastestRecords];
-                  return (
-                    <div key={idx} className="p-6 border-b last:border-none flex justify-between items-center group hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="p-2 bg-primary/10 rounded-lg text-primary"><rec.icon className="w-5 h-5" /></div>
-                        <div>
-                          <p className="text-sm font-black uppercase tracking-tight text-slate-900">{val?.player}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">{rec.label}</p>
+          <TabsContent value="matches" className="m-0 space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <Card className="border-t-4 border-t-primary shadow-lg overflow-hidden bg-white">
+                <CardHeader className="bg-slate-50 border-b">
+                  <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Trophy className="w-3 h-3"/> Runs (by Matches)</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {[
+                    { label: 'Fastest 50 Runs', key: 'r50', icon: Zap },
+                    { label: 'Fastest 100 Runs', key: 'r100', icon: Star },
+                    { label: 'Fastest 500 Runs', key: 'r500', icon: Trophy },
+                  ].map((rec, idx) => {
+                    const val = fastestRecords?.[rec.key as keyof typeof fastestRecords];
+                    return (
+                      <div key={idx} className="p-6 border-b last:border-none flex justify-between items-center group hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className="p-2 bg-primary/10 rounded-lg text-primary"><rec.icon className="w-5 h-5" /></div>
+                          <div>
+                            <p className="text-sm font-black uppercase tracking-tight text-slate-900">{val?.player}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">{rec.label}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-black text-primary">{val?.count === Infinity ? '---' : val?.count}</p>
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Matches</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-black text-primary">{val?.count === Infinity ? '---' : val?.count}</p>
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Matches</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
+                    );
+                  })}
+                </CardContent>
+              </Card>
 
-            <Card className="border-t-4 border-t-secondary shadow-lg overflow-hidden bg-white">
-              <CardHeader className="bg-slate-50 border-b">
-                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500">Fastest Wickets (by Matches)</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                {[
-                  { label: 'Fastest 10 Wickets', key: 'w10', icon: Target },
-                  { label: 'Fastest 25 Wickets', key: 'w25', icon: Target },
-                  { label: 'Fastest 50 Wickets', key: 'w50', icon: Award },
-                ].map((rec, idx) => {
-                  const val = fastestRecords?.[rec.key as keyof typeof fastestRecords];
-                  return (
-                    <div key={idx} className="p-6 border-b last:border-none flex justify-between items-center group hover:bg-slate-50 transition-colors">
-                      <div className="flex items-center gap-4">
-                        <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><rec.icon className="w-5 h-5" /></div>
-                        <div>
-                          <p className="text-sm font-black uppercase tracking-tight text-slate-900">{val?.player}</p>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase">{rec.label}</p>
+              <Card className="border-t-4 border-t-secondary shadow-lg overflow-hidden bg-white">
+                <CardHeader className="bg-slate-50 border-b">
+                  <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Target className="w-3 h-3"/> Wickets (by Matches)</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {[
+                    { label: 'Fastest 10 Wickets', key: 'w10', icon: Target },
+                    { label: 'Fastest 25 Wickets', key: 'w25', icon: Target },
+                    { label: 'Fastest 50 Wickets', key: 'w50', icon: Award },
+                  ].map((rec, idx) => {
+                    const val = fastestRecords?.[rec.key as keyof typeof fastestRecords];
+                    return (
+                      <div key={idx} className="p-6 border-b last:border-none flex justify-between items-center group hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-4">
+                          <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><rec.icon className="w-5 h-5" /></div>
+                          <div>
+                            <p className="text-sm font-black uppercase tracking-tight text-slate-900">{val?.player}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">{rec.label}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-black text-secondary">{val?.count === Infinity ? '---' : val?.count}</p>
+                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Matches</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-black text-secondary">{val?.count === Infinity ? '---' : val?.count}</p>
-                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Matches</p>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="balls" className="m-0">
+            <Card className="border-t-4 border-t-orange-500 shadow-lg overflow-hidden bg-white max-w-2xl mx-auto">
+              <CardHeader className="bg-slate-50 border-b flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Timer className="w-4 h-4 text-orange-500"/> Fastest 30 (T10 Style)</CardTitle>
+                <Badge variant="outline" className="text-[8px] font-black uppercase border-orange-200 text-orange-600">Balls Faced</Badge>
+              </CardHeader>
+              <CardContent className="p-8">
+                {fastestRecords?.f30b?.balls !== Infinity ? (
+                  <div className="flex flex-col items-center text-center space-y-6">
+                    <div className="bg-orange-50 p-6 rounded-full border-4 border-white shadow-inner">
+                      <Zap className="w-12 h-12 text-orange-500" />
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900">{fastestRecords.f30b.player}</h3>
+                      <p className="text-xs font-bold text-slate-400 uppercase mt-1">Reached 30 runs in record time</p>
+                    </div>
+                    <div className="grid grid-cols-1 w-full bg-slate-50 rounded-2xl p-6 border">
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Balls Taken</span>
+                        <p className="text-6xl font-black text-orange-600">{fastestRecords.f30b.balls}</p>
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                ) : (
+                  <div className="py-12 text-center space-y-4">
+                    <Activity className="w-12 h-12 text-slate-200 mx-auto" />
+                    <p className="text-xs font-black uppercase text-slate-400 tracking-widest italic">No Player Has Achieved This Milestone Yet</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
-          </div>
+          </TabsContent>
+
+          <TabsContent value="hattrick" className="m-0">
+            <Card className="border-t-4 border-t-purple-600 shadow-lg overflow-hidden bg-white max-w-2xl mx-auto">
+              <CardHeader className="bg-slate-50 border-b flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Target className="w-4 h-4 text-purple-600"/> Fastest Hat-trick</CardTitle>
+                <Badge className="bg-purple-600 text-white text-[8px] font-black uppercase">Consecutive Wkts</Badge>
+              </CardHeader>
+              <CardContent className="p-8">
+                {fastestRecords?.hattrick?.balls !== Infinity ? (
+                  <div className="flex flex-col items-center text-center space-y-6">
+                    <div className="bg-purple-50 p-6 rounded-full border-4 border-white shadow-inner">
+                      <Award className="w-12 h-12 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900">{fastestRecords.hattrick.player}</h3>
+                      <p className="text-xs font-bold text-slate-400 uppercase mt-1">Achieved on {new Date(fastestRecords.hattrick.date).toLocaleDateString()}</p>
+                    </div>
+                    <div className="grid grid-cols-1 w-full bg-slate-900 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-4 opacity-10"><Zap className="w-20 h-20 text-white" /></div>
+                      <div className="space-y-1 relative z-10">
+                        <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Hat-trick Deliveries</span>
+                        <p className="text-6xl font-black text-white">{fastestRecords.hattrick.balls}</p>
+                        <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">3 Wickets in 3 Consecutive Legal Balls</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center space-y-4">
+                    <UserCheck className="w-12 h-12 text-slate-200 mx-auto" />
+                    <p className="text-xs font-black uppercase text-slate-400 tracking-widest italic">No Player Has Achieved This Milestone Yet</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="winner" className="m-0">
+            <Card className="border-t-4 border-t-emerald-600 shadow-lg overflow-hidden bg-white max-w-2xl mx-auto">
+              <CardHeader className="bg-slate-50 border-b flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Zap className="w-4 h-4 text-emerald-600"/> Match Winning Knock</CardTitle>
+                <Badge className="bg-emerald-600 text-white text-[8px] font-black uppercase">Clutch Finish</Badge>
+              </CardHeader>
+              <CardContent className="p-8">
+                {fastestRecords?.winner?.balls !== Infinity ? (
+                  <div className="flex flex-col items-center text-center space-y-6">
+                    <div className="bg-emerald-50 p-6 rounded-full border-4 border-white shadow-inner">
+                      <Star className="w-12 h-12 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900">{fastestRecords.winner.player}</h3>
+                      <p className="text-xs font-bold text-slate-400 uppercase mt-1">Highest impact chasing knock recorded</p>
+                    </div>
+                    <div className="grid grid-cols-2 w-full gap-4">
+                      <div className="bg-slate-50 rounded-2xl p-6 border text-center">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Balls Faced</span>
+                        <p className="text-4xl font-black text-slate-900">{fastestRecords.winner.balls}</p>
+                      </div>
+                      <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100 text-center">
+                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Match Runs</span>
+                        <p className="text-4xl font-black text-emerald-700">{fastestRecords.winner.runs}</p>
+                      </div>
+                    </div>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">Recorded on {new Date(fastestRecords.winner.date).toLocaleDateString()}</p>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center space-y-4">
+                    <Clock className="w-12 h-12 text-slate-200 mx-auto" />
+                    <p className="text-xs font-black uppercase text-slate-400 tracking-widest italic">No Player Has Achieved This Milestone Yet</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </TabsContent>
       </Tabs>
     </div>
