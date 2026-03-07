@@ -177,7 +177,22 @@ export default function MatchScoreboardPage() {
 
   const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none', noStrikeChange: boolean = false) => {
     if (!match || !activeInningData || !isUmpire) return;
-    if (!activeInningData.currentBowlerPlayerId) { setIsPlayerAssignmentOpen(true); return; }
+    
+    // Strict format check: prevent extra balls
+    if (activeInningData.oversCompleted >= match.totalOvers && activeInningData.ballsInCurrentOver === 0) {
+      toast({ title: "Innings Complete", description: "The maximum overs have been reached." });
+      return;
+    }
+
+    if (!activeInningData.currentBowlerPlayerId) { 
+      setAssignmentForm({ 
+        strikerId: activeInningData.strikerPlayerId, 
+        nonStrikerId: activeInningData.nonStrikerPlayerId || '', 
+        bowlerId: '' 
+      });
+      setIsPlayerAssignmentOpen(true); 
+      return; 
+    }
 
     const currentInningId = `inning_${match.currentInningNumber}`;
     let ballRuns = runs; let extraRuns = 0; let isLegalBall = true;
@@ -237,9 +252,9 @@ export default function MatchScoreboardPage() {
       nonStrikerPlayerId: nextNonStriker
     };
     
-    // Auto-End detection
+    // Auto-End detection with strict adherence to format
     if (match.currentInningNumber === 1) {
-      if (newOversComp >= match.totalOvers && newBallsInOver === 0) {
+      if (newOversComp >= match.totalOvers) {
         updates.isDeclaredFinished = true;
       }
     } else {
@@ -247,7 +262,7 @@ export default function MatchScoreboardPage() {
       if (inn1 && newTotalScore > inn1.score) {
         updates.isDeclaredFinished = true;
         toast({ title: "Victory!", description: "Target reached." });
-      } else if (newOversComp >= match.totalOvers && newBallsInOver === 0) {
+      } else if (newOversComp >= match.totalOvers) {
         updates.isDeclaredFinished = true;
       }
     }
@@ -305,6 +320,7 @@ export default function MatchScoreboardPage() {
 
   const handleWicket = async () => {
     if (!match || !activeInningData || !isUmpire || !wicketForm.batterOutId) return;
+    
     const currentInningId = `inning_${match.currentInningNumber}`;
     let newBalls = activeInningData.ballsInCurrentOver + 1; let newOvers = activeInningData.oversCompleted;
     if (newBalls === 6) { newOvers += 1; newBalls = 0; }
@@ -332,13 +348,17 @@ export default function MatchScoreboardPage() {
 
     if (newBalls === 0) updates.currentBowlerPlayerId = '';
     
-    // Auto-Finish detection on Wicket
+    // Auto-Finish detection on Wicket / Overs
     if (wicketForm.decision === 'finish') {
       updates.isDeclaredFinished = true;
     } else if (wicketForm.decision === 'last_man') { 
       updates.isLastManActive = true; 
       updates.strikerPlayerId = wicketForm.batterOutId === activeInningData.strikerPlayerId ? activeInningData.nonStrikerPlayerId : activeInningData.strikerPlayerId; 
       updates.nonStrikerPlayerId = ''; 
+    }
+
+    if (newOvers >= match.totalOvers && wicketForm.decision !== 'last_man') {
+      updates.isDeclaredFinished = true;
     }
     
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), updates);
@@ -390,7 +410,8 @@ export default function MatchScoreboardPage() {
       score: totalScore,
       wickets: totalWickets,
       oversCompleted: Math.floor(totalLegalBalls / 6),
-      ballsInCurrentOver: totalLegalBalls % 6
+      ballsInCurrentOver: totalLegalBalls % 6,
+      isDeclaredFinished: Math.floor(totalLegalBalls / 6) >= match.totalOvers
     });
     toast({ title: "Scores Re-Synced" });
   };
@@ -406,8 +427,16 @@ export default function MatchScoreboardPage() {
       const remaining = snapshot.docs.map(d => d.data());
       let ns = 0; let nw = 0; let nb = 0;
       remaining.forEach(d => { ns += d.totalRunsOnDelivery; if (d.isWicket && d.dismissalType !== 'retired') nw++; if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') nb++; });
+      
       const last = remaining[remaining.length - 1];
-      const updates: any = { score: ns, wickets: nw, oversCompleted: Math.floor(nb / 6), ballsInCurrentOver: nb % 6, isDeclaredFinished: false };
+      const updates: any = { 
+        score: ns, 
+        wickets: nw, 
+        oversCompleted: Math.floor(nb / 6), 
+        ballsInCurrentOver: nb % 6, 
+        isDeclaredFinished: false // Always allow one more ball after a deletion
+      };
+
       if (last) { 
         updates.strikerPlayerId = last.strikerPlayerId; 
         updates.nonStrikerPlayerId = last.nonStrikerPlayerId; 
@@ -417,10 +446,13 @@ export default function MatchScoreboardPage() {
         updates.nonStrikerPlayerId = '';
         updates.currentBowlerPlayerId = '';
       }
+
       await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates, { merge: true });
+      // Revert match status if it was completed
       await setDocumentNonBlocking(matchRef, { status: 'live', currentInningNumber: inningId === 'inning_1' ? 1 : 2 }, { merge: true });
+      
       setActiveTab('live');
-      toast({ title: "History Corrected" });
+      toast({ title: "History Corrected", description: "Match state recalculated and resumed." });
     } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
     finally { setIsCorrecting(false); }
   };
@@ -441,7 +473,8 @@ export default function MatchScoreboardPage() {
   const currentBowlerHistory = currentDeliveries?.filter(d => d.bowlerId === activeInningData?.currentBowlerPlayerId).slice(-6) || [];
 
   /**
-   * Helper to calculate professional over.ball label dynamically
+   * Professional Dynamic Ball Labeling
+   * Ball 1 = 0.1, Ball 6 = 0.6, Ball 7 = 1.1
    */
   const getDynamicBallLabel = (delivery: any, deliveries: any[]) => {
     const legalBallsBefore = deliveries.filter(d => 
@@ -450,7 +483,6 @@ export default function MatchScoreboardPage() {
     ).length;
     
     if (delivery.extraType !== 'none' && delivery.extraType !== 'bye' && delivery.extraType !== 'legbye') {
-      // It's an illegal ball, show it as the current over state
       return `${Math.floor(legalBallsBefore / 6)}.${(legalBallsBefore % 6)}`;
     }
     
