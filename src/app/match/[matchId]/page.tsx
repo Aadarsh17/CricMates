@@ -9,10 +9,10 @@ import { doc, collection, query, orderBy, limit, getDocs, deleteDoc } from 'fire
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Info, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History, PlayCircle, CheckCircle2, Star, Users, Clock, Calendar as CalendarIcon, Undo2, AlertCircle, UserCheck, ArrowLeftRight, Share2, Camera, X, ShieldCheck } from 'lucide-react';
+import { Trophy, Info, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History, PlayCircle, CheckCircle2, Star, Users, Clock, Calendar as CalendarIcon, Undo2, AlertCircle, UserCheck, ArrowLeftRight, Share2, Camera, X, ShieldCheck, UserMinus, UserPlus, TrendingUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
-import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, BarChart as ReBarChart, Bar } from "recharts";
+import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, BarChart as ReBarChart, Bar, Cell } from "recharts";
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
@@ -104,7 +104,6 @@ export default function MatchScoreboardPage() {
     for (let i = 0; i <= maxOvers * 6; i++) {
       const over = Math.floor(i / 6);
       const ball = i % 6;
-      const label = `${over}.${ball}`;
       
       const d1 = inn1Deliveries?.find(d => {
         const legalBallsBefore = inn1Deliveries.filter(prev => 
@@ -122,11 +121,11 @@ export default function MatchScoreboardPage() {
       });
       if (d2) cum2 += d2.totalRunsOnDelivery;
 
-      if (i % 6 === 0 || i === maxOvers * 6) {
+      if (i % 6 === 0) {
         data.push({ 
           label: over.toString(), 
           team1: cum1, 
-          team2: cum2 > 0 || inn2Deliveries?.length ? cum2 : null,
+          team2: (inn2Deliveries && inn2Deliveries.length > 0) || cum2 > 0 ? cum2 : null,
           team1Wicket: inn1Deliveries?.some(d => d.isWicket && Math.floor((inn1Deliveries.filter(p => p.timestamp <= d.timestamp && (p.extraType === 'none' || p.extraType === 'bye' || p.extraType === 'legbye')).length - 1) / 6) === over),
           team2Wicket: inn2Deliveries?.some(d => d.isWicket && Math.floor((inn2Deliveries.filter(p => p.timestamp <= d.timestamp && (p.extraType === 'none' || p.extraType === 'bye' || p.extraType === 'legbye')).length - 1) / 6) === over)
         });
@@ -134,6 +133,19 @@ export default function MatchScoreboardPage() {
     }
     return data;
   }, [inn1Deliveries, inn2Deliveries, match?.totalOvers]);
+
+  const overByOverData = useMemo(() => {
+    if (!match) return [];
+    const maxOvers = match.totalOvers;
+    const data = [];
+    
+    for (let i = 1; i <= maxOvers; i++) {
+      const inn1Runs = inn1Deliveries?.filter(d => d.overNumber === i).reduce((sum, d) => sum + d.totalRunsOnDelivery, 0) || 0;
+      const inn2Runs = inn2Deliveries?.filter(d => d.overNumber === i).reduce((sum, d) => sum + d.totalRunsOnDelivery, 0) || 0;
+      data.push({ over: i, team1: inn1Runs, team2: inn2Runs });
+    }
+    return data;
+  }, [inn1Deliveries, inn2Deliveries, match]);
 
   const getPlayerName = (pid: string) => {
     if (!pid || pid === 'none' || pid === '') return '---';
@@ -367,6 +379,10 @@ export default function MatchScoreboardPage() {
   if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse text-slate-400 uppercase tracking-widest">Syncing Match Engine...</div>;
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
 
+  const currentStats = match.currentInningNumber === 1 ? stats1 : stats2;
+  const currentDeliveries = match.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries;
+  const currentBowlerHistory = currentDeliveries?.filter(d => d.bowlerId === activeInningData?.currentBowlerPlayerId).slice(-6) || [];
+
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
       <div className="bg-white rounded-2xl shadow-xl border-t-8 border-t-primary overflow-hidden">
@@ -376,13 +392,13 @@ export default function MatchScoreboardPage() {
               <div className="flex items-center justify-between">
                 <div className="flex flex-col"><span className="font-black text-xl md:text-2xl uppercase">{getTeamName(match.team1Id)}</span><span className="text-[10px] font-black text-slate-400 uppercase">({match.totalOvers} OV)</span></div>
                 <span className="font-black text-2xl md:text-3xl text-slate-900">
-                  {match.currentInningNumber === 1 && inn1?.battingTeamId === match.team1Id ? `${inn1?.score}/${inn1?.wickets}` : (match.currentInningNumber === 2 && inn2?.battingTeamId === match.team1Id ? `${inn2?.score}/${inn2?.wickets}` : (inn1?.battingTeamId === match.team1Id ? `${inn1?.score}/${inn1?.wickets}` : (inn2?.battingTeamId === match.team1Id ? `${inn2?.score}/${inn2?.wickets}` : '0/0')))}
+                  {inn1?.score || 0}/{inn1?.wickets || 0}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex flex-col"><span className="font-black text-xl md:text-2xl uppercase">{getTeamName(match.team2Id)}</span><span className="text-[10px] font-black text-slate-400 uppercase">({match.totalOvers} OV)</span></div>
                 <span className="font-black text-2xl md:text-3xl text-slate-900">
-                  {match.currentInningNumber === 1 && inn1?.battingTeamId === match.team2Id ? `${inn1?.score}/${inn1?.wickets}` : (match.currentInningNumber === 2 && inn2?.battingTeamId === match.team2Id ? `${inn2?.score}/${inn2?.wickets}` : (inn1?.battingTeamId === match.team2Id ? `${inn1?.score}/${inn1?.wickets}` : (inn2?.battingTeamId === match.team2Id ? `${inn2?.score}/${inn2?.wickets}` : '0/0')))}
+                  {inn2?.score || 0}/{inn2?.wickets || 0}
                 </span>
               </div>
             </div>
@@ -398,13 +414,10 @@ export default function MatchScoreboardPage() {
             </div>
           </div>
           <div className="flex justify-between items-center border-t pt-4">
-            <p className="text-[10px] md:text-xs font-black uppercase text-primary tracking-[0.2em]">{match.status === 'completed' ? match.resultDescription : "Match in Progress"}</p>
+            <p className="text-[10px] md:text-xs font-black uppercase text-primary tracking-[0.2em]">{match.status === 'completed' ? match.resultDescription : `Innings ${match.currentInningNumber} in Progress`}</p>
             {match.status === 'completed' && match.potmPlayerId && (
               <Badge className="bg-amber-500 text-white font-black uppercase text-[8px] flex items-center gap-1 shrink-0 whitespace-nowrap px-3 py-1.5 h-auto">
-                <Star className="w-2.5 h-2.5" /> POTM: 
-                <Link href={`/players/${match.potmPlayerId}`} className="hover:underline ml-1">
-                  {getPlayerName(match.potmPlayerId)}
-                </Link>
+                <Star className="w-2.5 h-2.5" /> POTM: {getPlayerName(match.potmPlayerId)}
               </Badge>
             )}
           </div>
@@ -453,15 +466,16 @@ export default function MatchScoreboardPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-4 gap-2 md:gap-3 mb-6">
+                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-6">
                       {[0, 1, 2, 3, 4, 6].map(r => (<Button key={r} onClick={() => handleRecordBall(r)} className={cn("h-14 md:h-16 text-xl md:text-2xl font-black bg-white/5 border-2 border-white/10", r >= 4 ? "text-primary" : "text-white")}>{r === 0 ? "•" : r}</Button>))}
-                      <Button onClick={() => handleRecordBall(1, 'none', true)} className="h-14 md:h-16 flex flex-col items-center justify-center bg-secondary/20 border-2 border-secondary/40 text-secondary"><span className="text-lg font-black">1D</span><span className="text-[6px] font-bold uppercase">No Strike</span></Button>
+                      <Button onClick={() => handleRecordBall(1, 'none', true)} className="h-14 md:h-16 flex flex-col items-center justify-center bg-secondary/20 border-2 border-secondary/40 text-secondary"><span className="text-lg font-black">1D</span><span className="text-[6px] font-bold uppercase leading-none mt-1">No Strike</span></Button>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                       <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-10 font-black text-[9px] border-amber-500/40 text-amber-500 uppercase">Wide</Button>
                       <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-10 font-black text-[9px] border-amber-500/40 text-amber-500 uppercase">No Ball</Button>
                       <Button variant="outline" onClick={() => { setWicketForm(prev => ({ ...prev, batterOutId: activeInningData.strikerPlayerId })); setIsWicketDialogOpen(true); }} className="h-10 font-black text-[9px] border-red-500/40 text-red-500 uppercase">Wicket</Button>
-                      <Button variant="outline" onClick={() => { setAssignmentForm({ strikerId: activeInningData.strikerPlayerId, nonStrikerId: activeInningData.nonStrikerPlayerId || '', bowlerId: activeInningData.currentBowlerPlayerId || '' }); setIsPlayerAssignmentOpen(true); }} className="h-10 font-black text-[9px] border-white/20 text-white uppercase">Positions</Button>
+                      <Button variant="outline" onClick={() => { setWicketForm(prev => ({ ...prev, batterOutId: activeInningData.strikerPlayerId, type: 'retired' })); handleWicket(); }} className="h-10 font-black text-[9px] border-blue-500/40 text-blue-500 uppercase">Retire</Button>
+                      <Button variant="outline" onClick={() => { setAssignmentForm({ strikerId: activeInningData.strikerPlayerId, nonStrikerId: activeInningData.nonStrikerPlayerId || '', bowlerId: activeInningData.currentBowlerPlayerId || '' }); setIsPlayerAssignmentOpen(true); }} className="h-10 font-black text-[9px] border-white/20 text-white uppercase">Assign</Button>
                     </div>
                   </>
                 )}
@@ -470,44 +484,92 @@ export default function MatchScoreboardPage() {
           )}
 
           {activeInningData && (
-            <Card className="shadow-lg border-none overflow-hidden bg-white">
-              <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="shadow-lg border-none overflow-hidden bg-white">
+                <CardHeader className="bg-slate-50 border-b py-3 px-6">
+                  <span className="text-[10px] font-black uppercase text-slate-500">Batting Stats</span>
+                </CardHeader>
+                <div className="p-6 space-y-4">
                   {[
                     { id: activeInningData.strikerPlayerId, label: 'Striker', active: true },
                     { id: activeInningData.nonStrikerPlayerId, label: 'Non-Striker', active: false }
                   ].map((batter, i) => {
-                    const stats = (match.currentInningNumber === 1 ? stats1 : stats2).batting.find(b => b.id === batter.id);
+                    const stats = currentStats.batting.find(b => b.id === batter.id);
                     return (
                       <div key={i} className={cn("flex justify-between items-center p-4 rounded-xl border-2 transition-all", batter.active ? "bg-primary/5 border-primary shadow-sm" : "bg-slate-50 border-transparent opacity-60")}>
                         <div className="min-w-0">
                           <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{batter.label}</p>
                           <p className="font-black text-lg truncate uppercase tracking-tight text-slate-900">{getPlayerName(batter.id)}</p>
                         </div>
-                        <div className="text-right shrink-0">
-                          <p className="text-2xl font-black text-slate-900 leading-none">{stats?.runs || 0}<span className="text-xs font-bold text-slate-400">({stats?.balls || 0})</span></p>
-                          <p className="text-[8px] font-bold text-slate-400 uppercase mt-1">SR: {stats?.balls > 0 ? ((stats.runs / stats.balls) * 100).toFixed(1) : '0.0'}</p>
+                        <div className="grid grid-cols-3 gap-4 text-right">
+                          <div><p className="text-xl font-black">{stats?.runs || 0}</p><p className="text-[7px] font-bold text-slate-400 uppercase">Runs</p></div>
+                          <div><p className="text-xl font-black">{stats?.balls || 0}</p><p className="text-[7px] font-bold text-slate-400 uppercase">Balls</p></div>
+                          <div><p className="text-xl font-black">{stats?.balls > 0 ? ((stats.runs / stats.balls) * 100).toFixed(1) : '0.0'}</p><p className="text-[7px] font-bold text-slate-400 uppercase">SR</p></div>
                         </div>
                       </div>
                     );
                   })}
                 </div>
-                <div className="bg-slate-900 rounded-2xl p-6 text-white space-y-4">
-                  <div className="flex items-center gap-3">
-                    <Zap className="text-secondary w-5 h-5" />
-                    <div>
-                      <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Active Bowler</p>
-                      <p className="font-black text-lg truncate uppercase tracking-tight">{getPlayerName(activeInningData.currentBowlerPlayerId)}</p>
+              </Card>
+
+              <Card className="shadow-lg border-none overflow-hidden bg-slate-900 text-white">
+                <CardHeader className="bg-white/5 border-b border-white/5 py-3 px-6">
+                  <span className="text-[10px] font-black uppercase text-slate-500">Bowling Spell</span>
+                </CardHeader>
+                <CardContent className="p-6 space-y-6">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <Zap className="text-secondary w-5 h-5" />
+                      <div>
+                        <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Active Bowler</p>
+                        <p className="font-black text-lg truncate uppercase tracking-tight">{getPlayerName(activeInningData.currentBowlerPlayerId)}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-black text-secondary">
+                        {currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.wickets || 0}-
+                        {currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.runs || 0}
+                      </p>
+                      <p className="text-[8px] font-bold text-slate-500 uppercase">Current Figures</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-center">
-                    <div><p className="text-[10px] font-black text-secondary">0</p><p className="text-[6px] font-bold text-slate-500 uppercase">Wkts</p></div>
-                    <div><p className="text-[10px] font-black text-white">0</p><p className="text-[6px] font-bold text-slate-500 uppercase">Runs</p></div>
-                    <div><p className="text-[10px] font-black text-white">{activeInningData.oversCompleted}.{activeInningData.ballsInCurrentOver}</p><p className="text-[6px] font-bold text-slate-500 uppercase">Overs</p></div>
+
+                  <div className="space-y-2">
+                    <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">This Over History</p>
+                    <div className="flex gap-2">
+                      {currentBowlerHistory.map((d, idx) => (
+                        <Badge key={idx} className={cn("h-8 w-8 rounded-full flex items-center justify-center font-black p-0 border-2", 
+                          d.isWicket ? "bg-red-500 border-red-600 text-white" : 
+                          d.runsScored >= 4 ? "bg-primary border-primary/50 text-white" : "bg-white/10 border-white/5 text-white")}>
+                          {d.isWicket ? "W" : d.totalRunsOnDelivery}
+                        </Badge>
+                      ))}
+                      {[...Array(Math.max(0, 6 - currentBowlerHistory.length))].map((_, idx) => (
+                        <div key={`empty-${idx}`} className="h-8 w-8 rounded-full border-2 border-white/5 flex items-center justify-center text-white/10 font-black">•</div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              </div>
-            </Card>
+
+                  <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-center">
+                    <div>
+                      <p className="text-lg font-black">{activeInningData.oversCompleted}.{activeInningData.ballsInCurrentOver}</p>
+                      <p className="text-[7px] font-bold text-slate-500 uppercase">Overs</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-black">
+                        {(currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.runs / 
+                          (currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.balls / 6 || 1)).toFixed(2)}
+                      </p>
+                      <p className="text-[7px] font-bold text-slate-500 uppercase">Economy</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-black">{currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.maidens || 0}</p>
+                      <p className="text-[7px] font-bold text-slate-500 uppercase">Maidens</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </TabsContent>
 
@@ -526,7 +588,7 @@ export default function MatchScoreboardPage() {
                 <Card className="border-none shadow-sm overflow-hidden">
                   <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
                     <h3 className="font-black uppercase text-sm tracking-widest">{inn.team} Batting</h3>
-                    <p className="text-xl font-black">{inn.inning?.score}/{inn.inning?.wickets} <span className="text-[10px] font-bold opacity-50">({inn.inning?.oversCompleted}.{inn.inning?.ballsInCurrentOver})</span></p>
+                    <p className="text-xl font-black">{inn.inning?.score || 0}/{inn.inning?.wickets || 0} <span className="text-[10px] font-bold opacity-50">({inn.inning?.oversCompleted || 0}.{inn.inning?.ballsInCurrentOver || 0})</span></p>
                   </div>
                   <Table>
                     <TableHeader className="bg-slate-50">
@@ -554,6 +616,35 @@ export default function MatchScoreboardPage() {
                           <TableCell className="text-right text-xs text-slate-500">{b.sixes}</TableCell>
                           <TableCell className="text-right text-[10px] font-bold text-slate-400">
                             {b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+
+                <Card className="border-none shadow-sm overflow-hidden">
+                  <div className="bg-slate-50 px-6 py-3 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Partnership History</span></div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-[9px] font-black uppercase">Partners</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">Contribution</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inn.stats.partnerships.map((p: any, idx: number) => (
+                        <TableRow key={idx}>
+                          <TableCell>
+                            <p className="text-[10px] font-black uppercase">{getPlayerName(p.batter1Id)} & {getPlayerName(p.batter2Id)}</p>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase">{p.balls} balls</p>
+                          </TableCell>
+                          <TableCell className="text-right font-black">{p.runs}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="text-[8px] font-bold uppercase text-slate-500">
+                              {getPlayerName(p.batter1Id).split(' ')[0]}: {p.batter1Runs} | {getPlayerName(p.batter2Id).split(' ')[0]}: {p.batter2Runs}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -608,28 +699,49 @@ export default function MatchScoreboardPage() {
         </TabsContent>
 
         <TabsContent value="analytics" className="pt-4 space-y-8">
-          <Card className="p-6 shadow-sm border-none bg-white">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-8 border-b pb-2 flex items-center gap-2">
-              <LineChartIcon className="w-4 h-4 text-primary" /> Cumulative Scoring (Worm)
-            </h3>
-            <div className="h-[350px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                  <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
-                  <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
-                  <Area type="monotone" name={getTeamName(match.team1Id)} dataKey="team1" stroke="#2563eb" fillOpacity={1} fill="url(#colorT1)" dot={<CustomWicketDot team="team1" />} />
-                  <Area type="monotone" name={getTeamName(match.team2Id)} dataKey="team2" stroke="#0d9488" fillOpacity={1} fill="url(#colorT2)" dot={<CustomWicketDot team="team2" />} />
-                  <defs>
-                    <linearGradient id="colorT1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient>
-                    <linearGradient id="colorT2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0d9488" stopOpacity={0.1}/><stop offset="95%" stopColor="#0d9488" stopOpacity={0}/></linearGradient>
-                  </defs>
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </Card>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card className="p-6 shadow-sm border-none bg-white">
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-8 border-b pb-2 flex items-center gap-2">
+                <LineChartIcon className="w-4 h-4 text-primary" /> Cumulative Scoring (Worm)
+              </h3>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
+                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
+                    <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
+                    <Area type="monotone" name={getTeamName(match.team1Id)} dataKey="team1" stroke="#2563eb" fillOpacity={1} fill="url(#colorT1)" dot={<CustomWicketDot team="team1" />} />
+                    <Area type="monotone" name={getTeamName(match.team2Id)} dataKey="team2" stroke="#0d9488" fillOpacity={1} fill="url(#colorT2)" dot={<CustomWicketDot team="team2" />} />
+                    <defs>
+                      <linearGradient id="colorT1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient>
+                      <linearGradient id="colorT2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0d9488" stopOpacity={0.1}/><stop offset="95%" stopColor="#0d9488" stopOpacity={0}/></linearGradient>
+                    </defs>
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card className="p-6 shadow-sm border-none bg-white">
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-8 border-b pb-2 flex items-center gap-2">
+                <BarChart className="w-4 h-4 text-secondary" /> Over-by-Over Runs
+              </h3>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ReBarChart data={overByOverData}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="over" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
+                    <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 900 }} />
+                    <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: 900 }} />
+                    <Bar name={getTeamName(match.team1Id)} dataKey="team1" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                    <Bar name={getTeamName(match.team2Id)} dataKey="team2" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                  </ReBarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="overs" className="pt-4">
@@ -663,7 +775,9 @@ export default function MatchScoreboardPage() {
                             <p className="text-[7px] font-bold text-slate-400 uppercase mt-0.5">vs {getPlayerName(d.bowlerId)}</p>
                           </TableCell>
                           <TableCell className="text-center">
-                            <Badge className={cn("font-black h-6 w-6 rounded-full p-0 flex items-center justify-center", d.runsScored >= 4 ? "bg-primary" : "bg-slate-100 text-slate-600")}>
+                            <Badge className={cn("font-black h-6 w-6 rounded-full p-0 flex items-center justify-center", 
+                              d.isWicket ? "bg-red-500 text-white" : 
+                              d.runsScored >= 4 ? "bg-primary text-white" : "bg-slate-100 text-slate-600")}>
                               {d.isWicket ? "W" : d.totalRunsOnDelivery}
                             </Badge>
                           </TableCell>
@@ -746,11 +860,11 @@ export default function MatchScoreboardPage() {
             <div className="grid grid-cols-2 gap-4 bg-white/5 p-6 rounded-2xl border border-white/10 items-center">
               <div className="text-center space-y-1">
                 <p className="text-[9px] font-black text-primary uppercase">{getTeamName(inn1?.battingTeamId)}</p>
-                <p className="text-4xl font-black">{inn1?.score}/{inn1?.wickets}</p>
+                <p className="text-4xl font-black">{inn1?.score || 0}/{inn1?.wickets || 0}</p>
               </div>
               <div className="text-center space-y-1 border-l border-white/10">
                 <p className="text-[9px] font-black text-secondary uppercase">{getTeamName(inn2?.battingTeamId)}</p>
-                <p className="text-4xl font-black">{inn2?.score}/{inn2?.wickets}</p>
+                <p className="text-4xl font-black">{inn2?.score || 0}/{inn2?.wickets || 0}</p>
               </div>
             </div>
             <div className="text-center p-4 bg-primary/20 rounded-xl border border-primary/30">
@@ -779,7 +893,7 @@ export default function MatchScoreboardPage() {
               <Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}>
                 <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {['bowled', 'caught', 'runout', 'lbw', 'stumped', 'retired'].map(t => (<SelectItem key={t} value={t} className="font-bold uppercase text-xs">{t}</SelectItem>))}
+                  {['bowled', 'caught', 'runout', 'stumped', 'hit-wicket'].map(t => (<SelectItem key={t} value={t} className="font-bold uppercase text-xs">{t}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>

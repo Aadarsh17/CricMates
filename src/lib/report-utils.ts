@@ -366,14 +366,14 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
         <div style="display: flex; justify-content: space-between; align-items: center; text-align: center;">
           <div style="flex: 1;">
             <div style="font-weight: 800; font-size: 7px; color: #475569;">${getTeam(match.team1Id)}</div>
-            <div style="font-size: 12px; font-weight: 900; color: #1e40af;">${inn1?.score}/${inn1?.wickets}</div>
-            <div style="font-size: 6px; color: #94a3b8;">${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver} OV</div>
+            <div style="font-size: 12px; font-weight: 900; color: #1e40af;">${inn1?.score || 0}/${inn1?.wickets || 0}</div>
+            <div style="font-size: 6px; color: #94a3b8;">${inn1?.oversCompleted || 0}.${inn1?.ballsInCurrentOver || 0} OV</div>
           </div>
           <div style="font-weight: 900; font-size: 7px; color: #cbd5e1; width: 30px;">VS</div>
           <div style="flex: 1;">
             <div style="font-weight: 800; font-size: 7px; color: #475569;">${getTeam(match.team2Id)}</div>
-            <div style="font-size: 12px; font-weight: 900; color: #1e40af;">${inn2?.score}/${inn2?.wickets}</div>
-            <div style="font-size: 6px; color: #94a3b8;">${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver} OV</div>
+            <div style="font-size: 12px; font-weight: 900; color: #1e40af;">${inn2?.score || 0}/${inn2?.wickets || 0}</div>
+            <div style="font-size: 6px; color: #94a3b8;">${inn2?.oversCompleted || 0}.${inn2?.ballsInCurrentOver || 0} OV</div>
           </div>
         </div>
         <div class="result">${match.resultDescription}</div>
@@ -381,7 +381,7 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
 
       <div class="inning-title">
         <span>1st Inn: ${getTeam(inn1?.battingTeamId)}</span>
-        <span>${inn1?.score}/${inn1?.wickets} (${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver})</span>
+        <span>${inn1?.score || 0}/${inn1?.wickets || 0} (${inn1?.oversCompleted || 0}.${inn1?.ballsInCurrentOver || 0})</span>
       </div>
       ${renderBattingTable(stats1.batting)}
       <div class="dual-col">
@@ -399,7 +399,7 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
 
       <div class="inning-title">
         <span>2nd Inn: ${getTeam(inn2?.battingTeamId)}</span>
-        <span>${inn2?.score}/${inn2?.wickets} (${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver})</span>
+        <span>${inn2?.score || 0}/${inn2?.wickets || 0} (${inn2?.oversCompleted || 0}.${inn2?.ballsInCurrentOver || 0})</span>
       </div>
       ${renderBattingTable(stats2.batting)}
       <div class="dual-col">
