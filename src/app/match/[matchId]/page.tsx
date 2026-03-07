@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
@@ -319,9 +320,9 @@ export default function MatchScoreboardPage() {
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
-            <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
-              <Card className="border-none shadow-xl bg-white rounded-3xl p-6">
-                <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Worm Chart</h3>
+            <Card className="border-none shadow-xl bg-white rounded-3xl p-6">
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Worm Chart</h3>
+              <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
                 <div className="h-[250px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={wormData}>
@@ -333,8 +334,8 @@ export default function MatchScoreboardPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-              </Card>
-            </ChartContainer>
+              </ChartContainer>
+            </Card>
           </TabsContent>
 
           <TabsContent value="overs" className="space-y-4">

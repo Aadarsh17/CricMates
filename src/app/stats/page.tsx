@@ -89,11 +89,12 @@ export default function StatsPage() {
         if (m.fours > batting.most4s.val) batting.most4s = { val: m.fours, name: p.name };
         
         if (m.wkts > bowling.mostWkts.val) bowling.mostWkts = { val: m.wkts, name: p.name };
-        if (m.wkts >= bowling.bestFigures.wkts) {
-          if (m.wkts > bowling.bestFigures.wkts || m.runsCon < bowling.bestFigures.runs) {
-            bowling.bestFigures = { wkts: m.wkts, runs: m.runsCon, name: p.name };
-          }
+        
+        // Corrected Best Figures Logic
+        if (m.wkts > bowling.bestFigures.wkts || (m.wkts === bowling.bestFigures.wkts && m.runsCon < bowling.bestFigures.runs && m.ballsB > 0)) {
+          bowling.bestFigures = { wkts: m.wkts, runs: m.runsCon, name: p.name };
         }
+        
         if (m.ballsB >= 12) {
           const econ = m.runsCon / (m.ballsB / 6);
           if (econ < bowling.bestEcon.val) bowling.bestEcon = { val: econ, name: p.name };
@@ -103,6 +104,9 @@ export default function StatsPage() {
         if (m.runouts > fielding.mostRunOuts.val) fielding.mostRunOuts = { val: m.runouts, name: p.name };
       });
     });
+
+    // Cleanup initial 999 figures
+    if (bowling.bestFigures.runs === 999) bowling.bestFigures = { wkts: 0, runs: 0, name: '-' };
 
     return { batting, bowling, fielding };
   }, [players, rawDeliveries]);
@@ -156,7 +160,7 @@ export default function StatsPage() {
               <div className="p-2 bg-secondary/5 rounded-lg"><Shield className="w-4 h-4 text-secondary" /></div>
               <div><p className="text-[10px] font-black uppercase text-slate-400">Best Economy (Min 2 Ov)</p><p className="font-black text-slate-900 uppercase text-xs">{records?.bowling.bestEcon.name}</p></div>
             </div>
-            <Badge className="text-lg font-black bg-secondary/10 text-secondary border-none h-10 px-4">{records?.bowling.bestEcon.val.toFixed(2)}</Badge>
+            <Badge className="text-lg font-black bg-secondary/10 text-secondary border-none h-10 px-4">{records?.bowling.bestEcon.val === 99 ? '0.00' : records?.bowling.bestEcon.val.toFixed(2)}</Badge>
           </Card>
         </div>
       </section>

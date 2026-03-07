@@ -3,10 +3,10 @@
 
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from '@/firebase';
 import { collection, query, where, orderBy, limit, doc, collectionGroup } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trophy, Activity, Users, ArrowRight, PlayCircle, ShieldCheck, Loader2, Star, Target, Swords, Zap, TrendingUp, ChevronRight } from 'lucide-react';
+import { Trophy, Activity, Users, PlayCircle, Star, Target, Swords, Zap, TrendingUp, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useMemo, useState, useEffect } from 'react';
@@ -30,11 +30,16 @@ export default function Home() {
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: players } = useCollection(playersQuery);
 
+  const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
+  const { data: allTeams } = useCollection(teamsQuery);
+
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
 
   const deliveriesQuery = useMemoFirebase(() => { if (!isMounted) return null; return query(collectionGroup(db, 'deliveryRecords')); }, [db, isMounted]);
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
+
+  const getTeamName = (id: string) => allTeams?.find(t => t.id === id)?.name || id.substring(0, 8) + '...';
 
   const topPlayers = useMemo(() => {
     if (!players || !allMatches || !rawDeliveries || !isMounted) return [];
@@ -70,20 +75,31 @@ export default function Home() {
       <div className="grid grid-cols-1 gap-8">
         <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
           <CardHeader className="bg-slate-50 border-b py-4 px-6 flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2"><Activity className="text-destructive w-5 h-5 animate-pulse" /><CardTitle className="font-black uppercase text-[10px] tracking-widest text-slate-500">Live Broadcast</CardTitle></div>
+            <div className="flex items-center gap-2">
+              <Activity className="text-destructive w-5 h-5 animate-pulse" />
+              <CardTitle className="font-black uppercase text-[10px] tracking-widest text-slate-500">Live Broadcast</CardTitle>
+            </div>
             {liveMatch && <Badge variant="destructive" className="animate-pulse text-[8px] font-black px-2 py-0.5">LIVE</Badge>}
           </CardHeader>
           <CardContent className="p-6">
             {liveMatch ? (
               <Link href={`/match/${liveMatch.id}`}>
-                <div className="bg-slate-900 rounded-2xl p-6 text-white relative overflow-hidden group">
+                <div className="bg-slate-900 rounded-2xl p-8 text-white relative overflow-hidden group shadow-2xl">
                   <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform"><Swords className="w-24 h-24" /></div>
-                  <div className="flex justify-between items-center relative z-10">
-                    <p className="font-black text-lg uppercase tracking-tight leading-none truncate max-w-[100px]">{liveMatch.team1Id.substring(0,8)}</p>
-                    <div className="bg-white/10 h-10 w-10 rounded-full flex items-center justify-center font-black text-xs border border-white/20">VS</div>
-                    <p className="font-black text-lg uppercase tracking-tight leading-none text-right truncate max-w-[100px]">{liveMatch.team2Id.substring(0,8)}</p>
+                  <div className="flex justify-between items-center relative z-10 gap-4 mb-8">
+                    <p className="font-black text-xl uppercase tracking-tighter leading-tight truncate max-w-[140px] flex-1">
+                      {getTeamName(liveMatch.team1Id)}
+                    </p>
+                    <div className="bg-white/10 h-12 w-12 rounded-full flex items-center justify-center font-black text-sm border border-white/20 shadow-inner shrink-0">VS</div>
+                    <p className="font-black text-xl uppercase tracking-tighter leading-tight text-right truncate max-w-[140px] flex-1">
+                      {getTeamName(liveMatch.team2Id)}
+                    </p>
                   </div>
-                  <div className="mt-6 flex justify-center"><Button variant="secondary" size="sm" className="h-10 font-black uppercase text-[10px] tracking-widest rounded-lg">Enter Scoreboard <ChevronRight className="ml-2 w-4 h-4" /></Button></div>
+                  <div className="mt-6 flex justify-center relative z-10">
+                    <Button variant="secondary" className="h-12 px-8 font-black uppercase text-xs tracking-widest rounded-xl bg-[#009688] hover:bg-[#00796b] text-white shadow-xl group">
+                      Enter Scoreboard <ChevronRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </Button>
+                  </div>
                 </div>
               </Link>
             ) : (
