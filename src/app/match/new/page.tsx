@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, User, Target, Zap, Users } from 'lucide-react';
+import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, User, Target, Zap, Users, Search } from 'lucide-react';
 
 export default function NewMatchPage() {
   const db = useFirestore();
@@ -24,6 +24,7 @@ export default function NewMatchPage() {
   const searchParams = useSearchParams();
 
   const [step, setStep] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
   const [setup, setSetup] = useState({
     team1Id: '',
     team2Id: '',
@@ -59,8 +60,9 @@ export default function NewMatchPage() {
     }
   }, [searchParams]);
 
-  const team1Pool = allPlayers?.filter(p => p.teamId === setup.team1Id || !p.teamId);
-  const team2Pool = allPlayers?.filter(p => p.teamId === setup.team2Id || !p.teamId);
+  const filteredPool = allPlayers?.filter(p => 
+    p.name.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
 
   const handleStartMatch = () => {
     if (!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId) {
@@ -70,8 +72,8 @@ export default function NewMatchPage() {
 
     const matchId = doc(collection(db, 'matches')).id;
     const hasCommon = setup.commonPlayerId && setup.commonPlayerId !== 'none';
-    const finalT1Squad = hasCommon ? [...setup.team1Squad, setup.commonPlayerId] : setup.team1Squad;
-    const finalT2Squad = hasCommon ? [...setup.team2Squad, setup.commonPlayerId] : setup.team2Squad;
+    const finalT1Squad = hasCommon ? Array.from(new Set([...setup.team1Squad, setup.commonPlayerId])) : setup.team1Squad;
+    const finalT2Squad = hasCommon ? Array.from(new Set([...setup.team2Squad, setup.commonPlayerId])) : setup.team2Squad;
 
     const matchData = {
       id: matchId,
@@ -190,41 +192,68 @@ export default function NewMatchPage() {
 
       {step === 2 && (
         <Card className="border-t-4 border-t-primary shadow-lg">
-          <CardHeader><CardTitle className="text-xl font-black uppercase">Step 2: Squad Selection</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-xl font-black uppercase">Step 2: Player Pool Selection</CardTitle>
+            <div className="relative mt-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input 
+                placeholder="Search player pool..." 
+                className="pl-10 h-10 font-bold"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+          </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-2 gap-8">
-              <div className="space-y-3 bg-muted/30 p-4 rounded-xl">
-                <h3 className="font-black border-b border-primary/20 pb-2 text-primary uppercase text-xs truncate">{teams?.find(t => t.id === setup.team1Id)?.name}</h3>
-                {team1Pool?.map(p => (
-                  <div key={p.id} className="flex items-center gap-2 hover:bg-white/50 p-1 rounded transition-colors">
-                    <Checkbox checked={setup.team1Squad.includes(p.id)} onCheckedChange={(c) => {
-                      const newSquad = c ? [...setup.team1Squad, p.id] : setup.team1Squad.filter(id => id !== p.id);
-                      setSetup({...setup, team1Squad: newSquad});
-                    }} id={`t1-${p.id}`} />
-                    <Label htmlFor={`t1-${p.id}`} className="text-xs cursor-pointer font-bold">{p.name}</Label>
-                  </div>
-                ))}
+              <div className="space-y-3 bg-primary/5 p-4 rounded-xl border">
+                <h3 className="font-black border-b border-primary/20 pb-2 text-primary uppercase text-xs truncate">
+                  {teams?.find(t => t.id === setup.team1Id)?.name} Squad
+                </h3>
+                <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 scrollbar-hide">
+                  {filteredPool.map(p => (
+                    <div key={p.id} className="flex items-center gap-2 hover:bg-white p-1.5 rounded-lg transition-colors border border-transparent hover:border-slate-100">
+                      <Checkbox 
+                        checked={setup.team1Squad.includes(p.id)} 
+                        onCheckedChange={(c) => {
+                          const newSquad = c ? [...setup.team1Squad, p.id] : setup.team1Squad.filter(id => id !== p.id);
+                          setSetup({...setup, team1Squad: newSquad, team2Squad: setup.team2Squad.filter(id => id !== p.id)});
+                        }} 
+                        id={`t1-${p.id}`} 
+                      />
+                      <Label htmlFor={`t1-${p.id}`} className="text-xs cursor-pointer font-bold truncate flex-1">{p.name}</Label>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="space-y-3 bg-muted/30 p-4 rounded-xl">
-                <h3 className="font-black border-b border-primary/20 pb-2 text-primary uppercase text-xs truncate">{teams?.find(t => t.id === setup.team2Id)?.name}</h3>
-                {team2Pool?.map(p => (
-                  <div key={p.id} className="flex items-center gap-2 hover:bg-white/50 p-1 rounded transition-colors">
-                    <Checkbox checked={setup.team2Squad.includes(p.id)} onCheckedChange={(c) => {
-                      const newSquad = c ? [...setup.team2Squad, p.id] : setup.team2Squad.filter(id => id !== p.id);
-                      setSetup({...setup, team2Squad: newSquad});
-                    }} id={`t2-${p.id}`} />
-                    <Label htmlFor={`t2-${p.id}`} className="text-xs cursor-pointer font-bold">{p.name}</Label>
-                  </div>
-                ))}
+              <div className="space-y-3 bg-secondary/5 p-4 rounded-xl border">
+                <h3 className="font-black border-b border-secondary/20 pb-2 text-secondary uppercase text-xs truncate">
+                  {teams?.find(t => t.id === setup.team2Id)?.name} Squad
+                </h3>
+                <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 scrollbar-hide">
+                  {filteredPool.map(p => (
+                    <div key={p.id} className="flex items-center gap-2 hover:bg-white p-1.5 rounded-lg transition-colors border border-transparent hover:border-slate-100">
+                      <Checkbox 
+                        checked={setup.team2Squad.includes(p.id)} 
+                        onCheckedChange={(c) => {
+                          const newSquad = c ? [...setup.team2Squad, p.id] : setup.team2Squad.filter(id => id !== p.id);
+                          setSetup({...setup, team2Squad: newSquad, team1Squad: setup.team1Squad.filter(id => id !== p.id)});
+                        }} 
+                        id={`t2-${p.id}`} 
+                      />
+                      <Label htmlFor={`t2-${p.id}`} className="text-xs cursor-pointer font-bold truncate flex-1">{p.name}</Label>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-            <div className="p-4 bg-secondary/5 border-2 border-dashed border-secondary/20 rounded-xl">
-              <Label className="text-secondary font-black uppercase text-[10px] tracking-widest">Street Mode: Common Player (Optional)</Label>
+            <div className="p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl">
+              <Label className="text-slate-500 font-black uppercase text-[10px] tracking-widest">Designate Common Player (Street Mode)</Label>
               <Select value={setup.commonPlayerId} onValueChange={(v) => setSetup({...setup, commonPlayerId: v})}>
-                <SelectTrigger className="h-12 font-bold mt-2"><SelectValue placeholder="Select shared player" /></SelectTrigger>
+                <SelectTrigger className="h-12 font-bold mt-2 bg-white"><SelectValue placeholder="Select shared player" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none" className="font-bold text-slate-400">(NONE)</SelectItem>
-                  {allPlayers?.filter(p => !setup.team1Squad.includes(p.id) && !setup.team2Squad.includes(p.id)).map(p => (
+                  {allPlayers?.map(p => (
                     <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
                   ))}
                 </SelectContent>

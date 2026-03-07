@@ -9,7 +9,7 @@ import { doc, collection, query, orderBy, limit, getDocs } from 'firebase/firest
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Trophy, Info, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History, PlayCircle, CheckCircle2, Star, Users, Clock, Calendar as CalendarIcon, Undo2, AlertCircle } from 'lucide-react';
+import { Trophy, Info, Trash2, Download, Loader2, Zap, LineChart as LineChartIcon, BarChart, ChevronRight, History, PlayCircle, CheckCircle2, Star, Users, Clock, Calendar as CalendarIcon, Undo2, AlertCircle, UserCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHeader, TableRow, TableHead } from '@/components/ui/table';
 import { ResponsiveContainer, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, BarChart as ReBarChart, Bar } from "recharts";
@@ -102,7 +102,6 @@ export default function MatchScoreboardPage() {
     return match.currentInningNumber === 1 ? inn1 : (match.currentInningNumber === 2 ? inn2 : null);
   }, [match?.currentInningNumber, inn1, inn2]);
 
-  // SQUAD PLAYER LISTS FOR SELECTION
   const battingSquadPlayerIds = useMemo(() => {
     if (!match || !activeInningData) return [];
     return activeInningData.battingTeamId === match.team1Id 
@@ -145,18 +144,20 @@ export default function MatchScoreboardPage() {
   };
 
   const t1Header = useMemo(() => {
-    if (!match) return { name: '---', score: 0, wkts: 0, overs: '0.0' };
-    if (inn1?.battingTeamId === match.team1Id) return { name: getTeamName(match.team1Id), score: inn1Score, wkts: inn1Wickets, overs: inn1OversDisplay };
-    if (inn2?.battingTeamId === match.team1Id) return { name: getTeamName(match.team1Id), score: inn2Score, wkts: inn2Wickets, overs: inn2OversDisplay };
-    return { name: getTeamName(match.team1Id), score: 0, wkts: 0, overs: '0.0' };
-  }, [match, inn1, inn2, inn1Score, inn1Wickets, inn1OversDisplay, inn2Score, inn2Wickets, inn2OversDisplay, allTeams]);
+    if (!match || !inn1) return { name: '---', score: 0, wkts: 0, overs: '0.0' };
+    const team1Name = getTeamName(match.team1Id);
+    if (inn1.battingTeamId === match.team1Id) return { name: team1Name, score: inn1Score, wkts: inn1Wickets, overs: inn1OversDisplay };
+    if (inn2?.battingTeamId === match.team1Id) return { name: team1Name, score: inn2Score, wkts: inn2Wickets, overs: inn2OversDisplay };
+    return { name: team1Name, score: 0, wkts: 0, overs: '0.0' };
+  }, [match, inn1, inn2, inn1Score, inn1Wickets, inn1OversDisplay, inn2Score, inn2Wickets, inn2OversDisplay]);
 
   const t2Header = useMemo(() => {
-    if (!match) return { name: '---', score: 0, wkts: 0, overs: '0.0' };
-    if (inn1?.battingTeamId === match.team2Id) return { name: getTeamName(match.team2Id), score: inn1Score, wkts: inn1Wickets, overs: inn1OversDisplay };
-    if (inn2?.battingTeamId === match.team2Id) return { name: getTeamName(match.team2Id), score: inn2Score, wkts: inn2Wickets, overs: inn2OversDisplay };
-    return { name: getTeamName(match.team2Id), score: 0, wkts: 0, overs: '0.0' };
-  }, [match, inn1, inn2, inn1Score, inn1Wickets, inn1OversDisplay, inn2Score, inn2Wickets, inn2OversDisplay, allTeams]);
+    if (!match || !inn1) return { name: '---', score: 0, wkts: 0, overs: '0.0' };
+    const team2Name = getTeamName(match.team2Id);
+    if (inn1.battingTeamId === match.team2Id) return { name: team2Name, score: inn1Score, wkts: inn1Wickets, overs: inn1OversDisplay };
+    if (inn2?.battingTeamId === match.team2Id) return { name: team2Name, score: inn2Score, wkts: inn2Wickets, overs: inn2OversDisplay };
+    return { name: team2Name, score: 0, wkts: 0, overs: '0.0' };
+  }, [match, inn1, inn2, inn1Score, inn1Wickets, inn1OversDisplay, inn2Score, inn2Wickets, inn2OversDisplay]);
 
   const isInningsOver = useMemo(() => {
     if (!activeInningData || !match) return false;
@@ -221,8 +222,6 @@ export default function MatchScoreboardPage() {
     const flow1 = getMatchFlow(inn1Deliveries || [], getTeamName(inn1.battingTeamId), allPlayers || []);
     const flow2 = inn2 ? getMatchFlow(inn2Deliveries || [], getTeamName(inn2.battingTeamId), allPlayers || []) : [];
     const events = [...flow1, ...flow2];
-    
-    // Explicitly add final validated result to flow
     if (match.status === 'completed') {
       events.push({ type: 'header', title: match.resultDescription });
     }
@@ -571,7 +570,7 @@ export default function MatchScoreboardPage() {
             <Link href={`/players/${b.id}`} className="hover:opacity-80 transition-opacity">
               <p className="font-black text-xs uppercase text-slate-900">{getPlayerName(b.id)}</p>
             </Link>
-            <p className="text-[8px] text-slate-400 font-bold uppercase italic">${getDismissalString(b)}</p></TableCell><TableCell className="text-right font-black text-sm">${b.runs}</TableCell><TableCell className="text-right text-xs text-slate-500">${b.balls}</TableCell><TableCell className="text-right text-xs text-slate-500">${b.fours}</TableCell><TableCell className="text-right text-xs text-slate-500">${b.sixes}</TableCell><TableCell className="text-right text-[10px] font-black text-primary">${b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0.0'}</TableCell></TableRow>))}</TableBody>
+            <p className="text-[8px] text-slate-400 font-bold uppercase italic">{getDismissalString(b)}</p></TableCell><TableCell className="text-right font-black text-sm">{b.runs}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.balls}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.fours}</TableCell><TableCell className="text-right text-xs text-slate-500">{b.sixes}</TableCell><TableCell className="text-right text-[10px] font-black text-primary">{b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0.0'}</TableCell></TableRow>))}</TableBody>
         </Table></div>
       </Card>
 
@@ -587,7 +586,7 @@ export default function MatchScoreboardPage() {
                 <p className="font-black text-xs uppercase text-slate-900">{getPlayerName(bw.id)}</p>
               </Link>
             </TableCell>
-            <TableCell className="text-right font-bold text-xs">${bw.oversDisplay}</TableCell><TableCell className="text-right text-xs text-slate-500">${bw.maidens || 0}</TableCell><TableCell className="text-right font-bold text-xs">${bw.runs}</TableCell><TableCell className="text-right font-black text-sm text-primary">${bw.wickets}</TableCell><TableCell className="text-right text-[10px] font-black text-slate-400">${bw.balls > 0 ? (bw.runs/(bw.balls/6)).toFixed(2) : '0.00'}</TableCell></TableRow>))}</TableBody>
+            <TableCell className="text-right font-bold text-xs">{bw.oversDisplay}</TableCell><TableCell className="text-right text-xs text-slate-500">{bw.maidens || 0}</TableCell><TableCell className="text-right font-bold text-xs">{bw.runs}</TableCell><TableCell className="text-right font-black text-sm text-primary">{bw.wickets}</TableCell><TableCell className="text-right text-[10px] font-black text-slate-400">{bw.balls > 0 ? (bw.runs/(bw.balls/6)).toFixed(2) : '0.00'}</TableCell></TableRow>))}</TableBody>
         </Table></div>
       </Card>
     </div>
@@ -858,7 +857,7 @@ export default function MatchScoreboardPage() {
                 <div className="space-y-3">
                   <p className="text-[10px] font-black text-slate-900 uppercase border-b pb-1">{getTeamName(match.team1Id)}</p>
                   <div className="flex flex-wrap gap-2">
-                    {match.team1SquadPlayerIds?.map((pid: string) => (
+                    {match.team1SquadPlayerIds?.filter((pid: string) => pid !== match.commonPlayerId).map((pid: string) => (
                       <Link key={pid} href={`/players/${pid}`}>
                         <Badge variant="secondary" className="bg-slate-100 text-slate-900 hover:bg-primary hover:text-white transition-colors text-[9px] font-black uppercase px-2 py-1 cursor-pointer border shadow-sm border-slate-200">
                           {getPlayerName(pid)}
@@ -870,7 +869,7 @@ export default function MatchScoreboardPage() {
                 <div className="space-y-3">
                   <p className="text-[10px] font-black text-slate-900 uppercase border-b pb-1">{getTeamName(match.team2Id)}</p>
                   <div className="flex flex-wrap gap-2">
-                    {match.team2SquadPlayerIds?.map((pid: string) => (
+                    {match.team2SquadPlayerIds?.filter((pid: string) => pid !== match.commonPlayerId).map((pid: string) => (
                       <Link key={pid} href={`/players/${pid}`}>
                         <Badge variant="secondary" className="bg-slate-100 text-slate-900 hover:bg-primary hover:text-white transition-colors text-[9px] font-black uppercase px-2 py-1 cursor-pointer border shadow-sm border-slate-200">
                           {getPlayerName(pid)}
@@ -879,6 +878,18 @@ export default function MatchScoreboardPage() {
                     ))}
                   </div>
                 </div>
+                {match.commonPlayerId && (
+                  <div className="space-y-3 pt-2 border-t border-dashed">
+                    <p className="text-[10px] font-black text-primary uppercase flex items-center gap-2">
+                      <UserCheck className="w-3 h-3"/> Common Player
+                    </p>
+                    <Link href={`/players/${match.commonPlayerId}`}>
+                      <Badge variant="outline" className="border-primary/30 text-primary hover:bg-primary hover:text-white transition-colors text-[10px] font-black uppercase px-3 py-1.5 cursor-pointer shadow-sm">
+                        {getPlayerName(match.commonPlayerId)}
+                      </Badge>
+                    </Link>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
