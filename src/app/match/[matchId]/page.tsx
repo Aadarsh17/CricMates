@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceDot, BarChart, Bar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 const chartConfig = {
   score: { label: "Runs", color: "hsl(var(--primary))" },
@@ -171,20 +171,20 @@ export default function MatchScoreboardPage() {
   };
 
   const getWormData = (deliveries: any[]) => {
-    const data: any[] = [{ over: 0, score: 0 }];
+    const data: any[] = [{ over: 0, score: 0, isWicket: false }];
     let runningScore = 0; let currentLegal = 0;
     deliveries?.forEach(d => {
       runningScore += d.totalRunsOnDelivery;
       if (['none', 'bye', 'legbye'].includes(d.extraType)) {
         currentLegal++;
-        const overVal = currentLegal / 6;
-        data.push({ 
-          over: overVal, 
-          score: runningScore, 
-          isWicket: d.isWicket,
-          label: d.isWicket ? 'W' : ''
-        });
       }
+      // Track state for every ball to catch wickets on non-legal balls
+      data.push({ 
+        over: currentLegal / 6, 
+        score: runningScore, 
+        isWicket: d.isWicket,
+        ballLabel: d.overLabel
+      });
     });
     return data;
   };
@@ -193,15 +193,26 @@ export default function MatchScoreboardPage() {
     const overRuns: Record<number, number> = {};
     let currentLegal = 0;
     deliveries?.forEach(d => {
+      const overNum = Math.floor(currentLegal / 6) + 1;
+      overRuns[overNum] = (overRuns[overNum] || 0) + d.totalRunsOnDelivery;
       if (['none', 'bye', 'legbye'].includes(d.extraType)) {
         currentLegal++;
       }
-      const overNum = Math.ceil(currentLegal / 6);
-      if (overNum > 0) {
-        overRuns[overNum] = (overRuns[overNum] || 0) + d.totalRunsOnDelivery;
-      }
     });
     return Object.entries(overRuns).map(([over, runs]) => ({ over: `O${over}`, runs }));
+  };
+
+  const renderWicketDot = (props: any) => {
+    const { cx, cy, payload } = props;
+    if (payload.isWicket) {
+      return (
+        <g key={`w-dot-${payload.over}-${payload.score}`}>
+          <circle cx={cx} cy={cy} r={10} fill="#ef4444" stroke="#fff" strokeWidth={2} />
+          <text x={cx} y={cy} dy={3.5} textAnchor="middle" fill="#fff" fontSize="10px" fontWeight="900">W</text>
+        </g>
+      );
+    }
+    return null;
   };
 
   if (!isMounted || isMatchLoading) return <div className="flex flex-col items-center justify-center min-h-screen"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
@@ -499,24 +510,19 @@ export default function MatchScoreboardPage() {
                       dataKey="over" 
                       type="number"
                       domain={[0, match?.totalOvers || 6]}
-                      tickFormatter={(val) => val % 1 === 0 ? val.toString() : ''}
                       tick={{ fontSize: 10 }} 
                       label={{ value: 'Overs', position: 'insideBottomRight', offset: -5 }} 
                     />
                     <YAxis tick={{ fontSize: 10 }} label={{ value: 'Runs', angle: -90, position: 'insideLeft' }} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={4} dot={false} activeDot={{ r: 6 }} />
-                    {getWormData(currentDeliveries || []).filter(d => d.isWicket).map((d, i) => (
-                      <ReferenceDot 
-                        key={i} 
-                        x={d.over} 
-                        y={d.score} 
-                        r={8} 
-                        fill="#ef4444" 
-                        stroke="#fff" 
-                        label={{ position: 'center', value: 'W', fill: '#fff', fontSize: 10, fontWeight: '900' }} 
-                      />
-                    ))}
+                    <Line 
+                      type="monotone" 
+                      dataKey="score" 
+                      stroke="hsl(var(--primary))" 
+                      strokeWidth={4} 
+                      dot={renderWicketDot} 
+                      activeDot={{ r: 6 }} 
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </ChartContainer>
@@ -559,7 +565,14 @@ export default function MatchScoreboardPage() {
                             <p className="text-xs font-bold text-slate-600 truncate">{getPlayerName(d.strikerPlayerId)} to {getPlayerName(d.bowlerId)}</p>
                           </div>
                         </div>
-                        {isUmpire && <Button variant="ghost" size="icon" onClick={() => { if(confirm("Delete delivery?")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inn.id.replace('o_inn', 'inning_'), 'deliveryRecords', d.id)); recalculateInningState(inn.id.replace('o_inn', 'inning_')); } }} className="text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>}
+                        {isUmpire && <Button variant="ghost" size="icon" onClick={() => { 
+                          if(confirm("Delete delivery?")) { 
+                            const targetInningId = inn.id === 'o_inn1' ? 'inning_1' : 'inning_2';
+                            deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', targetInningId, 'deliveryRecords', d.id)); 
+                            recalculateInningState(targetInningId); 
+                            toast({ title: "Delivery Purged" });
+                          } 
+                        }} className="text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>}
                       </div>
                     </Card>
                   ))}
