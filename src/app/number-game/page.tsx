@@ -71,8 +71,6 @@ export default function NumberGame() {
         setHistory(d.history);
         setConsecutiveDots(d.consecutiveDots || 0);
         setBallsInOver(d.ballsInOver || 0);
-        // If we are restoring into a setup state, we don't need to do much
-        // But if we are restoring into finished, we should have playerNames ready for reset
         if (d.players && d.players.length > 0) {
           setPlayerNames(d.players.map((p: any) => p.name));
         }
@@ -133,10 +131,6 @@ export default function NumberGame() {
     setBallsInOver(0);
   };
 
-  /**
-   * Performance-based reset logic.
-   * If coming from a finished game, sort player names by runs before returning to setup.
-   */
   const resetGame = () => {
     const confirmMsg = gameState === 'finished' 
       ? "Start new match with players sorted by performance?" 
@@ -146,7 +140,7 @@ export default function NumberGame() {
       let nextNames = ['', '', ''];
       
       if (players.length > 0) {
-        // Sort by runs (desc)
+        // Sort by runs (desc) for the next setup
         const sorted = [...players].sort((a, b) => b.batting.runs - a.batting.runs);
         nextNames = sorted.map(p => p.name);
       }
@@ -294,7 +288,6 @@ export default function NumberGame() {
   };
 
   const handleSelectNextBatter = (nextId: string) => {
-    // If we picked the bowler, rotate them first
     if (nextId === bowlerId) rotateBowler(bowlerId, nextId);
     setStrikerId(nextId);
   };
@@ -586,7 +579,7 @@ export default function NumberGame() {
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-amber-500">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-tight text-amber-600">No Ball Results</DialogTitle>
-            <DialogDescription className="font-bold uppercase text-[10px]">Select runs scored on this delivery</DialogDescription>
+            <DialogDescription className="font-bold uppercase text-[10px]">Select runs scored on this illegal delivery</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-3 gap-2 py-4">
             {[0, 1, 2, 4, 6].map(r => (
