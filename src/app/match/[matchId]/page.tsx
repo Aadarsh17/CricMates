@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, Info, TrendingUp, Trash2, ChevronLeft, Calendar, Clock, UserCheck, ShieldCheck } from 'lucide-react';
+import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, Info, TrendingUp, Trash2, ChevronLeft, Calendar, Clock, UserCheck, ShieldCheck, List } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -96,7 +96,7 @@ export default function MatchScoreboardPage() {
     const updates: any = { 
       score: Math.max(0, score), wickets: Math.max(0, wkts), 
       oversCompleted: Math.floor(legal / 6), ballsInCurrentOver: legal % 6,
-      isDeclaredFinished: legal >= (match?.totalOvers || 0) * 6
+      isDeclaredFinished: (legal >= (match?.totalOvers || 0) * 6) || wkts >= 10
     };
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates);
   };
@@ -135,14 +135,35 @@ export default function MatchScoreboardPage() {
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), updates);
   };
 
-  const handleEndInnings = () => {
+  const handleEndInnings = async () => {
     if (!match) return;
     if (match.currentInningNumber === 1) {
       updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 });
+      const inn2BattingTeamId = match.team1Id === inn1?.battingTeamId ? match.team2Id : match.team1Id;
+      const inn2BowlingTeamId = inn1?.battingTeamId;
+      
+      const inning2Data = {
+        id: 'inning_2',
+        matchId: matchId,
+        inningNumber: 2,
+        battingTeamId: inn2BattingTeamId,
+        bowlingTeamId: inn2BowlingTeamId,
+        score: 0,
+        wickets: 0,
+        oversCompleted: 0,
+        ballsInCurrentOver: 0,
+        strikerPlayerId: '',
+        nonStrikerPlayerId: '',
+        currentBowlerPlayerId: '',
+        isDeclaredFinished: false
+      };
+      await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), inning2Data, { merge: true });
       setIsPlayerAssignmentOpen(true);
+      toast({ title: "1st Innings Finished", description: "Configure 2nd Innings openers." });
     } else {
       const res = inn2!.score > inn1!.score ? `${getTeamName(inn2!.battingTeamId)} won` : (inn2!.score === inn1!.score ? "Match Tied" : `${getTeamName(inn1!.battingTeamId)} won`);
       updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed', resultDescription: res });
+      toast({ title: "Match Finished", description: res });
       router.push('/matches');
     }
   };
@@ -307,7 +328,7 @@ export default function MatchScoreboardPage() {
           <TabsList className="grid w-full grid-cols-5 h-12 bg-slate-100 p-1 rounded-xl mb-6 sticky top-[112px] z-[80] shadow-sm">
             <TabsTrigger value="live" className="font-black text-[9px] uppercase">Live</TabsTrigger>
             <TabsTrigger value="scorecard" className="font-black text-[9px] uppercase">Score</TabsTrigger>
-            <TabsTrigger value="analytics" className="font-black text-[9px] uppercase">Stats</TabsTrigger>
+            <TabsTrigger value="analysis" className="font-black text-[9px] uppercase">Analysis</TabsTrigger>
             <TabsTrigger value="overs" className="font-black text-[9px] uppercase">Overs</TabsTrigger>
             <TabsTrigger value="info" className="font-black text-[9px] uppercase">Info</TabsTrigger>
           </TabsList>
@@ -450,7 +471,7 @@ export default function MatchScoreboardPage() {
             </Tabs>
           </TabsContent>
 
-          <TabsContent value="analytics" className="space-y-6">
+          <TabsContent value="analysis" className="space-y-6">
             <Card className="border-none shadow-xl bg-white rounded-3xl p-6">
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" /> Worm Chart (Match Flow)</h3>
               <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
@@ -491,7 +512,7 @@ export default function MatchScoreboardPage() {
                             <p className="text-xs font-bold text-slate-600 truncate">{getPlayerName(d.strikerPlayerId)} to {getPlayerName(d.bowlerId)}</p>
                           </div>
                         </div>
-                        {isUmpire && <Button variant="ghost" size="icon" onClick={() => { if(confirm("Delete delivery?")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inn.id.replace('o_', ''), 'deliveryRecords', d.id)); recalculateInningState(inn.id.replace('o_', '')); } }} className="text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>}
+                        {isUmpire && <Button variant="ghost" size="icon" onClick={() => { if(confirm("Delete delivery?")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inn.id.replace('o_inn', 'inning_'), 'deliveryRecords', d.id)); recalculateInningState(inn.id.replace('o_inn', 'inning_')); } }} className="text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>}
                       </div>
                     </Card>
                   ))}
@@ -583,7 +604,7 @@ export default function MatchScoreboardPage() {
             setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', cur, 'deliveryRecords', deliveryId), dData, { merge: true });
             const updates: any = { wickets: activeInningData!.wickets + (wicketForm.type === 'retired' ? 0 : 1), oversCompleted: Math.floor(leg / 6), ballsInCurrentOver: leg % 6, [wicketForm.batterOutId === activeInningData?.strikerPlayerId ? 'strikerPlayerId' : 'nonStrikerPlayerId']: '' };
             if (leg % 6 === 0) updates.currentBowlerPlayerId = '';
-            if (leg >= match!.totalOvers * 6) updates.isDeclaredFinished = true;
+            if (leg >= match!.totalOvers * 6 || (updates.wickets >= 10)) updates.isDeclaredFinished = true;
             updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', cur), updates);
             setIsWicketDialogOpen(false);
             if (updates.wickets < 10 && !updates.isDeclaredFinished) setIsPlayerAssignmentOpen(true);

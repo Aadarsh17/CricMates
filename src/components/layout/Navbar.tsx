@@ -39,7 +39,7 @@ export default function Navbar() {
     { name: 'Teams', href: '/teams', icon: Users },
     { name: 'Players', href: '/players', icon: UserCircle },
     { name: 'Rankings', href: '/rankings', icon: Trophy },
-    { name: 'Stats', href: '/stats', icon: BarChart3 },
+    { name: 'Analysis', href: '/stats', icon: BarChart3 },
     { name: 'Insights', href: '/insights', icon: LineChart },
     { name: 'Number Game', href: '/number-game', icon: PlayCircle },
   ];
@@ -65,7 +65,7 @@ export default function Navbar() {
             </span>
           </Link>
 
-          {/* Desktop Nav - Matching Image structure */}
+          {/* Desktop Nav */}
           <div className="hidden xl:flex items-center space-x-1 h-full">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
