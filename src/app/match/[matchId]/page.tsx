@@ -272,7 +272,7 @@ export default function MatchScoreboardPage() {
               <TableHead className="text-right text-[9px] font-black uppercase">M</TableHead>
               <TableHead className="text-right text-[9px] font-black uppercase">R</TableHead>
               <TableHead className="text-right text-[9px] font-black uppercase">W</TableHead>
-              <TableHead className="text-right text-[9px] font-black uppercase">EC</TableHead>
+              <TableHead className="text-right text-[9px] font-black uppercase">ER</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
