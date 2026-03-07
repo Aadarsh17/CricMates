@@ -29,7 +29,7 @@ export default function RankingsPage() {
   }, []);
 
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
-  const { data: players } = useCollection(playersQuery);
+  const { data: players, isLoading: isPlayersLoading } = useCollection(playersQuery);
 
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: teams } = useCollection(teamsQuery);
@@ -335,7 +335,7 @@ export default function RankingsPage() {
           <div className="bg-slate-50 border-l-4 border-l-primary p-3 rounded flex items-center gap-3">
             <Info className="w-4 h-4 text-primary shrink-0" />
             <p className="text-[9px] font-bold text-slate-500 uppercase leading-relaxed">
-              <strong>OFFICIAL RULE:</strong> Economy and Average leaderboards require a minimum of 1 Over (6 balls) or 1 Inning respectively to ensure data integrity in the 6-over format.
+              <strong>OFFICIAL RULE:</strong> Economy and Average leaderboards require a minimum of 1 Over (6 balls) or 1 Inning respectively to ensure data integrity across all match lengths.
             </p>
           </div>
 

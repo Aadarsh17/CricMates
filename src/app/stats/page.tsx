@@ -181,7 +181,7 @@ export default function StatsPage() {
         <div className="space-y-1">
           <h3 className="font-black uppercase text-[10px] tracking-widest text-primary">Tournament Stats Policy</h3>
           <p className="text-[9px] font-bold text-slate-400 uppercase leading-relaxed">
-            Matches are calculated based on a 6-over format. All bowling economy rates and records are subject to a minimum requirement of 1 complete over (6 legal balls) to ensure statistical accuracy and data integrity.
+            Matches are calculated based on their scheduled over format. All bowling economy rates and records are subject to a minimum requirement of 1 complete over (6 legal balls) to ensure statistical accuracy and data integrity across all match formats.
           </p>
         </div>
       </div>

@@ -75,7 +75,7 @@ Bowling:
     - 2 or 3 Wickets in a match: +4 extra points.
     - 4 or 5+ Wickets in a match: +10 extra points.
 - Maiden Over: +5 points per maiden.
-- Economy Rate (Econ) (Min 2 overs bowled):
+- Economy Rate (Econ) (Min 1 over bowled):
     - Econ < 5: +6 points.
     - Econ 5-6: +4 points.
     - Econ 10-11: -2 points.

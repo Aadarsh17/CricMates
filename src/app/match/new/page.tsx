@@ -31,7 +31,7 @@ export default function NewMatchPage() {
     team1Squad: [] as string[],
     team2Squad: [] as string[],
     commonPlayerId: 'none',
-    totalOvers: '20',
+    totalOvers: '6',
     tossWinner: '',
     tossDecision: 'bat',
     strikerId: '',
@@ -55,7 +55,7 @@ export default function NewMatchPage() {
         ...prev,
         team1Id: t1,
         team2Id: t2,
-        totalOvers: overs || '20'
+        totalOvers: overs || '6'
       }));
     }
   }, [searchParams]);

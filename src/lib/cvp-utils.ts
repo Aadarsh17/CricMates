@@ -51,7 +51,8 @@ export function calculatePlayerCVP(stats: PlayerMatchStats): number {
   else if (stats.wickets >= 2) points += 4;
   
   points += (stats.maidens || 0) * 5;
-  if (stats.ballsBowled >= 12) {
+  // Dynamic Format Adjustment: Min 1 over (6 balls) for economy bonus eligibility
+  if (stats.ballsBowled >= 6) {
     const overs = stats.ballsBowled / 6;
     const econ = stats.runsConceded / (overs || 1);
     if (econ < 5) points += 6;
