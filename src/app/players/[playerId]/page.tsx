@@ -1,18 +1,15 @@
 
 "use client"
 
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useDoc, useMemoFirebase, useFirestore, updateDocumentNonBlocking, useCollection } from '@/firebase';
+import { useDoc, useMemoFirebase, useFirestore, useCollection } from '@/firebase';
 import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Flag, Edit2, Loader2, Calendar, Camera, Upload, Activity, Trophy, Star, ShieldCheck, Zap, Award, Target, UserCheck, ChevronRight, TrendingUp, Medal } from 'lucide-react';
-import { useApp } from '@/context/AppContext';
-import { toast } from '@/hooks/use-toast';
+import { ArrowLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
-import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
@@ -21,7 +18,6 @@ export default function PlayerProfilePage() {
   const playerId = params.playerId as string;
   const db = useFirestore();
   const router = useRouter();
-  const { isUmpire } = useApp();
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -44,7 +40,13 @@ export default function PlayerProfilePage() {
       if (!matchId || !activeMatchIds.has(matchId)) return;
       if (!logs[matchId]) {
         const m = allMatches.find(match => match.id === matchId); if (!m) return;
-        logs[matchId] = { matchId, date: m.matchDate || '', batting: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0, out: false }, bowling: { wickets: 0, runsConceded: 0, ballsBowled: 0 }, fielding: { catches: 0, stumpings: 0, runOuts: 0 } };
+        logs[matchId] = { 
+          matchId, 
+          date: m.matchDate || '', 
+          batting: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0, out: false }, 
+          bowling: { wickets: 0, runsConceded: 0, ballsBowled: 0 }, 
+          fielding: { catches: 0, stumpings: 0, runOuts: 0 } 
+        };
       }
       const log = logs[matchId];
       if (d.strikerPlayerId === playerId) { 
@@ -65,7 +67,7 @@ export default function PlayerProfilePage() {
         if (d.dismissalType === 'runout') log.fielding.runOuts++;
       }
     });
-    return Object.values(logs).map((log: any) => ({ ...log, totalCVP: calculatePlayerCVP({ ...log.batting, ...log.bowling, ...log.fielding, id: player.id, name: player.name, maidens: 0 }) })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return Object.values(logs).map((log: any) => ({ ...log, totalCVP: calculatePlayerCVP({ ...log.batting, ...log.bowling, ...log.fielding, id: player.id, name: player.name, maidens: 0, ballsBowled: log.bowling.ballsBowled, runsConceded: log.bowling.runsConceded }) })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allDeliveries, allMatches, player, isMounted, playerId, activeMatchIds]);
 
   const milestones = useMemo(() => {
@@ -97,7 +99,7 @@ export default function PlayerProfilePage() {
   }, [matchWiseLog]);
 
   if (!isMounted || isPlayerLoading || isHistoryLoading) return (<div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4"><Loader2 className="w-10 h-10 text-primary animate-spin" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Career Data...</p></div>);
-  if (!player) return <div className="p-20 text-center">Player missing.</div>;
+  if (!player) return <div className="p-20 text-center">Player profile missing.</div>;
 
   return (
     <div className="max-w-lg mx-auto space-y-8 pb-32 px-4">
@@ -125,14 +127,19 @@ export default function PlayerProfilePage() {
 
         <TabsContent value="milestones" className="space-y-6">
           <Card className="border-none shadow-xl rounded-3xl bg-white p-6">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2"><Medal className="w-4 h-4 text-amber-500" /> Career Milestones</h3>
+            <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2"><Medal className="w-4 h-4 text-amber-500" /> Professional Honors</h3>
             <div className="grid grid-cols-3 gap-4 text-center">
-              <div><p className="text-2xl font-black text-slate-900">{milestones.fifties}</p><p className="text-[8px] font-black text-slate-400 uppercase">50s</p></div>
-              <div><p className="text-2xl font-black text-slate-900">{milestones.thirties}</p><p className="text-[8px] font-black text-slate-400 uppercase">30s</p></div>
               <div><p className="text-2xl font-black text-slate-900">{milestones.hundreds}</p><p className="text-[8px] font-black text-slate-400 uppercase">100s</p></div>
-              <div className="pt-4"><p className="text-2xl font-black text-secondary">{milestones.threeWkts}</p><p className="text-[8px] font-black text-slate-400 uppercase">3W Hauls</p></div>
-              <div className="pt-4"><p className="text-2xl font-black text-secondary">{milestones.oneWkts}</p><p className="text-[8px] font-black text-slate-400 uppercase">1W Hauls</p></div>
-              <div className="pt-4"><p className="text-2xl font-black text-secondary">{milestones.fiveWkts}</p><p className="text-[8px] font-black text-slate-400 uppercase">5W Hauls</p></div>
+              <div><p className="text-2xl font-black text-slate-900">{milestones.fifties}</p><p className="text-[8px] font-black text-slate-400 uppercase">50s</p></div>
+              <div><p className="text-2xl font-black text-slate-900">{milestones.forties}</p><p className="text-[8px] font-black text-slate-400 uppercase">40s</p></div>
+              <div className="pt-4"><p className="text-2xl font-black text-slate-900">{milestones.thirties}</p><p className="text-[8px] font-black text-slate-400 uppercase">30s</p></div>
+              <div className="pt-4"><p className="text-2xl font-black text-slate-900">{milestones.twenties}</p><p className="text-[8px] font-black text-slate-400 uppercase">20s</p></div>
+              <div className="pt-4"><p className="text-2xl font-black text-slate-900">{milestones.tens}</p><p className="text-[8px] font-black text-slate-400 uppercase">10s</p></div>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-center mt-6 pt-6 border-t">
+              <div><p className="text-2xl font-black text-secondary">{milestones.fiveWkts}</p><p className="text-[8px] font-black text-slate-400 uppercase">5W Hauls</p></div>
+              <div><p className="text-2xl font-black text-secondary">{milestones.threeWkts}</p><p className="text-[8px] font-black text-slate-400 uppercase">3W Hauls</p></div>
+              <div><p className="text-2xl font-black text-secondary">{milestones.oneWkts}</p><p className="text-[8px] font-black text-slate-400 uppercase">1W Hauls</p></div>
             </div>
           </Card>
           <Card className="border-none shadow-xl rounded-3xl bg-white p-6 grid grid-cols-2 gap-6">
@@ -149,7 +156,7 @@ export default function PlayerProfilePage() {
                 <CardContent className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col items-center justify-center min-w-[50px]"><Calendar className="w-3 h-3 text-slate-400 mb-1" /><span className="text-[8px] font-black text-slate-500 uppercase">{new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span></div>
-                    <div className="min-w-0"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Match Impact</p><div className="flex items-baseline gap-2"><span className="text-xl font-black text-slate-900">{log.batting.runs} <span className="text-[8px] text-slate-400">R</span></span><span className="text-sm font-black text-secondary">{log.bowling.wickets} <span className="text-[8px] text-slate-400">W</span></span></div></div>
+                    <div className="min-w-0"><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Impact</p><div className="flex items-baseline gap-2"><span className="text-xl font-black text-slate-900">{log.batting.runs} <span className="text-[8px] text-slate-400">R</span></span><span className="text-sm font-black text-secondary">{log.bowling.wickets} <span className="text-[8px] text-slate-400">W</span></span></div></div>
                   </div>
                   <div className="text-right"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">CVP</p><Badge variant="secondary" className="font-black text-xs h-6">{log.totalCVP.toFixed(1)}</Badge></div>
                 </CardContent>
@@ -168,7 +175,7 @@ export default function PlayerProfilePage() {
               </div>
             </div>
           )) : (
-            <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-slate-50/50"><TrendingUp className="w-10 h-10 text-slate-200 mx-auto mb-2" /><p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No match records yet</p></div>
+            <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-slate-50/50"><TrendingUp className="w-10 h-10 text-slate-200 mx-auto mb-2" /><p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No match records found</p></div>
           )}
         </TabsContent>
       </Tabs>

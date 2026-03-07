@@ -31,7 +31,7 @@ export default function RankingsPage() {
   const { data: teams } = useCollection(teamsQuery);
 
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
-  const { data: matches } = useCollection(matchesQuery);
+  const { data: matches, isLoading: isMatchesLoading } = useCollection(matchesQuery);
 
   const deliveriesQuery = useMemoFirebase(() => {
     if (!isMounted) return null;
@@ -129,7 +129,11 @@ export default function RankingsPage() {
       if (d.isWicket && d.batsmanOutPlayerId && stats[d.batsmanOutPlayerId]) stats[d.batsmanOutPlayerId].outs++;
     });
 
-    matches.forEach(m => { if (m.status === 'completed' && m.potmPlayerId && stats[m.potmPlayerId]) stats[m.potmPlayerId].potm++; });
+    matches.forEach(m => { 
+      if (m.status === 'completed' && m.potmPlayerId && stats[m.potmPlayerId]) {
+        stats[m.potmPlayerId].potm++; 
+      }
+    });
 
     return Object.values(stats).map((s: any) => ({
       ...s,
@@ -143,7 +147,7 @@ export default function RankingsPage() {
     }).slice(0, 10);
   }, [players, rawDeliveries, matches, activeCategory]);
 
-  if (!isMounted || isDeliveriesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
+  if (!isMounted || isDeliveriesLoading || isMatchesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-32 px-4">
@@ -236,7 +240,7 @@ export default function RankingsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Badge variant="secondary" className="font-black text-xs px-3">
-                        {activeCategory === 'avg' || activeCategory === 'sr' || activeCategory === 'econ' ? (p[activeCategory] || 0).toFixed(2) : (p[activeCategory] || 0)}
+                        {['avg', 'sr', 'econ'].includes(activeCategory) ? (p[activeCategory] || 0).toFixed(2) : (p[activeCategory] || 0)}
                       </Badge>
                     </TableCell>
                   </TableRow>
