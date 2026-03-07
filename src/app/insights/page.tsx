@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -278,7 +277,6 @@ export default function InsightsPage() {
 
     sortedDeliveries.forEach(d => {
       const bowlerId = d.bowlerId || d.bowlerPlayerId;
-      // Case 1: P1 Batting vs P2 Bowling
       if (d.strikerPlayerId === p1Id && bowlerId === p2Id) {
         stats.p1BatVsP2Bowl.runs += (d.runsScored || 0);
         if (d.extraType !== 'wide') stats.p1BatVsP2Bowl.balls += 1;
@@ -286,7 +284,6 @@ export default function InsightsPage() {
           stats.p1BatVsP2Bowl.outs += 1;
         }
       }
-      // Case 2: P2 Batting vs P1 Bowling
       if (d.strikerPlayerId === p2Id && bowlerId === p1Id) {
         stats.p2BatVsP1Bowl.runs += (d.runsScored || 0);
         if (d.extraType !== 'wide') stats.p2BatVsP1Bowl.balls += 1;
@@ -343,8 +340,8 @@ export default function InsightsPage() {
 
   if (!isMounted || isPlayersLoading || isMatchesLoading || isDeliveriesLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
-      <Loader2 className="w-10 h-10 text-primary animate-spin" />
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Processing Analytics...</p>
+      <Loader2 className="w-12 h-12 text-primary animate-spin" />
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Processing League Intelligence...</p>
     </div>
   );
 
@@ -358,12 +355,12 @@ export default function InsightsPage() {
 
     return (
       <TableRow className="hover:bg-transparent">
-        <TableCell className="text-left py-4"><span className="text-[10px] font-black text-slate-400 uppercase">{label}</span></TableCell>
+        <TableCell className="text-left py-5 pl-8"><span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</span></TableCell>
         <TableCell className="text-center">
-          <div className={cn("inline-block px-3 py-1 rounded-full font-black text-sm", isV1Better ? "bg-primary/10 text-primary border border-primary/20" : "text-slate-600")}>{val1}</div>
+          <div className={cn("inline-block px-4 py-1.5 rounded-full font-black text-sm", isV1Better ? "bg-primary/10 text-primary border-2 border-primary/20" : "text-slate-600")}>{val1}</div>
         </TableCell>
-        <TableCell className="text-center">
-          <div className={cn("inline-block px-3 py-1 rounded-full font-black text-sm", isV2Better ? "bg-secondary/10 text-secondary border border-secondary/20" : "text-slate-600")}>{val2}</div>
+        <TableCell className="text-center pr-8">
+          <div className={cn("inline-block px-4 py-1.5 rounded-full font-black text-sm", isV2Better ? "bg-secondary/10 text-secondary border-2 border-secondary/20" : "text-slate-600")}>{val2}</div>
         </TableCell>
       </TableRow>
     );
@@ -372,118 +369,120 @@ export default function InsightsPage() {
   const selectedMilestonePlayer = getStats(milestonePid);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-24 px-4">
-      <div className="flex items-center gap-4">
-        <div className="bg-primary/10 p-3 rounded-2xl">
-          <TrendingUp className="w-8 h-8 text-primary" />
+    <div className="max-w-5xl mx-auto space-y-10 pb-24 px-4">
+      <div className="flex items-center gap-5">
+        <div className="bg-primary p-4 rounded-[1.5rem] shadow-xl shadow-primary/20">
+          <TrendingUp className="w-8 h-8 text-white" />
         </div>
         <div>
-          <h1 className="text-3xl font-black font-headline tracking-tighter uppercase text-slate-900">Advanced Insights</h1>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Professional Intelligence Module</p>
+          <h1 className="text-4xl font-black tracking-tighter uppercase text-slate-900 leading-none">Advanced Insights</h1>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mt-2">Professional Intelligence Module v2.0</p>
         </div>
       </div>
 
       <Tabs defaultValue="comparison" className="w-full">
-        <TabsList className="grid w-full max-w-lg grid-cols-3 bg-slate-100 p-1 rounded-xl mb-8 h-12">
-          <TabsTrigger value="comparison" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">Comparison</TabsTrigger>
-          <TabsTrigger value="milestones" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">Milestones</TabsTrigger>
-          <TabsTrigger value="fastest" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">Fastest</TabsTrigger>
+        <TabsList className="grid w-full max-w-lg grid-cols-3 bg-slate-100 p-1.5 rounded-2xl mb-10 h-14">
+          <TabsTrigger value="comparison" className="font-black data-[state=active]:bg-white data-[state=active]:text-primary rounded-xl uppercase text-[10px] tracking-widest">Comparison</TabsTrigger>
+          <TabsTrigger value="milestones" className="font-black data-[state=active]:bg-white data-[state=active]:text-primary rounded-xl uppercase text-[10px] tracking-widest">Milestones</TabsTrigger>
+          <TabsTrigger value="fastest" className="font-black data-[state=active]:bg-white data-[state=active]:text-primary rounded-xl uppercase text-[10px] tracking-widest">Fastest</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="comparison" className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
-            <div className="space-y-2">
-              <label className="text-[9px] font-black uppercase text-slate-400 px-1">Player A</label>
+        <TabsContent value="comparison" className="space-y-10 animate-in fade-in duration-500">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center bg-slate-50 p-8 rounded-[2rem] border border-slate-200 shadow-inner">
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Player A (Primary)</label>
               <Select value={p1Id} onValueChange={setP1Id}>
-                <SelectTrigger className="h-14 font-bold border-2 border-primary/20 focus:border-primary">
-                  <SelectValue placeholder="Choose First Player" />
+                <SelectTrigger className="h-16 font-black text-sm uppercase rounded-2xl border-4 border-primary/10 hover:border-primary/30 transition-all bg-white">
+                  <SelectValue placeholder="CHOOSE FIRST PLAYER" />
                 </SelectTrigger>
-                <SelectContent>
-                  {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
+                <SelectContent className="rounded-2xl shadow-2xl">
+                  {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs p-3">{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <label className="text-[9px] font-black uppercase text-slate-400 px-1">Player B</label>
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Player B (Opponent)</label>
               <Select value={p2Id} onValueChange={setP2Id}>
-                <SelectTrigger className="h-14 font-bold border-2 border-secondary/20 focus:border-secondary">
-                  <SelectValue placeholder="Choose Second Player" />
+                <SelectTrigger className="h-16 font-black text-sm uppercase rounded-2xl border-4 border-secondary/10 hover:border-secondary/30 transition-all bg-white">
+                  <SelectValue placeholder="CHOOSE SECOND PLAYER" />
                 </SelectTrigger>
-                <SelectContent>
-                  {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
+                <SelectContent className="rounded-2xl shadow-2xl">
+                  {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs p-3">{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           {p1Id && p2Id ? (
-            <div className="space-y-8">
-              <Card className="border-none shadow-2xl overflow-hidden bg-white">
-                <div className="bg-slate-900 text-white p-6 grid grid-cols-3 items-center text-center">
-                  <div className="flex flex-col items-center space-y-2">
-                    <Avatar className="w-16 h-16 border-4 border-primary shadow-lg"><AvatarImage src={getStats(p1Id)?.imageUrl}/><AvatarFallback>{getStats(p1Id)?.name[0]}</AvatarFallback></Avatar>
-                    <span className="font-black uppercase text-xs tracking-tighter truncate max-w-[100px]">{getStats(p1Id)?.name}</span>
+            <div className="space-y-10">
+              <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-[2rem]">
+                <div className="bg-slate-900 text-white p-10 grid grid-cols-3 items-center text-center relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-b from-primary/10 to-transparent pointer-events-none" />
+                  <div className="flex flex-col items-center space-y-4 relative z-10">
+                    <Avatar className="w-24 h-24 border-4 border-primary shadow-2xl rounded-3xl overflow-hidden"><AvatarImage src={getStats(p1Id)?.imageUrl} className="object-cover" /><AvatarFallback className="bg-slate-800 text-2xl font-black">{getStats(p1Id)?.name[0]}</AvatarFallback></Avatar>
+                    <span className="font-black uppercase text-xs tracking-tighter truncate max-w-[120px] bg-primary px-3 py-1 rounded-full">{getStats(p1Id)?.name}</span>
                   </div>
-                  <div className="flex justify-center"><ArrowLeftRight className="w-8 h-8 text-slate-600" /></div>
-                  <div className="flex flex-col items-center space-y-2">
-                    <Avatar className="w-16 h-16 border-4 border-secondary shadow-lg"><AvatarImage src={getStats(p2Id)?.imageUrl}/><AvatarFallback>{getStats(p2Id)?.name[0]}</AvatarFallback></Avatar>
-                    <span className="font-black uppercase text-xs tracking-tighter truncate max-w-[100px]">{getStats(p2Id)?.name}</span>
+                  <div className="flex justify-center relative z-10">
+                    <div className="bg-white/10 p-4 rounded-full backdrop-blur-md border border-white/5"><ArrowLeftRight className="w-10 h-10 text-slate-400" /></div>
+                  </div>
+                  <div className="flex flex-col items-center space-y-4 relative z-10">
+                    <Avatar className="w-24 h-24 border-4 border-secondary shadow-2xl rounded-3xl overflow-hidden"><AvatarImage src={getStats(p2Id)?.imageUrl} className="object-cover" /><AvatarFallback className="bg-slate-800 text-2xl font-black">{getStats(p2Id)?.name[0]}</AvatarFallback></Avatar>
+                    <span className="font-black uppercase text-xs tracking-tighter truncate max-w-[120px] bg-secondary px-3 py-1 rounded-full">{getStats(p2Id)?.name}</span>
                   </div>
                 </div>
                 <Table>
                   <TableBody>
-                    {renderComparisonRow('Matches Played', getStats(p1Id)?.stats.played, getStats(p2Id)?.stats.played)}
-                    {renderComparisonRow('Runs Scored', getStats(p1Id)?.stats.runs, getStats(p2Id)?.stats.runs)}
-                    {renderComparisonRow('Batting Avg', (getStats(p1Id)?.stats.runs / (getStats(p1Id)?.stats.timesOut || 1)).toFixed(2), (getStats(p2Id)?.stats.runs / (getStats(p2Id)?.stats.timesOut || 1)).toFixed(2))}
+                    {renderComparisonRow('Matches Logged', getStats(p1Id)?.stats.played, getStats(p2Id)?.stats.played)}
+                    {renderComparisonRow('Total Runs', getStats(p1Id)?.stats.runs, getStats(p2Id)?.stats.runs)}
+                    {renderComparisonRow('Batting Average', (getStats(p1Id)?.stats.runs / (getStats(p1Id)?.stats.timesOut || 1)).toFixed(2), (getStats(p2Id)?.stats.runs / (getStats(p2Id)?.stats.timesOut || 1)).toFixed(2))}
                     {renderComparisonRow('Strike Rate', (getStats(p1Id)?.stats.ballsFaced > 0 ? (getStats(p1Id)?.stats.runs / getStats(p1Id)?.stats.ballsFaced * 100).toFixed(2) : '0.00'), (getStats(p2Id)?.stats.ballsFaced > 0 ? (getStats(p2Id)?.stats.runs / getStats(p2Id)?.stats.ballsFaced * 100).toFixed(2) : '0.00'))}
-                    {renderComparisonRow('Boundary %', (getStats(p1Id)?.stats.runs > 0 ? ((getStats(p1Id)?.stats.fours * 4 + getStats(p1Id)?.stats.sixes * 6) / getStats(p1Id)?.stats.runs * 100).toFixed(1) + '%' : '0.0%'), (getStats(p2Id)?.stats.runs > 0 ? ((getStats(p2Id)?.stats.fours * 4 + getStats(p2Id)?.stats.sixes * 6) / getStats(p2Id)?.stats.runs * 100).toFixed(1) + '%' : '0.0%'))}
-                    {renderComparisonRow('Wickets', getStats(p1Id)?.stats.wickets, getStats(p2Id)?.stats.wickets)}
-                    {renderComparisonRow('Bowling Econ', (getStats(p1Id)?.stats.ballsBowled > 0 ? (getStats(p1Id)?.stats.runsConceded / (getStats(p1Id)?.stats.ballsBowled / 6)).toFixed(2) : '0.00'), (getStats(p2Id)?.stats.ballsBowled > 0 ? (getStats(p2Id)?.stats.runsConceded / (getStats(p2Id)?.stats.ballsBowled / 6)).toFixed(2) : '0.00'), false)}
-                    {renderComparisonRow('Wkts/Match', (getStats(p1Id)?.stats.wickets / (getStats(p1Id)?.stats.played || 1)).toFixed(2), (getStats(p2Id)?.stats.wickets / (getStats(p2Id)?.stats.played || 1)).toFixed(2))}
+                    {renderComparisonRow('Boundary Run %', (getStats(p1Id)?.stats.runs > 0 ? ((getStats(p1Id)?.stats.fours * 4 + getStats(p1Id)?.stats.sixes * 6) / getStats(p1Id)?.stats.runs * 100).toFixed(1) + '%' : '0.0%'), (getStats(p2Id)?.stats.runs > 0 ? ((getStats(p2Id)?.stats.fours * 4 + getStats(p2Id)?.stats.sixes * 6) / getStats(p2Id)?.stats.runs * 100).toFixed(1) + '%' : '0.0%'))}
+                    {renderComparisonRow('Wickets Taken', getStats(p1Id)?.stats.wickets, getStats(p2Id)?.stats.wickets)}
+                    {renderComparisonRow('Bowling Economy', (getStats(p1Id)?.stats.ballsBowled > 0 ? (getStats(p1Id)?.stats.runsConceded / (getStats(p1Id)?.stats.ballsBowled / 6)).toFixed(2) : '0.00'), (getStats(p2Id)?.stats.ballsBowled > 0 ? (getStats(p2Id)?.stats.runsConceded / (getStats(p2Id)?.stats.ballsBowled / 6)).toFixed(2) : '0.00'), false)}
                   </TableBody>
                 </Table>
               </Card>
 
               {/* RIVALRY SECTION */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 px-1">
-                  <Swords className="w-5 h-5 text-destructive" />
-                  <h3 className="font-black uppercase text-sm tracking-widest text-slate-900">Battle Rivalry (Head-to-Head)</h3>
+              <div className="space-y-6">
+                <div className="flex items-center gap-3 px-2">
+                  <div className="bg-destructive/10 p-2 rounded-xl"><Swords className="w-6 h-6 text-destructive" /></div>
+                  <h3 className="font-black uppercase text-xl tracking-tighter text-slate-900">Battle Rivalry <span className="text-slate-400 font-medium">(Head-to-Head)</span></h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="border-t-4 border-t-primary shadow-lg overflow-hidden bg-white">
-                    <CardHeader className="bg-slate-50 border-b py-3">
-                      <CardTitle className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
-                        {getStats(p1Id)?.name} <span className="text-slate-300">vs</span> {getStats(p2Id)?.name} (Bowl)
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <Card className="border-none shadow-xl overflow-hidden bg-white rounded-[2rem]">
+                    <CardHeader className="bg-slate-50 border-b py-4 px-8">
+                      <CardTitle className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">
+                        {getStats(p1Id)?.name} (BAT) <span className="text-slate-300 mx-2">VS</span> {getStats(p2Id)?.name} (BOWL)
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-6">
+                    <CardContent className="p-10">
                       {rivalryStats?.p1BatVsP2Bowl.balls ? (
-                        <div className="grid grid-cols-3 gap-4 text-center">
-                          <div><p className="text-3xl font-black text-slate-900">{rivalryStats.p1BatVsP2Bowl.runs}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Runs</p></div>
-                          <div><p className="text-3xl font-black text-slate-900">{rivalryStats.p1BatVsP2Bowl.balls}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Balls</p></div>
-                          <div><p className="text-3xl font-black text-destructive">{rivalryStats.p1BatVsP2Bowl.outs}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Dismissals</p></div>
+                        <div className="grid grid-cols-3 gap-8 text-center">
+                          <div><p className="text-4xl font-black text-slate-900">{rivalryStats.p1BatVsP2Bowl.runs}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Runs</p></div>
+                          <div><p className="text-4xl font-black text-slate-900">{rivalryStats.p1BatVsP2Bowl.balls}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Balls</p></div>
+                          <div><p className="text-4xl font-black text-destructive">{rivalryStats.p1BatVsP2Bowl.outs}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Outs</p></div>
                         </div>
                       ) : (
-                        <p className="text-center py-4 text-[10px] font-black text-slate-300 uppercase italic">No documented encounters</p>
+                        <p className="text-center py-6 text-xs font-black text-slate-300 uppercase italic tracking-widest">No documented encounters</p>
                       )}
                     </CardContent>
                   </Card>
-                  <Card className="border-t-4 border-t-secondary shadow-lg overflow-hidden bg-white">
-                    <CardHeader className="bg-slate-50 border-b py-3">
-                      <CardTitle className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
-                        {getStats(p2Id)?.name} <span className="text-slate-300">vs</span> {getStats(p1Id)?.name} (Bowl)
+                  <Card className="border-none shadow-xl overflow-hidden bg-white rounded-[2rem]">
+                    <CardHeader className="bg-slate-50 border-b py-4 px-8">
+                      <CardTitle className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">
+                        {getStats(p2Id)?.name} (BAT) <span className="text-slate-300 mx-2">VS</span> {getStats(p1Id)?.name} (BOWL)
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-6">
+                    <CardContent className="p-10">
                       {rivalryStats?.p2BatVsP1Bowl.balls ? (
-                        <div className="grid grid-cols-3 gap-4 text-center">
-                          <div><p className="text-3xl font-black text-slate-900">{rivalryStats.p2BatVsP1Bowl.runs}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Runs</p></div>
-                          <div><p className="text-3xl font-black text-slate-900">{rivalryStats.p2BatVsP1Bowl.balls}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Balls</p></div>
-                          <div><p className="text-3xl font-black text-destructive">{rivalryStats.p2BatVsP1Bowl.outs}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Dismissals</p></div>
+                        <div className="grid grid-cols-3 gap-8 text-center">
+                          <div><p className="text-4xl font-black text-slate-900">{rivalryStats.p2BatVsP1Bowl.runs}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Runs</p></div>
+                          <div><p className="text-4xl font-black text-slate-900">{rivalryStats.p2BatVsP1Bowl.balls}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Balls</p></div>
+                          <div><p className="text-4xl font-black text-destructive">{rivalryStats.p2BatVsP1Bowl.outs}</p><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">Outs</p></div>
                         </div>
                       ) : (
-                        <p className="text-center py-4 text-[10px] font-black text-slate-300 uppercase italic">No documented encounters</p>
+                        <p className="text-center py-6 text-xs font-black text-slate-300 uppercase italic tracking-widest">No documented encounters</p>
                       )}
                     </CardContent>
                   </Card>
@@ -491,111 +490,111 @@ export default function InsightsPage() {
               </div>
             </div>
           ) : (
-            <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center space-y-4">
-              <Zap className="w-12 h-12 text-slate-200" />
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Select two players to unlock dual analytics</p>
+            <div className="py-32 text-center border-4 border-dashed rounded-[3rem] bg-slate-50/50 flex flex-col items-center space-y-6">
+              <Zap className="w-20 h-20 text-slate-200" />
+              <p className="text-slate-400 text-xs font-black uppercase tracking-[0.4em]">Select two players to unlock battle analytics</p>
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="milestones" className="space-y-8">
-          <div className="max-w-md mx-auto space-y-2">
-            <label className="text-[9px] font-black uppercase text-slate-400 px-1">Achievement Search</label>
+        <TabsContent value="milestones" className="space-y-10 animate-in fade-in duration-500">
+          <div className="max-w-md mx-auto space-y-3">
+            <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-1">Achievement Intelligence Search</label>
             <Select value={milestonePid} onValueChange={setMilestonePid}>
-              <SelectTrigger className="h-14 font-bold border-2 border-amber-500/20 focus:border-amber-500">
-                <SelectValue placeholder="Pick a Player to See Achievements" />
+              <SelectTrigger className="h-16 font-black text-sm uppercase rounded-2xl border-4 border-amber-500/10 hover:border-amber-500/30 transition-all bg-white shadow-xl shadow-amber-500/5">
+                <SelectValue placeholder="PICK A PLAYER TO VIEW LEGACY" />
               </SelectTrigger>
-              <SelectContent>
-                {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
+              <SelectContent className="rounded-2xl shadow-2xl">
+                {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs p-3">{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
 
           {selectedMilestonePlayer ? (
-            <div className="space-y-10">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card className="bg-slate-900 text-white border-none shadow-xl overflow-hidden relative group">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Activity className="w-20 h-20" /></div>
-                  <CardContent className="p-8 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Total Career Runs</p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-5xl font-black tracking-tighter">{selectedMilestonePlayer.stats.runs}</span>
-                      <span className="text-xs font-bold text-slate-500">RUNS</span>
+            <div className="space-y-12">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <Card className="bg-slate-900 text-white border-none shadow-2xl rounded-[2rem] overflow-hidden relative group p-10">
+                  <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Activity className="w-24 h-24" /></div>
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-primary">Total Career Runs</p>
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-7xl font-black tracking-tighter leading-none">{selectedMilestonePlayer.stats.runs}</span>
+                      <span className="text-xs font-black text-slate-500 tracking-widest">RUNS</span>
                     </div>
-                  </CardContent>
+                  </div>
                 </Card>
-                <Card className="bg-slate-900 text-white border-none shadow-xl overflow-hidden relative group">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Target className="w-20 h-20" /></div>
-                  <CardContent className="p-8 space-y-2">
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-secondary">Total Career Wickets</p>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-5xl font-black tracking-tighter">{selectedMilestonePlayer.stats.wickets}</span>
-                      <span className="text-xs font-bold text-slate-500">WKTS</span>
+                <Card className="bg-slate-900 text-white border-none shadow-2xl rounded-[2rem] overflow-hidden relative group p-10">
+                  <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity"><Target className="w-24 h-24" /></div>
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em] text-secondary">Total Career Wickets</p>
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-7xl font-black tracking-tighter leading-none">{selectedMilestonePlayer.stats.wickets}</span>
+                      <span className="text-xs font-black text-slate-500 tracking-widest">WKTS</span>
                     </div>
-                  </CardContent>
+                  </div>
                 </Card>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-2 space-y-8">
-                  <Card className="border-t-8 border-t-amber-500 shadow-xl overflow-hidden">
-                    <CardHeader className="bg-slate-50 border-b">
-                      <CardTitle className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
-                        <Award className="w-4 h-4 text-amber-500" /> Match Records
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                <div className="lg:col-span-2 space-y-10">
+                  <Card className="border-t-8 border-t-amber-500 shadow-2xl overflow-hidden rounded-[2rem] bg-white">
+                    <CardHeader className="bg-slate-50 border-b py-5 px-8">
+                      <CardTitle className="text-xs font-black uppercase tracking-[0.2em] flex items-center gap-3 text-slate-600">
+                        <Award className="w-5 h-5 text-amber-500" /> Match Honors & Logs
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 border-b">
+                      <div className="grid grid-cols-2 sm:grid-cols-3">
                         {[
-                          { label: '10+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r10, icon: Zap, color: 'text-blue-500' },
-                          { label: '20+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r20, icon: Zap, color: 'text-indigo-500' },
-                          { label: '30+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r30, icon: Zap, color: 'text-violet-500' },
-                          { label: '50+ Runs in Match', count: selectedMilestonePlayer.milestoneSummary.r50, icon: Star, color: 'text-amber-500' },
-                          { label: 'Total Fours Hit', count: selectedMilestonePlayer.stats.fours, icon: Zap, color: 'text-emerald-500' },
-                          { label: 'Total Sixes Hit', count: selectedMilestonePlayer.stats.sixes, icon: Zap, color: 'text-purple-500' },
-                          { label: '1 Wicket in Match', count: selectedMilestonePlayer.milestoneSummary.w1, icon: Target, color: 'text-sky-500' },
-                          { label: '2+ Wickets in Match', count: selectedMilestonePlayer.milestoneSummary.w2, icon: Target, color: 'text-sky-600' },
-                          { label: '3+ Wickets in Match', count: selectedMilestonePlayer.milestoneSummary.w3, icon: Trophy, color: 'text-sky-700' },
-                          { label: 'Catch Taken', count: selectedMilestonePlayer.milestoneSummary.catches, icon: Zap, color: 'text-purple-500' },
-                          { label: 'Direct Run Out', count: selectedMilestonePlayer.milestoneSummary.runouts, icon: Zap, color: 'text-rose-500' },
-                          { label: 'Man of the Match', count: selectedMilestonePlayer.milestoneSummary.potm, icon: Trophy, color: 'text-amber-600' },
+                          { label: '10+ Runs', count: selectedMilestonePlayer.milestoneSummary.r10, icon: Zap, color: 'text-blue-500' },
+                          { label: '20+ Runs', count: selectedMilestonePlayer.milestoneSummary.r20, icon: Zap, color: 'text-indigo-500' },
+                          { label: '30+ Runs', count: selectedMilestonePlayer.milestoneSummary.r30, icon: Zap, color: 'text-violet-500' },
+                          { label: '50+ Runs', count: selectedMilestonePlayer.milestoneSummary.r50, icon: Star, color: 'text-amber-500' },
+                          { label: 'Fours Hit', count: selectedMilestonePlayer.stats.fours, icon: Zap, color: 'text-emerald-500' },
+                          { label: 'Sixes Hit', count: selectedMilestonePlayer.stats.sixes, icon: Zap, color: 'text-purple-500' },
+                          { label: '1 Wicket', count: selectedMilestonePlayer.milestoneSummary.w1, icon: Target, color: 'text-sky-500' },
+                          { label: '2+ Wickets', count: selectedMilestonePlayer.milestoneSummary.w2, icon: Target, color: 'text-sky-600' },
+                          { label: '3+ Wickets', count: selectedMilestonePlayer.milestoneSummary.w3, icon: Trophy, color: 'text-sky-700' },
+                          { label: 'Catches', count: selectedMilestonePlayer.milestoneSummary.catches, icon: Zap, color: 'text-purple-500' },
+                          { label: 'Run Outs', count: selectedMilestonePlayer.milestoneSummary.runouts, icon: Zap, color: 'text-rose-500' },
+                          { label: 'POTM Awards', count: selectedMilestonePlayer.milestoneSummary.potm, icon: Trophy, color: 'text-amber-600' },
                         ].map((m, i) => (
-                          <div key={i} className="p-6 border-r border-b last:border-r-0 flex flex-col items-center text-center space-y-2 hover:bg-slate-50 transition-colors">
-                            <m.icon className={cn("w-5 h-5", m.color)} />
-                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-tighter leading-none">{m.label}</span>
-                            <span className="text-2xl font-black text-slate-900">{m.count}</span>
+                          <div key={i} className="p-8 border-r border-b last:border-r-0 flex flex-col items-center text-center space-y-3 hover:bg-slate-50 transition-colors">
+                            <m.icon className={cn("w-6 h-6", m.color)} />
+                            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest leading-none">{m.label}</span>
+                            <span className="text-3xl font-black text-slate-900">{m.count}</span>
                           </div>
                         ))}
                       </div>
                     </CardContent>
                   </Card>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <Card className="border-none shadow-md overflow-hidden bg-slate-50/50">
-                      <div className="px-4 py-3 bg-primary text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-between">
-                        <span>Career Runs Progression</span>
-                        <TrendingUp className="w-3 h-3" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <Card className="border-none shadow-xl overflow-hidden bg-slate-50/50 rounded-[2rem]">
+                      <div className="px-8 py-4 bg-primary text-white text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-between">
+                        <span>Career Runs Journey</span>
+                        <TrendingUp className="w-4 h-4" />
                       </div>
-                      <CardContent className="p-4 space-y-2">
-                        {selectedMilestonePlayer.careerThresholds.runs.map((t: any, idx: number) => (
-                          <div key={idx} className={cn("flex items-center justify-between p-3 rounded-lg border bg-white transition-all", t.achieved ? "border-primary/20 bg-primary/5 shadow-sm" : "opacity-40 grayscale")}>
-                            <span className="text-xs font-black text-slate-700">{t.val} Runs</span>
-                            {t.achieved ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-200" />}
+                      <CardContent className="p-6 space-y-3">
+                        {selectedMilestonePlayer.careerThresholds.runs.slice(0, 6).map((t: any, idx: number) => (
+                          <div key={idx} className={cn("flex items-center justify-between p-4 rounded-2xl border transition-all", t.achieved ? "bg-white border-primary/20 shadow-lg scale-[1.02]" : "bg-transparent border-slate-200 opacity-30 grayscale")}>
+                            <span className="text-xs font-black text-slate-700 uppercase tracking-tight">{t.val} Career Runs</span>
+                            {t.achieved ? <CheckCircle2 className="w-5 h-5 text-primary" /> : <div className="w-5 h-5 rounded-full border-2 border-slate-200" />}
                           </div>
                         ))}
                       </CardContent>
                     </Card>
 
-                    <Card className="border-none shadow-md overflow-hidden bg-slate-50/50">
-                      <div className="px-4 py-3 bg-secondary text-white text-[10px] font-black uppercase tracking-widest flex items-center justify-between">
-                        <span>Career Wickets Progression</span>
-                        <Target className="w-3 h-3" />
+                    <Card className="border-none shadow-xl overflow-hidden bg-slate-50/50 rounded-[2rem]">
+                      <div className="px-8 py-4 bg-secondary text-white text-[10px] font-black uppercase tracking-[0.3em] flex items-center justify-between">
+                        <span>Career Wickets Journey</span>
+                        <Target className="w-4 h-4" />
                       </div>
-                      <CardContent className="p-4 space-y-2">
-                        {selectedMilestonePlayer.careerThresholds.wickets.map((t: any, idx: number) => (
-                          <div key={idx} className={cn("flex items-center justify-between p-3 rounded-lg border bg-white transition-all", t.achieved ? "border-secondary/20 bg-secondary/5 shadow-sm" : "opacity-40 grayscale")}>
-                            <span className="text-xs font-black text-slate-700">{t.val} Wickets</span>
-                            {t.achieved ? <CheckCircle2 className="w-4 h-4 text-secondary" /> : <div className="w-4 h-4 rounded-full border-2 border-slate-200" />}
+                      <CardContent className="p-6 space-y-3">
+                        {selectedMilestonePlayer.careerThresholds.wickets.slice(0, 6).map((t: any, idx: number) => (
+                          <div key={idx} className={cn("flex items-center justify-between p-4 rounded-2xl border transition-all", t.achieved ? "bg-white border-secondary/20 shadow-lg scale-[1.02]" : "bg-transparent border-slate-200 opacity-30 grayscale")}>
+                            <span className="text-xs font-black text-slate-700 uppercase tracking-tight">{t.val} Career Wkts</span>
+                            {t.achieved ? <CheckCircle2 className="w-5 h-5 text-secondary" /> : <div className="w-5 h-5 rounded-full border-2 border-slate-200" />}
                           </div>
                         ))}
                       </CardContent>
@@ -603,28 +602,29 @@ export default function InsightsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-6">
-                  <Card className="shadow-lg border-none bg-slate-900 text-white">
-                    <CardHeader className="border-b border-white/10">
-                      <CardTitle className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                        <History className="w-4 h-4" /> Achievement Timeline
+                <div className="space-y-8">
+                  <Card className="shadow-2xl border-none bg-slate-900 text-white rounded-[2rem]">
+                    <CardHeader className="border-b border-white/10 py-6 px-8">
+                      <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] text-primary flex items-center gap-3">
+                        <History className="w-5 h-5" /> Achievement Timeline
                       </CardTitle>
                     </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="relative space-y-8 before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-white/10">
+                    <CardContent className="p-10">
+                      <div className="relative space-y-10 before:absolute before:left-4 before:top-2 before:bottom-2 before:w-1 before:bg-white/5">
                         {selectedMilestonePlayer.timeline.length > 0 ? selectedMilestonePlayer.timeline.map((event: any, idx: number) => (
-                          <div key={idx} className="relative pl-10 group">
-                            <div className="absolute left-0 top-1.5 w-6 h-6 rounded-full bg-slate-800 border-2 border-primary flex items-center justify-center z-10 shadow-sm shadow-primary/50">
-                              <span className="text-[8px] font-black">{idx + 1}</span>
+                          <div key={idx} className="relative pl-12 group">
+                            <div className="absolute left-0 top-1 w-8 h-8 rounded-full bg-slate-800 border-4 border-primary flex items-center justify-center z-10 shadow-2xl shadow-primary/50">
+                              <span className="text-[10px] font-black">{idx + 1}</span>
                             </div>
                             <div>
-                              <p className="text-xs font-black uppercase tracking-tight text-white group-hover:text-primary transition-colors">{event.label}</p>
-                              <p className="text-[9px] font-bold text-slate-500 uppercase">{new Date(event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                              <p className="text-sm font-black uppercase tracking-tight text-white group-hover:text-primary transition-colors leading-tight">{event.label}</p>
+                              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">{new Date(event.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
                             </div>
                           </div>
                         )) : (
-                          <div className="text-center py-12">
-                            <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">No milestones unlocked yet</p>
+                          <div className="text-center py-20 flex flex-col items-center">
+                            <Clock className="w-12 h-12 text-slate-800 mb-4" />
+                            <p className="text-[10px] font-black uppercase text-slate-600 tracking-[0.3em]">No milestones documented</p>
                           </div>
                         )}
                       </div>
@@ -634,34 +634,33 @@ export default function InsightsPage() {
               </div>
             </div>
           ) : (
-            <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center space-y-4">
-              <Trophy className="w-12 h-12 text-slate-200" />
-              <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">Select a player to view their professional career timeline</p>
+            <div className="py-32 text-center border-4 border-dashed rounded-[3rem] bg-slate-50/50 flex flex-col items-center space-y-6">
+              <Trophy className="w-20 h-20 text-slate-200" />
+              <p className="text-slate-400 text-xs font-black uppercase tracking-[0.4em]">Select a player to view professional timeline</p>
             </div>
           )}
         </TabsContent>
 
-        <TabsContent value="fastest" className="space-y-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center gap-2">
-              <FastForward className="w-6 h-6 text-primary" />
-              <h2 className="text-xl font-black uppercase tracking-tight">Fastest Achievements</h2>
+        <TabsContent value="fastest" className="space-y-10 animate-in fade-in duration-500">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div className="flex items-center gap-4">
+              <div className="bg-secondary p-3 rounded-2xl shadow-lg"><FastForward className="w-6 h-6 text-white" /></div>
+              <h2 className="text-2xl font-black uppercase tracking-tighter">Fastest Achievements</h2>
             </div>
             <Tabs value={activeFastestSubTab} onValueChange={setActiveFastestSubTab} className="w-full md:w-auto">
-              <TabsList className="bg-slate-100 p-1 h-10 rounded-lg w-full flex overflow-x-auto scrollbar-hide">
-                <TabsTrigger value="matches" className="text-[9px] font-black uppercase px-4 h-8 data-[state=active]:bg-white data-[state=active]:text-primary">Matches</TabsTrigger>
-                <TabsTrigger value="balls" className="text-[9px] font-black uppercase px-4 h-8 data-[state=active]:bg-white data-[state=active]:text-primary">Balls</TabsTrigger>
-                <TabsTrigger value="hattrick" className="text-[9px] font-black uppercase px-4 h-8 data-[state=active]:bg-white data-[state=active]:text-primary">Hat-trick</TabsTrigger>
-                <TabsTrigger value="winner" className="text-[9px] font-black uppercase px-4 h-8 data-[state=active]:bg-white data-[state=active]:text-primary">Winner</TabsTrigger>
+              <TabsList className="bg-slate-100 p-1.5 h-12 rounded-xl w-full flex overflow-x-auto scrollbar-hide">
+                {['matches', 'balls', 'hattrick', 'winner'].map(st => (
+                  <TabsTrigger key={st} value={st} className="text-[10px] font-black uppercase px-6 h-9 data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg tracking-widest">{st}</TabsTrigger>
+                ))}
               </TabsList>
             </Tabs>
           </div>
 
-          <TabsContent value="matches" className="m-0 space-y-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <Card className="border-t-4 border-t-primary shadow-lg overflow-hidden bg-white">
-                <CardHeader className="bg-slate-50 border-b">
-                  <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Trophy className="w-3 h-3"/> Runs (by Matches)</CardTitle>
+          <TabsContent value="matches" className="m-0 space-y-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-[2rem]">
+                <CardHeader className="bg-slate-50 border-b py-5 px-8">
+                  <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-3"><Trophy className="w-4 h-4 text-primary"/> Career Runs (by Matches)</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   {[
@@ -671,17 +670,17 @@ export default function InsightsPage() {
                   ].map((rec, idx) => {
                     const val = fastestRecords?.[rec.key as keyof typeof fastestRecords];
                     return (
-                      <div key={idx} className="p-6 border-b last:border-none flex justify-between items-center group hover:bg-slate-50 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className="p-2 bg-primary/10 rounded-lg text-primary"><rec.icon className="w-5 h-5" /></div>
+                      <div key={idx} className="p-8 border-b last:border-none flex justify-between items-center group hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-6">
+                          <div className="p-4 bg-primary/10 rounded-2xl text-primary shadow-inner"><rec.icon className="w-6 h-6" /></div>
                           <div>
-                            <p className="text-sm font-black uppercase tracking-tight text-slate-900">{val?.player}</p>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase">{rec.label}</p>
+                            <p className="text-lg font-black uppercase tracking-tighter text-slate-900 leading-none">{val?.player}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">{rec.label}</p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-2xl font-black text-primary">{val?.count === Infinity ? '---' : val?.count}</p>
-                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Matches</p>
+                          <p className="text-4xl font-black text-primary leading-none">{val?.count === Infinity ? '---' : val?.count}</p>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2">Matches</p>
                         </div>
                       </div>
                     );
@@ -689,9 +688,9 @@ export default function InsightsPage() {
                 </CardContent>
               </Card>
 
-              <Card className="border-t-4 border-t-secondary shadow-lg overflow-hidden bg-white">
-                <CardHeader className="bg-slate-50 border-b">
-                  <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Target className="w-3 h-3"/> Wickets (by Matches)</CardTitle>
+              <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-[2rem]">
+                <CardHeader className="bg-slate-50 border-b py-5 px-8">
+                  <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-3"><Target className="w-4 h-4 text-secondary"/> Career Wickets (by Matches)</CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
                   {[
@@ -701,17 +700,17 @@ export default function InsightsPage() {
                   ].map((rec, idx) => {
                     const val = fastestRecords?.[rec.key as keyof typeof fastestRecords];
                     return (
-                      <div key={idx} className="p-6 border-b last:border-none flex justify-between items-center group hover:bg-slate-50 transition-colors">
-                        <div className="flex items-center gap-4">
-                          <div className="p-2 bg-secondary/10 rounded-lg text-secondary"><rec.icon className="w-5 h-5" /></div>
+                      <div key={idx} className="p-8 border-b last:border-none flex justify-between items-center group hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-6">
+                          <div className="p-4 bg-secondary/10 rounded-2xl text-secondary shadow-inner"><rec.icon className="w-6 h-6" /></div>
                           <div>
-                            <p className="text-sm font-black uppercase tracking-tight text-slate-900">{val?.player}</p>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase">{rec.label}</p>
+                            <p className="text-lg font-black uppercase tracking-tighter text-slate-900 leading-none">{val?.player}</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-2">{rec.label}</p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-2xl font-black text-secondary">{val?.count === Infinity ? '---' : val?.count}</p>
-                          <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Matches</p>
+                          <p className="text-4xl font-black text-secondary leading-none">{val?.count === Infinity ? '---' : val?.count}</p>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-2">Matches</p>
                         </div>
                       </div>
                     );
@@ -722,32 +721,32 @@ export default function InsightsPage() {
           </TabsContent>
 
           <TabsContent value="balls" className="m-0">
-            <Card className="border-t-4 border-t-orange-500 shadow-lg overflow-hidden bg-white max-w-2xl mx-auto">
-              <CardHeader className="bg-slate-50 border-b flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Timer className="w-4 h-4 text-orange-500"/> Fastest 30 (T10 Style)</CardTitle>
-                <Badge variant="outline" className="text-[8px] font-black uppercase border-orange-200 text-orange-600">Balls Faced</Badge>
+            <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-[3rem] max-w-2xl mx-auto border-t-[12px] border-t-orange-500">
+              <CardHeader className="bg-slate-50 border-b py-6 px-10 flex flex-row items-center justify-between">
+                <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 flex items-center gap-3"><Timer className="w-5 h-5 text-orange-500"/> Fastest 30 (Aggressive Tier)</CardTitle>
+                <Badge variant="outline" className="text-[9px] font-black uppercase border-orange-200 text-orange-600 px-3 py-1 rounded-full">BALLS FACED</Badge>
               </CardHeader>
-              <CardContent className="p-8">
+              <CardContent className="p-12">
                 {fastestRecords?.f30b?.balls !== Infinity ? (
-                  <div className="flex flex-col items-center text-center space-y-6">
-                    <div className="bg-orange-50 p-6 rounded-full border-4 border-white shadow-inner">
-                      <Zap className="w-12 h-12 text-orange-500" />
+                  <div className="flex flex-col items-center text-center space-y-10">
+                    <div className="bg-orange-50 p-10 rounded-[2.5rem] border-8 border-white shadow-2xl"><Zap className="w-20 h-20 text-orange-500" /></div>
+                    <div className="space-y-2">
+                      <h3 className="text-5xl font-black uppercase tracking-tighter text-slate-900 leading-tight">{fastestRecords.f30b.player}</h3>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Reached 30 runs in record balls</p>
                     </div>
-                    <div>
-                      <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900">{fastestRecords.f30b.player}</h3>
-                      <p className="text-xs font-bold text-slate-400 uppercase mt-1">Reached 30 runs in record time</p>
-                    </div>
-                    <div className="grid grid-cols-1 w-full bg-slate-50 rounded-2xl p-6 border">
-                      <div className="space-y-1">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Balls Taken</span>
-                        <p className="text-6xl font-black text-orange-600">{fastestRecords.f30b.balls}</p>
+                    <div className="grid grid-cols-1 w-full bg-slate-950 rounded-[2rem] p-10 shadow-2xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-6 opacity-10"><Zap className="w-32 h-32 text-white" /></div>
+                      <div className="space-y-2 relative z-10">
+                        <span className="text-[10px] font-black text-orange-400 uppercase tracking-[0.4em]">Historical Minimum</span>
+                        <p className="text-8xl font-black text-white leading-none tracking-tighter">{fastestRecords.f30b.balls}</p>
+                        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] mt-4">Balls to reach 30 runs</p>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="py-12 text-center space-y-4">
-                    <Activity className="w-12 h-12 text-slate-200 mx-auto" />
-                    <p className="text-xs font-black uppercase text-slate-400 tracking-widest italic">No Player Has Achieved This Milestone Yet</p>
+                  <div className="py-24 text-center space-y-6 flex flex-col items-center">
+                    <Activity className="w-20 h-20 text-slate-100" />
+                    <p className="text-xs font-black uppercase text-slate-300 tracking-[0.4em] italic">Record awaiting qualifying performance</p>
                   </div>
                 )}
               </CardContent>
@@ -755,34 +754,31 @@ export default function InsightsPage() {
           </TabsContent>
 
           <TabsContent value="hattrick" className="m-0">
-            <Card className="border-t-4 border-t-purple-600 shadow-lg overflow-hidden bg-white max-w-2xl mx-auto">
-              <CardHeader className="bg-slate-50 border-b flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Target className="w-4 h-4 text-purple-600"/> Fastest Hat-trick</CardTitle>
-                <Badge className="bg-purple-600 text-white text-[8px] font-black uppercase">Consecutive Wkts</Badge>
+            <Card className="border-none shadow-2xl overflow-hidden bg-slate-900 text-white rounded-[3rem] max-w-2xl mx-auto border-t-[12px] border-t-purple-600">
+              <CardHeader className="bg-white/5 border-b border-white/5 py-6 px-10 flex flex-row items-center justify-between">
+                <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 flex items-center gap-3"><Target className="w-5 h-5 text-purple-600"/> Premier Hat-trick</CardTitle>
+                <Badge className="bg-purple-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-full">CONSECUTIVE WKTS</Badge>
               </CardHeader>
-              <CardContent className="p-8">
+              <CardContent className="p-12">
                 {fastestRecords?.hattrick?.balls !== Infinity ? (
-                  <div className="flex flex-col items-center text-center space-y-6">
-                    <div className="bg-purple-50 p-6 rounded-full border-4 border-white shadow-inner">
-                      <Award className="w-12 h-12 text-purple-600" />
+                  <div className="flex flex-col items-center text-center space-y-10">
+                    <div className="bg-purple-600/20 p-10 rounded-[2.5rem] border-8 border-white/5 shadow-2xl"><Award className="w-20 h-20 text-purple-600" /></div>
+                    <div className="space-y-2">
+                      <h3 className="text-5xl font-black uppercase tracking-tighter text-white leading-tight">{fastestRecords.hattrick.player}</h3>
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-2">Achieved on {new Date(fastestRecords.hattrick.date).toLocaleDateString()}</p>
                     </div>
-                    <div>
-                      <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900">{fastestRecords.hattrick.player}</h3>
-                      <p className="text-xs font-bold text-slate-400 uppercase mt-1">Achieved on {new Date(fastestRecords.hattrick.date).toLocaleDateString()}</p>
-                    </div>
-                    <div className="grid grid-cols-1 w-full bg-slate-900 rounded-2xl p-6 shadow-xl relative overflow-hidden">
-                      <div className="absolute top-0 right-0 p-4 opacity-10"><Zap className="w-20 h-20 text-white" /></div>
-                      <div className="space-y-1 relative z-10">
-                        <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest">Hat-trick Deliveries</span>
-                        <p className="text-6xl font-black text-white">{fastestRecords.hattrick.balls}</p>
-                        <p className="text-[8px] font-bold text-slate-500 uppercase tracking-widest">3 Wickets in 3 Consecutive Legal Balls</p>
+                    <div className="grid grid-cols-1 w-full bg-white/5 rounded-[2rem] p-10 border border-white/10 shadow-inner">
+                      <div className="space-y-2">
+                        <span className="text-[10px] font-black text-purple-400 uppercase tracking-[0.4em]">Delivery Count</span>
+                        <p className="text-8xl font-black text-white leading-none tracking-tighter">{fastestRecords.hattrick.balls}</p>
+                        <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mt-4">3 Wickets in 3 Consecutive Legal Balls</p>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="py-12 text-center space-y-4">
-                    <UserCheck className="w-12 h-12 text-slate-200 mx-auto" />
-                    <p className="text-xs font-black uppercase text-slate-400 tracking-widest italic">No Player Has Achieved This Milestone Yet</p>
+                  <div className="py-24 text-center space-y-6 flex flex-col items-center">
+                    <UserCheck className="w-20 h-20 text-white/5" />
+                    <p className="text-xs font-black uppercase text-slate-600 tracking-[0.4em] italic">No Hat-tricks Recorded in Series</p>
                   </div>
                 )}
               </CardContent>
@@ -790,37 +786,35 @@ export default function InsightsPage() {
           </TabsContent>
 
           <TabsContent value="winner" className="m-0">
-            <Card className="border-t-4 border-t-emerald-600 shadow-lg overflow-hidden bg-white max-w-2xl mx-auto">
-              <CardHeader className="bg-slate-50 border-b flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-2"><Zap className="w-4 h-4 text-emerald-600"/> Match Winning Knock</CardTitle>
-                <Badge className="bg-emerald-600 text-white text-[8px] font-black uppercase">Clutch Finish</Badge>
+            <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-[3rem] max-w-2xl mx-auto border-t-[12px] border-t-emerald-600">
+              <CardHeader className="bg-slate-50 border-b py-6 px-10 flex flex-row items-center justify-between">
+                <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 flex items-center gap-3"><Zap className="w-5 h-5 text-emerald-600"/> Clutch Finisher</CardTitle>
+                <Badge className="bg-emerald-600 text-white text-[9px] font-black uppercase px-3 py-1 rounded-full">WINNING KNOCK</Badge>
               </CardHeader>
-              <CardContent className="p-8">
+              <CardContent className="p-12">
                 {fastestRecords?.winner?.balls !== Infinity ? (
-                  <div className="flex flex-col items-center text-center space-y-6">
-                    <div className="bg-emerald-50 p-6 rounded-full border-4 border-white shadow-inner">
-                      <Star className="w-12 h-12 text-emerald-600" />
+                  <div className="flex flex-col items-center text-center space-y-10">
+                    <div className="bg-emerald-50 p-10 rounded-[2.5rem] border-8 border-white shadow-2xl"><Star className="w-20 h-20 text-emerald-600" /></div>
+                    <div className="space-y-2">
+                      <h3 className="text-5xl font-black uppercase tracking-tighter text-slate-900 leading-tight">{fastestRecords.winner.player}</h3>
+                      <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">Highest impact chasing knock in records</p>
                     </div>
-                    <div>
-                      <h3 className="text-3xl font-black uppercase tracking-tighter text-slate-900">{fastestRecords.winner.player}</h3>
-                      <p className="text-xs font-bold text-slate-400 uppercase mt-1">Highest impact chasing knock recorded</p>
-                    </div>
-                    <div className="grid grid-cols-2 w-full gap-4">
-                      <div className="bg-slate-50 rounded-2xl p-6 border text-center">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Balls Faced</span>
-                        <p className="text-4xl font-black text-slate-900">{fastestRecords.winner.balls}</p>
+                    <div className="grid grid-cols-2 w-full gap-6">
+                      <div className="bg-slate-950 rounded-[2rem] p-8 shadow-xl text-center">
+                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em]">Balls Faced</span>
+                        <p className="text-5xl font-black text-white mt-3 tracking-tighter">{fastestRecords.winner.balls}</p>
                       </div>
-                      <div className="bg-emerald-50 rounded-2xl p-6 border border-emerald-100 text-center">
-                        <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Match Runs</span>
-                        <p className="text-4xl font-black text-emerald-700">{fastestRecords.winner.runs}</p>
+                      <div className="bg-emerald-600 rounded-[2rem] p-8 shadow-xl text-center">
+                        <span className="text-[10px] font-black text-emerald-100 uppercase tracking-[0.3em]">Match Runs</span>
+                        <p className="text-5xl font-black text-white mt-3 tracking-tighter">{fastestRecords.winner.runs}</p>
                       </div>
                     </div>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase">Recorded on {new Date(fastestRecords.winner.date).toLocaleDateString()}</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Recorded officially on {new Date(fastestRecords.winner.date).toLocaleDateString()}</p>
                   </div>
                 ) : (
-                  <div className="py-12 text-center space-y-4">
-                    <Clock className="w-12 h-12 text-slate-200 mx-auto" />
-                    <p className="text-xs font-black uppercase text-slate-400 tracking-widest italic">No Player Has Achieved This Milestone Yet</p>
+                  <div className="py-24 text-center space-y-6 flex flex-col items-center">
+                    <Clock className="w-20 h-20 text-slate-100" />
+                    <p className="text-xs font-black uppercase text-slate-300 tracking-[0.4em] italic">Awaiting Clutch Performance Data</p>
                   </div>
                 )}
               </CardContent>

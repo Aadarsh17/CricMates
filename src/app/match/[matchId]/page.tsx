@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
@@ -175,11 +174,6 @@ export default function MatchScoreboardPage() {
       : (match.team1SquadPlayerIds || []);
   }, [match, activeInningData]);
 
-  /**
-   * ROBUST RECALCULATION ENGINE
-   * Re-aggregates the entire innings from source-of-truth delivery records.
-   * Prevents negative scores and data corruption.
-   */
   const recalculateInningState = async (inningId: string) => {
     if (!match) return;
     const deliveriesRef = collection(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords');
@@ -203,7 +197,7 @@ export default function MatchScoreboardPage() {
       oversCompleted: Math.floor(legalBalls / 6),
       ballsInCurrentOver: legalBalls % 6,
       isDeclaredFinished: Math.floor(legalBalls / 6) >= match.totalOvers,
-      isLastManActive: false // Reset on recalculation, can be re-detected if needed
+      isLastManActive: false
     };
 
     if (lastBall) {
@@ -216,7 +210,6 @@ export default function MatchScoreboardPage() {
       updates.currentBowlerPlayerId = '';
     }
 
-    // Special logic for 2nd innings target completion
     if (inningId === 'inning_2' && inn1) {
       if (totalScore > inn1.score) {
         updates.isDeclaredFinished = true;
@@ -225,7 +218,6 @@ export default function MatchScoreboardPage() {
 
     await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates, { merge: true });
     
-    // If match was completed, but we deleted/undid a ball, mark it back as live
     if (match.status === 'completed') {
       await setDocumentNonBlocking(matchRef, { status: 'live', currentInningNumber: inningId === 'inning_1' ? 1 : 2 }, { merge: true });
     }
@@ -234,7 +226,6 @@ export default function MatchScoreboardPage() {
   const handleRecordBall = async (runs: number, extraType: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none', noStrikeChange: boolean = false) => {
     if (!match || !activeInningData || !isUmpire) return;
     
-    // Strict format check: prevent extra balls
     if (activeInningData.oversCompleted >= match.totalOvers && activeInningData.ballsInCurrentOver === 0) {
       toast({ title: "Innings Complete", description: "The maximum overs have been reached." });
       return;
@@ -308,13 +299,11 @@ export default function MatchScoreboardPage() {
       nonStrikerPlayerId: nextNonStriker
     };
     
-    // Auto-End detection with strict adherence to format
     if (match.currentInningNumber === 1) {
       if (newOversComp >= match.totalOvers) {
         updates.isDeclaredFinished = true;
       }
     } else {
-      // 2nd Innings: Check if Target reached
       if (inn1 && newTotalScore > inn1.score) {
         updates.isDeclaredFinished = true;
         toast({ title: "Victory!", description: "Target reached." });
@@ -404,7 +393,6 @@ export default function MatchScoreboardPage() {
 
     if (newBalls === 0) updates.currentBowlerPlayerId = '';
     
-    // Auto-Finish detection on Wicket / Overs
     if (wicketForm.decision === 'finish') {
       updates.isDeclaredFinished = true;
     } else if (wicketForm.decision === 'last_man') { 
@@ -431,9 +419,8 @@ export default function MatchScoreboardPage() {
     if (snapshot.empty) return;
     
     await deleteDoc(snapshot.docs[0].ref);
-    // Recalculate full state from source-of-truth to prevent negative scores and corruption
     await recalculateInningState(currentInningId);
-    toast({ title: "Action Undone", description: "State recalculated from history." });
+    toast({ title: "Action Undone" });
   };
 
   const handleSyncScore = async () => {
@@ -451,7 +438,7 @@ export default function MatchScoreboardPage() {
       await deleteDoc(deliveryRef);
       await recalculateInningState(inningId);
       setActiveTab('live');
-      toast({ title: "History Corrected", description: "Match state recalculated and resumed." });
+      toast({ title: "History Corrected" });
     } catch (e: any) { toast({ title: "Error", description: e.message, variant: "destructive" }); }
     finally { setIsCorrecting(false); }
   };
@@ -464,17 +451,13 @@ export default function MatchScoreboardPage() {
     setIsPlayerAssignmentOpen(false);
   };
 
-  if (!isMounted || isMatchLoading) return <div className="p-20 text-center font-black animate-pulse text-slate-400 uppercase tracking-widest">Syncing Match Engine...</div>;
+  if (!isMounted || isMatchLoading) return <div className="p-20 text-center animate-pulse text-slate-400">Syncing Match Engine...</div>;
   if (!match) return <div className="p-20 text-center">Match missing.</div>;
 
   const currentStats = match.currentInningNumber === 1 ? stats1 : stats2;
   const currentDeliveries = match.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries;
   const currentBowlerHistory = currentDeliveries?.filter(d => d.bowlerId === activeInningData?.currentBowlerPlayerId).slice(-6) || [];
 
-  /**
-   * Professional Dynamic Ball Labeling
-   * Ball 1 = 0.1, Ball 6 = 0.6, Ball 7 = 1.1
-   */
   const getDynamicBallLabel = (delivery: any, deliveries: any[]) => {
     const legalBallsBefore = deliveries.filter(d => 
       d.timestamp <= delivery.timestamp && 
@@ -489,115 +472,110 @@ export default function MatchScoreboardPage() {
   };
 
   return (
-    <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
-      <div className="bg-white rounded-2xl shadow-xl border-t-8 border-t-primary overflow-hidden">
-        <div className="p-6 md:p-8 space-y-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-            <div className="space-y-3 flex-1 w-full">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="font-black text-xl md:text-2xl uppercase">{getTeamName(match.team1Id)}</span>
-                  <span className="text-[10px] font-black text-slate-400 uppercase">({match.totalOvers} OV)</span>
+    <div className="space-y-6 max-w-5xl mx-auto pb-24 px-2 md:px-4">
+      {/* HEADER: MISSION CRITICAL DATA */}
+      <div className="bg-slate-900 text-white rounded-3xl shadow-2xl overflow-hidden border-b-8 border-primary">
+        <div className="p-6 md:p-10 space-y-8">
+          <div className="flex flex-col md:flex-row justify-between items-stretch gap-8">
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+              <div className="space-y-4">
+                <div className="flex items-baseline justify-between md:justify-start gap-4">
+                  <span className="font-black text-2xl md:text-3xl uppercase tracking-tighter text-white/90">{getTeamName(match.team1Id)}</span>
+                  <span className="font-black text-3xl md:text-4xl text-primary">{Math.max(0, inn1?.score ?? 0)}/{Math.max(0, inn1?.wickets ?? 0)}</span>
                 </div>
-                <span className="font-black text-2xl md:text-3xl text-slate-900">
-                  {Math.max(0, inn1?.score ?? 0)}/{Math.max(0, inn1?.wickets ?? 0)}
-                </span>
+                <div className="flex items-baseline justify-between md:justify-start gap-4">
+                  <span className="font-black text-2xl md:text-3xl uppercase tracking-tighter text-white/90">{getTeamName(match.team2Id)}</span>
+                  <span className="font-black text-3xl md:text-4xl text-secondary">{Math.max(0, inn2?.score ?? 0)}/{Math.max(0, inn2?.wickets ?? 0)}</span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex flex-col">
-                  <span className="font-black text-xl md:text-2xl uppercase">{getTeamName(match.team2Id)}</span>
-                  <span className="text-[10px] font-black text-slate-400 uppercase">({match.totalOvers} OV)</span>
+              <div className="md:border-l border-white/10 md:pl-8 space-y-2">
+                <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Official Status</p>
+                <p className="text-sm font-bold uppercase italic text-primary">{match.status === 'completed' ? match.resultDescription : `Innings ${match.currentInningNumber} in Progress`}</p>
+                <div className="flex items-center gap-3 mt-4">
+                  <Badge variant="outline" className="text-[10px] border-white/20 text-white px-3 py-1 font-black">{match.totalOvers} OVERS</Badge>
+                  {match.status === 'completed' && match.potmPlayerId && (
+                    <Badge className="bg-amber-500 text-white font-black uppercase text-[10px] px-3 py-1 flex items-center gap-1">
+                      <Star className="w-3 h-3" /> MVP: {getPlayerName(match.potmPlayerId)}
+                    </Badge>
+                  )}
                 </div>
-                <span className="font-black text-2xl md:text-3xl text-slate-900">
-                  {Math.max(0, inn2?.score ?? 0)}/{Math.max(0, inn2?.wickets ?? 0)}
-                </span>
               </div>
             </div>
-            <div className="w-px h-20 bg-slate-100 hidden md:block mx-4" />
-            <div className="flex flex-row md:flex-col items-center md:items-end gap-3 w-full md:w-auto">
-              <Button size="sm" variant="secondary" className="flex-1 md:flex-none h-12 px-6 font-black text-[10px] uppercase bg-secondary text-white shadow-md" onClick={() => {
+            
+            <div className="flex flex-row md:flex-col gap-3">
+              <Button size="lg" variant="secondary" className="flex-1 md:flex-none h-14 px-8 font-black uppercase text-xs tracking-widest shadow-xl bg-secondary text-white" onClick={() => {
                 const report = generateHTMLReport(match, inn1, inn2, stats1, stats2, allTeams || [], allPlayers || []);
                 const blob = new Blob([report], { type: 'text/html' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `CricMates_${matchId}.html`; a.click();
-              }}><Download className="w-4 h-4 mr-2" /> Match Report</Button>
-              <Button size="sm" variant="outline" className="flex-1 md:flex-none h-12 px-6 font-black text-[10px] uppercase border-primary text-primary shadow-sm" onClick={() => setIsShareDialogOpen(true)}>
-                <Share2 className="w-4 h-4 mr-2" /> Share Card
+              }}><Download className="w-4 h-4 mr-2" /> Report</Button>
+              <Button size="lg" variant="outline" className="flex-1 md:flex-none h-14 px-8 font-black uppercase text-xs tracking-widest border-white/20 text-white" onClick={() => setIsShareDialogOpen(true)}>
+                <Share2 className="w-4 h-4 mr-2" /> Share
               </Button>
             </div>
-          </div>
-          <div className="flex justify-between items-center border-t pt-4">
-            <p className="text-[10px] md:text-xs font-black uppercase text-primary tracking-[0.2em]">{match.status === 'completed' ? match.resultDescription : `Innings ${match.currentInningNumber} in Progress`}</p>
-            {match.status === 'completed' && match.potmPlayerId && (
-              <Badge className="bg-amber-500 text-white font-black uppercase text-[8px] flex items-center gap-1 shrink-0 whitespace-nowrap px-3 py-1.5 h-auto">
-                <Star className="w-2.5 h-2.5" /> POTM: {getPlayerName(match.potmPlayerId)}
-              </Badge>
-            )}
           </div>
         </div>
       </div>
 
-      <div className="sticky top-16 z-50 bg-white/80 backdrop-blur-md border-b shadow-sm overflow-x-auto scrollbar-hide">
+      {/* NAVIGATION TABS */}
+      <div className="sticky top-16 z-50 bg-white/90 backdrop-blur-xl border-b shadow-sm">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="flex w-full justify-start rounded-none bg-transparent h-auto p-0 scrollbar-hide min-w-max">
+          <TabsList className="flex w-full justify-start rounded-none bg-transparent h-16 p-0 overflow-x-auto scrollbar-hide">
             {['Live', 'Scorecard', 'Analytics', 'Overs', 'Info'].map(t => (
-              <TabsTrigger key={t} value={t.toLowerCase()} className="px-6 py-4 text-xs font-black rounded-none border-b-4 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary uppercase tracking-widest">{t}</TabsTrigger>
+              <TabsTrigger key={t} value={t.toLowerCase()} className="px-8 h-full text-xs font-black rounded-none border-b-4 border-transparent data-[state=active]:border-primary data-[state=active]:text-primary uppercase tracking-widest transition-all">{t}</TabsTrigger>
             ))}
           </TabsList>
         </Tabs>
       </div>
 
       <Tabs value={activeTab}>
-        <TabsContent value="live" className="space-y-6 pt-4">
+        {/* LIVE SCORING PANEL */}
+        <TabsContent value="live" className="space-y-8 pt-6">
           {isUmpire && match.status !== 'completed' && activeInningData && (
-            <Card className="shadow-lg border-none overflow-hidden bg-slate-900 text-white">
-              <CardHeader className="bg-white/5 py-4 border-b border-white/5 flex flex-row justify-between items-center">
+            <Card className="shadow-2xl border-none overflow-hidden bg-slate-900 text-white rounded-3xl">
+              <CardHeader className="bg-white/5 py-5 border-b border-white/5 flex flex-row justify-between items-center px-8">
                 <div className="flex items-center gap-4">
-                  <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Official Scorer</CardTitle>
-                  <Badge variant="outline" className="text-[8px] font-black uppercase border-white/20 text-white px-2">
-                    Innings {match.currentInningNumber}
-                  </Badge>
+                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse shadow-[0_0_10px_#ef4444]" />
+                  <CardTitle className="text-[10px] font-black uppercase tracking-[0.3em] text-primary">Live Scorer Console</CardTitle>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={handleUndo} className="h-8 text-[10px] font-black uppercase text-slate-400 hover:text-white hover:bg-white/10">
-                    <Undo2 className="w-3 h-3 mr-1" /> Undo
-                  </Button>
-                </div>
+                <Button variant="ghost" size="sm" onClick={handleUndo} className="h-10 px-4 text-[10px] font-black uppercase text-slate-400 hover:text-white hover:bg-white/10 rounded-xl">
+                  <Undo2 className="w-4 h-4 mr-2" /> Undo
+                </Button>
               </CardHeader>
-              <CardContent className="p-6">
+              <CardContent className="p-8">
                 {activeInningData.isDeclaredFinished ? (
-                  <div className="py-8 text-center space-y-6">
-                    <div className="p-4 bg-white/5 rounded-2xl border-2 border-dashed border-white/10">
-                      <Trophy className="w-12 h-12 text-amber-500 mx-auto mb-2" />
-                      <h3 className="text-xl font-black uppercase tracking-tighter">Innings Complete</h3>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Official summary generated. Proceed to next phase.</p>
+                  <div className="py-12 text-center space-y-8 max-w-sm mx-auto">
+                    <div className="p-8 bg-white/5 rounded-3xl border-2 border-dashed border-white/10 flex flex-col items-center">
+                      <Trophy className="w-16 h-16 text-amber-500 mb-4" />
+                      <h3 className="text-2xl font-black uppercase tracking-tighter">Innings Complete</h3>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-2">All scheduled overs have been delivered</p>
                     </div>
                     {match.currentInningNumber === 1 ? (
-                      <Button onClick={handleStartSecondInnings} className="w-full h-16 bg-primary text-white font-black uppercase text-lg tracking-widest shadow-2xl">START 2ND INNINGS <ChevronRight className="ml-2 w-6 h-6" /></Button>
+                      <Button onClick={handleStartSecondInnings} className="w-full h-20 bg-primary text-white font-black uppercase text-xl tracking-widest shadow-2xl rounded-2xl hover:scale-[1.02] transition-transform">START 2ND INNINGS <ChevronRight className="ml-2 w-8 h-8" /></Button>
                     ) : (
-                      <Button onClick={handleFinishMatch} variant="secondary" disabled={isFinalizing} className="w-full h-16 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-lg tracking-widest shadow-2xl">
-                        {isFinalizing ? <Loader2 className="animate-spin w-6 h-6" /> : <>FINISH MATCH <CheckCircle2 className="ml-2 w-6 h-6" /></>}
+                      <Button onClick={handleFinishMatch} variant="secondary" disabled={isFinalizing} className="w-full h-20 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-xl tracking-widest shadow-2xl rounded-2xl hover:scale-[1.02] transition-transform">
+                        {isFinalizing ? <Loader2 className="animate-spin w-8 h-8" /> : <>FINISH MATCH <CheckCircle2 className="ml-2 w-8 h-8" /></>}
                       </Button>
                     )}
                   </div>
                 ) : (
                   <>
-                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-2 mb-6">
-                      {[0, 1, 2, 3, 4, 6].map(r => (<Button key={r} onClick={() => handleRecordBall(r)} className={cn("h-14 md:h-16 text-xl md:text-2xl font-black bg-white/5 border-2 border-white/10", r >= 4 ? "text-primary" : "text-white")}>{r === 0 ? "•" : r}</Button>))}
-                      <Button onClick={() => handleRecordBall(1, 'none', true)} className="h-14 md:h-16 flex flex-col items-center justify-center bg-secondary/20 border-2 border-secondary/40 text-secondary"><span className="text-lg font-black">1D</span><span className="text-[6px] font-bold uppercase leading-none mt-1">No Strike</span></Button>
+                    <div className="grid grid-cols-4 sm:grid-cols-7 gap-3 mb-8">
+                      {[0, 1, 2, 3, 4, 6].map(r => (<Button key={r} onClick={() => handleRecordBall(r)} className={cn("h-16 md:h-20 text-2xl md:text-3xl font-black bg-white/5 border-2 border-white/10 rounded-2xl hover:bg-primary hover:border-primary transition-all", r >= 4 ? "text-primary hover:text-white" : "text-white")}>{r === 0 ? "•" : r}</Button>))}
+                      <Button onClick={() => handleRecordBall(1, 'none', true)} className="h-16 md:h-20 flex flex-col items-center justify-center bg-secondary/20 border-2 border-secondary/40 text-secondary rounded-2xl hover:bg-secondary hover:text-white transition-all"><span className="text-xl md:text-2xl font-black">1D</span><span className="text-[8px] font-black uppercase leading-none mt-1">Dead</span></Button>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                      <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-10 font-black text-[9px] border-amber-500/40 text-amber-500 uppercase">Wide</Button>
-                      <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-10 font-black text-[9px] border-amber-500/40 text-amber-500 uppercase">No Ball</Button>
-                      <Button variant="outline" onClick={() => { setWicketForm(prev => ({ ...prev, batterOutId: activeInningData.strikerPlayerId })); setIsWicketDialogOpen(true); }} className="h-10 font-black text-[9px] border-red-500/40 text-red-500 uppercase">Wicket</Button>
-                      <Button variant="outline" onClick={() => { setWicketForm(prev => ({ ...prev, batterOutId: activeInningData.strikerPlayerId, type: 'retired' })); handleWicket(); }} className="h-10 font-black text-[9px] border-blue-500/40 text-blue-500 uppercase">Retire</Button>
-                      <Button variant="outline" onClick={() => { setAssignmentForm({ strikerId: activeInningData.strikerPlayerId, nonStrikerId: activeInningData.nonStrikerPlayerId || '', bowlerId: activeInningData.currentBowlerPlayerId || '' }); setIsPlayerAssignmentOpen(true); }} className="h-10 font-black text-[9px] border-white/20 text-white uppercase">Assign</Button>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                      <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-14 font-black text-[10px] border-amber-500/40 text-amber-500 uppercase rounded-xl hover:bg-amber-500 hover:text-white transition-all">Wide</Button>
+                      <Button variant="outline" onClick={() => handleRecordBall(0, 'noball')} className="h-14 font-black text-[10px] border-amber-500/40 text-amber-500 uppercase rounded-xl hover:bg-amber-500 hover:text-white transition-all">No Ball</Button>
+                      <Button variant="outline" onClick={() => { setWicketForm(prev => ({ ...prev, batterOutId: activeInningData.strikerPlayerId })); setIsWicketDialogOpen(true); }} className="h-14 font-black text-[10px] border-red-500/40 text-red-500 uppercase rounded-xl hover:bg-red-500 hover:text-white transition-all">Wicket</Button>
+                      <Button variant="outline" onClick={() => { setWicketForm(prev => ({ ...prev, batterOutId: activeInningData.strikerPlayerId, type: 'retired' })); handleWicket(); }} className="h-14 font-black text-[10px] border-blue-500/40 text-blue-500 uppercase rounded-xl hover:bg-blue-500 hover:text-white transition-all">Retire</Button>
+                      <Button variant="outline" onClick={() => { setAssignmentForm({ strikerId: activeInningData.strikerPlayerId, nonStrikerId: activeInningData.nonStrikerPlayerId || '', bowlerId: activeInningData.currentBowlerPlayerId || '' }); setIsPlayerAssignmentOpen(true); }} className="h-14 font-black text-[10px] border-white/20 text-white uppercase rounded-xl hover:bg-white/10 transition-all">Assign</Button>
                     </div>
-                    <div className="mt-6 border-t border-white/10 pt-6">
+                    <div className="mt-8 border-t border-white/10 pt-8 flex gap-4">
                       {match.currentInningNumber === 1 ? (
-                        <Button onClick={handleManualEndInnings} className="w-full h-12 bg-white/5 border border-white/10 text-white font-black uppercase text-[10px] tracking-widest hover:bg-white/10">
+                        <Button onClick={handleManualEndInnings} className="flex-1 h-14 bg-white/5 border border-white/10 text-white font-black uppercase text-[10px] tracking-widest hover:bg-white/10 rounded-xl">
                           <Flag className="w-4 h-4 mr-2" /> End 1st Innings
                         </Button>
                       ) : (
-                        <Button onClick={handleFinishMatch} disabled={isFinalizing} className="w-full h-12 bg-emerald-600/20 border border-emerald-600/40 text-emerald-500 font-black uppercase text-[10px] tracking-widest hover:bg-emerald-600/30">
+                        <Button onClick={handleFinishMatch} disabled={isFinalizing} className="flex-1 h-14 bg-emerald-600/20 border border-emerald-600/40 text-emerald-500 font-black uppercase text-[10px] tracking-widest hover:bg-emerald-600/30 rounded-xl">
                           {isFinalizing ? <Loader2 className="animate-spin w-4 h-4" /> : <><CheckCircle2 className="w-4 h-4 mr-2" /> Finish Match</>}
                         </Button>
                       )}
@@ -609,27 +587,30 @@ export default function MatchScoreboardPage() {
           )}
 
           {activeInningData && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="shadow-lg border-none overflow-hidden bg-white">
-                <CardHeader className="bg-slate-50 border-b py-3 px-6">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Batting Stats</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <Card className="shadow-xl border-none overflow-hidden bg-white rounded-3xl">
+                <CardHeader className="bg-slate-50 border-b py-4 px-8">
+                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Live Batting Unit</span>
                 </CardHeader>
-                <div className="p-6 space-y-4">
+                <div className="p-8 space-y-6">
                   {[
                     { id: activeInningData.strikerPlayerId, label: 'Striker', active: true },
                     { id: activeInningData.nonStrikerPlayerId, label: 'Non-Striker', active: false }
                   ].map((batter, i) => {
                     const stats = currentStats.batting.find(b => b.id === batter.id);
                     return (
-                      <div key={i} className={cn("flex justify-between items-center p-4 rounded-xl border-2 transition-all", batter.active ? "bg-primary/5 border-primary shadow-sm" : "bg-slate-50 border-transparent opacity-60")}>
+                      <div key={i} className={cn("flex justify-between items-center p-6 rounded-2xl border-4 transition-all", batter.active ? "bg-primary/5 border-primary shadow-xl scale-[1.02]" : "bg-slate-50 border-transparent opacity-60")}>
                         <div className="min-w-0">
-                          <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest">{batter.label}</p>
-                          <p className="font-black text-lg truncate uppercase tracking-tight text-slate-900">{getPlayerName(batter.id)}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{batter.label}</p>
+                            {batter.active && <Badge className="bg-primary h-4 text-[8px] px-1 font-black">ON STRIKE</Badge>}
+                          </div>
+                          <p className="font-black text-2xl truncate uppercase tracking-tighter text-slate-900 mt-1">{getPlayerName(batter.id)}</p>
                         </div>
-                        <div className="grid grid-cols-3 gap-4 text-right">
-                          <div><p className="text-xl font-black">{stats?.runs || 0}</p><p className="text-[7px] font-bold text-slate-400 uppercase">Runs</p></div>
-                          <div><p className="text-xl font-black">{stats?.balls || 0}</p><p className="text-[7px] font-bold text-slate-400 uppercase">Balls</p></div>
-                          <div><p className="text-xl font-black">{stats?.balls > 0 ? ((stats.runs / stats.balls) * 100).toFixed(1) : '0.0'}</p><p className="text-[7px] font-bold text-slate-400 uppercase">SR</p></div>
+                        <div className="grid grid-cols-3 gap-6 text-right">
+                          <div><p className="text-2xl font-black text-slate-900">{stats?.runs || 0}</p><p className="text-[8px] font-bold text-slate-400 uppercase">R</p></div>
+                          <div><p className="text-2xl font-black text-slate-900">{stats?.balls || 0}</p><p className="text-[8px] font-bold text-slate-400 uppercase">B</p></div>
+                          <div><p className="text-lg font-black text-slate-400">{stats?.balls > 0 ? ((stats.runs / stats.balls) * 100).toFixed(1) : '0.0'}</p><p className="text-[8px] font-bold text-slate-400 uppercase">SR</p></div>
                         </div>
                       </div>
                     );
@@ -637,63 +618,48 @@ export default function MatchScoreboardPage() {
                 </div>
               </Card>
 
-              <Card className="shadow-lg border-none overflow-hidden bg-slate-900 text-white">
-                <CardHeader className="bg-white/5 border-b border-white/5 py-3 px-6">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Bowling Spell</span>
+              <Card className="shadow-xl border-none overflow-hidden bg-slate-900 text-white rounded-3xl">
+                <CardHeader className="bg-white/5 border-b border-white/5 py-4 px-8">
+                  <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Active Bowling Spell</span>
                 </CardHeader>
-                <CardContent className="p-6 space-y-6">
+                <CardContent className="p-8 space-y-8">
                   <div className="flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                      <Zap className="text-secondary w-5 h-5" />
+                    <div className="flex items-center gap-4">
+                      <div className="bg-secondary/20 p-3 rounded-2xl"><Zap className="text-secondary w-8 h-8" /></div>
                       <div>
-                        <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">Active Bowler</p>
-                        <p className="font-black text-lg truncate uppercase tracking-tight">{getPlayerName(activeInningData.currentBowlerPlayerId)}</p>
+                        <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">In the Attack</p>
+                        <p className="font-black text-2xl truncate uppercase tracking-tighter mt-1">{getPlayerName(activeInningData.currentBowlerPlayerId)}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-3xl font-black text-secondary">
+                      <p className="text-4xl font-black text-secondary">
                         {currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.wickets || 0}-
                         {currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.runs || 0}
                       </p>
-                      <p className="text-[8px] font-bold text-slate-500 uppercase">Current Figures</p>
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Match Figures</p>
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <p className="text-[8px] font-black uppercase text-slate-500 tracking-widest">This Over History</p>
-                    <div className="flex gap-2">
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Current Over Progress</p>
+                    <div className="flex gap-3">
                       {currentBowlerHistory.map((d, idx) => (
-                        <Badge key={idx} className={cn("h-8 w-8 rounded-full flex items-center justify-center font-black p-0 border-2", 
+                        <Badge key={idx} className={cn("h-10 w-10 rounded-full flex items-center justify-center font-black p-0 border-4 shadow-lg transition-transform hover:scale-110", 
                           d.isWicket ? "bg-red-500 border-red-600 text-white" : 
                           d.runsScored >= 4 ? "bg-primary border-primary/50 text-white" : "bg-white/10 border-white/5 text-white")}>
                           {d.isWicket ? "W" : d.totalRunsOnDelivery}
                         </Badge>
                       ))}
                       {[...Array(Math.max(0, 6 - currentBowlerHistory.length))].map((_, idx) => (
-                        <div key={`empty-${idx}`} className="h-8 w-8 rounded-full border-2 border-white/5 flex items-center justify-center text-white/10 font-black">•</div>
+                        <div key={`empty-${idx}`} className="h-10 w-10 rounded-full border-4 border-white/5 flex items-center justify-center text-white/10 font-black">•</div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-2 border-t border-white/10 pt-4 text-center">
-                    <div>
-                      <p className="text-lg font-black">{activeInningData.oversCompleted}.{activeInningData.ballsInCurrentOver}</p>
-                      <p className="text-[7px] font-bold text-slate-500 uppercase">Overs</p>
-                    </div>
-                    <div>
-                      <p className="text-lg font-black">
-                        {(() => {
-                          const bowlStats = currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId);
-                          if (!bowlStats || bowlStats.balls === 0) return '0.00';
-                          return (bowlStats.runs / (bowlStats.balls / 6)).toFixed(2);
-                        })()}
-                      </p>
-                      <p className="text-[7px] font-bold text-slate-500 uppercase">Economy</p>
-                    </div>
-                    <div>
-                      <p className="text-lg font-black">{currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.maidens || 0}</p>
-                      <p className="text-[7px] font-bold text-slate-500 uppercase">Maidens</p>
-                    </div>
+                  <div className="grid grid-cols-3 gap-4 border-t border-white/10 pt-6 text-center">
+                    <div><p className="text-2xl font-black">{activeInningData.oversCompleted}.{activeInningData.ballsInCurrentOver}</p><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Overs</p></div>
+                    <div><p className="text-2xl font-black text-primary">{(() => { const bowlStats = currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId); if (!bowlStats || bowlStats.balls === 0) return '0.00'; return (bowlStats.runs / (bowlStats.balls / 6)).toFixed(2); })()}</p><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Economy</p></div>
+                    <div><p className="text-2xl font-black">{currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.maidens || 0}</p><p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Maidens</p></div>
                   </div>
                 </CardContent>
               </Card>
@@ -701,124 +667,117 @@ export default function MatchScoreboardPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="scorecard" className="pt-4 space-y-6">
+        {/* FULL SCORECARD TAB */}
+        <TabsContent value="scorecard" className="pt-6 space-y-8">
           <Tabs value={activeScorecardSubTab} onValueChange={(v: any) => setActiveScorecardSubTab(v)}>
-            <TabsList className="grid w-full grid-cols-2 mb-6 h-12 bg-slate-100 p-1 rounded-xl">
-              <TabsTrigger value="inn1" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg uppercase text-[10px] tracking-widest">{getTeamName(inn1?.battingTeamId)}</TabsTrigger>
-              <TabsTrigger value="inn2" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg uppercase text-[10px] tracking-widest">{getTeamName(inn2?.battingTeamId)}</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-8 h-14 bg-slate-100 p-1.5 rounded-2xl">
+              <TabsTrigger value="inn1" className="font-black data-[state=active]:bg-white data-[state=active]:text-primary rounded-xl uppercase text-[10px] tracking-widest">{getTeamName(inn1?.battingTeamId)} INNINGS</TabsTrigger>
+              <TabsTrigger value="inn2" className="font-black data-[state=active]:bg-white data-[state=active]:text-primary rounded-xl uppercase text-[10px] tracking-widest">{getTeamName(inn2?.battingTeamId)} INNINGS</TabsTrigger>
             </TabsList>
             
             {[
               { id: 'inn1', stats: stats1, team: getTeamName(inn1?.battingTeamId), inning: inn1 },
               { id: 'inn2', stats: stats2, team: getTeamName(inn2?.battingTeamId), inning: inn2 }
             ].map((inn) => (
-              <TabsContent key={inn.id} value={inn.id} className="space-y-6 m-0">
-                <Card className="border-none shadow-sm overflow-hidden">
-                  <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
-                    <h3 className="font-black uppercase text-sm tracking-widest">{inn.team} Batting</h3>
-                    <p className="text-xl font-black">{Math.max(0, inn.inning?.score ?? 0)}/{Math.max(0, inn.inning?.wickets ?? 0)} <span className="text-[10px] font-bold opacity-50">({inn.inning?.oversCompleted || 0}.{inn.inning?.ballsInCurrentOver || 0})</span></p>
+              <TabsContent key={inn.id} value={inn.id} className="space-y-8 m-0 animate-in fade-in slide-in-from-bottom-2">
+                <Card className="border-none shadow-xl overflow-hidden rounded-3xl">
+                  <div className="bg-slate-900 text-white px-8 py-6 flex justify-between items-center border-b-4 border-primary">
+                    <h3 className="font-black uppercase text-lg tracking-tighter">{inn.team} Batting</h3>
+                    <p className="text-3xl font-black">{Math.max(0, inn.inning?.score ?? 0)}/{Math.max(0, inn.inning?.wickets ?? 0)} <span className="text-sm font-bold opacity-50 ml-2">({inn.inning?.oversCompleted || 0}.{inn.inning?.ballsInCurrentOver || 0} OV)</span></p>
                   </div>
-                  <Table>
-                    <TableHeader className="bg-slate-50">
-                      <TableRow>
-                        <TableHead className="text-[9px] font-black uppercase">Batter</TableHead>
-                        <TableHead className="text-right text-[9px] font-black uppercase">R</TableHead>
-                        <TableHead className="text-right text-[9px] font-black uppercase">B</TableHead>
-                        <TableHead className="text-right text-[9px] font-black uppercase">4s</TableHead>
-                        <TableHead className="text-right text-[9px] font-black uppercase">6s</TableHead>
-                        <TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {inn.stats.batting.map((b: any) => (
-                        <TableRow key={b.id}>
-                          <TableCell className="py-3">
-                            <Link href={`/players/${b.id}`} className="font-black text-xs text-primary hover:underline uppercase block">{getPlayerName(b.id)}</Link>
-                            <span className="text-[8px] font-bold text-slate-400 uppercase italic">
-                              {b.out ? `${b.dismissal} b ${getPlayerName(b.bowlerId)}` : 'not out'}
-                            </span>
-                          </TableCell>
-                          <TableCell className="text-right font-black">{b.runs}</TableCell>
-                          <TableCell className="text-right text-xs text-slate-500">{b.balls}</TableCell>
-                          <TableCell className="text-right text-xs text-slate-500">{b.fours}</TableCell>
-                          <TableCell className="text-right text-xs text-slate-500">{b.sixes}</TableCell>
-                          <TableCell className="text-right text-[10px] font-bold text-slate-400">
-                            {b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Card>
-
-                <Card className="border-none shadow-sm overflow-hidden">
-                  <div className="bg-slate-50 px-6 py-3 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Partnership History</span></div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-[9px] font-black uppercase">Partners</TableHead>
-                        <TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead>
-                        <TableHead className="text-right text-[9px] font-black uppercase">Contribution</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {inn.stats.partnerships.map((p: any, idx: number) => (
-                        <TableRow key={idx}>
-                          <TableCell>
-                            <p className="text-[10px] font-black uppercase">{getPlayerName(p.batter1Id)} & {getPlayerName(p.batter2Id)}</p>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase">{p.balls} balls</p>
-                          </TableCell>
-                          <TableCell className="text-right font-black">{p.runs}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="text-[8px] font-bold uppercase text-slate-500">
-                              {getPlayerName(p.batter1Id).split(' ')[0]}: {p.batter1Runs} | {getPlayerName(p.batter2Id).split(' ')[0]}: {p.batter2Runs}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </Card>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <Card className="border-none shadow-sm">
-                    <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Fall of Wickets</span></div>
-                    <CardContent className="p-4 space-y-2">
-                      {inn.stats.fow.length > 0 ? inn.stats.fow.map((f: any) => (
-                        <div key={f.wicketNum} className="flex justify-between items-center text-[10px] py-1 border-b border-slate-50 last:border-none">
-                          <span className="font-bold text-slate-400">{f.wicketNum}-{f.scoreAtWicket}</span>
-                          <span className="font-black uppercase">{getPlayerName(f.playerOutId)}</span>
-                          <span className="text-slate-400">({f.overs} ov)</span>
-                        </div>
-                      )) : <p className="text-center py-4 text-[10px] font-black text-slate-300 uppercase italic">No wickets fallen</p>}
-                    </CardContent>
-                  </Card>
-                  <Card className="border-none shadow-sm">
-                    <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Bowling</span></div>
+                  <div className="overflow-x-auto">
                     <Table>
-                      <TableHeader className="bg-slate-50/50">
+                      <TableHeader className="bg-slate-50">
                         <TableRow>
-                          <TableHead className="text-[8px] font-black uppercase">Bowler</TableHead>
-                          <TableHead className="text-right text-[8px] font-black uppercase">O</TableHead>
-                          <TableHead className="text-right text-[8px] font-black uppercase">R</TableHead>
-                          <TableHead className="text-right text-[8px] font-black uppercase">W</TableHead>
-                          <TableHead className="text-right text-[8px] font-black uppercase">Eco</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase px-8">Batter</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase">Runs</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase">Balls</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase">4s</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase">6s</TableHead>
+                          <TableHead className="text-right text-[10px] font-black uppercase pr-8">SR</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {inn.stats.bowling.map((b: any) => (
-                          <TableRow key={b.id}>
-                            <TableCell className="font-black text-xs uppercase py-3">{getPlayerName(b.id)}</TableCell>
-                            <TableCell className="text-right text-xs">{b.oversDisplay}</TableCell>
-                            <TableCell className="text-right text-xs font-bold">{b.runs}</TableCell>
-                            <TableCell className="text-right text-xs font-black text-primary">{b.wickets}</TableCell>
-                            <TableCell className="text-right text-[10px] font-bold text-slate-400">
-                              {b.balls > 0 ? (b.runs / (b.balls / 6)).toFixed(2) : '0.00'}
+                        {inn.stats.batting.map((b: any) => (
+                          <TableRow key={b.id} className="hover:bg-slate-50 transition-colors">
+                            <TableCell className="py-5 px-8">
+                              <Link href={`/players/${b.id}`} className="font-black text-sm text-primary hover:underline uppercase tracking-tight block">{getPlayerName(b.id)}</Link>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase italic">
+                                {b.out ? `${b.dismissal} b ${getPlayerName(b.bowlerId)}` : 'not out'}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right font-black text-lg">{b.runs}</TableCell>
+                            <TableCell className="text-right text-sm text-slate-500 font-bold">{b.balls}</TableCell>
+                            <TableCell className="text-right text-sm text-slate-500 font-bold">{b.fours}</TableCell>
+                            <TableCell className="text-right text-sm text-slate-500 font-bold">{b.sixes}</TableCell>
+                            <TableCell className="text-right text-xs font-black text-slate-400 pr-8">
+                              {b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}
                             </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
                     </Table>
+                  </div>
+                </Card>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <Card className="border-none shadow-lg rounded-3xl overflow-hidden bg-white">
+                    <div className="bg-slate-50 px-8 py-4 border-b"><span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Partnership Log</span></div>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-[9px] font-black uppercase px-8">Partners</TableHead>
+                          <TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead>
+                          <TableHead className="text-right text-[9px] font-black uppercase pr-8">Contribution</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {inn.stats.partnerships.map((p: any, idx: number) => (
+                          <TableRow key={idx} className="hover:bg-slate-50 transition-colors">
+                            <TableCell className="px-8 py-4">
+                              <p className="text-xs font-black uppercase tracking-tight">{getPlayerName(p.batter1Id)} & {getPlayerName(p.batter2Id)}</p>
+                              <p className="text-[9px] font-bold text-slate-400 uppercase">{p.balls} balls</p>
+                            </TableCell>
+                            <TableCell className="text-right font-black text-sm">{p.runs}</TableCell>
+                            <TableCell className="text-right pr-8">
+                              <div className="text-[9px] font-bold uppercase text-slate-500">
+                                {getPlayerName(p.batter1Id).split(' ')[0]}: {p.batter1Runs} | {getPlayerName(p.batter2Id).split(' ')[0]}: {p.batter2Runs}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Card>
+
+                  <Card className="border-none shadow-lg rounded-3xl overflow-hidden bg-white">
+                    <div className="bg-slate-50 px-8 py-4 border-b"><span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Bowling Unit Stats</span></div>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader className="bg-slate-50/50">
+                          <TableRow>
+                            <TableHead className="text-[9px] font-black uppercase px-8">Bowler</TableHead>
+                            <TableHead className="text-right text-[9px] font-black uppercase">O</TableHead>
+                            <TableHead className="text-right text-[9px] font-black uppercase">R</TableHead>
+                            <TableHead className="text-right text-[9px] font-black uppercase">W</TableHead>
+                            <TableHead className="text-right text-[9px] font-black uppercase pr-8">Eco</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {inn.stats.bowling.map((b: any) => (
+                            <TableRow key={b.id} className="hover:bg-slate-50 transition-colors">
+                              <TableCell className="font-black text-xs uppercase px-8 py-4">{getPlayerName(b.id)}</TableCell>
+                              <TableCell className="text-right text-xs font-bold">{b.oversDisplay}</TableCell>
+                              <TableCell className="text-right text-xs font-black">{b.runs}</TableCell>
+                              <TableCell className="text-right text-xs font-black text-primary">{b.wickets}</TableCell>
+                              <TableCell className="text-right text-[10px] font-black text-slate-400 pr-8">
+                                {b.balls > 0 ? (b.runs / (b.balls / 6)).toFixed(2) : '0.00'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </Card>
                 </div>
               </TabsContent>
@@ -826,45 +785,52 @@ export default function MatchScoreboardPage() {
           </Tabs>
         </TabsContent>
 
-        <TabsContent value="analytics" className="pt-4 space-y-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="p-6 shadow-sm border-none bg-white">
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-8 border-b pb-2 flex items-center gap-2">
-                <LineChartIcon className="w-4 h-4 text-primary" /> Cumulative Scoring (Worm)
-              </h3>
-              <div className="h-[300px] w-full">
+        {/* ANALYTICS PANEL */}
+        <TabsContent value="analytics" className="pt-6 space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <Card className="p-8 shadow-xl border-none bg-white rounded-3xl">
+              <div className="flex items-center justify-between mb-10 border-b pb-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                  <LineChartIcon className="w-5 h-5 text-primary" /> Cumulative Scoring (Worm)
+                </h3>
+                <Badge variant="secondary" className="bg-primary/10 text-primary font-black uppercase text-[10px]">REAL-TIME</Badge>
+              </div>
+              <div className="h-[350px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                    <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
-                    <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
-                    <Area type="monotone" name={getTeamName(match.team1Id)} dataKey="team1" stroke="#2563eb" fillOpacity={1} fill="url(#colorT1)" dot={<CustomWicketDot team="team1" />} />
-                    <Area type="monotone" name={getTeamName(match.team2Id)} dataKey="team2" stroke="#0d9488" fillOpacity={1} fill="url(#colorT2)" dot={<CustomWicketDot team="team2" />} />
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} label={{ value: 'OVERS', position: 'bottom', offset: 0, fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} />
+                    <Tooltip contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', padding: '12px' }} />
+                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '30px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
+                    <Area type="monotone" name={getTeamName(match.team1Id)} dataKey="team1" stroke="#2563eb" strokeWidth={4} fillOpacity={1} fill="url(#colorT1)" dot={<CustomWicketDot team="team1" />} activeDot={{ r: 8, strokeWidth: 0 }} />
+                    <Area type="monotone" name={getTeamName(match.team2Id)} dataKey="team2" stroke="#0d9488" strokeWidth={4} fillOpacity={1} fill="url(#colorT2)" dot={<CustomWicketDot team="team2" />} activeDot={{ r: 8, strokeWidth: 0 }} />
                     <defs>
-                      <linearGradient id="colorT1" x1="0" x2="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient>
-                      <linearGradient id="colorT2" x1="0" x2="0" x2="0" y2="1"><stop offset="5%" stopColor="#0d9488" stopOpacity={0.1}/><stop offset="95%" stopColor="#0d9488" stopOpacity={0}/></linearGradient>
+                      <linearGradient id="colorT1" x1="0" x2="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.2}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient>
+                      <linearGradient id="colorT2" x1="0" x2="0" x2="0" y2="1"><stop offset="5%" stopColor="#0d9488" stopOpacity={0.2}/><stop offset="95%" stopColor="#0d9488" stopOpacity={0}/></linearGradient>
                     </defs>
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </Card>
 
-            <Card className="p-6 shadow-sm border-none bg-white">
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-8 border-b pb-2 flex items-center gap-2">
-                <BarChart className="w-4 h-4 text-secondary" /> Over-by-Over Runs
-              </h3>
-              <div className="h-[300px] w-full">
+            <Card className="p-8 shadow-xl border-none bg-white rounded-3xl">
+              <div className="flex items-center justify-between mb-10 border-b pb-4">
+                <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                  <BarChart className="w-5 h-5 text-secondary" /> Over-by-Over Runs
+                </h3>
+                <Badge variant="secondary" className="bg-secondary/10 text-secondary font-black uppercase text-[10px]">INTENSITY</Badge>
+              </div>
+              <div className="h-[350px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <ReBarChart data={overByOverData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="over" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
-                    <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 900 }} />
-                    <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: 900 }} />
-                    <Bar name={getTeamName(match.team1Id)} dataKey="team1" fill="#2563eb" radius={[4, 4, 0, 0]} />
-                    <Bar name={getTeamName(match.team2Id)} dataKey="team2" fill="#0d9488" radius={[4, 4, 0, 0]} />
+                    <XAxis dataKey="over" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} label={{ value: 'OVER NUMBER', position: 'bottom', offset: 0, fontSize: 8, fontWeight: 900, fill: '#94a3b8' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 900, fill: '#94a3b8' }} />
+                    <Tooltip cursor={{fill: '#f8fafc', radius: 8}} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)', fontSize: '10px', fontWeight: 900 }} />
+                    <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '30px', fontSize: '10px', fontWeight: 900 }} />
+                    <Bar name={getTeamName(match.team1Id)} dataKey="team1" fill="#2563eb" radius={[6, 6, 0, 0]} />
+                    <Bar name={getTeamName(match.team2Id)} dataKey="team2" fill="#0d9488" radius={[6, 6, 0, 0]} />
                   </ReBarChart>
                 </ResponsiveContainer>
               </div>
@@ -872,58 +838,59 @@ export default function MatchScoreboardPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="overs" className="pt-4 space-y-8">
+        {/* OVERS HISTORY LOG */}
+        <TabsContent value="overs" className="pt-6 space-y-10">
           {[
             { id: 'inning_1', name: getTeamName(inn1?.battingTeamId), deliveries: inn1Deliveries, score: Math.max(0, inn1?.score ?? 0), wkts: Math.max(0, inn1?.wickets ?? 0), ov: `${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver}` },
             { id: 'inning_2', name: getTeamName(inn2?.battingTeamId), deliveries: inn2Deliveries, score: Math.max(0, inn2?.score ?? 0), wkts: Math.max(0, inn2?.wickets ?? 0), ov: `${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver}` }
           ].map((inn) => (
-            <div key={inn.id} className="space-y-4">
-              <div className="flex items-center justify-between px-2">
-                <div className="flex items-center gap-3">
-                  <div className="bg-primary/10 p-2 rounded-lg">
-                    <History className="w-4 h-4 text-primary" />
+            <div key={inn.id} className="space-y-6">
+              <div className="flex items-center justify-between px-4 bg-slate-100 p-4 rounded-3xl border border-slate-200">
+                <div className="flex items-center gap-4">
+                  <div className="bg-primary p-3 rounded-2xl shadow-lg">
+                    <History className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="font-black uppercase text-sm tracking-tight">{inn.name}</h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Innings History</p>
+                    <h3 className="font-black uppercase text-xl tracking-tight text-slate-900">{inn.name}</h3>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Full Ball-by-Ball Audit</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-black">{inn.score}/{inn.wkts}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase">({inn.ov} OV)</p>
+                  <p className="text-2xl font-black text-primary">{inn.score}/{inn.wkts}</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">({inn.ov} OV delivered)</p>
                 </div>
               </div>
 
-              <Card className="border-none shadow-xl overflow-hidden bg-white">
-                <div className="overflow-x-auto scrollbar-hide">
+              <Card className="border-none shadow-2xl overflow-hidden bg-white rounded-3xl">
+                <div className="overflow-x-auto">
                   <Table>
                     <TableHeader className="bg-slate-50">
-                      <TableRow className="hover:bg-transparent border-b">
-                        <TableHead className="w-20 text-[10px] font-black uppercase text-center">Over</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase">Batter vs Bowler</TableHead>
-                        <TableHead className="text-center text-[10px] font-black uppercase w-24">Runs</TableHead>
-                        <TableHead className="text-[10px] font-black uppercase">Description</TableHead>
-                        {isUmpire && <TableHead className="w-12"></TableHead>}
+                      <TableRow className="hover:bg-transparent border-b h-14">
+                        <TableHead className="w-24 text-[10px] font-black uppercase text-center">Over</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase pl-8">Matchup (Batter vs Bowler)</TableHead>
+                        <TableHead className="text-center text-[10px] font-black uppercase w-32">Ball Result</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase">Audit Description</TableHead>
+                        {isUmpire && <TableHead className="w-20 text-right pr-8"></TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {inn.deliveries && inn.deliveries.length > 0 ? (
                         inn.deliveries.slice().reverse().map((d) => (
-                          <TableRow key={d.id} className="hover:bg-slate-50 transition-colors border-b last:border-none">
+                          <TableRow key={d.id} className="hover:bg-slate-50 transition-colors border-b last:border-none h-20">
                             <TableCell className="text-center">
-                              <span className="font-black text-xs text-slate-400">
+                              <span className="font-black text-sm text-slate-400 bg-slate-100 px-3 py-1 rounded-lg">
                                 {getDynamicBallLabel(d, inn.deliveries || [])}
                               </span>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="pl-8">
                               <div className="flex flex-col">
-                                <span className="font-black text-[11px] text-slate-900 uppercase">{getPlayerName(d.strikerPlayerId)}</span>
-                                <span className="text-[8px] font-bold text-slate-400 uppercase italic">bowled by {getPlayerName(d.bowlerId)}</span>
+                                <span className="font-black text-sm text-slate-900 uppercase tracking-tight">{getPlayerName(d.strikerPlayerId)}</span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase italic">bowled by {getPlayerName(d.bowlerId)}</span>
                               </div>
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex justify-center">
-                                <Badge className={cn("h-8 w-8 rounded-full flex items-center justify-center font-black p-0 border-2 shadow-sm transition-transform hover:scale-110", 
+                                <Badge className={cn("h-12 w-12 rounded-2xl flex items-center justify-center font-black text-lg p-0 border-4 shadow-xl transition-transform hover:scale-110", 
                                   d.isWicket ? "bg-red-500 border-red-600 text-white" : 
                                   d.runsScored === 6 ? "bg-purple-600 border-purple-700 text-white" :
                                   d.runsScored === 4 ? "bg-emerald-600 border-emerald-700 text-white" : 
@@ -935,25 +902,25 @@ export default function MatchScoreboardPage() {
                             </TableCell>
                             <TableCell>
                               {d.isWicket ? (
-                                <div className="flex flex-col">
-                                  <Badge variant="destructive" className="w-fit text-[8px] font-black uppercase px-2 py-0.5">{d.dismissalType}</Badge>
+                                <div className="flex flex-col gap-1">
+                                  <Badge variant="destructive" className="w-fit text-[10px] font-black uppercase px-3 py-1 rounded-lg">{d.dismissalType}</Badge>
                                   {d.fielderPlayerId && d.fielderPlayerId !== 'none' && (
-                                    <span className="text-[7px] font-bold text-slate-400 uppercase mt-0.5 ml-1">via {getPlayerName(d.fielderPlayerId)}</span>
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase ml-1 underline decoration-dotted">Assist: {getPlayerName(d.fielderPlayerId)}</span>
                                   )}
                                 </div>
                               ) : (
-                                <div className="flex items-center gap-2">
-                                  <span className={cn("text-[9px] font-black uppercase", d.extraType !== 'none' ? "text-amber-600" : "text-slate-400")}>
-                                    {d.extraType !== 'none' ? d.extraType : 'Legal Delivery'}
+                                <div className="flex items-center gap-3">
+                                  <span className={cn("text-[10px] font-black uppercase tracking-widest", d.extraType !== 'none' ? "text-amber-600" : "text-slate-400")}>
+                                    {d.extraType !== 'none' ? d.extraType : 'Fair Delivery'}
                                   </span>
-                                  {d.extraRuns > 0 && <Badge variant="outline" className="text-[7px] font-bold border-amber-200 text-amber-700">+{d.extraRuns}</Badge>}
+                                  {d.extraRuns > 0 && <Badge variant="outline" className="text-[10px] font-black border-amber-200 bg-amber-50 text-amber-700">+{d.extraRuns} RUNS</Badge>}
                                 </div>
                               )}
                             </TableCell>
                             {isUmpire && (
-                              <TableCell className="text-right pr-4">
-                                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive hover:bg-destructive/5 rounded-full" onClick={() => handleDeleteHistoricalBall(d.id, inn.id)}>
-                                  <Trash2 className="w-4 h-4" />
+                              <TableCell className="text-right pr-8">
+                                <Button variant="ghost" size="icon" className="h-12 w-12 text-slate-300 hover:text-destructive hover:bg-destructive/10 rounded-2xl" onClick={() => handleDeleteHistoricalBall(d.id, inn.id)}>
+                                  <Trash2 className="w-5 h-5" />
                                 </Button>
                               </TableCell>
                             )}
@@ -961,9 +928,9 @@ export default function MatchScoreboardPage() {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={isUmpire ? 5 : 4} className="py-12 text-center">
-                            <History className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                            <p className="text-[10px] font-black uppercase text-slate-300 tracking-widest italic">No deliveries recorded for this innings</p>
+                          <TableCell colSpan={isUmpire ? 5 : 4} className="py-24 text-center">
+                            <History className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                            <p className="text-xs font-black uppercase text-slate-300 tracking-[0.3em] italic">No scoring records found for this unit</p>
                           </TableCell>
                         </TableRow>
                       )}
@@ -975,38 +942,42 @@ export default function MatchScoreboardPage() {
           ))}
         </TabsContent>
 
-        <TabsContent value="info" className="pt-4 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-none shadow-sm overflow-hidden">
-              <div className="bg-slate-50 px-6 py-3 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Official Match Details</span></div>
-              <CardContent className="p-6 space-y-4">
+        <TabsContent value="info" className="pt-6 space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+              <div className="bg-slate-50 px-8 py-4 border-b"><span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Tournament Registry</span></div>
+              <CardContent className="p-8 space-y-6">
                 {[
-                  { label: 'Match Date', val: match.matchDate ? new Date(match.matchDate).toLocaleDateString() : '---', icon: CalendarIcon },
-                  { label: 'Format', val: `${match.totalOvers} Overs per Inning`, icon: Clock },
-                  { label: 'Toss Result', val: `${getTeamName(match.tossWinnerTeamId)} won and chose to ${match.tossDecision}`, icon: Trophy },
-                  { label: 'Official Status', val: match.status.toUpperCase(), icon: ShieldCheck }
+                  { label: 'Official Date', val: match.matchDate ? new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '---', icon: CalendarIcon },
+                  { label: 'Sanctioned Format', val: `${match.totalOvers} Overs per Side`, icon: Clock },
+                  { label: 'The Toss', val: `${getTeamName(match.tossWinnerTeamId)} elected to ${match.tossDecision}`, icon: Trophy },
+                  { label: 'Registry Status', val: match.status.toUpperCase(), icon: ShieldCheck }
                 ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-4 border-b border-slate-50 pb-3 last:border-none last:pb-0">
-                    <item.icon className="w-4 h-4 text-primary" />
-                    <div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{item.label}</p><p className="text-xs font-black text-slate-900 uppercase">{item.val}</p></div>
+                  <div key={i} className="flex items-center gap-6 border-b border-slate-100 pb-5 last:border-none last:pb-0">
+                    <div className="bg-primary/5 p-3 rounded-2xl"><item.icon className="w-6 h-6 text-primary" /></div>
+                    <div><p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{item.label}</p><p className="text-sm font-black text-slate-900 uppercase mt-1 tracking-tight">{item.val}</p></div>
                   </div>
                 ))}
               </CardContent>
             </Card>
-            <Card className="border-none shadow-sm overflow-hidden">
-              <div className="bg-slate-50 px-6 py-3 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Official Squads</span></div>
-              <CardContent className="p-6 grid grid-cols-2 gap-8">
-                <div className="space-y-2">
-                  <p className="text-[9px] font-black uppercase text-primary border-b pb-1">{getTeamName(match.team1Id)}</p>
-                  {match.team1SquadPlayerIds?.map((pid: string) => (
-                    <Link key={pid} href={`/players/${pid}`} className="text-[10px] font-bold text-slate-600 block hover:text-primary truncate">{getPlayerName(pid)}</Link>
-                  ))}
+            <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+              <div className="bg-slate-50 px-8 py-4 border-b"><span className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Participating Squads</span></div>
+              <CardContent className="p-8 grid grid-cols-2 gap-12">
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black uppercase text-primary border-b-4 border-primary/20 pb-2 tracking-widest">{getTeamName(match.team1Id)}</p>
+                  <div className="space-y-2">
+                    {match.team1SquadPlayerIds?.map((pid: string) => (
+                      <Link key={pid} href={`/players/${pid}`} className="text-xs font-bold text-slate-600 block hover:text-primary transition-colors truncate uppercase tracking-tight">{getPlayerName(pid)}</Link>
+                    ))}
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <p className="text-[9px] font-black uppercase text-secondary border-b pb-1">{getTeamName(match.team2Id)}</p>
-                  {match.team2SquadPlayerIds?.map((pid: string) => (
-                    <Link key={pid} href={`/players/${pid}`} className="text-[10px] font-bold text-slate-600 block hover:text-secondary truncate">{getPlayerName(pid)}</Link>
-                  ))}
+                <div className="space-y-4">
+                  <p className="text-[10px] font-black uppercase text-secondary border-b-4 border-secondary/20 pb-2 tracking-widest">{getTeamName(match.team2Id)}</p>
+                  <div className="space-y-2">
+                    {match.team2SquadPlayerIds?.map((pid: string) => (
+                      <Link key={pid} href={`/players/${pid}`} className="text-xs font-bold text-slate-600 block hover:text-secondary transition-colors truncate uppercase tracking-tight">{getPlayerName(pid)}</Link>
+                    ))}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1014,97 +985,99 @@ export default function MatchScoreboardPage() {
         </TabsContent>
       </Tabs>
 
-      {/* SHARE CARD DIALOG */}
+      {/* DIALOGS: POLISHED & ACCESSIBLE */}
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
         <DialogContent className="max-w-[95vw] md:max-w-lg p-0 border-none bg-transparent shadow-none overflow-hidden">
           <DialogHeader className="sr-only">
-            <DialogTitle>Match Result Share Card</DialogTitle>
-            <DialogDescription>Professional visual summary of match results.</DialogDescription>
+            <DialogTitle>Official Match Result Share Card</DialogTitle>
+            <DialogDescription>A visual summary designed for professional sharing.</DialogDescription>
           </DialogHeader>
-          <div className="bg-slate-900 text-white rounded-3xl overflow-hidden border-4 border-primary shadow-2xl relative p-8 space-y-8">
-            <div className="text-center space-y-2">
-              <Badge className="bg-primary text-white font-black uppercase text-[10px] px-4 py-1">OFFICIAL SCORECARD</Badge>
-              <h2 className="text-2xl font-black tracking-tighter uppercase">{getTeamName(match.team1Id)} VS {getTeamName(match.team2Id)}</h2>
-              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.3em]">{new Date(match.matchDate).toLocaleDateString()}</p>
+          <div className="bg-slate-900 text-white rounded-[2.5rem] overflow-hidden border-8 border-primary/20 shadow-2xl relative p-10 space-y-10">
+            <div className="text-center space-y-3">
+              <Badge className="bg-primary text-white font-black uppercase text-[10px] px-6 py-1.5 rounded-full shadow-lg">OFFICIAL LEAGUE SUMMARY</Badge>
+              <h2 className="text-3xl font-black tracking-tighter uppercase leading-tight">{getTeamName(match.team1Id)} <span className="text-slate-600 mx-2">VS</span> {getTeamName(match.team2Id)}</h2>
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.4em]">{new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
             </div>
-            <div className="grid grid-cols-2 gap-4 bg-white/5 p-6 rounded-2xl border border-white/10 items-center">
-              <div className="text-center space-y-1">
-                <p className="text-[9px] font-black text-primary uppercase">{getTeamName(inn1?.battingTeamId)}</p>
-                <p className="text-4xl font-black">{Math.max(0, inn1?.score ?? 0)}/{Math.max(0, inn1?.wickets ?? 0)}</p>
+            <div className="grid grid-cols-2 gap-6 bg-white/5 p-8 rounded-[2rem] border border-white/10 items-center">
+              <div className="text-center space-y-2">
+                <p className="text-[10px] font-black text-primary uppercase tracking-widest">{getTeamName(inn1?.battingTeamId)}</p>
+                <p className="text-5xl font-black tracking-tighter">{Math.max(0, inn1?.score ?? 0)}/{Math.max(0, inn1?.wickets ?? 0)}</p>
+                <p className="text-[8px] font-bold text-slate-500 uppercase">({inn1?.oversCompleted}.{inn1?.ballsInCurrentOver} OV)</p>
               </div>
-              <div className="text-center space-y-1 border-l border-white/10">
-                <p className="text-[9px] font-black text-secondary uppercase">{getTeamName(inn2?.battingTeamId)}</p>
-                <p className="text-4xl font-black">{Math.max(0, inn2?.score ?? 0)}/{Math.max(0, inn2?.wickets ?? 0)}</p>
+              <div className="text-center space-y-2 border-l border-white/10">
+                <p className="text-[10px] font-black text-secondary uppercase tracking-widest">{getTeamName(inn2?.battingTeamId)}</p>
+                <p className="text-5xl font-black tracking-tighter">{Math.max(0, inn2?.score ?? 0)}/{Math.max(0, inn2?.wickets ?? 0)}</p>
+                <p className="text-[8px] font-bold text-slate-500 uppercase">({inn2?.oversCompleted}.{inn2?.ballsInCurrentOver} OV)</p>
               </div>
             </div>
-            <div className="text-center p-4 bg-primary/20 rounded-xl border border-primary/30">
-              <p className="text-sm font-black uppercase italic text-primary tracking-tight">{match.resultDescription}</p>
+            <div className="text-center p-6 bg-primary/10 rounded-2xl border border-primary/20">
+              <p className="text-lg font-black uppercase italic text-primary tracking-tight leading-snug">{match.resultDescription}</p>
             </div>
-            <div className="pt-4 flex flex-col items-center gap-2">
-              <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-secondary" /><span className="font-black text-lg text-white tracking-tighter">CricMates</span></div>
+            <div className="pt-4 flex flex-col items-center gap-3">
+              <div className="flex items-center gap-3"><div className="bg-secondary p-2 rounded-xl"><Trophy className="w-5 h-5 text-white" /></div><span className="font-black text-2xl text-white tracking-tighter">CricMates PRO</span></div>
             </div>
           </div>
-          <div className="mt-6 flex justify-center pb-6">
-            <Button className="font-black uppercase tracking-widest" onClick={() => toast({ title: "Screenshot Ready" })}><Camera className="mr-2 w-4 h-4" /> Screenshot to Share</Button>
+          <div className="mt-8 flex justify-center pb-8">
+            <Button className="font-black h-14 px-10 rounded-2xl uppercase tracking-widest shadow-xl hover:scale-105 transition-transform" onClick={() => toast({ title: "Screenshot Ready" })}><Camera className="mr-3 w-5 h-5" /> EXPORT TO IMAGE</Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* WICKET DIALOG */}
+      {/* WICKET REGISTER DIALOG */}
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-destructive">
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-[2rem] border-t-8 border-t-destructive p-8 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="font-black uppercase tracking-tight text-destructive">Register Out</DialogTitle>
-            <DialogDescription className="text-xs uppercase font-bold text-slate-400">Details for {getPlayerName(wicketForm.batterOutId)}</DialogDescription>
+            <DialogTitle className="font-black uppercase tracking-tighter text-3xl text-destructive">Register Out</DialogTitle>
+            <DialogDescription className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Official Dismissal Log for {getPlayerName(wicketForm.batterOutId)}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Dismissal Type</Label>
+          <div className="space-y-6 py-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Mode of Dismissal</Label>
               <Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}>
-                <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="font-black h-14 rounded-xl border-2"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {['bowled', 'caught', 'runout', 'stumped', 'hit-wicket'].map(t => (<SelectItem key={t} value={t} className="font-bold uppercase text-xs">{t}</SelectItem>))}
+                  {['bowled', 'caught', 'runout', 'stumped', 'hit-wicket'].map(t => (<SelectItem key={t} value={t} className="font-black uppercase text-xs">{t}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Fielder (Optional)</Label>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Involved Fielder (Optional)</Label>
               <Select value={wicketForm.fielderId} onValueChange={(v) => setWicketForm({...wicketForm, fielderId: v})}>
-                <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="font-black h-14 rounded-xl border-2"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none" className="font-bold text-slate-400">(NONE)</SelectItem>
+                  <SelectItem value="none" className="font-bold text-slate-400">(NO FIELDER INVOLVED)</SelectItem>
                   {allPlayers?.filter(p => bowlingSquadPlayerIds.includes(p.id)).map(p => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Match Status After Wicket</Label>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Match Flow Control</Label>
               <Select value={wicketForm.decision} onValueChange={(v) => setWicketForm({...wicketForm, decision: v})}>
-                <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="font-black h-14 rounded-xl border-2"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="next" className="font-bold uppercase text-xs">Bring Next Batter</SelectItem>
-                  <SelectItem value="last_man" className="font-bold uppercase text-xs">Last Man Stands</SelectItem>
-                  <SelectItem value="finish" className="font-bold uppercase text-xs">Innings Complete</SelectItem>
+                  <SelectItem value="next" className="font-black uppercase text-xs">Bring Next Batter</SelectItem>
+                  <SelectItem value="last_man" className="font-black uppercase text-xs">Activate Last Man Stands</SelectItem>
+                  <SelectItem value="finish" className="font-black uppercase text-xs text-destructive">Declare Innings Complete</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
-          <DialogFooter><Button onClick={handleWicket} className="w-full h-14 bg-destructive text-white font-black uppercase shadow-xl">Confirm Wicket</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleWicket} className="w-full h-16 bg-destructive text-white font-black uppercase text-lg shadow-xl rounded-2xl hover:scale-[1.02] transition-transform">Confirm Wicket</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* POSITION ASSIGNMENT DIALOG */}
+      {/* ASSIGNMENT DIALOG */}
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-primary">
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-[2rem] border-t-8 border-t-primary p-8 shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="font-black uppercase tracking-tight">Active Positions</DialogTitle>
-            <DialogDescription className="text-[10px] font-bold uppercase text-slate-400">Assign participants to their match roles. Retired players may return to the crease.</DialogDescription>
+            <DialogTitle className="font-black uppercase tracking-tighter text-3xl">Unit Positions</DialogTitle>
+            <DialogDescription className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Assign Active Combatants</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label>
+          <div className="space-y-6 py-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Striker (Face Ball)</Label>
               <Select value={assignmentForm.strikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
-                <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Striker" /></SelectTrigger>
+                <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue placeholder="Select Striker" /></SelectTrigger>
                 <SelectContent>
                   {allPlayers?.filter(p => {
                     const isNS = p.id === assignmentForm.nonStrikerId;
@@ -1114,16 +1087,16 @@ export default function MatchScoreboardPage() {
                     return isSquad && !isNS && isAvailable;
                   }).map(p => (
                     <SelectItem key={p.id} value={p.id} className="font-bold">
-                      {p.name} {currentStats.batting.find(b => b.id === p.id)?.dismissal === 'retired' ? '(Retired)' : ''}
+                      {p.name} {currentStats.batting.find(b => b.id === p.id)?.dismissal === 'retired' ? '(RE-ENTRY)' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Non-Striker</Label>
               <Select value={assignmentForm.nonStrikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, nonStrikerId: v})}>
-                <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
+                <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue placeholder="Select Non-Striker" /></SelectTrigger>
                 <SelectContent>
                   {allPlayers?.filter(p => {
                     const isStriker = p.id === assignmentForm.strikerId;
@@ -1133,16 +1106,16 @@ export default function MatchScoreboardPage() {
                     return isSquad && !isStriker && isAvailable;
                   }).map(p => (
                     <SelectItem key={p.id} value={p.id} className="font-bold">
-                      {p.name} {currentStats.batting.find(b => b.id === p.id)?.dismissal === 'retired' ? '(Retired)' : ''}
+                      {p.name} {currentStats.batting.find(b => b.id === p.id)?.dismissal === 'retired' ? '(RE-ENTRY)' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Active Bowler</Label>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-slate-400 ml-1">Active Bowler</Label>
               <Select value={assignmentForm.bowlerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, bowlerId: v})}>
-                <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Bowler" /></SelectTrigger>
+                <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue placeholder="Select Bowler" /></SelectTrigger>
                 <SelectContent>
                   {allPlayers?.filter(p => bowlingSquadPlayerIds.includes(p.id)).map(p => (
                     <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
@@ -1150,13 +1123,13 @@ export default function MatchScoreboardPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="pt-2 border-t">
-              <Button variant="ghost" className="w-full text-[9px] font-black uppercase text-slate-400 h-8" onClick={handleSyncScore}>
-                <RefreshCw className="w-3 h-3 mr-2" /> Force Sync Current Score
+            <div className="pt-4 border-t border-slate-100">
+              <Button variant="ghost" className="w-full text-[10px] font-black uppercase text-slate-400 h-10 hover:text-primary rounded-xl" onClick={handleSyncScore}>
+                <RefreshCw className="w-4 h-4 mr-2" /> FORCE CALIBRATE SCORES
               </Button>
             </div>
           </div>
-          <DialogFooter><Button onClick={handleUpdateAssignment} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl">Apply Positions</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleUpdateAssignment} className="w-full h-16 font-black uppercase tracking-widest text-lg shadow-xl bg-primary text-white rounded-2xl hover:scale-[1.02] transition-transform">Apply Unit Changes</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
