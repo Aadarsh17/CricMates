@@ -600,8 +600,11 @@ export default function MatchScoreboardPage() {
             {stats.partnerships && stats.partnerships.length > 0 ? stats.partnerships.map((p: any, i: number) => (
               <div key={i} className="space-y-1">
                 <div className="flex justify-between text-[9px] font-black uppercase">
-                  <span>{getPlayerName(p.batter1Id)} & {getPlayerName(p.batter2Id)}</span>
-                  <span className="text-primary">{p.runs} ({p.balls})</span>
+                  <div className="flex flex-col gap-0.5">
+                    <span>{getPlayerName(p.batter1Id)} {p.batter1Runs}({p.batter1Balls})</span>
+                    <span className="text-slate-400">& {getPlayerName(p.batter2Id)} {p.batter2Runs}({p.batter2Balls})</span>
+                  </div>
+                  <span className="text-primary font-black self-center">{p.runs} ({p.balls})</span>
                 </div>
                 <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden flex">
                   <div className="bg-primary h-full" style={{ width: `${p.runs > 0 ? (p.batter1Runs / p.runs) * 100 : 50}%` }} />
