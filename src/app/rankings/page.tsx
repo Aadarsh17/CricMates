@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
@@ -39,7 +40,7 @@ export default function RankingsPage() {
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
   const teamStandings = useMemo(() => {
-    if (!teams || !matches) return [];
+    if (!teams || !matches || !rawDeliveries) return [];
     const standings: Record<string, any> = {};
     
     teams.forEach(t => {
@@ -78,11 +79,35 @@ export default function RankingsPage() {
       }
     });
 
-    return Object.values(standings).sort((a: any, b: any) => b.points - a.points || b.won - a.won);
-  }, [teams, matches]);
+    rawDeliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      const match = matches.find(m => m.id === matchId);
+      if (!match || match.status !== 'completed') return;
+
+      const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
+      const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
+      const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
+      const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+
+      if (standings[battingTeamId]) {
+        standings[battingTeamId].forR += (d.totalRunsOnDelivery || 0);
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') standings[battingTeamId].forB += 1;
+      }
+      if (standings[bowlingTeamId]) {
+        standings[bowlingTeamId].agR += (d.totalRunsOnDelivery || 0);
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') standings[bowlingTeamId].agB += 1;
+      }
+    });
+
+    return Object.values(standings).map((s: any) => {
+      const forRR = s.forB > 0 ? (s.forR / (s.forB / 6)) : 0;
+      const agRR = s.agB > 0 ? (s.agR / (s.agB / 6)) : 0;
+      return { ...s, nrr: forRR - agRR };
+    }).sort((a: any, b: any) => b.points - a.points || b.nrr - a.nrr);
+  }, [teams, matches, rawDeliveries]);
 
   const leaderboards = useMemo(() => {
-    if (!players || !rawDeliveries) return [];
+    if (!players || !rawDeliveries || !matches) return [];
     const stats: Record<string, any> = {};
     players.forEach(p => stats[p.id] = { id: p.id, name: p.name, runs: 0, ballsFaced: 0, wickets: 0, ballsBowled: 0, runsConceded: 0, catches: 0, runouts: 0, potm: 0, matches: 0, outs: 0 });
 
@@ -113,8 +138,8 @@ export default function RankingsPage() {
       econ: s.ballsBowled >= 6 ? (s.runsConceded / (s.ballsBowled / 6)) : 0
     })).sort((a: any, b: any) => {
       const key = activeCategory;
-      if (key === 'econ') return a[key] - b[key];
-      return b[key] - a[key];
+      if (key === 'econ') return (a[key] || 99) - (b[key] || 99);
+      return (b[key] || 0) - (a[key] || 0);
     }).slice(0, 10);
   }, [players, rawDeliveries, matches, activeCategory]);
 
@@ -137,7 +162,7 @@ export default function RankingsPage() {
 
         <TabsContent value="points">
           <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scrollbar-hide">
               <Table>
                 <TableHeader className="bg-slate-50">
                   <TableRow>
@@ -147,6 +172,7 @@ export default function RankingsPage() {
                     <TableHead className="text-center text-[10px] font-black uppercase">W</TableHead>
                     <TableHead className="text-center text-[10px] font-black uppercase">L</TableHead>
                     <TableHead className="text-center text-[10px] font-black uppercase">T/NR</TableHead>
+                    <TableHead className="text-center text-[10px] font-black uppercase">NRR</TableHead>
                     <TableHead className="text-center text-[10px] font-black uppercase bg-primary/5">PTS</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -157,13 +183,14 @@ export default function RankingsPage() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-6 w-6 rounded-none"><AvatarImage src={team.logoUrl} className="object-contain" /></Avatar>
-                          <span className="font-black text-xs uppercase text-slate-800">{team.name}</span>
+                          <span className="font-black text-xs uppercase text-slate-800 truncate max-w-[100px]">{team.name}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-center text-xs font-bold text-slate-600">{team.played}</TableCell>
                       <TableCell className="text-center text-xs font-bold text-slate-600">{team.won}</TableCell>
                       <TableCell className="text-center text-xs font-bold text-slate-600">{team.lost}</TableCell>
                       <TableCell className="text-center text-xs font-bold text-slate-600">{team.tied + team.nr}</TableCell>
+                      <TableCell className={cn("text-center text-xs font-bold", team.nrr >= 0 ? "text-primary" : "text-amber-600")}>{team.nrr.toFixed(3)}</TableCell>
                       <TableCell className="text-center text-xs font-black text-primary bg-primary/5">{team.points}</TableCell>
                     </TableRow>
                   ))}
@@ -209,7 +236,7 @@ export default function RankingsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <Badge variant="secondary" className="font-black text-xs px-3">
-                        {activeCategory === 'avg' || activeCategory === 'sr' || activeCategory === 'econ' ? p[activeCategory].toFixed(2) : p[activeCategory]}
+                        {activeCategory === 'avg' || activeCategory === 'sr' || activeCategory === 'econ' ? (p[activeCategory] || 0).toFixed(2) : (p[activeCategory] || 0)}
                       </Badge>
                     </TableCell>
                   </TableRow>
