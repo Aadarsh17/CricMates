@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import Link from 'next/link';
 
 const chartConfig = {
   score: { label: "Runs", color: "hsl(var(--primary))" },
@@ -144,7 +145,6 @@ export default function MatchScoreboardPage() {
     let nextS = activeInningData.strikerPlayerId, nextNS = activeInningData.nonStrikerPlayerId;
     const totalRunsThisBall = dData.totalRunsOnDelivery;
     
-    // Switch strike logic
     if (totalRunsThisBall % 2 !== 0) [nextS, nextNS] = [nextNS, nextS];
     if (newTotalLegal % 6 === 0 && isLegal) [nextS, nextNS] = [nextNS, nextS];
 
@@ -247,7 +247,9 @@ export default function MatchScoreboardPage() {
       <Card className="border-none shadow-xl overflow-hidden bg-white rounded-3xl">
         <div className="p-4 bg-slate-900 text-white flex justify-between items-center">
           <span className="text-[10px] font-black uppercase tracking-widest">{title}</span>
-          <Badge className="bg-primary text-white font-black text-[10px] uppercase h-6">{getTeamName(inning?.battingTeamId)}</Badge>
+          <Badge className="bg-primary text-white font-black text-[10px] uppercase h-6 hover:bg-primary/80 transition-colors">
+            <Link href={`/teams/${inning?.battingTeamId}`}>{getTeamName(inning?.battingTeamId)}</Link>
+          </Badge>
         </div>
         <div className="overflow-x-auto scrollbar-hide">
           <Table>
@@ -265,7 +267,7 @@ export default function MatchScoreboardPage() {
               {stats?.batting?.map((b: any) => (
                 <TableRow key={b.id}>
                   <TableCell className="py-3">
-                    <p className="font-black text-xs uppercase truncate max-w-[120px]">{getPlayerName(b.id)}</p>
+                    <Link href={`/players/${b.id}`} className="font-black text-xs uppercase truncate max-w-[120px] hover:text-primary transition-colors block">{getPlayerName(b.id)}</Link>
                     <p className={cn("text-[8px] font-bold uppercase italic", b.out ? "text-red-500" : "text-slate-400")}>
                       {b.out ? `Out: ${b.dismissal}` : 'Not Out'}
                     </p>
@@ -303,7 +305,9 @@ export default function MatchScoreboardPage() {
           <TableBody>
             {stats?.bowling?.map((bw: any) => (
               <TableRow key={bw.id}>
-                <TableCell className="font-black text-xs uppercase">{getPlayerName(bw.id)}</TableCell>
+                <TableCell className="font-black text-xs uppercase">
+                  <Link href={`/players/${bw.id}`} className="hover:text-primary transition-colors">{getPlayerName(bw.id)}</Link>
+                </TableCell>
                 <TableCell className="text-right font-bold text-xs">{bw.oversDisplay}</TableCell>
                 <TableCell className="text-right text-xs">{bw.maidens}</TableCell>
                 <TableCell className="text-right font-black text-xs">{bw.runs}</TableCell>
@@ -359,12 +363,12 @@ export default function MatchScoreboardPage() {
           <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="text-white hover:bg-white/10 h-8 w-8 shrink-0"><ChevronLeft className="w-5 h-5" /></Button>
           <div className="space-y-1 flex-1">
             <div className="flex items-center gap-3">
-              <span className="font-black uppercase text-[10px] text-slate-400 truncate max-w-[80px]">{getTeamName(match?.team1Id)}</span>
+              <Link href={`/teams/${match?.team1Id}`} className="font-black uppercase text-[10px] text-slate-400 truncate max-w-[80px] hover:text-white transition-colors">{getTeamName(match?.team1Id)}</Link>
               <span className={cn("font-black text-xl", match?.currentInningNumber === 1 ? "text-primary" : "text-slate-500")}>{inn1?.score || 0}/{inn1?.wickets || 0}</span>
               <Badge variant="outline" className="text-[8px] font-black border-white/10 h-4 text-slate-400">({formatOverNotation((inn1?.oversCompleted || 0) * 6 + (inn1?.ballsInCurrentOver || 0))})</Badge>
             </div>
             <div className="flex items-center gap-3">
-              <span className="font-black uppercase text-[10px] text-slate-400 truncate max-w-[80px]">{getTeamName(match?.team2Id)}</span>
+              <Link href={`/teams/${match?.team2Id}`} className="font-black uppercase text-[10px] text-slate-400 truncate max-w-[80px] hover:text-white transition-colors">{getTeamName(match?.team2Id)}</Link>
               <span className={cn("font-black text-xl", match?.currentInningNumber === 2 ? "text-secondary" : "text-slate-500")}>{inn2?.score || 0}/{inn2?.wickets || 0}</span>
               <Badge variant="outline" className="text-[8px] font-black border-white/10 h-4 text-slate-400">({formatOverNotation((inn2?.oversCompleted || 0) * 6 + (inn2?.ballsInCurrentOver || 0))})</Badge>
             </div>
@@ -387,7 +391,6 @@ export default function MatchScoreboardPage() {
           </TabsList>
 
           <TabsContent value="live" className="space-y-6">
-            {/* Umpire Controls */}
             {isUmpire && !activeInningData?.isDeclaredFinished && match?.status === 'live' ? (
               <Card className="bg-slate-900 border-none rounded-3xl overflow-hidden shadow-2xl">
                 <CardContent className="p-6 space-y-6">
@@ -459,7 +462,6 @@ export default function MatchScoreboardPage() {
               </Button>
             )}
 
-            {/* Live Performance Tables */}
             <div className="space-y-4">
               <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
                 <div className="p-3 bg-slate-100 flex items-center justify-between">
@@ -484,7 +486,7 @@ export default function MatchScoreboardPage() {
                       return (
                         <TableRow key={pid} className={idx === 0 ? "bg-primary/5" : ""}>
                           <TableCell className="font-black text-xs uppercase truncate max-w-[100px]">
-                            {getPlayerName(pid)} {idx === 0 ? '*' : ''}
+                            <Link href={`/players/${pid}`} className="hover:text-primary transition-colors">{getPlayerName(pid)}</Link> {idx === 0 ? '*' : ''}
                           </TableCell>
                           <TableCell className="text-right font-black">{b?.runs || 0}</TableCell>
                           <TableCell className="text-right text-xs font-bold text-slate-500">{b?.balls || 0}</TableCell>
@@ -521,7 +523,9 @@ export default function MatchScoreboardPage() {
                         const bw = currentStats?.bowling?.find((p: any) => p.id === activeInningData.currentBowlerPlayerId);
                         return (
                           <TableRow>
-                            <TableCell className="font-black text-xs uppercase">{getPlayerName(activeInningData.currentBowlerPlayerId)}</TableCell>
+                            <TableCell className="font-black text-xs uppercase">
+                              <Link href={`/players/${activeInningData.currentBowlerPlayerId}`} className="hover:text-primary transition-colors">{getPlayerName(activeInningData.currentBowlerPlayerId)}</Link>
+                            </TableCell>
                             <TableCell className="text-right font-bold text-xs">{bw?.oversDisplay || '0.0'}</TableCell>
                             <TableCell className="text-right font-black">{bw?.runs || 0}</TableCell>
                             <TableCell className="text-right font-black text-secondary">{bw?.wickets || 0}</TableCell>
@@ -535,7 +539,6 @@ export default function MatchScoreboardPage() {
               )}
             </div>
 
-            {/* Recent History Strip */}
             <div className="space-y-4">
               <h2 className="text-xl font-black uppercase flex items-center gap-2 text-slate-900"><History className="w-5 h-5 text-primary" /> Recent History</h2>
               <div className="flex items-center gap-2 overflow-x-auto pb-4 scrollbar-hide">
@@ -654,7 +657,7 @@ export default function MatchScoreboardPage() {
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 border-b pb-2 flex items-center gap-2"><Info className="w-4 h-4 text-primary" /> Match Metadata</h3>
               <div className="grid grid-cols-2 gap-6">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Format</p><p className="font-black text-slate-900 uppercase">{match?.totalOvers} Overs League</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Toss Result</p><p className="font-black text-slate-900 uppercase">{getTeamName(match?.tossWinnerTeamId)}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Toss Result</p><Link href={`/teams/${match?.tossWinnerTeamId}`} className="font-black text-slate-900 uppercase hover:text-primary transition-colors block">{getTeamName(match?.tossWinnerTeamId)}</Link></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Match Date</p><div className="flex items-center gap-1.5 font-bold text-xs"><Calendar className="w-3 h-3"/> {new Date(match?.matchDate || '').toLocaleDateString()}</div></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Entry Timestamp</p><div className="flex items-center gap-1.5 font-bold text-xs"><Clock className="w-3 h-3"/> {new Date(match?.matchDate || '').toLocaleTimeString()}</div></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Umpire</p><div className="flex items-center gap-1.5 font-bold text-xs"><UserCheck className="w-3 h-3"/> {match?.umpireId === 'anonymous' ? 'Official Panel' : `Umpire #${match?.umpireId?.substring(0,4)}`}</div></div>
@@ -663,12 +666,12 @@ export default function MatchScoreboardPage() {
                 <p className="text-[10px] font-black uppercase text-slate-400 mb-4 tracking-[0.2em]">Verified Squads</p>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <p className="font-black text-[10px] text-primary">{getTeamName(match?.team1Id)}</p>
-                    {match?.team1SquadPlayerIds?.map((pid: string) => <p key={pid} className="text-[9px] font-medium text-slate-500 truncate">• {getPlayerName(pid)}</p>)}
+                    <Link href={`/teams/${match?.team1Id}`} className="font-black text-[10px] text-primary hover:underline">{getTeamName(match?.team1Id)}</Link>
+                    {match?.team1SquadPlayerIds?.map((pid: string) => <Link key={pid} href={`/players/${pid}`} className="text-[9px] font-medium text-slate-500 truncate block hover:text-primary">• {getPlayerName(pid)}</Link>)}
                   </div>
                   <div className="space-y-1">
-                    <p className="font-black text-[10px] text-secondary">{getTeamName(match?.team2Id)}</p>
-                    {match?.team2SquadPlayerIds?.map((pid: string) => <p key={pid} className="text-[9px] font-medium text-slate-500 truncate">• {getPlayerName(pid)}</p>)}
+                    <Link href={`/teams/${match?.team2Id}`} className="font-black text-[10px] text-secondary hover:underline">{getTeamName(match?.team2Id)}</Link>
+                    {match?.team2SquadPlayerIds?.map((pid: string) => <Link key={pid} href={`/players/${pid}`} className="text-[9px] font-medium text-slate-500 truncate block hover:text-primary">• {getPlayerName(pid)}</Link>)}
                   </div>
                 </div>
               </div>
@@ -677,7 +680,6 @@ export default function MatchScoreboardPage() {
         </Tabs>
       </div>
 
-      {/* Dialogs for Assignments, Wickets, and No Ball */}
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
         <DialogContent className="max-w-[90vw] rounded-3xl border-t-8 border-t-primary shadow-2xl bg-white overflow-hidden p-0">
           <div className="p-6 space-y-6">

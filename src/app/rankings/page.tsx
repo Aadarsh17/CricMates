@@ -77,14 +77,12 @@ export default function RankingsPage() {
             standings[loser].lost++;
           }
         } else {
-          // Fallback if name matching fails
           standings[t1.id].nr++;
           standings[t2.id].nr++;
           standings[t1.id].points += 1;
           standings[t2.id].points += 1;
         }
       } else {
-        // Tied or No Result
         standings[t1.id].nr++;
         standings[t2.id].nr++;
         standings[t1.id].points += 1;
@@ -118,7 +116,6 @@ export default function RankingsPage() {
       }
     });
 
-    // Final NRR calculation
     Object.values(standings).forEach((s: any) => {
       const forOvers = s.forB / 6;
       const agOvers = s.agB / 6;
@@ -230,7 +227,11 @@ export default function RankingsPage() {
                 {teamStandings.map((t, idx) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
-                    <TableCell className="font-black text-xs uppercase">{t.name}</TableCell>
+                    <TableCell className="font-black text-xs uppercase">
+                      <Link href={`/teams/${t.id}`} className="hover:text-primary transition-colors">
+                        {t.name}
+                      </Link>
+                    </TableCell>
                     <TableCell className="text-center text-xs font-bold">{t.played}</TableCell>
                     <TableCell className="text-center text-xs font-bold text-emerald-600">{t.won}</TableCell>
                     <TableCell className="text-center text-xs font-bold text-red-600">{t.lost}</TableCell>

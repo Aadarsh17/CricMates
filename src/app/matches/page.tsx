@@ -64,7 +64,9 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
       <div className="flex justify-between items-center w-full py-2">
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8 border bg-muted"><AvatarFallback>{getAbbr(team?.name || '')[0]}</AvatarFallback></Avatar>
-          <span className="font-black text-lg text-slate-800 tracking-tight">{getAbbr(team?.name || '')}</span>
+          <Link href={`/teams/${inning.battingTeamId}`} className="font-black text-lg text-slate-800 tracking-tight hover:text-primary transition-colors">
+            {getAbbr(team?.name || '')}
+          </Link>
         </div>
         <div className="flex items-baseline gap-2">
           <span className="font-black text-2xl text-slate-900">{inning.score}/{inning.wickets}</span>
