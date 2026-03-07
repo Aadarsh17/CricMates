@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
@@ -9,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
@@ -111,7 +112,6 @@ export default function PlayerProfilePage() {
         s.bowling.runs += log.bowling.runsConceded;
         s.bowling.wkts += log.bowling.wickets;
 
-        // Best Figures Logic - Corrected to avoid 0/999
         if (firstBowl) {
           s.bowling.best = { wkts: log.bowling.wickets, runs: log.bowling.runsConceded };
           firstBowl = false;
@@ -209,7 +209,7 @@ export default function PlayerProfilePage() {
               </div>
               <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.batting.innings} Innings</Badge>
             </div>
-            <CardContent className="p-6">
+            <div className="p-6">
               <div className="grid grid-cols-3 md:grid-cols-4 gap-6 text-center">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-xl font-black text-slate-900">{careerStats.batting.runs}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Best</p><p className="text-xl font-black text-slate-900">{careerStats.batting.high}</p></div>
@@ -234,7 +234,7 @@ export default function PlayerProfilePage() {
                   ))}
                 </div>
               </div>
-            </CardContent>
+            </div>
           </Card>
 
           <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden">
@@ -245,7 +245,7 @@ export default function PlayerProfilePage() {
               </div>
               <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.bowling.innings} Innings</Badge>
             </div>
-            <CardContent className="p-6">
+            <div className="p-6">
               <div className="grid grid-cols-3 md:grid-cols-4 gap-6 text-center">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Wickets</p><p className="text-xl font-black text-secondary">{careerStats.bowling.wkts}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Best</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.best.wkts}/{careerStats.bowling.best.runs}</p></div>
@@ -253,7 +253,7 @@ export default function PlayerProfilePage() {
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Overs</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.overs}</p></div>
               </div>
               <div className="mt-6 pt-6 border-t">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Wicket Hauls</p>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Wicket Milestones</p>
                 <div className="grid grid-cols-4 gap-2">
                   {[
                     { label: '5W', val: careerStats.bowling.mil.fiveW },
@@ -268,7 +268,7 @@ export default function PlayerProfilePage() {
                   ))}
                 </div>
               </div>
-            </CardContent>
+            </div>
           </Card>
 
           <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden">
@@ -276,7 +276,7 @@ export default function PlayerProfilePage() {
               <Hand className="w-4 h-4 text-emerald-500" />
               <span className="text-[10px] font-black uppercase tracking-widest">Fielding Record</span>
             </div>
-            <CardContent className="p-6">
+            <div className="p-6">
               <div className="grid grid-cols-3 gap-6 text-center">
                 <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
                   <p className="text-[8px] font-black text-emerald-600 uppercase mb-1">Catches</p>
@@ -291,7 +291,7 @@ export default function PlayerProfilePage() {
                   <p className="text-2xl font-black text-emerald-700">{careerStats.fielding.runouts}</p>
                 </div>
               </div>
-            </CardContent>
+            </div>
           </Card>
         </TabsContent>
 
@@ -300,7 +300,7 @@ export default function PlayerProfilePage() {
           <div className="space-y-3">
             {matchWiseLog.slice(0, 5).map((log, idx) => (
               <Card key={idx} className="border-none shadow-sm rounded-2xl bg-white overflow-hidden">
-                <CardContent className="p-4 flex items-center justify-between">
+                <div className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col items-center justify-center min-w-[50px]">
                       <Calendar className="w-3 h-3 text-slate-400 mb-1" />
@@ -320,7 +320,7 @@ export default function PlayerProfilePage() {
                     <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Impact</p>
                     <Badge variant="secondary" className="font-black text-xs h-6">{log.totalCVP.toFixed(1)}</Badge>
                   </div>
-                </CardContent>
+                </div>
               </Card>
             ))}
           </div>

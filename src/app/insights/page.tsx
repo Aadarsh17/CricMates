@@ -1,12 +1,14 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 import { collection, query, collectionGroup } from 'firebase/firestore';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Zap, Target, Swords, Clock, Star, Medal, ChevronLeft, Button } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, Clock, Medal, ChevronLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function InsightsPage() {
@@ -33,7 +35,6 @@ export default function InsightsPage() {
     const fast30: any[] = [];
     const hats: any[] = [];
     const winKnocks: any[] = [];
-    const matchRuns: Record<string, { runs: number, wickets: number, matches: number }> = {};
 
     // 1. FASTEST 30 (T10 STYLE)
     const pInnings: Record<string, Record<string, any>> = {};

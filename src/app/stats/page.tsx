@@ -1,10 +1,12 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 import { collection, query, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Zap, Trophy, Target, Medal, Shield, Hand, ChevronLeft, Button } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Loader2, Zap, Trophy, Target, Shield, Hand, ChevronLeft } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 

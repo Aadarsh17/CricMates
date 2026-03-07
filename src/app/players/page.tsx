@@ -1,13 +1,15 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 import { collection, query, orderBy, collectionGroup } from 'firebase/firestore';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, UserCircle, Star, ShieldCheck, ChevronRight, Loader2, ChevronLeft, Button } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Search, UserCircle, ChevronRight, Loader2, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { useRouter } from 'next/navigation';
