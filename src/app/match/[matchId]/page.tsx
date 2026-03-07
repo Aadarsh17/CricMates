@@ -266,8 +266,9 @@ export default function MatchScoreboardPage() {
       [nextStriker, nextNonStriker] = [nextNonStriker, nextStriker];
     }
 
+    const deliveryId = doc(collection(db, 'temp')).id;
     const deliveryData = { 
-      id: doc(collection(db, 'temp')).id, 
+      id: deliveryId, 
       overNumber: (newBallsInOver === 0 && isLegalBall) ? newOversComp : newOversComp + 1, 
       ballNumberInOver: (newBallsInOver === 0 && isLegalBall) ? 6 : newBallsInOver, 
       strikerPlayerId: activeInningData.strikerPlayerId, 
@@ -281,7 +282,7 @@ export default function MatchScoreboardPage() {
       timestamp: Date.now(), 
       noStrikeChange 
     };
-    addDocumentNonBlocking(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords'), deliveryData);
+    setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', deliveryId), deliveryData, { merge: true });
     
     const updates: any = { 
       score: activeInningData.score + totalRunsOnDelivery, 
@@ -317,7 +318,7 @@ export default function MatchScoreboardPage() {
     const team2Name = getTeamName(inn2.battingTeamId); 
 
     if (inn2Score > inn1Score) { 
-      const squadSize = match.team2SquadPlayerIds?.length || 11;
+      const squadSize = (match.currentInningNumber === 2 ? (match.team2SquadPlayerIds?.length || 11) : (match.team1SquadPlayerIds?.length || 11));
       const wicketsRemaining = Math.max(0, (squadSize - 1) - inn2Wickets);
       result = `${team2Name} won by ${wicketsRemaining} ${wicketsRemaining === 1 ? 'wicket' : 'wickets'}.`; 
     }
@@ -360,8 +361,9 @@ export default function MatchScoreboardPage() {
     const currentBallsCount = (match.currentInningNumber === 1 ? inn1BallsCount : inn2BallsCount) + 1;
     const isTerminallyFinished = currentBallsCount >= (match.totalOvers * 6);
     
+    const deliveryId = doc(collection(db, 'temp')).id;
     const deliveryData = { 
-      id: doc(collection(db, 'temp')).id, 
+      id: deliveryId, 
       overNumber: newBalls === 0 ? newOvers : newOvers + 1, 
       ballNumberInOver: newBalls === 0 ? 6 : newBalls, 
       strikerPlayerId: activeInningData.strikerPlayerId, 
@@ -377,7 +379,7 @@ export default function MatchScoreboardPage() {
       fielderPlayerId: wicketForm.fielderId, 
       timestamp: Date.now() 
     };
-    addDocumentNonBlocking(collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords'), deliveryData);
+    setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', deliveryId), deliveryData, { merge: true });
     
     let nextStriker = wicketForm.batterOutId === activeInningData.strikerPlayerId ? '' : activeInningData.strikerPlayerId;
     let nextNonStriker = wicketForm.batterOutId === activeInningData.nonStrikerPlayerId ? '' : activeInningData.nonStrikerPlayerId;
@@ -574,6 +576,43 @@ export default function MatchScoreboardPage() {
         </Table></div>
       </Card>
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="rounded-xl overflow-hidden border shadow-sm bg-white">
+          <div className="bg-slate-50 px-4 py-2 border-b">
+            <span className="text-[10px] font-black uppercase text-slate-500">Fall of Wickets</span>
+          </div>
+          <div className="p-4 space-y-2">
+            {stats.fow && stats.fow.length > 0 ? stats.fow.map((f: any, i: number) => (
+              <div key={i} className="flex justify-between items-center text-[10px] border-b border-dashed last:border-none pb-1">
+                <span className="font-bold text-slate-600">{f.wicketNum}-{f.scoreAtWicket}</span>
+                <span className="font-black uppercase">{getPlayerName(f.playerOutId)}</span>
+                <span className="text-slate-400 font-bold">({f.overs} ov)</span>
+              </div>
+            )) : <p className="text-center text-[9px] font-black text-slate-300 uppercase py-4">No wickets fallen</p>}
+          </div>
+        </Card>
+
+        <Card className="rounded-xl overflow-hidden border shadow-sm bg-white">
+          <div className="bg-slate-50 px-4 py-2 border-b">
+            <span className="text-[10px] font-black uppercase text-slate-500">Partnerships</span>
+          </div>
+          <div className="p-4 space-y-3">
+            {stats.partnerships && stats.partnerships.length > 0 ? stats.partnerships.map((p: any, i: number) => (
+              <div key={i} className="space-y-1">
+                <div className="flex justify-between text-[9px] font-black uppercase">
+                  <span>{getPlayerName(p.batter1Id)} & {getPlayerName(p.batter2Id)}</span>
+                  <span className="text-primary">{p.runs} ({p.balls})</span>
+                </div>
+                <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                  <div className="bg-primary h-full" style={{ width: `${p.runs > 0 ? (p.batter1Runs / p.runs) * 100 : 50}%` }} />
+                  <div className="bg-secondary h-full" style={{ width: `${p.runs > 0 ? (p.batter2Runs / p.runs) * 100 : 50}%` }} />
+                </div>
+              </div>
+            )) : <p className="text-center text-[9px] font-black text-slate-300 uppercase py-4">No partnerships recorded</p>}
+          </div>
+        </Card>
+      </div>
+
       <Card className="rounded-xl overflow-hidden border shadow-md bg-white">
         <div className="bg-secondary/5 px-4 py-3 border-b flex justify-between items-center">
           <span className="text-[11px] font-black uppercase tracking-widest text-secondary flex items-center gap-2"><History className="w-3 h-3"/> Bowling: {oppTeamName}</span>
@@ -649,11 +688,11 @@ export default function MatchScoreboardPage() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
             <div className="space-y-3 flex-1 w-full">
               <div className="flex items-center justify-between">
-                <div className="flex flex-col"><span className={cn("font-black text-xl md:text-2xl uppercase truncate max-w-[200px]", match.currentInningNumber === 1 && inn1?.battingTeamId === match.team1Id ? "text-slate-900" : "text-slate-400")}>{t1Header.name}</span><span className="text-[10px] font-black text-slate-400 uppercase">({t1Header.overs}/{match.totalOvers} OV)</span></div>
+                <div className="flex flex-col"><span className={cn("font-black text-xl md:text-2xl uppercase truncate max-w-[200px]", (match.currentInningNumber === 1 && inn1?.battingTeamId === match.team1Id) || (match.currentInningNumber === 2 && inn2?.battingTeamId === match.team1Id) ? "text-slate-900" : "text-slate-400")}>{t1Header.name}</span><span className="text-[10px] font-black text-slate-400 uppercase">({t1Header.overs}/{match.totalOvers} OV)</span></div>
                 <span className="font-black text-2xl md:text-3xl text-slate-900">{t1Header.score}/{t1Header.wkts}</span>
               </div>
               <div className="flex items-center justify-between">
-                <div className="flex flex-col"><span className={cn("font-black text-xl md:text-2xl uppercase truncate max-w-[200px]", match.currentInningNumber === 2 && inn2?.battingTeamId === match.team2Id ? "text-slate-900" : "text-slate-400")}>{t2Header.name}</span><span className="text-[10px] font-black text-slate-400 uppercase">({t2Header.overs}/{match.totalOvers} OV)</span></div>
+                <div className="flex flex-col"><span className={cn("font-black text-xl md:text-2xl uppercase truncate max-w-[200px]", (match.currentInningNumber === 1 && inn1?.battingTeamId === match.team2Id) || (match.currentInningNumber === 2 && inn2?.battingTeamId === match.team2Id) ? "text-slate-900" : "text-slate-400")}>{t2Header.name}</span><span className="text-[10px] font-black text-slate-400 uppercase">({t2Header.overs}/{match.totalOvers} OV)</span></div>
                 <span className="font-black text-2xl md:text-3xl text-slate-900">{t2Header.score}/{t2Header.wkts}</span>
               </div>
             </div>
