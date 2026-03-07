@@ -111,7 +111,7 @@ export default function MatchScoreboardPage() {
 
   const handleShareSummary = () => {
     if (!match) return;
-    const summary = `🏏 *CricMates Pro Match Summary*\n\n${getTeamName(match.team1Id)} vs ${getTeamName(match.team2Id)}\n${getTeamName(inn1?.battingTeamId)}: ${inn1?.score}/${inn1?.wickets}\n${getTeamName(inn2?.battingTeamId)}: ${inn2?.score}/${inn2?.wickets}\n\n🏆 *Result:* ${match.resultDescription}\n\nView details: ${window.location.href}`;
+    const summary = `\ud83c\udfcf *CricMates Pro Match Summary*\n\n${getTeamName(match.team1Id)} vs ${getTeamName(match.team2Id)}\n${getTeamName(inn1?.battingTeamId)}: ${inn1?.score}/${inn1?.wickets}\n${getTeamName(inn2?.battingTeamId)}: ${inn2?.score}/${inn2?.wickets}\n\n\ud83c\udfc6 *Result:* ${match.resultDescription}\n\nView details: ${window.location.href}`;
     navigator.clipboard.writeText(summary);
     toast({ title: "Summary Copied", description: "Professional text summary ready to share." });
   };
@@ -593,7 +593,7 @@ export default function MatchScoreboardPage() {
                       return (
                         <TableRow key={pid} className={idx === 0 ? "bg-primary/5" : ""}>
                           <TableCell className="font-black text-xs uppercase truncate max-w-[100px]">
-                            <Link href={`/players/${pid}`} className="hover:text-primary transition-colors">{getPlayerName(pid)}</Link {idx === 0 ? '*' : ''}
+                            <Link href={`/players/${pid}`} className="hover:text-primary transition-colors">{getPlayerName(pid)}{idx === 0 ? '*' : ''}</Link>
                           </TableCell>
                           <TableCell className="text-right font-black">{b?.runs || 0}</TableCell>
                           <TableCell className="text-right text-xs font-bold text-slate-500">{b?.balls || 0}</TableCell>
