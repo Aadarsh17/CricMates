@@ -503,6 +503,15 @@ export default function MatchScoreboardPage() {
               </div>
             )}
 
+            {isUmpire && match?.status === 'completed' && (
+              <Card className="bg-amber-50 border-2 border-dashed border-amber-200 p-6 rounded-3xl text-center space-y-4">
+                <p className="text-xs font-black uppercase text-amber-700">Match Officially Closed</p>
+                <Button onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'live' })} variant="outline" className="w-full h-12 border-amber-500 text-amber-700 font-black uppercase text-[10px]">
+                  <RotateCcw className="w-4 h-4 mr-2" /> Re-open for Scoring
+                </Button>
+              </Card>
+            )}
+
             <div className="space-y-4">
               <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
                 <div className="p-3 bg-slate-100 flex items-center justify-between">
