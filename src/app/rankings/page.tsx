@@ -7,17 +7,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trophy, ChevronRight, Loader2, User, Star, Target, Zap, Shield, Hand } from 'lucide-react';
+import { Trophy, ChevronRight, Loader2, User, Star, Target, Zap, Shield, Hand, ChevronLeft } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 type LeaderboardCategory = 'runs' | 'wickets' | 'avg' | 'sr' | 'econ' | 'catches' | 'runouts' | 'potm';
 
 export default function RankingsPage() {
   const db = useFirestore();
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [activeCategory, setActiveCategory] = useState<LeaderboardCategory>('runs');
 
@@ -150,9 +152,16 @@ export default function RankingsPage() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-32 px-4">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full">
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+        <h1 className="text-2xl font-black uppercase tracking-widest text-slate-900">League Rankings</h1>
+      </div>
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">League Rankings</h1>
+          <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Points Table</h1>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Official Series Standings & Leaderboards</p>
         </div>
       </div>

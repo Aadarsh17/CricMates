@@ -4,11 +4,13 @@ import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 import { collection, query, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Zap, Trophy, Target, Medal, Shield, Hand } from 'lucide-react';
+import { Loader2, Zap, Trophy, Target, Medal, Shield, Hand, ChevronLeft, Button } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function StatsPage() {
   const db = useFirestore();
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -68,7 +70,7 @@ export default function StatsPage() {
         if (b) {
           b.runsCon += (d.totalRunsOnDelivery || 0);
           if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsB++;
-          if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++;
+          if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wickets++;
         }
       }
       if (fId && pMatchStats[fId] && pMatchStats[fId][matchId]) {
@@ -108,11 +110,10 @@ export default function StatsPage() {
   return (
     <div className="max-w-lg mx-auto space-y-10 pb-32 px-4">
       <div className="flex items-center gap-4">
-        <div className="bg-primary p-3 rounded-2xl shadow-xl shadow-primary/20"><Medal className="w-6 h-6 text-white" /></div>
-        <div>
-          <h1 className="text-2xl font-black uppercase text-slate-900 leading-none">Records Hall</h1>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">League history all-time peaks</p>
-        </div>
+        <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full">
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+        <h1 className="text-2xl font-black uppercase tracking-widest text-slate-900 leading-none">Records Hall</h1>
       </div>
 
       <section className="space-y-6">

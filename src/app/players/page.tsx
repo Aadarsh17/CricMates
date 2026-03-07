@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -8,12 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, UserCircle, Star, ShieldCheck, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, UserCircle, Star, ShieldCheck, ChevronRight, Loader2, ChevronLeft, Button } from 'lucide-react';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
+import { useRouter } from 'next/navigation';
 
 export default function PlayersPage() {
   const db = useFirestore();
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [isMounted, setIsMounted] = useState(false);
 
@@ -109,6 +110,13 @@ export default function PlayersPage() {
 
   return (
     <div className="space-y-6 pb-24 px-4 max-w-5xl mx-auto">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full">
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+        <h1 className="text-2xl font-black uppercase tracking-widest text-slate-900">Player Registry</h1>
+      </div>
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900">Player Pool</h1>

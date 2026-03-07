@@ -7,7 +7,7 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand } from 'lucide-react';
+import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -111,7 +111,7 @@ export default function PlayerProfilePage() {
         s.bowling.runs += log.bowling.runsConceded;
         s.bowling.wkts += log.bowling.wickets;
 
-        // Best Figures Logic
+        // Best Figures Logic - Corrected to avoid 0/999
         if (firstBowl) {
           s.bowling.best = { wkts: log.bowling.wickets, runs: log.bowling.runsConceded };
           firstBowl = false;
@@ -155,6 +155,13 @@ export default function PlayerProfilePage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-32 px-4 animate-in fade-in slide-in-from-bottom-4">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => router.push('/players')} className="rounded-full h-10 w-10">
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+        <h1 className="text-xl font-black uppercase tracking-widest text-slate-900">Player Record</h1>
+      </div>
+
       <section className="bg-slate-950 text-white rounded-3xl p-8 shadow-2xl relative overflow-hidden ring-1 ring-white/10">
         <div className="absolute top-0 right-0 p-4 opacity-10"><Zap className="w-32 h-32" /></div>
         <div className="flex flex-col md:flex-row items-center gap-6 relative z-10 text-center md:text-left">

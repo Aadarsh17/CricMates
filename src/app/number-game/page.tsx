@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -10,10 +9,11 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target, CheckCircle2 } from 'lucide-react';
+import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target, CheckCircle2, ChevronLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { generateStreetReport } from '@/lib/report-utils';
+import { useRouter } from 'next/navigation';
 
 interface Player {
   id: string;
@@ -41,6 +41,7 @@ interface Player {
 const STORAGE_KEY = 'cricmates_street_pro_session_v2';
 
 export default function NumberGame() {
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [gameState, setGameState] = useState<'setup' | 'playing' | 'finished'>('setup');
   const [playerNames, setPlayerNames] = useState<string[]>(['', '', '']);
@@ -351,6 +352,13 @@ export default function NumberGame() {
   if (gameState === 'setup') {
     return (
       <div className="max-w-md mx-auto space-y-6 py-8 px-4 animate-in fade-in slide-in-from-bottom-4">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full">
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+          <h1 className="text-xl font-black uppercase tracking-widest text-slate-900">Street Session</h1>
+        </div>
+
         <div className="text-center space-y-2">
           <div className="bg-primary w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg rotate-3">
             <Hash className="w-8 h-8 text-white" />
@@ -408,6 +416,11 @@ export default function NumberGame() {
   if (gameState === 'finished') {
     return (
       <div className="max-w-4xl mx-auto space-y-8 py-12 px-4 text-center">
+        <div className="flex justify-start mb-4">
+          <Button variant="ghost" size="icon" onClick={() => setGameState('setup')} className="rounded-full h-10 w-10">
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
+        </div>
         <div className="bg-emerald-500 w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-xl mb-4">
           <Trophy className="w-10 h-10 text-white" />
         </div>
@@ -456,6 +469,13 @@ export default function NumberGame() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-24 px-1 md:px-4">
+      <div className="flex items-center gap-4 mb-2">
+        <Button variant="ghost" size="icon" onClick={() => { if(confirm("Discard current game?")) setGameState('setup'); }} className="text-slate-400 hover:bg-slate-100 rounded-full">
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Live Street Pro v2.0</span>
+      </div>
+
       <Card className={cn("border-none shadow-2xl transition-all overflow-hidden", activeStriker?.batting.out ? "ring-4 ring-destructive" : "ring-4 ring-primary")}>
         <div className="bg-slate-900 text-white p-6 md:p-8 space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-start gap-6">

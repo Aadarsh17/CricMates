@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -7,10 +6,12 @@ import { collection, query, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Zap, Target, Swords, Clock, Star, Medal } from 'lucide-react';
+import { Loader2, Zap, Target, Swords, Clock, Star, Medal, ChevronLeft, Button } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function InsightsPage() {
   const db = useFirestore();
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -132,7 +133,9 @@ export default function InsightsPage() {
   return (
     <div className="max-w-lg mx-auto space-y-12 pb-32 px-4">
       <div className="flex items-center gap-4">
-        <div className="bg-primary p-3 rounded-2xl shadow-xl shadow-primary/20"><Zap className="w-6 h-6 text-white" /></div>
+        <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full">
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
         <div>
           <h1 className="text-2xl font-black uppercase text-slate-900 leading-none">Fastest Milestones</h1>
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Calculated from verified league logs</p>

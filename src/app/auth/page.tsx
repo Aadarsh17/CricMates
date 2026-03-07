@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ShieldCheck, Trophy, ArrowRight, Loader2, KeyRound } from 'lucide-react';
+import { ShieldCheck, Trophy, ArrowRight, Loader2, KeyRound, ChevronLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 
@@ -67,6 +67,13 @@ export default function AuthPage() {
 
   return (
     <div className="max-w-md mx-auto py-12 px-4 space-y-8 animate-in fade-in slide-in-from-bottom-4">
+      <div className="flex items-center gap-4 mb-4">
+        <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full">
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Back to Public View</span>
+      </div>
+
       <div className="text-center space-y-2">
         <div className="bg-primary w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg rotate-3">
           <Trophy className="w-8 h-8 text-white" />

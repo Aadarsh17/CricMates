@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -14,7 +13,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, User, Target, Zap, Users, Search } from 'lucide-react';
+import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, User, Target, Zap, Users, Search, ChevronLeft } from 'lucide-react';
 
 export default function NewMatchPage() {
   const db = useFirestore();
@@ -147,11 +146,14 @@ export default function NewMatchPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-20">
-      <div className="flex items-center justify-between">
+    <div className="max-w-3xl mx-auto space-y-6 pb-20 px-4">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="rounded-full">
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
         <div className="flex items-center gap-3">
           <PlayCircle className="w-8 h-8 text-primary" />
-          <h1 className="text-3xl font-bold font-headline tracking-tight text-primary">Official Match Setup</h1>
+          <h1 className="text-2xl font-black font-headline tracking-tight text-primary uppercase">New Official Match</h1>
         </div>
       </div>
 

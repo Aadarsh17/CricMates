@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo } from 'react';
@@ -8,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LayoutGrid, List, Plus, Trash2, History, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { LayoutGrid, List, Plus, Trash2, History, ChevronDown, ChevronUp, Loader2, ChevronLeft } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -18,6 +17,7 @@ import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 function TeamMatchHistory({ teamId, matches, teams }: { teamId: string, matches: any[], teams: any[] }) {
   const teamMatches = matches?.filter(m => m.team1Id === teamId || m.team2Id === teamId).slice(0, 5) || [];
@@ -42,6 +42,7 @@ export default function TeamsPage() {
   const { isUmpire } = useApp();
   const { user } = useUser();
   const db = useFirestore();
+  const router = useRouter();
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
@@ -109,7 +110,14 @@ export default function TeamsPage() {
   const isLoading = isTeamsLoading || isMatchesLoading || isDeliveriesLoading;
 
   return (
-    <div className="space-y-6 pb-24 px-1 md:px-0 max-w-6xl mx-auto">
+    <div className="space-y-6 pb-24 px-4 max-w-6xl mx-auto">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full">
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+        <h1 className="text-2xl font-black uppercase tracking-widest text-slate-900">Franchise Hall</h1>
+      </div>
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div><h1 className="text-2xl md:text-3xl font-black font-headline tracking-tight text-slate-900">Franchises</h1><p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Calculated based on current league matches</p></div>
         <div className="flex items-center gap-2 w-full md:w-auto"><div className="bg-slate-100 p-1 rounded flex border shrink-0"><Button variant={view === 'grid' ? "secondary" : "ghost"} size="sm" onClick={() => setView('grid')} className="h-8 w-8 p-0"><LayoutGrid className="w-4 h-4"/></Button><Button variant={view === 'list' ? "secondary" : "ghost"} size="sm" onClick={() => setView('list')} className="h-8 w-8 p-0"><List className="w-4 h-4"/></Button></div>

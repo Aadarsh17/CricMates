@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useCollection, useMemoFirebase, useFirestore, useDoc, useUser } from '@/firebase';
@@ -6,13 +5,14 @@ import { collection, query, orderBy, doc, getDocs, deleteDoc, writeBatch } from 
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Trash2, Trophy, Loader2 } from 'lucide-react';
+import { Calendar, Trash2, Trophy, Loader2, ChevronLeft } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
+import { useRouter } from 'next/navigation';
 
 function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, teams: any[], isUmpire: boolean, isMounted: boolean }) {
   const db = useFirestore();
@@ -124,6 +124,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
 export default function MatchHistoryPage() {
   const { isUmpire } = useApp();
   const db = useFirestore();
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -139,8 +140,14 @@ export default function MatchHistoryPage() {
   if (!isMounted) return null;
 
   return (
-    <div className="space-y-6 max-w-lg mx-auto pb-24">
-      <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900">Match History</h1>
+    <div className="space-y-6 max-w-lg mx-auto pb-24 px-4">
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full">
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+        <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900 uppercase">Match History</h1>
+      </div>
+      
       <Tabs defaultValue="past" className="w-full">
         <TabsList className="grid w-full grid-cols-2 mb-6 h-12 bg-slate-100 p-1 rounded-xl">
           <TabsTrigger value="live" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg">Live</TabsTrigger>

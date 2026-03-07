@@ -8,7 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, ShieldCheck, RefreshCw, Swords, Target, Activity, List, Info, BarChart3, TrendingUp, Trash2, UserPlus, ChevronRight } from 'lucide-react';
+import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, ShieldCheck, RefreshCw, Swords, Target, Activity, List, Info, BarChart3, TrendingUp, Trash2, UserPlus, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -220,8 +220,11 @@ export default function MatchScoreboardPage() {
   return (
     <div className="space-y-6 max-w-lg mx-auto pb-32 px-1 relative">
       <div className="fixed top-16 left-0 right-0 z-[90] bg-slate-950 text-white shadow-2xl px-6 py-4 border-b border-white/5">
-        <div className="max-w-lg mx-auto flex items-center justify-between">
-          <div className="space-y-1">
+        <div className="max-w-lg mx-auto flex items-center justify-between gap-4">
+          <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="text-white hover:bg-white/10 h-8 w-8 shrink-0">
+            <ChevronLeft className="w-5 h-5" />
+          </Button>
+          <div className="space-y-1 flex-1">
             <div className="flex items-center gap-3">
               <span className="font-black uppercase text-[10px] text-slate-400">{getTeamName(match?.team1Id).substring(0,8)}</span>
               <span className={cn("font-black text-xl", match?.currentInningNumber === 1 ? "text-primary" : "text-slate-500")}>{Math.max(0, inn1?.score || 0)}/{inn1?.wickets || 0}</span>
