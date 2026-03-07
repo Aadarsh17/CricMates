@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
@@ -681,40 +680,43 @@ export default function MatchScoreboardPage() {
       </div>
 
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
-        <DialogContent className="max-w-[90vw] rounded-3xl border-t-8 border-t-primary shadow-2xl bg-white overflow-hidden p-0">
-          <div className="p-6 space-y-6">
+        <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl bg-white overflow-hidden p-0">
+          <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto scrollbar-hide">
             <DialogHeader>
               <DialogTitle className="font-black uppercase tracking-tight text-xl flex items-center gap-2">
                 <ShieldCheck className="w-6 h-6 text-primary" /> Official Assignment
               </DialogTitle>
             </DialogHeader>
             
-            <div className="space-y-6 py-2">
-              <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border">
-                <h4 className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2 tracking-widest">
-                  <UserPlus className="w-3 h-3" /> Assign Batting Pair
+            <div className="space-y-8 py-2">
+              {/* Batting Section */}
+              <div className="space-y-6">
+                <h4 className="text-xs font-black uppercase text-slate-400 flex items-center gap-2 tracking-widest border-b pb-2">
+                  <UserPlus className="w-4 h-4" /> BATTING PAIR
                 </h4>
-                <div className="grid grid-cols-1 gap-4">
+                
+                <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-slate-400 pl-1">Striker</Label>
+                    <Label className="text-xs font-black uppercase text-slate-900 ml-1">STRIKER</Label>
                     <Select value={assignmentForm.strikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
-                      <SelectTrigger className="h-14 font-black bg-white rounded-2xl shadow-sm">
+                      <SelectTrigger className="h-14 font-black bg-slate-50 border-2 rounded-2xl shadow-sm focus:ring-primary">
                         <SelectValue placeholder="Pick Striker" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[200]">
                         {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.nonStrikerId).map(p => (
                           <SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs">{p.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+
                   <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-slate-400 pl-1">Non-Striker</Label>
+                    <Label className="text-xs font-black uppercase text-slate-900 ml-1">NON-STRIKER</Label>
                     <Select value={assignmentForm.nonStrikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, nonStrikerId: v})}>
-                      <SelectTrigger className="h-14 font-black bg-white rounded-2xl shadow-sm">
+                      <SelectTrigger className="h-14 font-black bg-slate-50 border-2 rounded-2xl shadow-sm focus:ring-primary">
                         <SelectValue placeholder="Pick Non-Striker" />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="z-[200]">
                         {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.strikerId).map(p => (
                           <SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs">{p.name}</SelectItem>
                         ))}
@@ -724,17 +726,18 @@ export default function MatchScoreboardPage() {
                 </div>
               </div>
 
-              <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border">
-                <h4 className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2 tracking-widest">
-                  <Target className="w-3 h-3" /> Assign Next Bowler
+              {/* Bowling Section */}
+              <div className="space-y-6">
+                <h4 className="text-xs font-black uppercase text-slate-400 flex items-center gap-2 tracking-widest border-b pb-2">
+                  <Target className="w-4 h-4" /> BOWLING ATTACK
                 </h4>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400 pl-1">Select Bowler</Label>
+                  <Label className="text-xs font-black uppercase text-slate-900 ml-1">SELECT BOWLER</Label>
                   <Select value={assignmentForm.bowlerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, bowlerId: v})}>
-                    <SelectTrigger className="h-14 font-black bg-white rounded-2xl shadow-sm">
+                    <SelectTrigger className="h-14 font-black bg-slate-50 border-2 rounded-2xl shadow-sm focus:ring-primary">
                       <SelectValue placeholder="Pick Bowler" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="z-[200]">
                       {allPlayers?.filter(p => (match?.team1Id === activeInningData?.bowlingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.strikerId && p.id !== assignmentForm.nonStrikerId).map(p => (
                         <SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs">{p.name}</SelectItem>
                       ))}
@@ -752,7 +755,7 @@ export default function MatchScoreboardPage() {
               </Button>
             </div>
           </div>
-          <div className="p-6 bg-slate-50 border-t">
+          <div className="p-6 bg-slate-100 border-t">
             <Button 
               onClick={() => { 
                 const updates: any = {};
