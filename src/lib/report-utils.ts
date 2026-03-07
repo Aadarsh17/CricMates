@@ -59,7 +59,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     }
 
     currentScore += (d.totalRunsOnDelivery || 0);
-    if (d.extraType !== 'wide' && d.extraType !== 'noball') currentBalls += 1;
+    if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') currentBalls += 1;
 
     // Partnership Logic
     if (!activePartnership.batter1Id) {
@@ -68,7 +68,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     }
 
     activePartnership.runs += (d.totalRunsOnDelivery || 0);
-    if (d.extraType !== 'wide' && d.extraType !== 'noball') activePartnership.balls += 1;
+    if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') activePartnership.balls += 1;
     
     if (sId === activePartnership.batter1Id) {
       activePartnership.batter1Runs += (d.runsScored || 0);
@@ -92,7 +92,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       fow.push({
         wicketNum: currentWickets,
         scoreAtWicket: currentScore,
-        overs: `${Math.floor(currentBalls / 6)}.${currentBalls % 6}`,
+        overs: `${Math.floor((currentBalls - 1) / 6)}.${((currentBalls - 1) % 6) + 1}`,
         playerOutId: outPid,
         playerRuns: bat[outPid]?.runs || 0
       });
@@ -122,7 +122,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') {
         bowl[bId].wickets += 1;
       }
-      if (d.extraType !== 'wide' && d.extraType !== 'noball') {
+      if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') {
         bowl[bId].balls += 1;
       }
     }
@@ -132,7 +132,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
 
   return {
     batting: sortedBatting,
-    bowling: Object.values(bowl).map(b => ({ ...b, oversDisplay: `${Math.floor(b.balls / 6)}.${b.balls % 6}` })),
+    bowling: Object.values(bowl).map(b => ({ ...b, oversDisplay: b.balls > 0 ? `${Math.floor((b.balls - 1) / 6)}.${((b.balls - 1) % 6) + 1}` : '0.0' })),
     fow,
     partnerships
   };
