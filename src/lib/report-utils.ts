@@ -56,7 +56,8 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     }
 
     currentScore += (d.totalRunsOnDelivery || 0);
-    if (['none', 'bye', 'legbye'].includes(d.extraType)) currentBalls += 1;
+    const isLegal = ['none', 'bye', 'legbye'].includes(d.extraType);
+    if (isLegal) currentBalls += 1;
 
     // Partnership Tracking
     if (!activePartnership.batter1Id) {
@@ -65,7 +66,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
     }
 
     activePartnership.runs += (d.totalRunsOnDelivery || 0);
-    if (['none', 'bye', 'legbye'].includes(d.extraType)) activePartnership.balls += 1;
+    if (isLegal) activePartnership.balls += 1;
     
     if (sId === activePartnership.batter1Id) {
       activePartnership.batter1Runs += (d.runsScored || 0);
@@ -87,10 +88,12 @@ export const getExtendedInningStats = (deliveries: any[]) => {
         bat[outPid].fielderId = d.fielderPlayerId;
       }
       
+      const overDisplay = `${Math.floor((currentBalls - 1) / 6)}.${((currentBalls - 1) % 6) + 1}`;
+      
       fow.push({
         wicketNum: currentWickets,
         scoreAtWicket: currentScore,
-        overs: `${Math.floor((currentBalls - 1) / 6)}.${((currentBalls - 1) % 6) + 1}`,
+        overs: overDisplay,
         playerOutId: outPid,
         playerRuns: bat[outPid]?.runs || 0
       });
@@ -121,7 +124,7 @@ export const getExtendedInningStats = (deliveries: any[]) => {
       if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
         bowl[bId].wickets += 1;
       }
-      if (['none', 'bye', 'legbye'].includes(d.extraType)) {
+      if (isLegal) {
         bowl[bId].balls += 1;
       }
     }
