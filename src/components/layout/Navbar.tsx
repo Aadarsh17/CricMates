@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from 'next/link';
@@ -21,7 +22,7 @@ import {
   LineChart 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -39,7 +40,7 @@ export default function Navbar() {
     { name: 'Teams', href: '/teams', icon: Users },
     { name: 'Players', href: '/players', icon: UserCircle },
     { name: 'Rankings', href: '/rankings', icon: Trophy },
-    { name: 'Analysis', href: '/stats', icon: BarChart3 },
+    { name: 'Stats', href: '/stats', icon: BarChart3 },
     { name: 'Insights', href: '/insights', icon: LineChart },
     { name: 'Number Game', href: '/number-game', icon: PlayCircle },
   ];
