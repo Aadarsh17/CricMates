@@ -19,10 +19,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceDot } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, ReferenceDot, BarChart, Bar } from 'recharts';
 
 const chartConfig = {
-  score: { label: "Runs", color: "hsl(var(--primary))" }
+  score: { label: "Runs", color: "hsl(var(--primary))" },
+  runs: { label: "Over Runs", color: "hsl(var(--secondary))" }
 } satisfies ChartConfig;
 
 export default function MatchScoreboardPage() {
@@ -186,6 +187,21 @@ export default function MatchScoreboardPage() {
       }
     });
     return data;
+  };
+
+  const getManhattanData = (deliveries: any[]) => {
+    const overRuns: Record<number, number> = {};
+    let currentLegal = 0;
+    deliveries?.forEach(d => {
+      if (['none', 'bye', 'legbye'].includes(d.extraType)) {
+        currentLegal++;
+      }
+      const overNum = Math.ceil(currentLegal / 6);
+      if (overNum > 0) {
+        overRuns[overNum] = (overRuns[overNum] || 0) + d.totalRunsOnDelivery;
+      }
+    });
+    return Object.entries(overRuns).map(([over, runs]) => ({ over: `O${over}`, runs }));
   };
 
   if (!isMounted || isMatchLoading) return <div className="flex flex-col items-center justify-center min-h-screen"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
@@ -479,14 +495,44 @@ export default function MatchScoreboardPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={getWormData(currentDeliveries || [])}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="over" tick={{ fontSize: 10 }} label={{ value: 'Overs', position: 'insideBottomRight', offset: -5 }} />
+                    <XAxis 
+                      dataKey="over" 
+                      type="number"
+                      domain={[0, match?.totalOvers || 6]}
+                      tickFormatter={(val) => val % 1 === 0 ? val.toString() : ''}
+                      tick={{ fontSize: 10 }} 
+                      label={{ value: 'Overs', position: 'insideBottomRight', offset: -5 }} 
+                    />
                     <YAxis tick={{ fontSize: 10 }} label={{ value: 'Runs', angle: -90, position: 'insideLeft' }} />
                     <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={4} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                    <Line type="monotone" dataKey="score" stroke="hsl(var(--primary))" strokeWidth={4} dot={false} activeDot={{ r: 6 }} />
                     {getWormData(currentDeliveries || []).filter(d => d.isWicket).map((d, i) => (
-                      <ReferenceDot key={i} x={d.over} y={d.score} r={6} fill="#ef4444" stroke="#fff" label={{ position: 'top', value: 'W', fill: '#ef4444', fontSize: 10, fontWeight: 'bold' }} />
+                      <ReferenceDot 
+                        key={i} 
+                        x={d.over} 
+                        y={d.score} 
+                        r={8} 
+                        fill="#ef4444" 
+                        stroke="#fff" 
+                        label={{ position: 'center', value: 'W', fill: '#fff', fontSize: 10, fontWeight: '900' }} 
+                      />
                     ))}
                   </LineChart>
+                </ResponsiveContainer>
+              </ChartContainer>
+            </Card>
+
+            <Card className="border-none shadow-xl bg-white rounded-3xl p-6">
+              <h3 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2"><Activity className="w-4 h-4 text-secondary" /> Manhattan Graph (Runs Per Over)</h3>
+              <ChartContainer config={chartConfig} className="min-h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={getManhattanData(currentDeliveries || [])}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis dataKey="over" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <Bar dataKey="runs" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
               </ChartContainer>
             </Card>
