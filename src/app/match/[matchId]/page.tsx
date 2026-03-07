@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDocumentNonBlocking, addDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
+import { useDoc, useMemoFirebase, useFirestore, useUser, useCollection, updateDocumentNonBlocking, deleteDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, limit, getDocs, deleteDoc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,14 +39,13 @@ export default function MatchScoreboardPage() {
   const matchId = params.matchId as string;
   const db = useFirestore();
   const { isUmpire } = useApp();
-  const { user } = useUser();
   
   const [isMounted, setIsMounted] = useState(false);
   const [isWicketDialogOpen, setIsWicketDialogOpen] = useState(false);
   const [isPlayerAssignmentOpen, setIsPlayerAssignmentOpen] = useState(false);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<string>('live');
-  const [activeScorecardSubTab, setActiveScorecardSubTab] = useState<'inn1' | 'inn2' | 'flow'>('inn1');
+  const [activeScorecardSubTab, setActiveScorecardSubTab] = useState<'inn1' | 'inn2'>('inn1');
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isCorrecting, setIsCorrecting] = useState(false);
 
@@ -79,13 +78,13 @@ export default function MatchScoreboardPage() {
     query(collection(db, 'matches', matchId, 'innings', 'inning_1', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
     [db, matchId]
   );
-  const { data: inn1Deliveries, isLoading: isInn1Loading } = useCollection(inn1DeliveriesQuery);
+  const { data: inn1Deliveries } = useCollection(inn1DeliveriesQuery);
 
   const inn2DeliveriesQuery = useMemoFirebase(() => 
     query(collection(db, 'matches', matchId, 'innings', 'inning_2', 'deliveryRecords'), orderBy('timestamp', 'asc')), 
     [db, matchId]
   );
-  const { data: inn2Deliveries, isLoading: isInn2Loading } = useCollection(inn2DeliveriesQuery);
+  const { data: inn2Deliveries } = useCollection(inn2DeliveriesQuery);
 
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players'), orderBy('name', 'asc')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
@@ -95,6 +94,46 @@ export default function MatchScoreboardPage() {
 
   const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || []), [inn1Deliveries]);
   const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || []), [inn2Deliveries]);
+
+  const chartData = useMemo(() => {
+    if (!inn1Deliveries && !inn2Deliveries) return [];
+    const maxOvers = match?.totalOvers || 6;
+    const data = [];
+    let cum1 = 0; let cum2 = 0;
+    
+    for (let i = 0; i <= maxOvers * 6; i++) {
+      const over = Math.floor(i / 6);
+      const ball = i % 6;
+      const label = `${over}.${ball}`;
+      
+      const d1 = inn1Deliveries?.find(d => {
+        const legalBallsBefore = inn1Deliveries.filter(prev => 
+          prev.timestamp < d.timestamp && (prev.extraType === 'none' || prev.extraType === 'bye' || prev.extraType === 'legbye')
+        ).length;
+        return legalBallsBefore === i - 1 && (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye');
+      });
+      if (d1) cum1 += d1.totalRunsOnDelivery;
+
+      const d2 = inn2Deliveries?.find(d => {
+        const legalBallsBefore = inn2Deliveries.filter(prev => 
+          prev.timestamp < d.timestamp && (prev.extraType === 'none' || prev.extraType === 'bye' || prev.extraType === 'legbye')
+        ).length;
+        return legalBallsBefore === i - 1 && (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye');
+      });
+      if (d2) cum2 += d2.totalRunsOnDelivery;
+
+      if (i % 6 === 0 || i === maxOvers * 6) {
+        data.push({ 
+          label: over.toString(), 
+          team1: cum1, 
+          team2: cum2 > 0 || inn2Deliveries?.length ? cum2 : null,
+          team1Wicket: inn1Deliveries?.some(d => d.isWicket && Math.floor((inn1Deliveries.filter(p => p.timestamp <= d.timestamp && (p.extraType === 'none' || p.extraType === 'bye' || p.extraType === 'legbye')).length - 1) / 6) === over),
+          team2Wicket: inn2Deliveries?.some(d => d.isWicket && Math.floor((inn2Deliveries.filter(p => p.timestamp <= d.timestamp && (p.extraType === 'none' || p.extraType === 'bye' || p.extraType === 'legbye')).length - 1) / 6) === over)
+        });
+      }
+    }
+    return data;
+  }, [inn1Deliveries, inn2Deliveries, match?.totalOvers]);
 
   const inn1Score = useMemo(() => inn1Deliveries?.reduce((acc, d) => acc + (d.totalRunsOnDelivery || 0), 0) || 0, [inn1Deliveries]);
   const inn1Wickets = useMemo(() => inn1Deliveries?.filter(d => d.isWicket && d.dismissalType !== 'retired').length || 0, [inn1Deliveries]);
@@ -361,7 +400,7 @@ export default function MatchScoreboardPage() {
     }
 
     const lastBall = snapshot.docs[0].data();
-    await deleteDocumentNonBlocking(snapshot.docs[0].ref);
+    await deleteDoc(snapshot.docs[0].ref);
 
     const isLegal = lastBall.extraType === 'none' || lastBall.extraType === 'bye' || lastBall.extraType === 'legbye';
     let prevBalls = activeInningData.ballsInCurrentOver - (isLegal ? 1 : 0);
@@ -568,7 +607,6 @@ export default function MatchScoreboardPage() {
                 </Card>
               )}
 
-              {/* ACTIVE BATTERS CARD */}
               {activeInningData && (
                 <Card className="shadow-lg border-none overflow-hidden bg-white">
                   <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
@@ -610,6 +648,156 @@ export default function MatchScoreboardPage() {
                 </Card>
               )}
             </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="scorecard" className="pt-4 space-y-6">
+          <Tabs value={activeScorecardSubTab} onValueChange={(v: any) => setActiveScorecardSubTab(v)}>
+            <TabsList className="grid w-full grid-cols-2 mb-6 h-12 bg-slate-100 p-1 rounded-xl">
+              <TabsTrigger value="inn1" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg uppercase text-[10px] tracking-widest">{getTeamName(inn1?.battingTeamId)}</TabsTrigger>
+              <TabsTrigger value="inn2" className="font-bold data-[state=active]:bg-white data-[state=active]:text-primary rounded-lg uppercase text-[10px] tracking-widest">{getTeamName(inn2?.battingTeamId)}</TabsTrigger>
+            </TabsList>
+            
+            {[
+              { id: 'inn1', stats: stats1, team: getTeamName(inn1?.battingTeamId), total: inn1Score, wkts: inn1Wickets, ov: inn1OversDisplay },
+              { id: 'inn2', stats: stats2, team: getTeamName(inn2?.battingTeamId), total: inn2Score, wkts: inn2Wickets, ov: inn2OversDisplay }
+            ].map((inn) => (
+              <TabsContent key={inn.id} value={inn.id} className="space-y-6 m-0">
+                <Card className="border-none shadow-sm overflow-hidden">
+                  <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
+                    <h3 className="font-black uppercase text-sm tracking-widest">{inn.team} Batting</h3>
+                    <p className="text-xl font-black">{inn.total}/{inn.wkts} <span className="text-[10px] font-bold opacity-50">({inn.ov})</span></p>
+                  </div>
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow>
+                        <TableHead className="text-[9px] font-black uppercase">Batter</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">R</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">B</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">4s</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">6s</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inn.stats.batting.map((b: any) => (
+                        <TableRow key={b.id}>
+                          <TableCell className="py-3">
+                            <Link href={`/players/${b.id}`} className="font-black text-xs text-primary hover:underline uppercase block">{getPlayerName(b.id)}</Link>
+                            <span className="text-[8px] font-bold text-slate-400 uppercase italic">
+                              {b.out ? `${b.dismissal} b ${getPlayerName(b.bowlerId)}` : 'not out'}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-black">{b.runs}</TableCell>
+                          <TableCell className="text-right text-xs text-slate-500">{b.balls}</TableCell>
+                          <TableCell className="text-right text-xs text-slate-500">{b.fours}</TableCell>
+                          <TableCell className="text-right text-xs text-slate-500">{b.sixes}</TableCell>
+                          <TableCell className="text-right text-[10px] font-bold text-slate-400">
+                            {b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="border-none shadow-sm">
+                    <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Fall of Wickets</span></div>
+                    <CardContent className="p-4 space-y-2">
+                      {inn.stats.fow.length > 0 ? inn.stats.fow.map((f: any) => (
+                        <div key={f.wicketNum} className="flex justify-between items-center text-[10px] py-1 border-b border-slate-50 last:border-none">
+                          <span className="font-bold text-slate-400">{f.wicketNum}-{f.scoreAtWicket}</span>
+                          <span className="font-black uppercase">{getPlayerName(f.playerOutId)}</span>
+                          <span className="text-slate-400">({f.overs} ov)</span>
+                        </div>
+                      )) : <p className="text-center py-4 text-[10px] font-black text-slate-300 uppercase italic">No wickets fallen</p>}
+                    </CardContent>
+                  </Card>
+                  <Card className="border-none shadow-sm">
+                    <div className="bg-slate-50 px-4 py-2 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Bowling</span></div>
+                    <Table>
+                      <TableHeader className="bg-slate-50/50">
+                        <TableRow>
+                          <TableHead className="text-[8px] font-black uppercase">Bowler</TableHead>
+                          <TableHead className="text-right text-[8px] font-black uppercase">O</TableHead>
+                          <TableHead className="text-right text-[8px] font-black uppercase">R</TableHead>
+                          <TableHead className="text-right text-[8px] font-black uppercase">W</TableHead>
+                          <TableHead className="text-right text-[8px] font-black uppercase">Eco</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {inn.stats.bowling.map((b: any) => (
+                          <TableRow key={b.id}>
+                            <TableCell className="font-black text-xs uppercase py-3">{getPlayerName(b.id)}</TableCell>
+                            <TableCell className="text-right text-xs">{b.oversDisplay}</TableCell>
+                            <TableCell className="text-right text-xs font-bold">{b.runs}</TableCell>
+                            <TableCell className="text-right text-xs font-black text-primary">{b.wickets}</TableCell>
+                            <TableCell className="text-right text-[10px] font-bold text-slate-400">
+                              {b.balls > 0 ? (b.runs / (b.balls / 6)).toFixed(2) : '0.00'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </Card>
+                </div>
+              </TabsContent>
+            ))}
+          </Tabs>
+        </TabsContent>
+
+        <TabsContent value="analytics" className="pt-4 space-y-8">
+          <Card className="p-6 shadow-sm border-none bg-white">
+            <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-8 border-b pb-2 flex items-center gap-2">
+              <LineChartIcon className="w-4 h-4 text-primary" /> Cumulative Scoring (Worm)
+            </h3>
+            <div className="h-[350px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }}
+                  />
+                  <Legend verticalAlign="top" align="right" wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: 900, textTransform: 'uppercase' }} />
+                  <Area type="monotone" name={getTeamName(inn1?.battingTeamId)} dataKey="team1" stroke="#2563eb" fillOpacity={1} fill="url(#colorT1)" dot={<CustomWicketDot team="team1" />} />
+                  <Area type="monotone" name={getTeamName(inn2?.battingTeamId)} dataKey="team2" stroke="#0d9488" fillOpacity={1} fill="url(#colorT2)" dot={<CustomWicketDot team="team2" />} />
+                  <defs>
+                    <linearGradient id="colorT1" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.1}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient>
+                    <linearGradient id="colorT2" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#0d9488" stopOpacity={0.1}/><stop offset="95%" stopColor="#0d9488" stopOpacity={0}/></linearGradient>
+                  </defs>
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="p-6 shadow-sm border-none bg-white">
+              <h3 className="text-xs font-black uppercase text-slate-500 mb-6 flex items-center gap-2"><BarChart className="w-4 h-4" /> Over-by-Over (Runs)</h3>
+              <div className="h-[250px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ReBarChart data={chartData.filter(d => parseInt(d.label) > 0)}>
+                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700 }} />
+                    <YAxis hide />
+                    <Tooltip cursor={{fill: '#f8fafc'}} contentStyle={{ borderRadius: '8px', border: 'none', fontSize: '10px' }} />
+                    <Bar dataKey="team1" name={getTeamName(inn1?.battingTeamId)} fill="#2563eb" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="team2" name={getTeamName(inn2?.battingTeamId)} fill="#0d9488" radius={[4, 4, 0, 0]} />
+                  </ReBarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+            <Card className="p-6 shadow-sm border-none bg-slate-900 text-white flex flex-col justify-center items-center text-center space-y-4">
+              <Zap className="w-12 h-12 text-secondary" />
+              <div className="space-y-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Current Match Momentum</p>
+                <h4 className="text-xl font-black uppercase italic">High Intensity Match</h4>
+              </div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase leading-relaxed max-w-xs">
+                Historical projections suggest a close finish. Team {inn2Score > inn1Score ? '2' : '1'} is currently showing stronger boundary-hitting capability.
+              </p>
+            </Card>
           </div>
         </TabsContent>
 
@@ -669,6 +857,44 @@ export default function MatchScoreboardPage() {
                 </div>
               </Card>
             ))}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="info" className="pt-4 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="border-none shadow-sm overflow-hidden">
+              <div className="bg-slate-50 px-6 py-3 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Official Match Details</span></div>
+              <CardContent className="p-6 space-y-4">
+                {[
+                  { label: 'Match Date', val: match.matchDate ? new Date(match.matchDate).toLocaleDateString() : '---', icon: CalendarIcon },
+                  { label: 'Format', val: `${match.totalOvers} Overs per Inning`, icon: Clock },
+                  { label: 'Toss Result', val: `${getTeamName(match.tossWinnerTeamId)} won and chose to ${match.tossDecision}`, icon: Trophy },
+                  { label: 'Official Status', val: match.status.toUpperCase(), icon: ShieldCheck }
+                ].map((item, i) => (
+                  <div key={i} className="flex items-center gap-4 border-b border-slate-50 pb-3 last:border-none last:pb-0">
+                    <item.icon className="w-4 h-4 text-primary" />
+                    <div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{item.label}</p><p className="text-xs font-black text-slate-900 uppercase">{item.val}</p></div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-sm overflow-hidden">
+              <div className="bg-slate-50 px-6 py-3 border-b"><span className="text-[10px] font-black uppercase text-slate-500">Official Squads</span></div>
+              <CardContent className="p-6 grid grid-cols-2 gap-8">
+                <div className="space-y-2">
+                  <p className="text-[9px] font-black uppercase text-primary border-b pb-1">{getTeamName(match.team1Id)}</p>
+                  {match.team1SquadPlayerIds?.map((pid: string) => (
+                    <Link key={pid} href={`/players/${pid}`} className="text-[10px] font-bold text-slate-600 block hover:text-primary truncate">{getPlayerName(pid)}</Link>
+                  ))}
+                </div>
+                <div className="space-y-2">
+                  <p className="text-[9px] font-black uppercase text-secondary border-b pb-1">{getTeamName(match.team2Id)}</p>
+                  {match.team2SquadPlayerIds?.map((pid: string) => (
+                    <Link key={pid} href={`/players/${pid}`} className="text-[10px] font-bold text-slate-600 block hover:text-secondary truncate">{getPlayerName(pid)}</Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
       </Tabs>
