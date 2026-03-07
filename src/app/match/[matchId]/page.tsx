@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
@@ -97,10 +98,18 @@ export default function MatchScoreboardPage() {
       if (d.isWicket && d.dismissalType !== 'retired') wkts++; 
       if (['none', 'bye', 'legbye'].includes(d.extraType)) legal++; 
     });
+    
+    let isFinished = (legal >= (match?.totalOvers || 0) * 6) || (wkts >= 10 && !activeInningData?.isLastManActive);
+    
+    // Chasing detection during recalculation
+    if (inningId === 'inning_2' && inn1 && score > inn1.score) {
+      isFinished = true;
+    }
+
     const updates: any = { 
       score: Math.max(0, score), wickets: Math.max(0, wkts), 
       oversCompleted: Math.floor(legal / 6), ballsInCurrentOver: legal % 6,
-      isDeclaredFinished: (legal >= (match?.totalOvers || 0) * 6) || (wkts >= 10 && !activeInningData?.isLastManActive)
+      isDeclaredFinished: isFinished
     };
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates);
     toast({ title: "Scoreboard Synced", description: "Records recalculated from ball-by-ball logs." });
@@ -156,6 +165,12 @@ export default function MatchScoreboardPage() {
     };
     if (newTotalLegal % 6 === 0 && isLegal) updates.currentBowlerPlayerId = '';
     if (newTotalLegal >= match.totalOvers * 6) updates.isDeclaredFinished = true;
+    
+    // Winning run detection
+    if (match.currentInningNumber === 2 && inn1 && updates.score > inn1.score) {
+      updates.isDeclaredFinished = true;
+    }
+
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), updates);
     setIsNoBallDialogOpen(false);
   };
@@ -188,9 +203,24 @@ export default function MatchScoreboardPage() {
       setIsPlayerAssignmentOpen(true);
       toast({ title: "1st Innings Finished", description: "Configure 2nd Innings openers." });
     } else {
-      const res = inn2!.score > inn1!.score ? `${getTeamName(inn2!.battingTeamId)} won` : (inn2!.score === inn1!.score ? "Match Tied" : `${getTeamName(inn1!.battingTeamId)} won`);
-      updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed', resultDescription: res });
-      toast({ title: "Match Finished", description: res });
+      // Calculate final result with margin
+      const t1Name = getTeamName(inn1?.battingTeamId);
+      const t2Name = getTeamName(inn2?.battingTeamId);
+      let resDesc = "Match Tied";
+      
+      if (inn1!.score > inn2!.score) {
+        const margin = inn1!.score - inn2!.score;
+        resDesc = `${t1Name} won by ${margin} run${margin !== 1 ? 's' : ''}`;
+      } else if (inn2!.score > inn1!.score) {
+        const wktsRemaining = 10 - (inn2?.wickets || 0);
+        resDesc = `${t2Name} won by ${wktsRemaining} wicket${wktsRemaining !== 1 ? 's' : ''}`;
+      }
+      
+      updateDocumentNonBlocking(doc(db, 'matches', matchId), { 
+        status: 'completed', 
+        resultDescription: resDesc 
+      });
+      toast({ title: "Match Finished", description: resDesc });
       router.push('/matches');
     }
   };
@@ -680,7 +710,7 @@ export default function MatchScoreboardPage() {
       </div>
 
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl bg-white overflow-hidden p-0">
+        <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl bg-white overflow-hidden p-0 z-[151]">
           <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto scrollbar-hide">
             <DialogHeader>
               <DialogTitle className="font-black uppercase tracking-tight text-xl flex items-center gap-2">
@@ -780,7 +810,7 @@ export default function MatchScoreboardPage() {
       </Dialog>
 
       <Dialog open={isNoBallDialogOpen} onOpenChange={setIsNoBallDialogOpen}>
-        <DialogContent className="max-w-[90vw] rounded-3xl border-t-8 border-t-amber-500 shadow-2xl">
+        <DialogContent className="max-w-[90vw] rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[151]">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-tight text-xl text-amber-600">No Ball Results</DialogTitle>
             <DialogDescription className="font-bold uppercase text-[10px]">Select runs scored on this illegal delivery (+1 penalty will be added)</DialogDescription>
@@ -794,7 +824,7 @@ export default function MatchScoreboardPage() {
       </Dialog>
 
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
-        <DialogContent className="max-w-[90vw] rounded-3xl border-t-8 border-t-red-500 shadow-2xl">
+        <DialogContent className="max-w-[90vw] rounded-3xl border-t-8 border-t-red-500 shadow-2xl z-[151]">
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl text-red-600">Register Wicket</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
@@ -864,6 +894,12 @@ export default function MatchScoreboardPage() {
             };
             if (leg % 6 === 0 && isLegal) updates.currentBowlerPlayerId = '';
             if (leg >= match!.totalOvers * 6 || (updates.wickets >= 10 && !activeInningData?.isLastManActive)) updates.isDeclaredFinished = true;
+            
+            // Winning detection during wicket (e.g. run out on winning run but score was already met)
+            if (match!.currentInningNumber === 2 && inn1 && updates.score > inn1.score) {
+              updates.isDeclaredFinished = true;
+            }
+
             updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', cur), updates);
             setIsWicketDialogOpen(false);
             if (updates.wickets < 10 && !updates.isDeclaredFinished) {
