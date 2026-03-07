@@ -420,3 +420,117 @@ export const generateHTMLReport = (match: any, inn1: any, inn2: any, stats1: any
     </html>
   `;
 };
+
+/**
+ * Generates a professional Match Report for the Number Game (Street Pro).
+ */
+export const generateStreetReport = (players: any[], date: string) => {
+  const sortedPlayers = [...players].sort((a, b) => b.batting.runs - a.batting.runs);
+  const hero = [...players].sort((a, b) => {
+    // Simple impact calculation for report sorting if CVP isn't passed
+    const scoreA = a.batting.runs + (a.bowling.wickets * 15);
+    const scoreB = b.batting.runs + (b.bowling.wickets * 15);
+    return scoreB - scoreA;
+  })[0];
+
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <title>Street Pro Scorecard</title>
+      <style>
+        body { font-family: sans-serif; color: #334155; padding: 20px; max-width: 800px; margin: 0 auto; line-height: 1.4; }
+        .header { text-align: center; border-bottom: 4px solid #1e40af; padding-bottom: 15px; margin-bottom: 25px; }
+        h1 { margin: 0; color: #1e40af; text-transform: uppercase; font-size: 24px; }
+        .hero-banner { background: #f1f5f9; padding: 15px; border-radius: 10px; margin-bottom: 25px; display: flex; align-items: center; gap: 20px; border: 1px solid #e2e8f0; }
+        .hero-name { font-size: 20px; font-weight: 900; color: #1e40af; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        th { background: #f8fafc; text-align: left; padding: 10px; border-bottom: 2px solid #e2e8f0; text-transform: uppercase; font-size: 12px; color: #64748b; }
+        td { padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .out { font-size: 11px; color: #94a3b8; font-style: italic; display: block; }
+        .section-title { background: #1e40af; color: white; padding: 8px 15px; font-weight: 900; text-transform: uppercase; font-size: 14px; margin-bottom: 15px; border-radius: 4px; }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+        .badge-out { background: #fee2e2; color: #dc2626; }
+        .badge-active { background: #dcfce7; color: #16a34a; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Street Pro Match Summary</h1>
+        <div style="font-weight: bold; color: #94a3b8; margin-top: 5px;">SESSION DATE: ${date}</div>
+      </div>
+
+      <div class="hero-banner">
+        <div style="font-size: 40px;">🏆</div>
+        <div>
+          <div style="font-size: 12px; font-weight: bold; color: #64748b; text-transform: uppercase;">Match Standout</div>
+          <div class="hero-name">${hero.name}</div>
+          <div style="font-size: 12px; color: #475569;">Performance: ${hero.batting.runs} runs & ${hero.bowling.wickets} wickets</div>
+        </div>
+      </div>
+
+      <div class="section-title">Batting Performance</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th>
+            <th>Status</th>
+            <th style="text-align:right">R</th>
+            <th style="text-align:right">B</th>
+            <th style="text-align:right">4s</th>
+            <th style="text-align:right">6s</th>
+            <th style="text-align:right">SR</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${sortedPlayers.map(p => `
+            <tr>
+              <td>
+                <strong>${p.name}</strong>
+                ${p.batting.out ? `<span class="out">${p.batting.dismissal}</span>` : ''}
+              </td>
+              <td>
+                <span class="badge ${p.batting.out ? 'badge-out' : 'badge-active'}">${p.batting.out ? 'OUT' : 'NOT OUT'}</span>
+              </td>
+              <td style="text-align:right; font-weight: bold;">${p.batting.runs}</td>
+              <td style="text-align:right">${p.batting.balls}</td>
+              <td style="text-align:right">${p.batting.fours}</td>
+              <td style="text-align:right">${p.batting.sixes}</td>
+              <td style="text-align:right; color: #94a3b8;">${p.batting.balls > 0 ? ((p.batting.runs / p.batting.balls) * 100).toFixed(1) : '0.0'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <div class="section-title">Bowling Performance</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Bowler</th>
+            <th style="text-align:right">Overs</th>
+            <th style="text-align:right">Runs</th>
+            <th style="text-align:right">Wkts</th>
+            <th style="text-align:right">Eco</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${[...players].sort((a,b) => b.bowling.wickets - a.bowling.wickets).map(p => `
+            <tr>
+              <td><strong>${p.name}</strong></td>
+              <td style="text-align:right">${Math.floor(p.bowling.balls / 6)}.${p.bowling.balls % 6}</td>
+              <td style="text-align:right">${p.bowling.runs}</td>
+              <td style="text-align:right; font-weight: bold; color: #1e40af;">${p.bowling.wickets}</td>
+              <td style="text-align:right; color: #94a3b8;">${p.bowling.balls >= 6 ? (p.bowling.runs / (p.bowling.balls / 6)).toFixed(2) : '0.00'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+
+      <footer style="text-align: center; margin-top: 50px; font-size: 10px; color: #cbd5e1; font-weight: bold; text-transform: uppercase;">
+        Generated by CricMates Street Pro v1.0
+      </footer>
+    </body>
+    </html>
+  `;
+};

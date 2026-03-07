@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target, CheckCircle2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { generateStreetReport } from '@/lib/report-utils';
 
 interface Player {
   id: string;
@@ -297,6 +298,18 @@ export default function NumberGame() {
     setBowlerId(last.bowlerId);
   };
 
+  const handleDownloadReport = () => {
+    const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    const reportHtml = generateStreetReport(players, dateStr);
+    const blob = new Blob([reportHtml], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CricMates_StreetPro_${Date.now()}.html`;
+    a.click();
+    toast({ title: "Report Downloaded", description: "The professional scorecard is ready for review." });
+  };
+
   if (!isMounted) return null;
 
   if (gameState === 'setup') {
@@ -363,9 +376,44 @@ export default function NumberGame() {
           <Trophy className="w-10 h-10 text-white" />
         </div>
         <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-900">Match Summary</h1>
-        <div className="flex justify-center gap-4">
-          <Button onClick={resetGame} variant="outline" className="font-black uppercase text-xs h-12 px-8">Start New Match</Button>
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Official Street Pro Records Validated</p>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-lg mx-auto">
+          <Button onClick={handleDownloadReport} className="h-16 font-black uppercase tracking-widest text-lg shadow-xl bg-secondary hover:bg-secondary/90">
+            <Download className="w-6 h-6 mr-2" /> Match Report
+          </Button>
+          <Button onClick={resetGame} variant="outline" className="h-16 font-black uppercase tracking-widest text-lg border-2">
+            <RotateCcw className="w-6 h-6 mr-2" /> New Match
+          </Button>
         </div>
+
+        <Card className="max-w-2xl mx-auto border-none shadow-lg mt-8 overflow-hidden">
+          <div className="bg-slate-50 px-4 py-3 border-b text-left">
+            <span className="text-[10px] font-black uppercase text-slate-500">Leaderboard Overview</span>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-slate-50/50">
+                <TableRow>
+                  <TableHead className="text-[9px] font-black uppercase">Player</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase">Wkts</TableHead>
+                  <TableHead className="text-right text-[9px] font-black uppercase">High Score</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[...players].sort((a, b) => b.batting.runs - a.batting.runs).map(p => (
+                  <TableRow key={p.id}>
+                    <TableCell className="text-left font-black text-xs uppercase py-4">{p.name}</TableCell>
+                    <TableCell className="text-right font-black text-primary">{p.batting.runs}</TableCell>
+                    <TableCell className="text-right font-black text-secondary">{p.bowling.wickets}</TableCell>
+                    <TableCell className="text-right font-bold text-slate-400 text-xs">{p.batting.highScore}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
       </div>
     );
   }
