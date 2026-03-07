@@ -14,14 +14,12 @@ import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { cn } from '@/lib/utils';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 type LeaderboardCategory = 'runs' | 'wickets' | 'avg' | 'sr' | 'econ' | 'catches' | 'runouts' | 'potm';
 
 export default function RankingsPage() {
   const db = useFirestore();
   const [isMounted, setIsMounted] = useState(false);
-  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc' | 'desc' }>({ key: 'cvp', direction: 'desc' });
   const [activeCategory, setActiveCategory] = useState<LeaderboardCategory>('runs');
 
   useEffect(() => {
@@ -44,7 +42,7 @@ export default function RankingsPage() {
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(allDeliveriesQuery);
 
   const allDeliveries = useMemo(() => {
-    if (!rawDeliveries || !matches || matches.length === 0) return [];
+    if (!rawDeliveries || !matches) return [];
     const validMatchIds = new Set(matches.map(m => m.id));
     return rawDeliveries.filter(d => {
       const matchId = d.__fullPath?.split('/')[1];
@@ -67,30 +65,28 @@ export default function RankingsPage() {
       };
     });
 
-    const sortedMatches = [...matches].sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
-
-    sortedMatches.forEach(m => {
+    matches.forEach(m => {
       if (m.status !== 'completed') return;
       const t1Id = m.team1Id; const t2Id = m.team2Id;
       if (!standings[t1Id] || !standings[t2Id]) return;
       
       standings[t1Id].played += 1; standings[t2Id].played += 1;
       const result = m.resultDescription?.toLowerCase() || '';
-      const t1Name = standings[t1Id].name.toLowerCase();
-      const t2Name = standings[t2Id].name.toLowerCase();
-
-      if (result.includes(t1Name) && result.includes('won')) { 
-        standings[t1Id].won += 1; standings[t1Id].points += 2; standings[t1Id].form.push('W');
-        standings[t2Id].lost += 1; standings[t2Id].form.push('L');
-      } else if (result.includes(t2Name) && result.includes('won')) { 
-        standings[t2Id].won += 1; standings[t2Id].points += 2; standings[t2Id].form.push('W');
-        standings[t1Id].lost += 1; standings[t1Id].form.push('L');
-      } else if (result.includes('tied') || result.includes('drawn')) { 
-        standings[t1Id].tied += 1; standings[t1Id].points += 1; standings[t1Id].form.push('T');
-        standings[t2Id].tied += 1; standings[t2Id].points += 1; standings[t2Id].form.push('T');
+      
+      if (result.includes('tied') || result.includes('drawn')) {
+        standings[t1Id].tied++; standings[t1Id].points += 1; standings[t1Id].form.push('T');
+        standings[t2Id].tied++; standings[t2Id].points += 1; standings[t2Id].form.push('T');
+      } else if (result.includes('no result') || result.includes('abandoned')) {
+        standings[t1Id].nr++; standings[t1Id].points += 1; standings[t1Id].form.push('NR');
+        standings[t2Id].nr++; standings[t2Id].points += 1; standings[t2Id].form.push('NR');
       } else {
-        standings[t1Id].nr += 1; standings[t1Id].points += 1; standings[t1Id].form.push('NR');
-        standings[t2Id].nr += 1; standings[t2Id].points += 1; standings[t2Id].form.push('NR');
+        // Winner logic
+        const winnerId = result.includes(standings[t1Id].name.toLowerCase()) ? t1Id : (result.includes(standings[t2Id].name.toLowerCase()) ? t2Id : null);
+        if (winnerId) {
+          const loserId = winnerId === t1Id ? t2Id : t1Id;
+          standings[winnerId].won++; standings[winnerId].points += 2; standings[winnerId].form.push('W');
+          standings[loserId].lost++; standings[loserId].form.push('L');
+        }
       }
     });
 
@@ -98,7 +94,6 @@ export default function RankingsPage() {
       const matchId = d.__fullPath?.split('/')[1];
       const match = matches.find(m => m.id === matchId);
       if (!match) return;
-      
       const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
       const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
       const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
@@ -118,11 +113,7 @@ export default function RankingsPage() {
       const forRR = s.forB > 0 ? (s.forR / (s.forB / 6)) : 0;
       const agRR = s.agB > 0 ? (s.agR / (s.agB / 6)) : 0;
       return { ...s, nrr: forRR - agRR };
-    }).sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (b.won !== a.won) return b.won - a.won;
-      return b.nrr - a.nrr;
-    });
+    }).sort((a, b) => b.points - a.points || b.won - a.won || b.nrr - a.nrr);
   }, [teams, matches, allDeliveries]);
 
   const topPlayers = useMemo(() => {
@@ -134,111 +125,67 @@ export default function RankingsPage() {
       careerTotals[p.id] = { id: p.id, name: p.name, runs: 0, wickets: 0, cvp: 0, matches: 0, ballsFaced: 0, ballsBowled: 0, runsConceded: 0, catches: 0, runouts: 0, potm: 0, outs: 0 };
     });
 
-    const activeMatchIds = new Set(matches.map(m => m.id));
-
     allDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
-      if (!matchId || !activeMatchIds.has(matchId)) return;
-
       const sId = d.strikerPlayerId; 
       const bId = d.bowlerId || d.bowlerPlayerId;
       const fId = d.fielderPlayerId; 
 
-      const involvedIds = [sId, bId, fId].filter(id => id && id !== 'none');
-      involvedIds.forEach(pid => {
-        if (!careerTotals[pid]) return;
-        if (!pMatchStats[pid]) pMatchStats[pid] = {};
-        if (!pMatchStats[pid][matchId]) {
-          pMatchStats[pid][matchId] = { id: pid, runs: 0, ballsFaced: 0, wickets: 0, ballsBowled: 0, runsConceded: 0, catches: 0, runOuts: 0, out: false };
-          careerTotals[pid].matches += 1;
-        }
-      });
-
       if (careerTotals[sId]) {
-        pMatchStats[sId][matchId].runs += (d.runsScored || 0);
-        if (d.extraType !== 'wide') pMatchStats[sId][matchId].ballsFaced += 1;
+        if (!pMatchStats[sId]) pMatchStats[sId] = {};
+        if (!pMatchStats[sId][matchId!]) { pMatchStats[sId][matchId!] = { runs: 0, ballsFaced: 0, wickets: 0, ballsBowled: 0, runsConceded: 0, catches: 0, runOuts: 0, out: false }; careerTotals[sId].matches++; }
+        pMatchStats[sId][matchId!].runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') pMatchStats[sId][matchId!].ballsFaced++;
         careerTotals[sId].runs += (d.runsScored || 0);
         careerTotals[sId].ballsFaced += (d.extraType !== 'wide' ? 1 : 0);
       }
 
       if (bId && careerTotals[bId]) {
-        pMatchStats[bId][matchId].runsConceded += (d.totalRunsOnDelivery || 0);
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') pMatchStats[bId][matchId].ballsBowled += 1;
+        if (!pMatchStats[bId]) pMatchStats[bId] = {};
+        if (!pMatchStats[bId][matchId!]) { pMatchStats[bId][matchId!] = { runs: 0, ballsFaced: 0, wickets: 0, ballsBowled: 0, runsConceded: 0, catches: 0, runOuts: 0, out: false }; careerTotals[bId].matches++; }
+        pMatchStats[bId][matchId!].runsConceded += (d.totalRunsOnDelivery || 0);
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') pMatchStats[bId][matchId!].ballsBowled++;
         if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') {
-          pMatchStats[bId][matchId].wickets += 1;
-          careerTotals[bId].wickets += 1;
+          pMatchStats[bId][matchId!].wickets++;
+          careerTotals[bId].wickets++;
         }
         careerTotals[bId].runsConceded += (d.totalRunsOnDelivery || 0);
         careerTotals[bId].ballsBowled += (d.extraType !== 'wide' && d.extraType !== 'noball' ? 1 : 0);
       }
 
       if (fId && careerTotals[fId]) {
-        if (d.dismissalType === 'caught') {
-          pMatchStats[fId][matchId].catches += 1;
-          careerTotals[fId].catches += 1;
-        }
-        if (d.dismissalType === 'runout') {
-          pMatchStats[fId][matchId].runOuts += 1;
-          careerTotals[fId].runouts += 1;
-        }
+        if (!pMatchStats[fId]) pMatchStats[fId] = {};
+        if (!pMatchStats[fId][matchId!]) { pMatchStats[fId][matchId!] = { runs: 0, ballsFaced: 0, wickets: 0, ballsBowled: 0, runsConceded: 0, catches: 0, runOuts: 0, out: false }; careerTotals[fId].matches++; }
+        if (d.dismissalType === 'caught') careerTotals[fId].catches++;
+        if (d.dismissalType === 'runout') careerTotals[fId].runouts++;
       }
 
       if (d.isWicket && d.batsmanOutPlayerId && careerTotals[d.batsmanOutPlayerId]) {
-        pMatchStats[d.batsmanOutPlayerId][matchId].out = true;
-        careerTotals[d.batsmanOutPlayerId].outs += 1;
+        careerTotals[d.batsmanOutPlayerId].outs++;
       }
     });
 
-    matches.forEach(m => {
-      if (m.status === 'completed' && m.potmPlayerId && careerTotals[m.potmPlayerId]) {
-        careerTotals[m.potmPlayerId].potm += 1;
-      }
-    });
+    matches.forEach(m => { if (m.status === 'completed' && m.potmPlayerId && careerTotals[m.potmPlayerId]) careerTotals[m.potmPlayerId].potm++; });
 
     return players.map(p => {
       const stats = careerTotals[p.id];
       const matchHistory = pMatchStats[p.id] || {};
       let totalCvp = 0;
-      Object.values(matchHistory).forEach(ms => {
-        totalCvp += calculatePlayerCVP(ms as any);
-      });
+      Object.values(matchHistory).forEach(ms => { totalCvp += calculatePlayerCVP({ ...ms, id: p.id, name: p.name, fours: 0, sixes: 0, maidens: 0, stumpings: 0 }); });
 
       return { 
         ...stats, 
         cvp: totalCvp,
-        avg: stats.outs > 0 ? (stats.runs / stats.outs) : (stats.runs > 0 ? stats.runs : 0),
+        avg: stats.outs > 0 ? (stats.runs / stats.outs) : stats.runs,
         sr: stats.ballsFaced > 0 ? (stats.runs / stats.ballsFaced) * 100 : 0,
         econ: stats.ballsBowled >= 6 ? (stats.runsConceded / (stats.ballsBowled / 6)) : 0
       };
-    }).filter(p => {
-      if (activeCategory === 'econ') return p.ballsBowled >= 6; // Eligibility rule: Min 1 over
-      if (activeCategory === 'avg' || activeCategory === 'sr') return p.ballsFaced >= 1;
-      return true;
     }).sort((a: any, b: any) => {
-      const key = activeCategory === 'avg' ? 'avg' : 
-                  activeCategory === 'sr' ? 'sr' : 
-                  activeCategory === 'econ' ? 'econ' :
-                  activeCategory === 'catches' ? 'catches' :
-                  activeCategory === 'runouts' ? 'runouts' :
-                  activeCategory === 'potm' ? 'potm' :
-                  activeCategory === 'wickets' ? 'wickets' : 'runs';
-      
-      const valA = a[key] || 0;
-      const valB = b[key] || 0;
-      
-      if (activeCategory === 'econ') return valA - valB; // Lower econ is better
-      return valB - valA;
+      const key = activeCategory === 'avg' ? 'avg' : activeCategory === 'sr' ? 'sr' : activeCategory === 'econ' ? 'econ' : activeCategory === 'catches' ? 'catches' : activeCategory === 'runouts' ? 'runouts' : activeCategory === 'potm' ? 'potm' : activeCategory === 'wickets' ? 'wickets' : 'runs';
+      if (activeCategory === 'econ') return a[key] - b[key];
+      return b[key] - a[key];
     });
   }, [players, matches, allDeliveries, activeCategory]);
-
-  const requestSort = (key: string) => {
-    setSortConfig(prev => ({ key, direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc' }));
-  };
-
-  const SortIcon = ({ field }: { field: string }) => {
-    if (sortConfig.key !== field) return null;
-    return sortConfig.direction === 'asc' ? <ArrowUp className="inline w-3 h-3 ml-1" /> : <ArrowDown className="inline w-3 h-3 ml-1" />;
-  };
 
   if (!isMounted) return null;
 
@@ -246,7 +193,7 @@ export default function RankingsPage() {
     <div className="space-y-6 max-w-6xl mx-auto pb-24 px-1 md:px-4">
       <div>
         <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900 uppercase">League Rankings</h1>
-        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Professional Series Standings</p>
+        <p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Official Series Standings</p>
       </div>
 
       <Tabs defaultValue="teams" className="w-full">
@@ -260,22 +207,21 @@ export default function RankingsPage() {
             <div className="overflow-x-auto scrollbar-hide">
               <Table className="min-w-max w-full">
                 <TableHeader className="bg-slate-50">
-                  <TableRow className="hover:bg-transparent border-b">
-                    <TableHead className="w-12 text-[10px] font-bold uppercase text-slate-500 text-center">Pos</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase text-slate-500">Teams</TableHead>
-                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500 underline underline-offset-4">M</TableHead>
-                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">W</TableHead>
-                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">L</TableHead>
-                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">T</TableHead>
-                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">N/R</TableHead>
-                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500 underline underline-offset-4">PTS</TableHead>
-                    <TableHead className="text-center text-[10px] font-bold uppercase text-slate-500">NRR</TableHead>
-                    <TableHead className="text-[10px] font-bold uppercase text-slate-500 pl-6">Series Form</TableHead>
+                  <TableRow>
+                    <TableHead className="w-12 text-[10px] font-bold uppercase text-center">Pos</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase">Teams</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase">M</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase">W</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase">L</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase">T/NR</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase underline">PTS</TableHead>
+                    <TableHead className="text-center text-[10px] font-bold uppercase">NRR</TableHead>
+                    <TableHead className="text-[10px] font-bold uppercase pl-6">Series Form</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {teamStandings.map((team, idx) => (
-                    <TableRow key={team.id} className={cn("hover:bg-slate-50 transition-colors border-b", idx === 0 ? "bg-sky-50/50" : "")}>
+                    <TableRow key={team.id} className={cn("hover:bg-slate-50 border-b", idx === 0 ? "bg-sky-50/50" : "")}>
                       <TableCell className="text-center font-black text-xs text-slate-400 py-4">{idx + 1}</TableCell>
                       <TableCell className="py-4">
                         <Link href={`/teams/${team.id}`} className="flex items-center gap-3 group">
@@ -283,20 +229,19 @@ export default function RankingsPage() {
                             <AvatarImage src={team.logoUrl} className="object-contain" />
                             <AvatarFallback className="bg-slate-100 text-[10px]">{team.name[0]}</AvatarFallback>
                           </Avatar>
-                          <span className="font-black text-slate-800 text-xs uppercase tracking-tight group-hover:text-primary transition-colors">{team.name}</span>
+                          <span className="font-black text-slate-800 text-xs uppercase tracking-tight group-hover:text-primary">{team.name}</span>
                         </Link>
                       </TableCell>
                       <TableCell className="text-center text-xs font-bold text-slate-600">{team.played}</TableCell>
                       <TableCell className="text-center text-xs font-bold text-slate-600">{team.won}</TableCell>
                       <TableCell className="text-center text-xs font-bold text-slate-600">{team.lost}</TableCell>
-                      <TableCell className="text-center text-xs font-bold text-slate-600">{team.tied}</TableCell>
-                      <TableCell className="text-center text-xs font-bold text-slate-600">{team.nr}</TableCell>
+                      <TableCell className="text-center text-xs font-bold text-slate-600">{(team.tied || 0) + (team.nr || 0)}</TableCell>
                       <TableCell className="text-center text-xs font-black text-slate-900">{team.points}</TableCell>
                       <TableCell className="text-center text-xs font-bold text-slate-500">{(team.nrr || 0).toFixed(3)}</TableCell>
                       <TableCell className="py-4 pl-6">
                         <div className="flex items-center gap-1.5">
                           {team.form.slice(-5).map((res, fIdx) => (
-                            <div key={fIdx} className={cn("w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-sm border border-white/20", res === 'W' ? "bg-emerald-500" : res === 'L' ? "bg-rose-500" : "bg-slate-400")}>{res}</div>
+                            <div key={fIdx} className={cn("w-5 h-5 rounded-full flex items-center justify-center text-[8px] font-black text-white shadow-sm", res === 'W' ? "bg-emerald-500" : res === 'L' ? "bg-rose-500" : "bg-slate-400")}>{res}</div>
                           ))}
                         </div>
                       </TableCell>
@@ -332,78 +277,44 @@ export default function RankingsPage() {
             ))}
           </div>
 
-          <div className="bg-slate-50 border-l-4 border-l-primary p-3 rounded flex items-center gap-3">
-            <Info className="w-4 h-4 text-primary shrink-0" />
-            <p className="text-[9px] font-bold text-slate-500 uppercase leading-relaxed">
-              <strong>OFFICIAL RULE:</strong> Economy and Average leaderboards require a minimum of 1 Over (6 balls) or 1 Inning respectively to ensure data integrity across all match lengths.
-            </p>
-          </div>
-
-          {isDeliveriesLoading ? (
-            <div className="py-20 flex flex-col items-center justify-center space-y-4">
-              <Loader2 className="w-8 h-8 text-primary animate-spin" />
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Career Statistics...</p>
-            </div>
-          ) : (
-            <Card className="shadow-sm border rounded-xl overflow-hidden bg-white">
-              <CardHeader className="bg-slate-50 border-b py-3 px-4">
-                <CardTitle className="text-xs font-black uppercase text-slate-500 tracking-[0.2em]">
-                  {activeCategory.toUpperCase()} LEADERBOARD
-                </CardTitle>
-              </CardHeader>
-              <div className="overflow-x-auto scrollbar-hide">
-                <Table className="min-w-max w-full">
-                  <TableHeader className="bg-slate-50">
-                    <TableRow>
-                      <TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase">Player</TableHead>
-                      <TableHead className="text-center text-[10px] font-black uppercase">Matches</TableHead>
-                      <TableHead className="text-right text-[10px] font-black uppercase">
-                        {activeCategory === 'runs' ? 'Runs' : 
-                         activeCategory === 'wickets' ? 'Wickets' :
-                         activeCategory === 'avg' ? 'Average' :
-                         activeCategory === 'sr' ? 'Strike Rate' :
-                         activeCategory === 'econ' ? 'Economy' :
-                         activeCategory === 'catches' ? 'Catches' :
-                         activeCategory === 'runouts' ? 'Run Outs' : 'Awards'}
-                      </TableHead>
+          <Card className="shadow-sm border rounded-xl overflow-hidden bg-white">
+            <div className="overflow-x-auto scrollbar-hide">
+              <Table className="min-w-max w-full">
+                <TableHeader className="bg-slate-50">
+                  <TableRow>
+                    <TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Player</TableHead>
+                    <TableHead className="text-center text-[10px] font-black uppercase">Matches</TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase">Value</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {topPlayers.map((player, idx) => (
+                    <TableRow key={player.id}>
+                      <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
+                      <TableCell>
+                        <Link href={`/players/${player.id}`} className="font-black text-primary hover:underline text-xs flex items-center gap-2 uppercase">
+                          {player.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-center font-bold text-xs text-slate-500">{player.matches}</TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant="secondary" className="font-black text-xs px-3">
+                          {activeCategory === 'runs' ? player.runs : 
+                           activeCategory === 'wickets' ? player.wickets :
+                           activeCategory === 'avg' ? player.avg.toFixed(2) :
+                           activeCategory === 'sr' ? player.sr.toFixed(2) :
+                           activeCategory === 'econ' ? player.econ.toFixed(2) :
+                           activeCategory === 'catches' ? player.catches :
+                           activeCategory === 'runouts' ? player.runouts : player.potm}
+                        </Badge>
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {topPlayers.map((player, idx) => (
-                      <TableRow key={player.id}>
-                        <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
-                        <TableCell>
-                          <Link href={`/players/${player.id}`} className="font-black text-primary hover:underline text-xs flex items-center gap-2 uppercase tracking-tighter">
-                            {player.name} <ChevronRight className="w-3 h-3 text-slate-300" />
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-center font-bold text-xs text-slate-500">{player.matches}</TableCell>
-                        <TableCell className="text-right">
-                          <Badge variant="secondary" className="font-black text-xs px-3">
-                            {activeCategory === 'runs' ? player.runs : 
-                             activeCategory === 'wickets' ? player.wickets :
-                             activeCategory === 'avg' ? player.avg.toFixed(2) :
-                             activeCategory === 'sr' ? player.sr.toFixed(2) :
-                             activeCategory === 'econ' ? player.econ.toFixed(2) :
-                             activeCategory === 'catches' ? player.catches :
-                             activeCategory === 'runouts' ? player.runouts : player.potm}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {topPlayers.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="py-12 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest italic">
-                          No players meet the minimum 1-over requirement for this category yet
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </Card>
-          )}
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>
