@@ -6,7 +6,7 @@ import { collection, query, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Zap, Trophy, Target, Shield, Hand, ChevronLeft } from 'lucide-react';
+import { Loader2, Zap, Trophy, Target, Shield, Hand, ChevronLeft, Calendar } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -31,8 +31,7 @@ export default function StatsPage() {
     const batting: any = { 
       highestScore: { val: 0, name: '-' }, 
       most6s: { val: 0, name: '-' }, 
-      most4s: { val: 0, name: '-' },
-      mostRunsDay: { val: 0, name: '-' } 
+      most4s: { val: 0, name: '-' }
     };
     const bowling: any = { 
       bestFigures: { wkts: 0, runs: 999, name: '-' }, 
@@ -48,7 +47,6 @@ export default function StatsPage() {
     rawDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       const sId = d.strikerPlayerId; const bId = d.bowlerId || d.bowlerPlayerId; const fId = d.fielderPlayerId;
-      
       if (!matchId) return;
 
       const pIds = [sId, bId, fId].filter(id => id && id !== 'none');
@@ -89,8 +87,6 @@ export default function StatsPage() {
         if (m.fours > batting.most4s.val) batting.most4s = { val: m.fours, name: p.name };
         
         if (m.wkts > bowling.mostWkts.val) bowling.mostWkts = { val: m.wkts, name: p.name };
-        
-        // Corrected Best Figures Logic
         if (m.wkts > bowling.bestFigures.wkts || (m.wkts === bowling.bestFigures.wkts && m.runsCon < bowling.bestFigures.runs && m.ballsB > 0)) {
           bowling.bestFigures = { wkts: m.wkts, runs: m.runsCon, name: p.name };
         }
@@ -105,7 +101,6 @@ export default function StatsPage() {
       });
     });
 
-    // Cleanup initial 999 figures
     if (bowling.bestFigures.runs === 999) bowling.bestFigures = { wkts: 0, runs: 0, name: '-' };
 
     return { batting, bowling, fielding };
@@ -124,7 +119,7 @@ export default function StatsPage() {
 
       <section className="space-y-6">
         <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-primary pl-4">
-          <Zap className="w-5 h-5 text-primary" /> Batting Records
+          <Zap className="w-5 h-5 text-primary" /> Batting Peaks
         </h2>
         <div className="grid grid-cols-1 gap-3">
           {[
@@ -145,7 +140,7 @@ export default function StatsPage() {
 
       <section className="space-y-6">
         <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-secondary pl-4">
-          <Target className="w-5 h-5 text-secondary" /> Bowling Records
+          <Target className="w-5 h-5 text-secondary" /> Bowling Peaks
         </h2>
         <div className="grid grid-cols-1 gap-3">
           <Card className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
@@ -167,7 +162,7 @@ export default function StatsPage() {
 
       <section className="space-y-6">
         <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-emerald-500 pl-4">
-          <Hand className="w-5 h-5 text-emerald-500" /> Fielding Records
+          <Hand className="w-5 h-5 text-emerald-500" /> Fielding Peaks
         </h2>
         <div className="grid grid-cols-1 gap-3">
           {[

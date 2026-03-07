@@ -249,7 +249,7 @@ export default function PlayerProfilePage() {
               <div className="grid grid-cols-3 md:grid-cols-4 gap-6 text-center">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Wickets</p><p className="text-xl font-black text-secondary">{careerStats.bowling.wkts}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Best</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.best.wkts}/{careerStats.bowling.best.runs}</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Econ</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.econ.toFixed(2)}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">ER</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.econ.toFixed(2)}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Overs</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.overs}</p></div>
               </div>
               <div className="mt-6 pt-6 border-t">
