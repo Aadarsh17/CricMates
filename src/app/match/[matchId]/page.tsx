@@ -103,7 +103,6 @@ export default function MatchScoreboardPage() {
     
     for (let i = 0; i <= maxOvers * 6; i++) {
       const over = Math.floor(i / 6);
-      const ball = i % 6;
       
       const d1 = inn1Deliveries?.find(d => {
         const legalBallsBefore = inn1Deliveries.filter(prev => 
@@ -557,8 +556,11 @@ export default function MatchScoreboardPage() {
                     </div>
                     <div>
                       <p className="text-lg font-black">
-                        {(currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.runs / 
-                          (currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.balls / 6 || 1)).toFixed(2)}
+                        {(() => {
+                          const bowlStats = currentStats.bowling.find(b => b.id === activeInningData.currentBowlerPlayerId);
+                          if (!bowlStats || bowlStats.balls === 0) return '0.00';
+                          return (bowlStats.runs / (bowlStats.balls / 6)).toFixed(2);
+                        })()}
                       </p>
                       <p className="text-[7px] font-bold text-slate-500 uppercase">Economy</p>
                     </div>
