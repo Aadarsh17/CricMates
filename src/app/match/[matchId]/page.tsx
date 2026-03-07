@@ -816,65 +816,105 @@ export default function MatchScoreboardPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="overs" className="pt-4">
-          <div className="space-y-6">
-            {[
-              { id: 'inning_1', name: getTeamName(inn1?.battingTeamId), deliveries: inn1Deliveries },
-              { id: 'inning_2', name: getTeamName(inn2?.battingTeamId), deliveries: inn2Deliveries }
-            ].map((inn) => (
-              <Card key={inn.id} className="border-none shadow-sm overflow-hidden">
-                <div className="bg-slate-50 px-6 py-3 border-b flex justify-between items-center">
-                  <h3 className="font-black uppercase text-xs tracking-widest text-slate-500">{inn.name} Deliveries</h3>
-                  <Badge variant="outline" className="text-[8px] font-black uppercase">{inn.deliveries?.length || 0} Total</Badge>
+        <TabsContent value="overs" className="pt-4 space-y-8">
+          {[
+            { id: 'inning_1', name: getTeamName(inn1?.battingTeamId), deliveries: inn1Deliveries, score: inn1?.score, wkts: inn1?.wickets, ov: `${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver}` },
+            { id: 'inning_2', name: getTeamName(inn2?.battingTeamId), deliveries: inn2Deliveries, score: inn2?.score, wkts: inn2?.wickets, ov: `${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver}` }
+          ].map((inn) => (
+            <div key={inn.id} className="space-y-4">
+              <div className="flex items-center justify-between px-2">
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-2 rounded-lg">
+                    <History className="w-4 h-4 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-black uppercase text-sm tracking-tight">{inn.name}</h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Innings History</p>
+                  </div>
                 </div>
-                <div className="p-0 overflow-x-auto">
+                <div className="text-right">
+                  <p className="text-lg font-black">{inn.score ?? 0}/{inn.wkts ?? 0}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">({inn.ov} OV)</p>
+                </div>
+              </div>
+
+              <Card className="border-none shadow-xl overflow-hidden bg-white">
+                <div className="overflow-x-auto scrollbar-hide">
                   <Table>
-                    <TableHeader>
-                      <TableRow className="hover:bg-transparent">
-                        <TableHead className="w-16 text-[9px] font-black uppercase">Over</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase">Battle</TableHead>
-                        <TableHead className="text-center text-[9px] font-black uppercase w-20">Runs</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase">Result</TableHead>
-                        {isUmpire && <TableHead className="w-10"></TableHead>}
+                    <TableHeader className="bg-slate-50">
+                      <TableRow className="hover:bg-transparent border-b">
+                        <TableHead className="w-20 text-[10px] font-black uppercase text-center">Over</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase">Batter vs Bowler</TableHead>
+                        <TableHead className="text-center text-[10px] font-black uppercase w-24">Runs</TableHead>
+                        <TableHead className="text-[10px] font-black uppercase">Description</TableHead>
+                        {isUmpire && <TableHead className="w-12"></TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {inn.deliveries?.slice().reverse().map((d) => (
-                        <TableRow key={d.id} className="hover:bg-slate-50 transition-colors">
-                          <TableCell className="font-black text-xs text-slate-400">{d.overNumber}.{d.ballNumberInOver}</TableCell>
-                          <TableCell>
-                            <p className="text-[9px] font-black text-slate-900 uppercase leading-none">{getPlayerName(d.strikerPlayerId)}</p>
-                            <p className="text-[7px] font-bold text-slate-400 uppercase mt-0.5">vs {getPlayerName(d.bowlerId)}</p>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <Badge className={cn("font-black h-6 w-6 rounded-full p-0 flex items-center justify-center", 
-                              d.isWicket ? "bg-red-500 text-white" : 
-                              d.runsScored >= 4 ? "bg-primary text-white" : "bg-slate-100 text-slate-600")}>
-                              {d.isWicket ? "W" : d.totalRunsOnDelivery}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {d.isWicket ? (
-                              <Badge variant="destructive" className="text-[7px] font-black uppercase py-0">{d.dismissalType}</Badge>
-                            ) : (
-                              <span className="text-[8px] font-bold text-slate-400 uppercase">{d.extraType !== 'none' ? d.extraType : 'Legal'}</span>
-                            )}
-                          </TableCell>
-                          {isUmpire && (
-                            <TableCell>
-                              <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-300 hover:text-destructive" onClick={() => handleDeleteHistoricalBall(d.id, inn.id)}>
-                                <X className="w-3 h-3" />
-                              </Button>
+                      {inn.deliveries && inn.deliveries.length > 0 ? (
+                        inn.deliveries.slice().reverse().map((d) => (
+                          <TableRow key={d.id} className="hover:bg-slate-50 transition-colors border-b last:border-none">
+                            <TableCell className="text-center">
+                              <span className="font-black text-xs text-slate-400">{d.overNumber}.{d.ballNumberInOver}</span>
                             </TableCell>
-                          )}
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-black text-[11px] text-slate-900 uppercase">{getPlayerName(d.strikerPlayerId)}</span>
+                                <span className="text-[8px] font-bold text-slate-400 uppercase italic">bowled by {getPlayerName(d.bowlerId)}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex justify-center">
+                                <Badge className={cn("h-8 w-8 rounded-full flex items-center justify-center font-black p-0 border-2 shadow-sm transition-transform hover:scale-110", 
+                                  d.isWicket ? "bg-red-500 border-red-600 text-white" : 
+                                  d.runsScored === 6 ? "bg-purple-600 border-purple-700 text-white" :
+                                  d.runsScored === 4 ? "bg-emerald-600 border-emerald-700 text-white" : 
+                                  d.runsScored > 0 ? "bg-primary border-primary/50 text-white" :
+                                  "bg-slate-100 border-slate-200 text-slate-400")}>
+                                  {d.isWicket ? "W" : d.totalRunsOnDelivery}
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {d.isWicket ? (
+                                <div className="flex flex-col">
+                                  <Badge variant="destructive" className="w-fit text-[8px] font-black uppercase px-2 py-0.5">{d.dismissalType}</Badge>
+                                  {d.fielderPlayerId && d.fielderPlayerId !== 'none' && (
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase mt-0.5 ml-1">via {getPlayerName(d.fielderPlayerId)}</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <span className={cn("text-[9px] font-black uppercase", d.extraType !== 'none' ? "text-amber-600" : "text-slate-400")}>
+                                    {d.extraType !== 'none' ? d.extraType : 'Legal Delivery'}
+                                  </span>
+                                  {d.extraRuns > 0 && <Badge variant="outline" className="text-[7px] font-bold border-amber-200 text-amber-700">+{d.extraRuns}</Badge>}
+                                </div>
+                              )}
+                            </TableCell>
+                            {isUmpire && (
+                              <TableCell className="text-right pr-4">
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-300 hover:text-destructive hover:bg-destructive/5 rounded-full" onClick={() => handleDeleteHistoricalBall(d.id, inn.id)}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </TableCell>
+                            )}
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={isUmpire ? 5 : 4} className="py-12 text-center">
+                            <History className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                            <p className="text-[10px] font-black uppercase text-slate-300 tracking-widest italic">No deliveries recorded for this innings</p>
+                          </TableCell>
                         </TableRow>
-                      ))}
+                      )}
                     </TableBody>
                   </Table>
                 </div>
               </Card>
-            ))}
-          </div>
+            </div>
+          ))}
         </TabsContent>
 
         <TabsContent value="info" className="pt-4 space-y-6">
