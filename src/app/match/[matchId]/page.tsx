@@ -500,7 +500,7 @@ export default function MatchScoreboardPage() {
                   <span className="text-[10px] font-black text-slate-400 uppercase">({match.totalOvers} OV)</span>
                 </div>
                 <span className="font-black text-2xl md:text-3xl text-slate-900">
-                  {inn1?.score ?? 0}/{inn1?.wickets ?? 0}
+                  {Math.max(0, inn1?.score ?? 0)}/{Math.max(0, inn1?.wickets ?? 0)}
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -509,7 +509,7 @@ export default function MatchScoreboardPage() {
                   <span className="text-[10px] font-black text-slate-400 uppercase">({match.totalOvers} OV)</span>
                 </div>
                 <span className="font-black text-2xl md:text-3xl text-slate-900">
-                  {inn2?.score ?? 0}/{inn2?.wickets ?? 0}
+                  {Math.max(0, inn2?.score ?? 0)}/{Math.max(0, inn2?.wickets ?? 0)}
                 </span>
               </div>
             </div>
@@ -716,7 +716,7 @@ export default function MatchScoreboardPage() {
                 <Card className="border-none shadow-sm overflow-hidden">
                   <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center">
                     <h3 className="font-black uppercase text-sm tracking-widest">{inn.team} Batting</h3>
-                    <p className="text-xl font-black">{inn.inning?.score ?? 0}/{inn.inning?.wickets ?? 0} <span className="text-[10px] font-bold opacity-50">({inn.inning?.oversCompleted || 0}.{inn.inning?.ballsInCurrentOver || 0})</span></p>
+                    <p className="text-xl font-black">{Math.max(0, inn.inning?.score ?? 0)}/{Math.max(0, inn.inning?.wickets ?? 0)} <span className="text-[10px] font-bold opacity-50">({inn.inning?.oversCompleted || 0}.{inn.inning?.ballsInCurrentOver || 0})</span></p>
                   </div>
                   <Table>
                     <TableHeader className="bg-slate-50">
@@ -874,8 +874,8 @@ export default function MatchScoreboardPage() {
 
         <TabsContent value="overs" className="pt-4 space-y-8">
           {[
-            { id: 'inning_1', name: getTeamName(inn1?.battingTeamId), deliveries: inn1Deliveries, score: inn1?.score, wkts: inn1?.wickets, ov: `${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver}` },
-            { id: 'inning_2', name: getTeamName(inn2?.battingTeamId), deliveries: inn2Deliveries, score: inn2?.score, wkts: inn2?.wickets, ov: `${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver}` }
+            { id: 'inning_1', name: getTeamName(inn1?.battingTeamId), deliveries: inn1Deliveries, score: Math.max(0, inn1?.score ?? 0), wkts: Math.max(0, inn1?.wickets ?? 0), ov: `${inn1?.oversCompleted}.${inn1?.ballsInCurrentOver}` },
+            { id: 'inning_2', name: getTeamName(inn2?.battingTeamId), deliveries: inn2Deliveries, score: Math.max(0, inn2?.score ?? 0), wkts: Math.max(0, inn2?.wickets ?? 0), ov: `${inn2?.oversCompleted}.${inn2?.ballsInCurrentOver}` }
           ].map((inn) => (
             <div key={inn.id} className="space-y-4">
               <div className="flex items-center justify-between px-2">
@@ -889,7 +889,7 @@ export default function MatchScoreboardPage() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-black">{inn.score ?? 0}/{inn.wkts ?? 0}</p>
+                  <p className="text-lg font-black">{inn.score}/{inn.wkts}</p>
                   <p className="text-[10px] font-bold text-slate-400 uppercase">({inn.ov} OV)</p>
                 </div>
               </div>
@@ -1030,11 +1030,11 @@ export default function MatchScoreboardPage() {
             <div className="grid grid-cols-2 gap-4 bg-white/5 p-6 rounded-2xl border border-white/10 items-center">
               <div className="text-center space-y-1">
                 <p className="text-[9px] font-black text-primary uppercase">{getTeamName(inn1?.battingTeamId)}</p>
-                <p className="text-4xl font-black">{inn1?.score ?? 0}/{inn1?.wickets ?? 0}</p>
+                <p className="text-4xl font-black">{Math.max(0, inn1?.score ?? 0)}/{Math.max(0, inn1?.wickets ?? 0)}</p>
               </div>
               <div className="text-center space-y-1 border-l border-white/10">
                 <p className="text-[9px] font-black text-secondary uppercase">{getTeamName(inn2?.battingTeamId)}</p>
-                <p className="text-4xl font-black">{inn2?.score ?? 0}/{inn2?.wickets ?? 0}</p>
+                <p className="text-4xl font-black">{Math.max(0, inn2?.score ?? 0)}/{Math.max(0, inn2?.wickets ?? 0)}</p>
               </div>
             </div>
             <div className="text-center p-4 bg-primary/20 rounded-xl border border-primary/30">
