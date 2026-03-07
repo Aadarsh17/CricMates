@@ -8,7 +8,7 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand } from 'lucide-react';
+import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -77,8 +77,12 @@ export default function PlayerProfilePage() {
   const careerStats = useMemo(() => {
     const s = { 
       matches: 0, cvp: 0,
-      batting: { innings: 0, runs: 0, balls: 0, fours: 0, sixes: 0, outs: 0, high: 0, sr: 0, avg: 0, milestones: { hundreds: 0, fifties: 0, forties: 0, thirties: 0, twenties: 0, tens: 0 } },
-      bowling: { innings: 0, overs: 0, balls: 0, runs: 0, wkts: 0, best: { wkts: 0, runs: 0 }, econ: 0, sr: 0, avg: 0, mil: { fiveW: 0, threeW: 0, twoW: 0, oneW: 0 } },
+      batting: { 
+        innings: 0, runs: 0, balls: 0, fours: 0, sixes: 0, outs: 0, high: 0, sr: 0, avg: 0, 
+        milestones: { tens: 0, twenties: 0, thirties: 0, forties: 0, fifties: 0, hundreds: 0 },
+        ducks: { regular: 0, golden: 0, diamond: 0 }
+      },
+      bowling: { innings: 0, overs: 0, balls: 0, runs: 0, wkts: 0, best: { wkts: 0, runs: 0 }, econ: 0, sr: 0, avg: 0, mil: { oneW: 0, twoW: 0, threeW: 0, fourW: 0, fiveW: 0 } },
       fielding: { catches: 0, stumpings: 0, runouts: 0 }
     };
 
@@ -88,13 +92,20 @@ export default function PlayerProfilePage() {
       s.matches++;
       s.cvp += log.totalCVP;
 
-      if (log.batting.ballsFaced > 0) {
+      if (log.batting.ballsFaced > 0 || (log.batting.out && log.batting.runs === 0)) {
         s.batting.innings++;
         s.batting.runs += log.batting.runs;
         s.batting.balls += log.batting.ballsFaced;
         s.batting.fours += log.batting.fours;
         s.batting.sixes += log.batting.sixes;
-        if (log.batting.out) s.batting.outs++;
+        if (log.batting.out) {
+          s.batting.outs++;
+          if (log.batting.runs === 0) {
+            if (log.batting.ballsFaced === 0) s.batting.ducks.diamond++;
+            else if (log.batting.ballsFaced === 1) s.batting.ducks.golden++;
+            else s.batting.ducks.regular++;
+          }
+        }
         if (log.batting.runs > s.batting.high) s.batting.high = log.batting.runs;
 
         const r = log.batting.runs;
@@ -123,10 +134,12 @@ export default function PlayerProfilePage() {
           }
         }
 
-        if (log.bowling.wickets >= 5) s.bowling.mil.fiveW++;
-        else if (log.bowling.wickets >= 3) s.bowling.mil.threeW++;
-        else if (log.bowling.wickets >= 2) s.bowling.mil.twoW++;
-        else if (log.bowling.wickets >= 1) s.bowling.mil.oneW++;
+        const w = log.bowling.wickets;
+        if (w >= 5) s.bowling.mil.fiveW++;
+        else if (w === 4) s.bowling.mil.fourW++;
+        else if (w === 3) s.bowling.mil.threeW++;
+        else if (w === 2) s.bowling.mil.twoW++;
+        else if (w === 1) s.bowling.mil.oneW++;
       }
 
       s.fielding.catches += log.fielding.catches;
@@ -134,10 +147,10 @@ export default function PlayerProfilePage() {
       s.fielding.runouts += log.fielding.runOuts;
     });
 
-    s.batting.avg = s.batting.outs > 0 ? s.batting.runs / s.batting.outs : s.batting.runs;
+    s.batting.avg = s.batting.outs > 0 ? s.batting.runs / s.batting.outs : (s.batting.innings > 0 ? s.batting.runs : 0);
     s.batting.sr = s.batting.balls > 0 ? (s.batting.runs / s.batting.balls) * 100 : 0;
     s.bowling.overs = Math.floor(s.bowling.balls / 6) + (s.bowling.balls % 6) / 10;
-    s.bowling.econ = s.bowling.balls >= 6 ? (s.bowling.runs / (s.bowling.balls / 6)) : 0;
+    s.bowling.econ = s.bowling.balls >= 6 ? (s.bowling.runs / (s.bowling.balls / 6)) : (s.bowling.balls > 0 ? s.bowling.runs / (s.bowling.balls / 6) : 0);
     s.bowling.avg = s.bowling.wkts > 0 ? s.bowling.runs / s.bowling.wkts : 0;
     s.bowling.sr = s.bowling.wkts > 0 ? s.bowling.balls / s.bowling.wkts : 0;
 
@@ -210,8 +223,9 @@ export default function PlayerProfilePage() {
               <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.batting.innings} Innings</Badge>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-3 md:grid-cols-4 gap-6 text-center">
+              <div className="grid grid-cols-3 md:grid-cols-5 gap-4 text-center">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-xl font-black text-slate-900">{careerStats.batting.runs}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-xl font-black text-slate-900">{careerStats.batting.balls}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Best</p><p className="text-xl font-black text-slate-900">{careerStats.batting.high}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.batting.avg.toFixed(2)}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">S.R.</p><p className="text-xl font-black text-slate-900">{careerStats.batting.sr.toFixed(1)}</p></div>
@@ -220,18 +234,35 @@ export default function PlayerProfilePage() {
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Score Milestones</p>
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
                   {[
-                    { label: '100s', val: careerStats.batting.milestones.hundreds },
-                    { label: '50s', val: careerStats.batting.milestones.fifties },
-                    { label: '40s', val: careerStats.batting.milestones.forties },
-                    { label: '30s', val: careerStats.batting.milestones.thirties },
-                    { label: '20s', val: careerStats.batting.milestones.twenties },
                     { label: '10s', val: careerStats.batting.milestones.tens },
+                    { label: '20s', val: careerStats.batting.milestones.twenties },
+                    { label: '30s', val: careerStats.batting.milestones.thirties },
+                    { label: '40s', val: careerStats.batting.milestones.forties },
+                    { label: '50s', val: careerStats.batting.milestones.fifties },
+                    { label: '100s', val: careerStats.batting.milestones.hundreds },
                   ].map(m => (
                     <div key={m.label} className="bg-slate-50 p-2 rounded-xl text-center border">
                       <p className="text-sm font-black text-slate-900">{m.val}</p>
                       <p className="text-[8px] font-black text-slate-400 uppercase">{m.label}</p>
                     </div>
                   ))}
+                </div>
+              </div>
+              <div className="mt-6 pt-6 border-t">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Ducks History</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-slate-50 p-3 rounded-xl text-center border group hover:border-red-200 transition-colors">
+                    <p className="text-lg font-black text-slate-900">{careerStats.batting.ducks.regular}</p>
+                    <p className="text-[8px] font-black text-slate-400 uppercase">Regular</p>
+                  </div>
+                  <div className="bg-amber-50 p-3 rounded-xl text-center border border-amber-100">
+                    <p className="text-lg font-black text-amber-700">{careerStats.batting.ducks.golden}</p>
+                    <p className="text-[8px] font-black text-amber-600 uppercase">Golden</p>
+                  </div>
+                  <div className="bg-blue-50 p-3 rounded-xl text-center border border-blue-100">
+                    <p className="text-lg font-black text-blue-700">{careerStats.batting.ducks.diamond}</p>
+                    <p className="text-[8px] font-black text-blue-600 uppercase">Diamond</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -246,20 +277,23 @@ export default function PlayerProfilePage() {
               <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.bowling.innings} Innings</Badge>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-3 md:grid-cols-4 gap-6 text-center">
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Wickets</p><p className="text-xl font-black text-secondary">{careerStats.bowling.wkts}</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Best</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.best.wkts}/{careerStats.bowling.best.runs}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.balls}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.runs}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">ER</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.econ.toFixed(2)}</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Overs</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.overs}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.avg.toFixed(2)}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">SR</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.sr.toFixed(1)}</p></div>
               </div>
               <div className="mt-6 pt-6 border-t">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Wicket Milestones</p>
-                <div className="grid grid-cols-4 gap-2">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Best Performance: {careerStats.bowling.best.wkts}/{careerStats.bowling.best.runs}</p>
+                <div className="grid grid-cols-5 gap-2">
                   {[
-                    { label: '5W', val: careerStats.bowling.mil.fiveW },
-                    { label: '3W', val: careerStats.bowling.mil.threeW },
-                    { label: '2W', val: careerStats.bowling.mil.twoW },
                     { label: '1W', val: careerStats.bowling.mil.oneW },
+                    { label: '2W', val: careerStats.bowling.mil.twoW },
+                    { label: '3W', val: careerStats.bowling.mil.threeW },
+                    { label: '4W', val: careerStats.bowling.mil.fourW },
+                    { label: '5W', val: careerStats.bowling.mil.fiveW },
                   ].map(m => (
                     <div key={m.label} className="bg-slate-50 p-2 rounded-xl text-center border">
                       <p className="text-sm font-black text-secondary">{m.val}</p>
