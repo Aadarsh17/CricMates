@@ -408,7 +408,15 @@ export default function MatchScoreboardPage() {
       remaining.forEach(d => { ns += d.totalRunsOnDelivery; if (d.isWicket && d.dismissalType !== 'retired') nw++; if (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye') nb++; });
       const last = remaining[remaining.length - 1];
       const updates: any = { score: ns, wickets: nw, oversCompleted: Math.floor(nb / 6), ballsInCurrentOver: nb % 6, isDeclaredFinished: false };
-      if (last) { updates.strikerPlayerId = last.strikerPlayerId; updates.nonStrikerPlayerId = last.nonStrikerPlayerId; updates.currentBowlerPlayerId = last.bowlerId; }
+      if (last) { 
+        updates.strikerPlayerId = last.strikerPlayerId; 
+        updates.nonStrikerPlayerId = last.nonStrikerPlayerId; 
+        updates.currentBowlerPlayerId = last.bowlerId; 
+      } else {
+        updates.strikerPlayerId = '';
+        updates.nonStrikerPlayerId = '';
+        updates.currentBowlerPlayerId = '';
+      }
       await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates, { merge: true });
       await setDocumentNonBlocking(matchRef, { status: 'live', currentInningNumber: inningId === 'inning_1' ? 1 : 2 }, { merge: true });
       setActiveTab('live');
@@ -431,6 +439,23 @@ export default function MatchScoreboardPage() {
   const currentStats = match.currentInningNumber === 1 ? stats1 : stats2;
   const currentDeliveries = match.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries;
   const currentBowlerHistory = currentDeliveries?.filter(d => d.bowlerId === activeInningData?.currentBowlerPlayerId).slice(-6) || [];
+
+  /**
+   * Helper to calculate professional over.ball label dynamically
+   */
+  const getDynamicBallLabel = (delivery: any, deliveries: any[]) => {
+    const legalBallsBefore = deliveries.filter(d => 
+      d.timestamp <= delivery.timestamp && 
+      (d.extraType === 'none' || d.extraType === 'bye' || d.extraType === 'legbye')
+    ).length;
+    
+    if (delivery.extraType !== 'none' && delivery.extraType !== 'bye' && delivery.extraType !== 'legbye') {
+      // It's an illegal ball, show it as the current over state
+      return `${Math.floor(legalBallsBefore / 6)}.${(legalBallsBefore % 6)}`;
+    }
+    
+    return `${Math.floor((legalBallsBefore - 1) / 6)}.${((legalBallsBefore - 1) % 6) + 1}`;
+  };
 
   return (
     <div className="space-y-4 max-w-5xl mx-auto pb-24 px-1 md:px-4">
@@ -855,7 +880,9 @@ export default function MatchScoreboardPage() {
                         inn.deliveries.slice().reverse().map((d) => (
                           <TableRow key={d.id} className="hover:bg-slate-50 transition-colors border-b last:border-none">
                             <TableCell className="text-center">
-                              <span className="font-black text-xs text-slate-400">{d.overNumber}.{d.ballNumberInOver}</span>
+                              <span className="font-black text-xs text-slate-400">
+                                {getDynamicBallLabel(d, inn.deliveries || [])}
+                              </span>
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-col">
