@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, Info, TrendingUp, Trash2, ChevronLeft, Calendar, Clock, UserCheck, ShieldCheck, List, CheckCircle2, MoreVertical, UserPlus, AlertCircle } from 'lucide-react';
+import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, Info, TrendingUp, Trash2, ChevronLeft, Calendar, Clock, UserCheck, ShieldCheck, List, CheckCircle2, MoreVertical, UserPlus, AlertCircle, Settings2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -108,7 +108,14 @@ export default function MatchScoreboardPage() {
 
   const handleRecordBall = async (runs: number, extra: 'none' | 'wide' | 'noball' | 'bye' | 'legbye' = 'none') => {
     if (!match || !activeInningData || !isUmpire || !activeInningData.currentBowlerPlayerId) {
-      if (!activeInningData?.currentBowlerPlayerId && isUmpire) setIsPlayerAssignmentOpen(true);
+      if (!activeInningData?.currentBowlerPlayerId && isUmpire) {
+        setAssignmentForm({
+          strikerId: activeInningData?.strikerPlayerId || '',
+          nonStrikerId: activeInningData?.nonStrikerPlayerId || '',
+          bowlerId: ''
+        });
+        setIsPlayerAssignmentOpen(true);
+      }
       return;
     }
     const currentInningId = `inning_${match.currentInningNumber}`;
@@ -412,6 +419,20 @@ export default function MatchScoreboardPage() {
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setAssignmentForm({
+                          strikerId: activeInningData?.strikerPlayerId || '',
+                          nonStrikerId: activeInningData?.nonStrikerPlayerId || '',
+                          bowlerId: activeInningData?.currentBowlerPlayerId || ''
+                        });
+                        setIsPlayerAssignmentOpen(true);
+                      }}
+                      className="flex-1 h-12 border-secondary/20 text-secondary font-black uppercase text-[9px] bg-white/5"
+                    >
+                      <Settings2 className="w-4 h-4 mr-2" /> Assign
+                    </Button>
                   </div>
 
                   <div className="grid grid-cols-4 gap-2">
@@ -661,35 +682,29 @@ export default function MatchScoreboardPage() {
         <DialogContent className="max-w-[90vw] rounded-3xl border-t-8 border-t-primary shadow-2xl">
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl">Official Assignment</DialogTitle></DialogHeader>
           <div className="space-y-6 py-4">
-            {(!activeInningData?.strikerPlayerId || !activeInningData?.nonStrikerPlayerId) && (
-              <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border">
-                <h4 className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2">
-                  <UserPlus className="w-3 h-3" /> Assign Batting Order
-                </h4>
-                {!activeInningData?.strikerPlayerId && (
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-slate-400 pl-1">New Striker</Label>
-                    <Select value={assignmentForm.strikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
-                      <SelectTrigger className="h-14 font-black bg-white rounded-2xl"><SelectValue placeholder="Pick Striker" /></SelectTrigger>
-                      <SelectContent>
-                        {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== activeInningData?.nonStrikerPlayerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs">{p.name}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
-                {!activeInningData?.nonStrikerId && (
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-slate-400 pl-1">Non-Striker</Label>
-                    <Select value={assignmentForm.nonStrikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, nonStrikerId: v})}>
-                      <SelectTrigger className="h-14 font-black bg-white rounded-2xl"><SelectValue placeholder="Pick Non-Striker" /></SelectTrigger>
-                      <SelectContent>
-                        {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== activeInningData?.strikerPlayerId && p.id !== assignmentForm.strikerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs">{p.name}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                )}
+            <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border">
+              <h4 className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2">
+                <UserPlus className="w-3 h-3" /> Assign Batting Order
+              </h4>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400 pl-1">Striker</Label>
+                <Select value={assignmentForm.strikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
+                  <SelectTrigger className="h-14 font-black bg-white rounded-2xl"><SelectValue placeholder="Pick Striker" /></SelectTrigger>
+                  <SelectContent>
+                    {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.nonStrikerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs">{p.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+              <div className="space-y-2">
+                <Label className="text-[10px] font-black uppercase text-slate-400 pl-1">Non-Striker</Label>
+                <Select value={assignmentForm.nonStrikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, nonStrikerId: v})}>
+                  <SelectTrigger className="h-14 font-black bg-white rounded-2xl"><SelectValue placeholder="Pick Non-Striker" /></SelectTrigger>
+                  <SelectContent>
+                    {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.strikerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs">{p.name}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
 
             <div className="space-y-4 bg-slate-50 p-4 rounded-2xl border">
               <h4 className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2">
@@ -700,7 +715,7 @@ export default function MatchScoreboardPage() {
                 <Select value={assignmentForm.bowlerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, bowlerId: v})}>
                   <SelectTrigger className="h-14 font-black bg-white rounded-2xl"><SelectValue placeholder="Pick Bowler" /></SelectTrigger>
                   <SelectContent>
-                    {allPlayers?.filter(p => (match?.team1Id === activeInningData?.bowlingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId && p.id !== assignmentForm.strikerId && p.id !== assignmentForm.nonStrikerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs">{p.name}</SelectItem>))}
+                    {allPlayers?.filter(p => (match?.team1Id === activeInningData?.bowlingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.strikerId && p.id !== assignmentForm.nonStrikerId).map(p => (<SelectItem key={p.id} value={p.id} className="font-black uppercase text-xs">{p.name}</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>
@@ -714,12 +729,12 @@ export default function MatchScoreboardPage() {
             if (assignmentForm.strikerId) updates.strikerPlayerId = assignmentForm.strikerId;
             if (assignmentForm.nonStrikerId) updates.nonStrikerPlayerId = assignmentForm.nonStrikerId;
             
-            if (Object.keys(updates).length > 0) {
+            if (assignmentForm.strikerId && assignmentForm.nonStrikerId) {
               updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), updates); 
               setIsPlayerAssignmentOpen(false); 
               setAssignmentForm({ strikerId: '', nonStrikerId: '', bowlerId: '' });
             } else {
-              toast({ title: "Selection Missing", description: "Please assign required roles.", variant: "destructive" });
+              toast({ title: "Selection Missing", description: "Please assign Striker and Non-Striker.", variant: "destructive" });
             }
           }} className="w-full h-16 bg-primary text-white font-black uppercase rounded-2xl shadow-xl text-lg tracking-widest">Confirm Assignment</Button></DialogFooter>
         </DialogContent>
@@ -812,7 +827,14 @@ export default function MatchScoreboardPage() {
             if (leg >= match!.totalOvers * 6 || (updates.wickets >= 10 && !activeInningData?.isLastManActive)) updates.isDeclaredFinished = true;
             updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', cur), updates);
             setIsWicketDialogOpen(false);
-            if (updates.wickets < 10 && !updates.isDeclaredFinished) setIsPlayerAssignmentOpen(true);
+            if (updates.wickets < 10 && !updates.isDeclaredFinished) {
+              setAssignmentForm({
+                strikerId: updates.strikerPlayerId || activeInningData?.strikerPlayerId || '',
+                nonStrikerId: updates.nonStrikerPlayerId || activeInningData?.nonStrikerPlayerId || '',
+                bowlerId: updates.currentBowlerPlayerId || activeInningData?.currentBowlerPlayerId || ''
+              });
+              setIsPlayerAssignmentOpen(true);
+            }
           }} className="w-full h-16 bg-red-600 text-white font-black uppercase rounded-2xl shadow-xl">Confirm Wicket</Button></DialogFooter>
         </DialogContent>
       </Dialog>
