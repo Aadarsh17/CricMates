@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, ArrowLeftRight, Trophy, Zap, Target, Star, History, UserCircle, TrendingUp, CheckCircle2, Award, Activity, FastForward, Clock, Timer, UserCheck } from 'lucide-react';
+import { Loader2, ArrowLeftRight, Trophy, Zap, Target, Star, History, UserCircle, TrendingUp, CheckCircle2, Award, Activity, FastForward, Clock, Timer, UserCheck, Swords, ShieldAlert } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 
@@ -69,9 +69,9 @@ export default function InsightsPage() {
         achievements: {
           fastest50r: null, fastest100r: null, fastest500r: null,
           fastest10w: null, fastest25w: null, fastest50w: null,
-          fastest30b: null, // balls to 30 in a match
-          hattricks: [], // { balls: number, date: string }
-          winningKnocks: [] // { balls: number, runs: number, date: string }
+          fastest30b: null,
+          hattricks: [],
+          winningKnocks: []
         }
       };
     });
@@ -82,7 +82,6 @@ export default function InsightsPage() {
       matchMeta[m.id] = { date: m.matchDate, target: 0, currentScore: 0, isWon: m.status === 'completed' };
     });
 
-    // To track targets for winning knock logic
     const inn1Scores: Record<string, number> = {};
 
     sortedDeliveries.forEach(d => {
@@ -110,7 +109,6 @@ export default function InsightsPage() {
         if (d.runsScored === 4) s.fours += 1;
         if (d.runsScored === 6) s.sixes += 1;
 
-        // Fastest 30 check
         if (s.runs >= 30 && !s.reached30) {
           s.reached30 = true;
           s.ballsAt30 = s.balls;
@@ -120,7 +118,6 @@ export default function InsightsPage() {
         }
       }
 
-      // Winning Knock Logic
       if (innNum === 2 && inn1Scores[matchId] !== undefined) {
         const target = inn1Scores[matchId];
         const prevScore = matchMeta[matchId].currentScore;
@@ -128,7 +125,6 @@ export default function InsightsPage() {
         matchMeta[matchId].currentScore = newScore;
 
         if (prevScore <= target && newScore > target && d.strikerPlayerId) {
-          // Striker hit the winning runs
           matchMeta[matchId].winningPlayerId = d.strikerPlayerId;
         }
       }
@@ -143,14 +139,12 @@ export default function InsightsPage() {
         const isWicket = d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired';
         if (isWicket) b.wkts += 1;
 
-        // Hat-trick tracking
         if (!b.recentBalls) b.recentBalls = [];
         if (isLegal || isWicket) {
           b.recentBalls.push({ isWicket, isLegal });
           if (b.recentBalls.length >= 3) {
             const last3 = b.recentBalls.slice(-3);
             if (last3.every((ball: any) => ball.isWicket)) {
-              // Found a 3-in-3 sequence
               playerInsights[bId].achievements.hattricks.push({ balls: 3, date: matchMeta[matchId].date });
             }
           }
@@ -205,12 +199,10 @@ export default function InsightsPage() {
         careerRuns += perf.runs;
         careerWickets += perf.wkts;
 
-        // Check if this player was the winner of this match
         if (matchMeta[m.id].winningPlayerId === p.id) {
           insight.achievements.winningKnocks.push({ balls: perf.balls, runs: perf.runs, date: m.matchDate });
         }
 
-        // Fastest Logic
         if (careerRuns >= 50 && !insight.achievements.fastest50r) insight.achievements.fastest50r = matchesCount;
         if (careerRuns >= 100 && !insight.achievements.fastest100r) insight.achievements.fastest100r = matchesCount;
         if (careerRuns >= 500 && !insight.achievements.fastest500r) insight.achievements.fastest500r = matchesCount;
@@ -224,7 +216,6 @@ export default function InsightsPage() {
           timeline.push({ label: 'Man of the Match', date: m.matchDate });
         }
 
-        // Batting Match Milestones
         if (perf.runs >= 10) { 
           counts.r10 += 1; 
           if (!reached.has('10 Runs')) { reached.add('10 Runs'); timeline.push({ label: 'First 10+ Runs', date: m.matchDate }); }
@@ -233,7 +224,6 @@ export default function InsightsPage() {
         if (perf.runs >= 30) { counts.r30 += 1; if (!reached.has('30 Runs')) { reached.add('30 Runs'); timeline.push({ label: 'First 30+ Runs', date: m.matchDate }); } }
         if (perf.runs >= 50) { counts.r50 += 1; if (!reached.has('50 Runs')) { reached.add('50 Runs'); timeline.push({ label: 'First 50+ Runs', date: m.matchDate }); } }
 
-        // Bowling Match Milestones
         if (perf.wkts >= 1) { 
           counts.w1 += 1; 
           if (!reached.has('First Wicket')) { reached.add('First Wicket'); timeline.push({ label: 'First Wicket', date: m.matchDate }); }
@@ -241,7 +231,6 @@ export default function InsightsPage() {
         if (perf.wkts >= 2) { counts.w2 += 1; if (!reached.has('2 Wickets')) { reached.add('2 Wickets'); timeline.push({ label: '2 Wickets in a Match', date: m.matchDate }); } }
         if (perf.wkts >= 3) { counts.w3 += 1; if (!reached.has('3 Wickets')) { reached.add('3 Wickets'); timeline.push({ label: '3 Wickets in a Match', date: m.matchDate }); } }
 
-        // Career Cumulative Milestones
         RUN_MILESTONES.forEach(threshold => {
           const key = `Career Runs ${threshold}`;
           if (careerRuns >= threshold && !reached.has(key)) {
@@ -279,6 +268,37 @@ export default function InsightsPage() {
     return playerInsights;
   }, [players, matches, sortedDeliveries]);
 
+  const rivalryStats = useMemo(() => {
+    if (!p1Id || !p2Id || !sortedDeliveries) return null;
+    
+    const stats = {
+      p1BatVsP2Bowl: { runs: 0, balls: 0, outs: 0 },
+      p2BatVsP1Bowl: { runs: 0, balls: 0, outs: 0 }
+    };
+
+    sortedDeliveries.forEach(d => {
+      const bowlerId = d.bowlerId || d.bowlerPlayerId;
+      // Case 1: P1 Batting vs P2 Bowling
+      if (d.strikerPlayerId === p1Id && bowlerId === p2Id) {
+        stats.p1BatVsP2Bowl.runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') stats.p1BatVsP2Bowl.balls += 1;
+        if (d.isWicket && d.batsmanOutPlayerId === p1Id && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') {
+          stats.p1BatVsP2Bowl.outs += 1;
+        }
+      }
+      // Case 2: P2 Batting vs P1 Bowling
+      if (d.strikerPlayerId === p2Id && bowlerId === p1Id) {
+        stats.p2BatVsP1Bowl.runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') stats.p2BatVsP1Bowl.balls += 1;
+        if (d.isWicket && d.batsmanOutPlayerId === p2Id && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') {
+          stats.p2BatVsP1Bowl.outs += 1;
+        }
+      }
+    });
+
+    return stats;
+  }, [p1Id, p2Id, sortedDeliveries]);
+
   const fastestRecords = useMemo(() => {
     if (!processedData) return null;
     const records: any = {
@@ -294,7 +314,6 @@ export default function InsightsPage() {
     };
 
     Object.values(processedData).forEach((p: any) => {
-      // By Matches
       if (p.achievements.fastest50r < records.r50.count) records.r50 = { player: p.name, count: p.achievements.fastest50r };
       if (p.achievements.fastest100r < records.r100.count) records.r100 = { player: p.name, count: p.achievements.fastest100r };
       if (p.achievements.fastest500r < records.r500.count) records.r500 = { player: p.name, count: p.achievements.fastest500r };
@@ -302,19 +321,16 @@ export default function InsightsPage() {
       if (p.achievements.fastest25w < records.w25.count) records.w25 = { player: p.name, count: p.achievements.fastest25w };
       if (p.achievements.fastest50w < records.w50.count) records.w50 = { player: p.name, count: p.achievements.fastest50w };
 
-      // By Balls
       if (p.achievements.fastest30b && p.achievements.fastest30b < records.f30b.balls) {
         records.f30b = { player: p.name, balls: p.achievements.fastest30b };
       }
 
-      // Hat-tricks
       p.achievements.hattricks.forEach((h: any) => {
         if (h.balls < records.hattrick.balls) {
           records.hattrick = { player: p.name, balls: h.balls, date: h.date };
         }
       });
 
-      // Winning Knocks
       p.achievements.winningKnocks.forEach((wk: any) => {
         if (wk.balls < records.winner.balls) {
           records.winner = { player: p.name, balls: wk.balls, runs: wk.runs, date: wk.date };
@@ -401,31 +417,79 @@ export default function InsightsPage() {
           </div>
 
           {p1Id && p2Id ? (
-            <Card className="border-none shadow-2xl overflow-hidden bg-white">
-              <div className="bg-slate-900 text-white p-6 grid grid-cols-3 items-center text-center">
-                <div className="flex flex-col items-center space-y-2">
-                  <Avatar className="w-16 h-16 border-4 border-primary shadow-lg"><AvatarImage src={getStats(p1Id)?.imageUrl}/><AvatarFallback>{getStats(p1Id)?.name[0]}</AvatarFallback></Avatar>
-                  <span className="font-black uppercase text-xs tracking-tighter truncate max-w-[100px]">{getStats(p1Id)?.name}</span>
+            <div className="space-y-8">
+              <Card className="border-none shadow-2xl overflow-hidden bg-white">
+                <div className="bg-slate-900 text-white p-6 grid grid-cols-3 items-center text-center">
+                  <div className="flex flex-col items-center space-y-2">
+                    <Avatar className="w-16 h-16 border-4 border-primary shadow-lg"><AvatarImage src={getStats(p1Id)?.imageUrl}/><AvatarFallback>{getStats(p1Id)?.name[0]}</AvatarFallback></Avatar>
+                    <span className="font-black uppercase text-xs tracking-tighter truncate max-w-[100px]">{getStats(p1Id)?.name}</span>
+                  </div>
+                  <div className="flex justify-center"><ArrowLeftRight className="w-8 h-8 text-slate-600" /></div>
+                  <div className="flex flex-col items-center space-y-2">
+                    <Avatar className="w-16 h-16 border-4 border-secondary shadow-lg"><AvatarImage src={getStats(p2Id)?.imageUrl}/><AvatarFallback>{getStats(p2Id)?.name[0]}</AvatarFallback></Avatar>
+                    <span className="font-black uppercase text-xs tracking-tighter truncate max-w-[100px]">{getStats(p2Id)?.name}</span>
+                  </div>
                 </div>
-                <div className="flex justify-center"><ArrowLeftRight className="w-8 h-8 text-slate-600" /></div>
-                <div className="flex flex-col items-center space-y-2">
-                  <Avatar className="w-16 h-16 border-4 border-secondary shadow-lg"><AvatarImage src={getStats(p2Id)?.imageUrl}/><AvatarFallback>{getStats(p2Id)?.name[0]}</AvatarFallback></Avatar>
-                  <span className="font-black uppercase text-xs tracking-tighter truncate max-w-[100px]">{getStats(p2Id)?.name}</span>
+                <Table>
+                  <TableBody>
+                    {renderComparisonRow('Matches Played', getStats(p1Id)?.stats.played, getStats(p2Id)?.stats.played)}
+                    {renderComparisonRow('Runs Scored', getStats(p1Id)?.stats.runs, getStats(p2Id)?.stats.runs)}
+                    {renderComparisonRow('Batting Avg', (getStats(p1Id)?.stats.runs / (getStats(p1Id)?.stats.timesOut || 1)).toFixed(2), (getStats(p2Id)?.stats.runs / (getStats(p2Id)?.stats.timesOut || 1)).toFixed(2))}
+                    {renderComparisonRow('Strike Rate', (getStats(p1Id)?.stats.ballsFaced > 0 ? (getStats(p1Id)?.stats.runs / getStats(p1Id)?.stats.ballsFaced * 100).toFixed(2) : '0.00'), (getStats(p2Id)?.stats.ballsFaced > 0 ? (getStats(p2Id)?.stats.runs / getStats(p2Id)?.stats.ballsFaced * 100).toFixed(2) : '0.00'))}
+                    {renderComparisonRow('Boundary %', (getStats(p1Id)?.stats.runs > 0 ? ((getStats(p1Id)?.stats.fours * 4 + getStats(p1Id)?.stats.sixes * 6) / getStats(p1Id)?.stats.runs * 100).toFixed(1) + '%' : '0.0%'), (getStats(p2Id)?.stats.runs > 0 ? ((getStats(p2Id)?.stats.fours * 4 + getStats(p2Id)?.stats.sixes * 6) / getStats(p2Id)?.stats.runs * 100).toFixed(1) + '%' : '0.0%'))}
+                    {renderComparisonRow('Wickets', getStats(p1Id)?.stats.wickets, getStats(p2Id)?.stats.wickets)}
+                    {renderComparisonRow('Bowling Econ', (getStats(p1Id)?.stats.ballsBowled > 0 ? (getStats(p1Id)?.stats.runsConceded / (getStats(p1Id)?.stats.ballsBowled / 6)).toFixed(2) : '0.00'), (getStats(p2Id)?.stats.ballsBowled > 0 ? (getStats(p2Id)?.stats.runsConceded / (getStats(p2Id)?.stats.ballsBowled / 6)).toFixed(2) : '0.00'), false)}
+                    {renderComparisonRow('Wkts/Match', (getStats(p1Id)?.stats.wickets / (getStats(p1Id)?.stats.played || 1)).toFixed(2), (getStats(p2Id)?.stats.wickets / (getStats(p2Id)?.stats.played || 1)).toFixed(2))}
+                  </TableBody>
+                </Table>
+              </Card>
+
+              {/* RIVALRY SECTION */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 px-1">
+                  <Swords className="w-5 h-5 text-destructive" />
+                  <h3 className="font-black uppercase text-sm tracking-widest text-slate-900">Battle Rivalry (Head-to-Head)</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <Card className="border-t-4 border-t-primary shadow-lg overflow-hidden bg-white">
+                    <CardHeader className="bg-slate-50 border-b py-3">
+                      <CardTitle className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                        {getStats(p1Id)?.name} <span className="text-slate-300">vs</span> {getStats(p2Id)?.name} (Bowl)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      {rivalryStats?.p1BatVsP2Bowl.balls ? (
+                        <div className="grid grid-cols-3 gap-4 text-center">
+                          <div><p className="text-3xl font-black text-slate-900">{rivalryStats.p1BatVsP2Bowl.runs}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Runs</p></div>
+                          <div><p className="text-3xl font-black text-slate-900">{rivalryStats.p1BatVsP2Bowl.balls}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Balls</p></div>
+                          <div><p className="text-3xl font-black text-destructive">{rivalryStats.p1BatVsP2Bowl.outs}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Dismissals</p></div>
+                        </div>
+                      ) : (
+                        <p className="text-center py-4 text-[10px] font-black text-slate-300 uppercase italic">No documented encounters</p>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card className="border-t-4 border-t-secondary shadow-lg overflow-hidden bg-white">
+                    <CardHeader className="bg-slate-50 border-b py-3">
+                      <CardTitle className="text-[10px] font-black uppercase text-slate-500 tracking-widest">
+                        {getStats(p2Id)?.name} <span className="text-slate-300">vs</span> {getStats(p1Id)?.name} (Bowl)
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      {rivalryStats?.p2BatVsP1Bowl.balls ? (
+                        <div className="grid grid-cols-3 gap-4 text-center">
+                          <div><p className="text-3xl font-black text-slate-900">{rivalryStats.p2BatVsP1Bowl.runs}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Runs</p></div>
+                          <div><p className="text-3xl font-black text-slate-900">{rivalryStats.p2BatVsP1Bowl.balls}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Balls</p></div>
+                          <div><p className="text-3xl font-black text-destructive">{rivalryStats.p2BatVsP1Bowl.outs}</p><p className="text-[8px] font-bold text-slate-400 uppercase">Dismissals</p></div>
+                        </div>
+                      ) : (
+                        <p className="text-center py-4 text-[10px] font-black text-slate-300 uppercase italic">No documented encounters</p>
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
-              <Table>
-                <TableBody>
-                  {renderComparisonRow('Matches Played', getStats(p1Id)?.stats.played, getStats(p2Id)?.stats.played)}
-                  {renderComparisonRow('Runs Scored', getStats(p1Id)?.stats.runs, getStats(p2Id)?.stats.runs)}
-                  {renderComparisonRow('Batting Avg', (getStats(p1Id)?.stats.runs / (getStats(p1Id)?.stats.timesOut || 1)).toFixed(2), (getStats(p2Id)?.stats.runs / (getStats(p2Id)?.stats.timesOut || 1)).toFixed(2))}
-                  {renderComparisonRow('Strike Rate', (getStats(p1Id)?.stats.ballsFaced > 0 ? (getStats(p1Id)?.stats.runs / getStats(p1Id)?.stats.ballsFaced * 100).toFixed(2) : '0.00'), (getStats(p2Id)?.stats.ballsFaced > 0 ? (getStats(p2Id)?.stats.runs / getStats(p2Id)?.stats.ballsFaced * 100).toFixed(2) : '0.00'))}
-                  {renderComparisonRow('Boundary %', (getStats(p1Id)?.stats.runs > 0 ? ((getStats(p1Id)?.stats.fours * 4 + getStats(p1Id)?.stats.sixes * 6) / getStats(p1Id)?.stats.runs * 100).toFixed(1) + '%' : '0.0%'), (getStats(p2Id)?.stats.runs > 0 ? ((getStats(p2Id)?.stats.fours * 4 + getStats(p2Id)?.stats.sixes * 6) / getStats(p2Id)?.stats.runs * 100).toFixed(1) + '%' : '0.0%'))}
-                  {renderComparisonRow('Wickets', getStats(p1Id)?.stats.wickets, getStats(p2Id)?.stats.wickets)}
-                  {renderComparisonRow('Bowling Econ', (getStats(p1Id)?.stats.ballsBowled > 0 ? (getStats(p1Id)?.stats.runsConceded / (getStats(p1Id)?.stats.ballsBowled / 6)).toFixed(2) : '0.00'), (getStats(p2Id)?.stats.ballsBowled > 0 ? (getStats(p2Id)?.stats.runsConceded / (getStats(p2Id)?.stats.ballsBowled / 6)).toFixed(2) : '0.00'), false)}
-                  {renderComparisonRow('Wkts/Match', (getStats(p1Id)?.stats.wickets / (getStats(p1Id)?.stats.played || 1)).toFixed(2), (getStats(p2Id)?.stats.wickets / (getStats(p2Id)?.stats.played || 1)).toFixed(2))}
-                </TableBody>
-              </Table>
-            </Card>
+            </div>
           ) : (
             <div className="py-24 text-center border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center space-y-4">
               <Zap className="w-12 h-12 text-slate-200" />
