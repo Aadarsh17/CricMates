@@ -282,16 +282,16 @@ export default function MatchScoreboardPage() {
           </TableHeader>
           <TableBody>
             {stats.batting.map((b: any) => (
-              <TableRow key={b.id} className="group hover:bg-slate-50/50">
+              <TableRow key={b?.id} className="group hover:bg-slate-50/50">
                 <TableCell className="py-3">
-                  <Link href={`/players/${b.id}`} className="font-black text-xs uppercase text-blue-600 hover:underline transition-colors">{getPlayerName(b.id)}</Link>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5 italic">{b.out ? b.dismissal : 'not out'}</p>
+                  <Link href={`/players/${b?.id}`} className="font-black text-xs uppercase text-blue-600 hover:underline transition-colors">{getPlayerName(b?.id)}</Link>
+                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5 italic">{b?.out ? b?.dismissal : 'not out'}</p>
                 </TableCell>
-                <TableCell className="text-right font-black text-sm">{b.runs}</TableCell>
-                <TableCell className="text-right text-xs text-slate-500 font-medium">{b.balls}</TableCell>
-                <TableCell className="text-right text-xs text-slate-500">{b.fours}</TableCell>
-                <TableCell className="text-right text-xs text-slate-500">{b.sixes}</TableCell>
-                <TableCell className="text-right text-[10px] font-black text-slate-400">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
+                <TableCell className="text-right font-black text-sm">{b?.runs}</TableCell>
+                <TableCell className="text-right text-xs text-slate-500 font-medium">{b?.balls}</TableCell>
+                <TableCell className="text-right text-xs text-slate-500">{b?.fours}</TableCell>
+                <TableCell className="text-right text-xs text-slate-500">{b?.sixes}</TableCell>
+                <TableCell className="text-right text-[10px] font-black text-slate-400">{b?.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
               </TableRow>
             ))}
             <TableRow className="bg-slate-50/30 font-bold">
@@ -448,7 +448,7 @@ export default function MatchScoreboardPage() {
                   <TableBody>
                     {[activeInningData?.strikerPlayerId, activeInningData?.nonStrikerPlayerId].map((pid, idx) => {
                       if (!pid || pid === 'none' || pid === '') return null;
-                      const b = (match?.currentInningNumber === 1 ? stats1 : stats2).batting.find((p: any) => p.id === pid);
+                      const b = (match?.currentInningNumber === 1 ? stats1 : stats2).batting.find((p: any) => p?.id === pid);
                       return (
                         <TableRow key={pid} className={idx === 0 ? "bg-primary/5" : ""}>
                           <TableCell className="font-black text-xs uppercase truncate max-w-[100px]">
@@ -526,7 +526,7 @@ export default function MatchScoreboardPage() {
                     </div>
                   </div>
                   {isUmpire && (
-                    <Button variant="ghost" size="icon" onClick={() => { if(confirm("Delete delivery? Score will recalculate.")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`, 'deliveryRecords', d.id)); recalculateInningState(`inning_${match?.currentInningNumber}`); } }} className="h-8 w-8 text-slate-200 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => { if(confirm("Delete delivery? Score will recalculate.")) { deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`, 'deliveryRecords', d.id)); recalculateInningState(`inning_${match?.currentInningNumber}`); } }} className="h-8 w-8 text-slate-200 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-4 h-4" /></Button>
                   )}
                 </Card>
               ))}
@@ -580,8 +580,8 @@ export default function MatchScoreboardPage() {
       </Dialog>
 
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
-        <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-red-500 shadow-2xl z-[151]">
-          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl text-red-600">Register Wicket</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-destructive shadow-2xl z-[151]">
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl text-destructive">Register Wicket</DialogTitle></DialogHeader>
           <div className="space-y-6 py-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase text-slate-400">Batter Out</Label>
@@ -636,7 +636,7 @@ export default function MatchScoreboardPage() {
               
               setIsWicketDialogOpen(false);
               setIsPlayerAssignmentOpen(true);
-            }} disabled={!wicketForm.batterOutId} className="w-full h-16 bg-red-600 text-white font-black uppercase rounded-2xl shadow-xl">Confirm Wicket</Button>
+            }} disabled={!wicketForm.batterOutId} className="w-full h-16 bg-destructive text-white font-black uppercase rounded-2xl shadow-xl">Confirm Wicket</Button>
           </div>
         </DialogContent>
       </Dialog>

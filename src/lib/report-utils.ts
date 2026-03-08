@@ -49,6 +49,9 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     if (!bat[sId]) {
       bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out' };
     }
+    if (nsId && !bat[nsId]) {
+      bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out' };
+    }
     
     if (d.extraType !== 'wide') {
       bat[sId].balls += 1;
@@ -76,6 +79,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       currentPartnership.contributions[sId].runs += (d.runsScored || 0);
       currentPartnership.contributions[sId].balls += 1;
     }
+    
     if (nsId && !currentPartnership.contributions[nsId]) {
       currentPartnership.contributions[nsId] = { runs: 0, balls: 0 };
     }
@@ -118,7 +122,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
   const didNotBat = squadIds.filter(id => !battingOrder.includes(id));
 
   return {
-    batting: battingOrder.map(id => bat[id]),
+    batting: battingOrder.map(id => bat[id]).filter(Boolean),
     bowling: Object.values(bowl).map((b: any) => ({ 
       ...b, 
       oversDisplay: `${Math.floor(b.balls / 6)}.${b.balls % 6}`,
@@ -219,10 +223,10 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
               </thead>
               <tbody>
                 ${stats.partnerships.map((p: any) => {
-                  const involved = p.batters.map((id: string) => playerNames[id].split(' ')[0]);
+                  const involved = p.batters.map((id: string) => playerNames[id]?.split(' ')[0] || 'Unknown');
                   const pNames = involved.length > 1 ? involved.join(' - ') : involved[0];
                   const contribs = Object.entries(p.contributions)
-                    .map(([id, stats]: [any, any]) => `${playerNames[id].split(' ')[0]} ${stats.runs}(${stats.balls})`)
+                    .map(([id, s]: [any, any]) => `${playerNames[id]?.split(' ')[0] || 'Unknown'} ${s.runs}(${s.balls})`)
                     .join(', ');
                   return `
                     <tr>

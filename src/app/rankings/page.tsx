@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
@@ -74,10 +75,15 @@ export default function RankingsPage() {
 
   const playerLeaderboards = useMemo(() => {
     if (!players || !rawDeliveries || !matches || matches.length === 0) return {};
+    const validMatchIds = new Set(matches.map(m => m.id));
     const stats: Record<string, any> = {};
     players.forEach(p => stats[p.id] = { id: p.id, name: p.name, runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, outs: 0, potm: 0 });
     matches.forEach(m => { if (m.potmPlayerId && stats[m.potmPlayerId]) stats[m.potmPlayerId].potm++; });
+    
     rawDeliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      if (!matchId || !validMatchIds.has(matchId)) return;
+
       const s = stats[d.strikerPlayerId]; if (s) { s.runs += d.runsScored || 0; if (d.extraType !== 'wide') s.balls++; }
       if (d.isWicket && stats[d.batsmanOutPlayerId]) stats[d.batsmanOutPlayerId].outs++;
       const bId = d.bowlerId || d.bowlerPlayerId; const b = stats[bId];
