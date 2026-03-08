@@ -10,7 +10,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       bowling: [], 
       fow: [], 
       partnerships: [], 
-      extras: { total: 0, w: 0, nb: 0, b: 0 }, 
+      extras: { total: 0, w: 0, nb: 0 }, 
       total: 0, 
       overs: '0.0', 
       rr: '0.00', 
@@ -22,7 +22,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
   const bowl: Record<string, any> = {};
   const fow: any[] = [];
   const battingOrder: string[] = [];
-  const extras = { total: 0, w: 0, nb: 0, b: 0 };
+  const extras = { total: 0, w: 0, nb: 0 };
 
   let currentScore = 0;
   let legalBalls = 0;
@@ -64,9 +64,8 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     
     if (d.extraType === 'wide') extras.w += (d.totalRunsOnDelivery || 1);
     else if (d.extraType === 'noball') extras.nb += (d.totalRunsOnDelivery || 1);
-    else if (d.extraType === 'bye') extras.b += (d.totalRunsOnDelivery || 0);
 
-    const isLegal = ['none', 'bye'].includes(d.extraType);
+    const isLegal = d.extraType === 'none';
     if (isLegal) legalBalls += 1;
 
     // Detailed Partnership Logic
@@ -80,7 +79,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       currentPartnership.contributions[sId].balls += 1;
     }
     
-    // Ensure non-striker is also registered as part of the partnership even if they score 0
+    // Ensure non-striker is also registered as part of the partnership
     if (nsId && !currentPartnership.contributions[nsId]) {
       currentPartnership.contributions[nsId] = { runs: 0, balls: 0 };
     }
@@ -111,12 +110,11 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     }
   });
 
-  // Final partnership if any
   if (currentPartnership.runs > 0 || currentPartnership.balls > 0 || Object.keys(currentPartnership.contributions).length > 0) {
     partnerships.push({ ...currentPartnership, batters: Object.keys(currentPartnership.contributions) });
   }
 
-  extras.total = extras.w + extras.nb + extras.b;
+  extras.total = extras.w + extras.nb;
   const oversCompleted = Math.floor(legalBalls / 6);
   const ballsInOver = legalBalls % 6;
   const totalOversDec = oversCompleted + (ballsInOver / 6);
@@ -186,7 +184,7 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
             <tr class="summary-row-item">
               <td class="bold uppercase" style="font-size: 10px;">EXTRAS</td>
               <td colspan="5" class="text-right dim" style="font-size: 10px;">
-                ${stats.extras.total} (b ${stats.extras.b}, w ${stats.extras.w}, nb ${stats.extras.nb})
+                ${stats.extras.total} (w ${stats.extras.w}, nb ${stats.extras.nb})
               </td>
             </tr>
             <tr class="summary-row-item highlight-row">

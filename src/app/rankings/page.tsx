@@ -62,8 +62,8 @@ export default function RankingsPage() {
       const inn = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
       const batId = (inn === 1 ? (match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id)) : (match.team1Id === (match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id)) ? match.team2Id : match.team1Id));
       const bowlId = batId === match.team1Id ? match.team2Id : match.team1Id;
-      standings[batId].forR += d.totalRunsOnDelivery; if (['none', 'bye', 'legbye'].includes(d.extraType)) standings[batId].forB++;
-      standings[bowlId].agR += d.totalRunsOnDelivery; if (['none', 'bye', 'legbye'].includes(d.extraType)) standings[bowlId].agB++;
+      standings[batId].forR += d.totalRunsOnDelivery; if (d.extraType === 'none') standings[batId].forB++;
+      standings[bowlId].agR += d.totalRunsOnDelivery; if (d.extraType === 'none') standings[bowlId].agB++;
     });
 
     return Object.values(standings).map((s: any) => {
@@ -87,7 +87,7 @@ export default function RankingsPage() {
       const s = stats[d.strikerPlayerId]; if (s) { s.runs += d.runsScored || 0; if (d.extraType !== 'wide') s.balls++; }
       if (d.isWicket && stats[d.batsmanOutPlayerId]) stats[d.batsmanOutPlayerId].outs++;
       const bId = d.bowlerId || d.bowlerPlayerId; const b = stats[bId];
-      if (b) { b.runsCon += d.totalRunsOnDelivery; if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsB++; if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++; }
+      if (b) { b.runsCon += d.totalRunsOnDelivery; if (d.extraType === 'none') b.ballsB++; if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++; }
       const f = stats[d.fielderPlayerId]; if (f) { if (d.dismissalType === 'caught') f.catches++; if (d.dismissalType === 'runout') f.runouts++; }
     });
     const list = Object.values(stats).map((s: any) => ({ ...s, avg: s.outs > 0 ? s.runs / s.outs : s.runs, sr: s.balls > 0 ? (s.runs / s.balls) * 100 : 0, er: s.ballsB >= 6 ? (s.runsCon / (s.ballsB / 6)) : 0 }));

@@ -103,7 +103,7 @@ export default function MatchScoreboardPage() {
       let score1 = 0, legal1 = 0, wkts1 = 0;
       for (const d of d1) {
         score1 += d.totalRunsOnDelivery || 0;
-        if (['none', 'bye'].includes(d.extraType)) legal1++;
+        if (d.extraType === 'none') legal1++;
         if (legal1 > i * 6) break;
         if (d.isWicket && d.dismissalType !== 'retired') wkts1++;
       }
@@ -113,7 +113,7 @@ export default function MatchScoreboardPage() {
       let score2 = 0, legal2 = 0, wkts2 = 0;
       for (const d of d2) {
         score2 += d.totalRunsOnDelivery || 0;
-        if (['none', 'bye'].includes(d.extraType)) legal2++;
+        if (d.extraType === 'none') legal2++;
         if (legal2 > i * 6) break;
         if (d.isWicket && d.dismissalType !== 'retired') wkts2++;
       }
@@ -185,7 +185,7 @@ export default function MatchScoreboardPage() {
     deliveriesList.forEach(d => { 
       score += d.totalRunsOnDelivery; 
       if (d.isWicket && d.dismissalType !== 'retired') wkts++; 
-      if (['none', 'bye'].includes(d.extraType)) legal++; 
+      if (d.extraType === 'none') legal++; 
     });
     
     const isActuallyFinished = (legal >= (match?.totalOvers || 6) * 6) || (wkts >= 10);
@@ -228,8 +228,8 @@ export default function MatchScoreboardPage() {
   const handleRecordBall = async (runs: number, extra: any = 'none') => {
     if (!match || !activeInningData || !isUmpire || !activeInningData.currentBowlerPlayerId) return;
     const currentInningId = `inning_${match.currentInningNumber}`;
-    const isLegal = ['none', 'bye'].includes(extra);
-    const totalLegalCount = (currentDeliveries?.filter(d => ['none', 'bye'].includes(d.extraType)).length || 0);
+    const isLegal = extra === 'none';
+    const totalLegalCount = (currentDeliveries?.filter(d => d.extraType === 'none').length || 0);
     const newTotalLegal = totalLegalCount + (isLegal ? 1 : 0);
     
     const deliveryId = doc(collection(db, 'temp')).id;
@@ -249,9 +249,7 @@ export default function MatchScoreboardPage() {
 
     let nextS = activeInningData.strikerPlayerId, nextNS = activeInningData.nonStrikerPlayerId;
     
-    // Rotate strike if runs physically taken are odd
     if (runs % 2 !== 0) [nextS, nextNS] = [nextNS, nextS];
-    // Rotate ends at over completion
     if (newTotalLegal % 6 === 0 && isLegal) [nextS, nextNS] = [nextNS, nextS];
 
     const updates: any = { 
@@ -320,7 +318,7 @@ export default function MatchScoreboardPage() {
             <TableRow className="bg-slate-50/30 font-bold">
               <TableCell className="text-[10px] uppercase font-black">Extras</TableCell>
               <TableCell colSpan={5} className="text-right text-xs">
-                {stats.extras.total} <span className="text-[9px] font-medium text-slate-400">(b {stats.extras.b}, w {stats.extras.w}, nb {stats.extras.nb})</span>
+                {stats.extras.total} <span className="text-[9px] font-medium text-slate-400">(w {stats.extras.w}, nb {stats.extras.nb})</span>
               </TableCell>
             </TableRow>
             <TableRow className="bg-slate-50 font-black">
@@ -412,7 +410,7 @@ export default function MatchScoreboardPage() {
     return <circle cx={cx} cy={cy} r={2} fill={props.stroke} />;
   };
 
-  if (!isMounted || isMatchLoading) return <div className="flex flex-col items-center justify-center min-h-screen"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
+  if (!isMounted || isMatchLoading) return <div className="flex flex-col items-center justify-center min-screen"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6 max-w-lg mx-auto pb-32 relative px-1">
@@ -683,7 +681,7 @@ export default function MatchScoreboardPage() {
               <Select value={assignmentForm.bowlerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, bowlerId: v})}>
                 <SelectTrigger className="h-14 font-black"><SelectValue placeholder="Pick Bowler" /></SelectTrigger>
                 <SelectContent className="z-[200]">
-                  {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team2SquadPlayerIds : match?.team1SquadPlayerIds)?.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  {allPlayers?.filter(p => (activeInningData?.battingTeamId === match?.team1Id ? match?.team2SquadPlayerIds : match?.team1SquadPlayerIds)?.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -742,7 +740,7 @@ export default function MatchScoreboardPage() {
             <Button onClick={async () => {
               if (!wicketForm.batterOutId) return;
               const currId = `inning_${match?.currentInningNumber}`;
-              const totalLegal = (currentDeliveries?.filter(d => ['none', 'bye'].includes(d.extraType)).length || 0) + 1;
+              const totalLegal = (currentDeliveries?.filter(d => d.extraType === 'none').length || 0) + 1;
               const dId = doc(collection(db, 'temp')).id;
               
               await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currId, 'deliveryRecords', dId), { 
