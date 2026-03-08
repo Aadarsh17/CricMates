@@ -39,7 +39,7 @@ export default function MatchScoreboardPage() {
   const [isNoBallDialogOpen, setIsNoBallDialogOpen] = useState(false);
   const [isPlayerAssignmentOpen, setIsPlayerAssignmentOpen] = useState(false);
   const [assignmentForm, setAssignmentForm] = useState({ strikerId: '', nonStrikerId: '', bowlerId: '' });
-  const [wicketForm, setWicketForm] = useState({ type: 'bowled', batterOutId: '', extraType: 'none' });
+  const [wicketForm, setWicketForm] = useState({ type: 'bowled', batterOutId: '', extraType: 'none', runsCompleted: 0 });
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -239,7 +239,7 @@ export default function MatchScoreboardPage() {
       strikerPlayerId: activeInningData.strikerPlayerId, 
       nonStrikerPlayerId: activeInningData.nonStrikerPlayerId,
       bowlerId: activeInningData.currentBowlerPlayerId, 
-      runsScored: extra === 'none' || extra === 'noball' ? runs : 0, 
+      runsScored: runs, 
       extraType: extra, 
       totalRunsOnDelivery: runs + (extra !== 'none' ? 1 : 0), 
       isWicket: false, 
@@ -488,7 +488,7 @@ export default function MatchScoreboardPage() {
                       <Button key={r} disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(r)} className={cn("h-14 font-black text-2xl rounded-2xl", r >= 4 ? "bg-primary text-white" : "bg-white/5 text-white")}>{r || '•'}</Button>
                     ))}
                     <Button onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { strikerPlayerId: activeInningData?.nonStrikerPlayerId, nonStrikerPlayerId: activeInningData?.strikerPlayerId })} className="bg-secondary text-white h-14 font-black rounded-2xl"><ArrowLeftRight className="w-5 h-5"/></Button>
-                    <Button variant="outline" onClick={() => setIsWicketDialogOpen(true)} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px]">Wicket</Button>
+                    <Button variant="outline" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || ''}); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px]">Wicket</Button>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
                     <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px]">Wide</Button>
@@ -712,7 +712,7 @@ export default function MatchScoreboardPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase text-slate-400">Dismissal Type</Label>
-              <Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}>
+              <Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v, runsCompleted: 0})}>
                 <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent className="z-[200]">
                   <SelectItem value="bowled">Bowled</SelectItem>
@@ -724,6 +724,19 @@ export default function MatchScoreboardPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {wicketForm.type === 'runout' && (
+              <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-200">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Runs Completed?</Label>
+                <Select value={wicketForm.runsCompleted.toString()} onValueChange={(v) => setWicketForm({...wicketForm, runsCompleted: parseInt(v)})}>
+                  <SelectTrigger className="h-14 font-black border-2 rounded-xl border-amber-200"><SelectValue /></SelectTrigger>
+                  <SelectContent className="z-[200]">
+                    {[0, 1, 2, 3].map(r => <SelectItem key={r} value={r.toString()}>{r} Runs</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             <Button onClick={async () => {
               if (!wicketForm.batterOutId) return;
               const currId = `inning_${match?.currentInningNumber}`;
@@ -740,11 +753,13 @@ export default function MatchScoreboardPage() {
                 dismissalType: wicketForm.type, 
                 batsmanOutPlayerId: wicketForm.batterOutId, 
                 extraType: 'none', 
-                totalRunsOnDelivery: 0, 
+                runsScored: wicketForm.runsCompleted,
+                totalRunsOnDelivery: wicketForm.runsCompleted, 
                 timestamp: Date.now() 
               }, { merge: true });
 
               updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currId), { 
+                score: activeInningData!.score + wicketForm.runsCompleted,
                 wickets: activeInningData!.wickets + (wicketForm.type === 'retired' ? 0 : 1), 
                 oversCompleted: Math.floor(totalLegal / 6), 
                 ballsInCurrentOver: totalLegal % 6, 
