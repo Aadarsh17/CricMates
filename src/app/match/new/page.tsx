@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -13,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, UserPlus, Search, ChevronLeft, User } from 'lucide-react';
+import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, UserPlus, Search, ChevronLeft, User, Award } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 
 export default function NewMatchPage() {
@@ -34,6 +35,8 @@ export default function NewMatchPage() {
     team2Id: '',
     team1Squad: [] as string[],
     team2Squad: [] as string[],
+    team1CaptainId: '',
+    team2CaptainId: '',
     totalOvers: '6',
     tossWinner: '',
     tossDecision: 'bat',
@@ -73,7 +76,23 @@ export default function NewMatchPage() {
   const handleStartMatch = () => {
     if (!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId) return;
     const mid = doc(collection(db, 'matches')).id;
-    const mData = { id: mid, team1Id: setup.team1Id, team2Id: setup.team2Id, team1SquadPlayerIds: setup.team1Squad, team2SquadPlayerIds: setup.team2Squad, totalOvers: parseInt(setup.totalOvers), status: 'live', tossWinnerTeamId: setup.tossWinner, tossDecision: setup.tossDecision, currentInningNumber: 1, matchDate: new Date().toISOString(), umpireId: user?.uid || 'anonymous', resultDescription: 'Match in Progress' };
+    const mData = { 
+      id: mid, 
+      team1Id: setup.team1Id, 
+      team2Id: setup.team2Id, 
+      team1SquadPlayerIds: setup.team1Squad, 
+      team2SquadPlayerIds: setup.team2Squad, 
+      team1CaptainId: setup.team1CaptainId,
+      team2CaptainId: setup.team2CaptainId,
+      totalOvers: parseInt(setup.totalOvers), 
+      status: 'live', 
+      tossWinnerTeamId: setup.tossWinner, 
+      tossDecision: setup.tossDecision, 
+      currentInningNumber: 1, 
+      matchDate: new Date().toISOString(), 
+      umpireId: user?.uid || 'anonymous', 
+      resultDescription: 'Match in Progress' 
+    };
     setDocumentNonBlocking(doc(db, 'matches', mid), mData, { merge: true });
     
     const batId = setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Id : setup.team2Id) : (setup.tossDecision === 'bat' ? setup.team2Id : setup.team1Id);
@@ -88,7 +107,7 @@ export default function NewMatchPage() {
   if (!isUmpire) return <div className="p-20 text-center"><ShieldCheck className="w-16 h-16 mx-auto mb-4" /><h2>Umpire Role Required</h2></div>;
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 pb-20 px-4">
+    <div className="max-w-4xl mx-auto space-y-6 pb-24 px-4">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
         <h1 className="text-2xl font-black uppercase text-primary">New Match</h1>
@@ -98,9 +117,9 @@ export default function NewMatchPage() {
         <Card className="border-t-4 border-t-primary shadow-lg">
           <CardHeader><CardTitle className="text-xl font-black uppercase">Teams & Format</CardTitle></CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Home Team</Label><Select value={setup.team1Id} onValueChange={(v) => setSetup({...setup, team1Id: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Away Team</Label><Select value={setup.team2Id} onValueChange={(v) => setSetup({...setup, team2Id: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Home Team</Label><Select value={setup.team1Id} onValueChange={(v) => setSetup({...setup, team1Id: v, team1Squad: [], team1CaptainId: ''})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Team" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Away Team</Label><Select value={setup.team2Id} onValueChange={(v) => setSetup({...setup, team2Id: v, team2Squad: [], team2CaptainId: ''})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Team" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
             <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Overs</Label><Input type="number" value={setup.totalOvers} onChange={(e) => setSetup({...setup, totalOvers: e.target.value})} className="h-12 font-bold" /></div>
             <Button className="w-full h-14 font-black uppercase" disabled={!setup.team1Id || !setup.team2Id} onClick={() => setStep(2)}>Configure Squads</Button>
@@ -109,25 +128,87 @@ export default function NewMatchPage() {
       )}
 
       {step === 2 && (
-        <Card className="border-t-4 border-t-primary shadow-lg">
-          <CardHeader><CardTitle className="text-xl font-black uppercase">Select Squads</CardTitle><div className="relative mt-2"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><Input placeholder="Search pool..." className="pl-10 h-10 font-bold" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div></CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-8">
-              {[ {id: 'team1', tid: setup.team1Id, squad: setup.team1Squad}, {id: 'team2', tid: setup.team2Id, squad: setup.team2Squad} ].map(t => (
-                <div key={t.id} className="space-y-3 bg-slate-50 p-4 rounded-xl border">
-                  <div className="flex justify-between items-center border-b pb-2"><h3 className="font-black text-xs uppercase truncate">{teams?.find(team => team.id === t.tid)?.name}</h3><Button variant="ghost" size="icon" onClick={() => { setQuickRegTarget(t.id as any); setIsQuickRegOpen(true); }} className="h-6 w-6 text-primary"><UserPlus className="w-4 h-4" /></Button></div>
-                  <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 scrollbar-hide">
-                    {filteredPool.map(p => (
-                      <div key={p.id} className="flex items-center gap-2"><Checkbox checked={t.squad.includes(p.id)} onCheckedChange={(c) => {
-                        if (t.id === 'team1') setSetup({...setup, team1Squad: c ? [...setup.team1Squad, p.id] : setup.team1Squad.filter(id => id !== p.id)});
-                        else setSetup({...setup, team2Squad: c ? [...setup.team2Squad, p.id] : setup.team2Squad.filter(id => id !== p.id)});
-                      }} id={`${t.id}-${p.id}`} /><Label htmlFor={`${t.id}-${p.id}`} className="text-xs font-bold truncate flex-1">{p.name}</Label></div>
-                    ))}
-                  </div>
-                </div>
-              ))}
+        <Card className="border-t-4 border-t-primary shadow-lg overflow-hidden">
+          <CardHeader>
+            <CardTitle className="text-xl font-black uppercase">Select Squads</CardTitle>
+            <div className="relative mt-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input placeholder="Search player pool..." className="pl-10 h-12 font-bold bg-slate-50 border-2" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
-            <div className="flex gap-2"><Button variant="outline" className="flex-1 font-black uppercase" onClick={() => setStep(1)}>Back</Button><Button className="flex-1 h-14 font-black uppercase" onClick={() => setStep(3)}>The Toss</Button></div>
+          </CardHeader>
+          <CardContent className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[ 
+                {id: 'team1', tid: setup.team1Id, squad: setup.team1Squad, otherSquad: setup.team2Squad, captainKey: 'team1CaptainId' as const}, 
+                {id: 'team2', tid: setup.team2Id, squad: setup.team2Squad, otherSquad: setup.team1Squad, captainKey: 'team2CaptainId' as const} 
+              ].map(t => {
+                const teamName = teams?.find(team => team.id === t.tid)?.name || 'Team';
+                return (
+                  <div key={t.id} className="space-y-4 bg-white p-5 rounded-3xl border-2 border-slate-100 shadow-sm">
+                    <div className="flex justify-between items-center border-b pb-3">
+                      <h3 className="font-black text-sm uppercase text-slate-900 leading-tight pr-4">{teamName}</h3>
+                      <Button variant="ghost" size="icon" onClick={() => { setQuickRegTarget(t.id as any); setIsQuickRegOpen(true); }} className="h-8 w-8 text-primary bg-primary/5 rounded-lg shrink-0">
+                        <UserPlus className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <div className="max-h-[350px] overflow-y-auto space-y-3 pr-2 scrollbar-hide">
+                      {filteredPool.map(p => {
+                        const isSelectedInOther = t.otherSquad.includes(p.id);
+                        return (
+                          <div key={p.id} className={cn("flex items-center gap-3 p-2 rounded-xl transition-colors", isSelectedInOther ? "opacity-40 grayscale" : "hover:bg-slate-50")}>
+                            <Checkbox 
+                              checked={t.squad.includes(p.id)} 
+                              disabled={isSelectedInOther}
+                              onCheckedChange={(c) => {
+                                if (t.id === 'team1') {
+                                  const nextSquad = c ? [...setup.team1Squad, p.id] : setup.team1Squad.filter(id => id !== p.id);
+                                  setSetup({...setup, team1Squad: nextSquad, team1CaptainId: nextSquad.includes(setup.team1CaptainId) ? setup.team1CaptainId : ''});
+                                } else {
+                                  const nextSquad = c ? [...setup.team2Squad, p.id] : setup.team2Squad.filter(id => id !== p.id);
+                                  setSetup({...setup, team2Squad: nextSquad, team2CaptainId: nextSquad.includes(setup.team2CaptainId) ? setup.team2CaptainId : ''});
+                                }
+                              }} 
+                              id={`${t.id}-${p.id}`} 
+                              className="h-5 w-5 rounded-md border-2"
+                            />
+                            <Label htmlFor={`${t.id}-${p.id}`} className="text-xs font-bold flex-1 cursor-pointer py-1">{p.name}</Label>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="pt-4 border-t space-y-2">
+                      <Label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-1">
+                        <Award className="w-3 h-3" /> Assign Captain
+                      </Label>
+                      <Select 
+                        value={setup[t.captainKey]} 
+                        onValueChange={(v) => setSetup({...setup, [t.captainKey]: v})}
+                        disabled={t.squad.length === 0}
+                      >
+                        <SelectTrigger className="h-10 font-bold bg-slate-50 border-none shadow-none">
+                          <SelectValue placeholder="Pick Captain" />
+                        </SelectTrigger>
+                        <SelectContent className="z-[200]">
+                          {allPlayers?.filter(p => t.squad.includes(p.id)).map(p => (
+                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1 h-14 font-black uppercase tracking-widest border-2" onClick={() => setStep(1)}>Back</Button>
+              <Button 
+                className="flex-1 h-14 font-black uppercase tracking-widest shadow-xl" 
+                disabled={setup.team1Squad.length < 1 || setup.team2Squad.length < 1}
+                onClick={() => setStep(3)}
+              >
+                The Toss
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -136,11 +217,11 @@ export default function NewMatchPage() {
         <Card className="border-t-4 border-t-primary shadow-lg">
           <CardHeader><CardTitle className="text-xl font-black uppercase">The Toss</CardTitle></CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Winner</Label><Select value={setup.tossWinner} onValueChange={(v) => setSetup({...setup, tossWinner: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent><SelectItem value={setup.team1Id}>{teams?.find(t => t.id === setup.team1Id)?.name}</SelectItem><SelectItem value={setup.team2Id}>{teams?.find(t => t.id === setup.team2Id)?.name}</SelectItem></SelectContent></Select></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Winner</Label><Select value={setup.tossWinner} onValueChange={(v) => setSetup({...setup, tossWinner: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Team" /></SelectTrigger><SelectContent>{[setup.team1Id, setup.team2Id].map(tid => (<SelectItem key={tid} value={tid}>{teams?.find(t => t.id === tid)?.name}</SelectItem>))}</SelectContent></Select></div>
               <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Decision</Label><Select value={setup.tossDecision} onValueChange={(v) => setSetup({...setup, tossDecision: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="bat">Elect to Bat</SelectItem><SelectItem value="bowl">Elect to Bowl</SelectItem></SelectContent></Select></div>
             </div>
-            <div className="flex gap-2"><Button variant="outline" className="flex-1 font-black uppercase" onClick={() => setStep(2)}>Back</Button><Button className="flex-1 h-14 font-black uppercase" disabled={!setup.tossWinner} onClick={() => setStep(4)}>Openers</Button></div>
+            <div className="flex gap-3"><Button variant="outline" className="flex-1 h-14 font-black uppercase border-2" onClick={() => setStep(2)}>Back</Button><Button className="flex-1 h-14 font-black uppercase shadow-xl" disabled={!setup.tossWinner} onClick={() => setStep(4)}>Openers</Button></div>
           </CardContent>
         </Card>
       )}
@@ -149,12 +230,15 @@ export default function NewMatchPage() {
         <Card className="border-t-4 border-t-primary shadow-lg">
           <CardHeader><CardTitle className="text-xl font-black uppercase">Start Positions</CardTitle></CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Striker</Label><Select value={setup.strikerId} onValueChange={(v) => setSetup({...setup, strikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad)).includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Non-Striker</Label><Select value={setup.nonStrikerId} onValueChange={(v) => setSetup({...setup, nonStrikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad)).includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Striker</Label><Select value={setup.strikerId} onValueChange={(v) => setSetup({...setup, strikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Pick Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad)).includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Non-Striker</Label><Select value={setup.nonStrikerId} onValueChange={(v) => setSetup({...setup, nonStrikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Pick Non-Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad)).includes(p.id) && p.id !== setup.strikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
-            <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Opening Bowler</Label><Select value={setup.bowlerId} onValueChange={(v) => setSetup({...setup, bowlerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bowl' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bowl' ? setup.team2Squad : setup.team1Squad)).includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
-            <Button className="w-full h-16 text-lg font-black uppercase bg-secondary hover:bg-secondary/90" onClick={handleStartMatch} disabled={!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId}>START MATCH</Button>
+            <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Opening Bowler</Label><Select value={setup.bowlerId} onValueChange={(v) => setSetup({...setup, bowlerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Pick Bowler" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bowl' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bowl' ? setup.team2Squad : setup.team1Squad)).includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1 h-16 font-black uppercase border-2" onClick={() => setStep(3)}>Back</Button>
+              <Button className="flex-[2] h-16 text-lg font-black uppercase bg-secondary hover:bg-secondary/90 shadow-2xl" onClick={handleStartMatch} disabled={!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId}>START MATCH</Button>
+            </div>
           </CardContent>
         </Card>
       )}
