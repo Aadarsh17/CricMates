@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Utility functions for match statistics, professional scorecard generation, and match flow timeline logic.
  */
@@ -27,33 +28,28 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
   let legalBalls = 0;
   let currentWickets = 0;
   
-  // Partnership tracking variables
   const partnerships: any[] = [];
   let currentPartnership: any = {
-    batters: [] as string[],
     runs: 0,
     balls: 0,
-    contributions: {} as Record<string, number>,
+    contributions: {} as Record<string, { runs: number, balls: number }>,
     isUnbroken: true
   };
 
   deliveries.forEach((d) => {
     const sId = d.strikerPlayerId;
-    const bId = d.bowlerId || d.bowlerPlayerId;
     const nsId = d.nonStrikerPlayerId;
+    const bId = d.bowlerId || d.bowlerPlayerId;
     
     if (!sId) return;
 
-    // Track batting order
     if (!battingOrder.includes(sId)) battingOrder.push(sId);
     if (nsId && !battingOrder.includes(nsId)) battingOrder.push(nsId);
 
-    // Initialize batter stats
     if (!bat[sId]) {
       bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out' };
     }
     
-    // Batting stats (ignore wides)
     if (d.extraType !== 'wide') {
       bat[sId].balls += 1;
       bat[sId].runs += (d.runsScored || 0);
@@ -61,7 +57,6 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       if (d.runsScored === 6) bat[sId].sixes += 1;
     }
 
-    // Totals & Extras
     currentScore += (d.totalRunsOnDelivery || 0);
     
     if (d.extraType === 'wide') extras.w += (d.totalRunsOnDelivery || 1);
@@ -72,18 +67,17 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     const isLegal = ['none', 'bye', 'legbye'].includes(d.extraType);
     if (isLegal) legalBalls += 1;
 
-    // Partnership Logic
-    const currentPair = [sId, nsId].filter(Boolean).sort();
-    if (currentPartnership.batters.length === 0) {
-      currentPartnership.batters = currentPair;
-    }
-
+    // Detailed Partnership Logic
     currentPartnership.runs += (d.totalRunsOnDelivery || 0);
     if (d.extraType !== 'wide') currentPartnership.balls += 1;
     
-    if (!currentPartnership.contributions[sId]) currentPartnership.contributions[sId] = 0;
+    if (!currentPartnership.contributions[sId]) currentPartnership.contributions[sId] = { runs: 0, balls: 0 };
     if (d.extraType !== 'wide') {
-      currentPartnership.contributions[sId] += (d.runsScored || 0);
+      currentPartnership.contributions[sId].runs += (d.runsScored || 0);
+      currentPartnership.contributions[sId].balls += 1;
+    }
+    if (nsId && !currentPartnership.contributions[nsId]) {
+      currentPartnership.contributions[nsId] = { runs: 0, balls: 0 };
     }
 
     if (d.isWicket) {
@@ -97,19 +91,10 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       const overLabel = `${Math.floor(legalBalls / 6)}.${legalBalls % 6}`;
       fow.push({ wicketNum: currentWickets, scoreAtWicket: currentScore, playerOutId: outPid, over: overLabel, runsOut: bat[outPid].runs });
       
-      // Close partnership
-      partnerships.push({ ...currentPartnership, isUnbroken: false });
-      // Reset for next stand
-      currentPartnership = {
-        batters: [],
-        runs: 0,
-        balls: 0,
-        contributions: {},
-        isUnbroken: true
-      };
+      partnerships.push({ ...currentPartnership, batters: Object.keys(currentPartnership.contributions), isUnbroken: false });
+      currentPartnership = { runs: 0, balls: 0, contributions: {}, isUnbroken: true };
     }
 
-    // Bowling stats
     if (bId) {
       if (!bowl[bId]) bowl[bId] = { id: bId, balls: 0, runs: 0, wickets: 0, maidens: 0 };
       bowl[bId].runs += (d.totalRunsOnDelivery || 0);
@@ -121,7 +106,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
   });
 
   if (currentPartnership.runs > 0 || currentPartnership.balls > 0) {
-    partnerships.push(currentPartnership);
+    partnerships.push({ ...currentPartnership, batters: Object.keys(currentPartnership.contributions) });
   }
 
   extras.total = extras.w + extras.nb + extras.b + extras.lb;
@@ -234,9 +219,10 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
               </thead>
               <tbody>
                 ${stats.partnerships.map((p: any) => {
-                  const pNames = p.batters.map((id: string) => playerNames[id].split(' ')[0]).join('-');
+                  const involved = p.batters.map((id: string) => playerNames[id].split(' ')[0]);
+                  const pNames = involved.length > 1 ? involved.join(' - ') : involved[0];
                   const contribs = Object.entries(p.contributions)
-                    .map(([id, runs]) => `${playerNames[id].split(' ')[0]} ${runs}`)
+                    .map(([id, stats]: [any, any]) => `${playerNames[id].split(' ')[0]} ${stats.runs}(${stats.balls})`)
                     .join(', ');
                   return `
                     <tr>
@@ -251,7 +237,7 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
           </div>
         </div>
 
-        <div class="sub-section-title" style="margin-top: 15px;">BOWLING: ${teamNames[match.team1Id === teamId ? match.team2Id : match.team1Id]}</div>
+        <div class="sub-section-title" style="margin-top: 15px;">BOWLING ANALYSIS</div>
         <table class="bowling-table">
           <thead>
             <tr>
