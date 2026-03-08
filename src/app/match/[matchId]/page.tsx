@@ -71,6 +71,32 @@ export default function MatchScoreboardPage() {
     return `${completedOvers}.${ballsInCurrentOver}`;
   };
 
+  const getBallNumberLabel = (legalCount: number) => {
+    const ov = Math.floor(legalCount / 6);
+    const ball = (legalCount % 6) + 1;
+    return `${ov}.${ball}`;
+  };
+
+  const inn1WithLabels = useMemo(() => {
+    if (!inn1Deliveries) return [];
+    let legal = 0;
+    return inn1Deliveries.map(d => {
+      const label = getBallNumberLabel(legal);
+      if (d.extraType === 'none') legal++;
+      return { ...d, ballLabel: label };
+    });
+  }, [inn1Deliveries]);
+
+  const inn2WithLabels = useMemo(() => {
+    if (!inn2Deliveries) return [];
+    let legal = 0;
+    return inn2Deliveries.map(d => {
+      const label = getBallNumberLabel(legal);
+      if (d.extraType === 'none') legal++;
+      return { ...d, ballLabel: label };
+    });
+  }, [inn2Deliveries]);
+
   const activeInningData = useMemo(() => {
     if (!match) return null;
     return match.currentInningNumber === 1 ? inn1 : (match.currentInningNumber === 2 ? inn2 : null);
@@ -84,10 +110,10 @@ export default function MatchScoreboardPage() {
     let legalBalls = 0;
     currentDeliveries.forEach(d => {
       const isLegal = d.extraType === 'none';
+      const currentOverIdx = isLegal ? Math.floor(legalBalls / 6) + 1 : Math.floor(legalBalls / 6) + 1;
       if (isLegal) legalBalls++;
-      const currentOverIdx = isLegal ? Math.floor((legalBalls - 1) / 6) + 1 : Math.floor(legalBalls / 6) + 1;
       if (!groups[currentOverIdx]) groups[currentOverIdx] = [];
-      groups[currentOverIdx].push({ ...d, computedOverLabel: `${Math.floor((legalBalls - (isLegal ? 1 : 0)) / 6)}.${(legalBalls - (isLegal ? 1 : 0)) % 6}` });
+      groups[currentOverIdx].push(d);
     });
     return Object.entries(groups).sort((a, b) => Number(b[0]) - Number(a[0]));
   }, [currentDeliveries]);
@@ -100,7 +126,6 @@ export default function MatchScoreboardPage() {
     let score = 0, wkts = 0, legal = 0;
     let sId = '', nsId = '';
 
-    // Simulate to find final state
     deliveriesList.forEach((d, idx) => {
       score += (d.totalRunsOnDelivery || 0);
       if (d.isWicket && d.dismissalType !== 'retired') wkts++;
@@ -285,16 +310,7 @@ export default function MatchScoreboardPage() {
               <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
                 <div className="p-3 bg-slate-100 flex items-center justify-between"><span className="text-[10px] font-black uppercase text-slate-500">Live Batting</span></div>
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-[9px] font-black uppercase">Batter</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase">R</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase">B</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase">4s</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase">6s</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <TableHeader><TableRow><TableHead className="text-[9px] font-black uppercase">Batter</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">B</TableHead><TableHead className="text-right text-[9px] font-black uppercase">4s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">6s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {[activeInningData?.strikerPlayerId, activeInningData?.nonStrikerPlayerId].map((pid, idx) => {
                       if (!pid || pid === 'none' || pid === '') return null;
@@ -302,9 +318,7 @@ export default function MatchScoreboardPage() {
                       const b = stats.batting.find((p: any) => p?.id === pid) || { runs: 0, balls: 0, fours: 0, sixes: 0 };
                       return (
                         <TableRow key={pid} className={idx === 0 ? "bg-primary/5" : ""}>
-                          <TableCell className="font-black text-xs uppercase truncate max-w-[100px] py-3">
-                            <Link href={`/players/${pid}`} className="hover:text-primary transition-colors">{getPlayerName(pid)}{idx === 0 ? '*' : ''}</Link>
-                          </TableCell>
+                          <TableCell className="font-black text-xs uppercase truncate max-w-[100px] py-3"><Link href={`/players/${pid}`} className="hover:text-primary transition-colors">{getPlayerName(pid)}{idx === 0 ? '*' : ''}</Link></TableCell>
                           <TableCell className="text-right font-black">{b.runs}</TableCell>
                           <TableCell className="text-right text-xs font-bold text-slate-500">{b.balls}</TableCell>
                           <TableCell className="text-right text-xs text-slate-400">{b.fours}</TableCell>
@@ -320,22 +334,11 @@ export default function MatchScoreboardPage() {
               <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
                 <div className="p-3 bg-slate-100 flex items-center justify-between"><span className="text-[10px] font-black uppercase text-slate-500">Live Bowling</span></div>
                 <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-[9px] font-black uppercase">Bowler</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase">O</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase">M</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase">R</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase">W</TableHead>
-                      <TableHead className="text-right text-[9px] font-black uppercase">ER</TableHead>
-                    </TableRow>
-                  </TableHeader>
+                  <TableHeader><TableRow><TableHead className="text-[9px] font-black uppercase">Bowler</TableHead><TableHead className="text-right text-[9px] font-black uppercase">O</TableHead><TableHead className="text-right text-[9px] font-black uppercase">M</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">W</TableHead><TableHead className="text-right text-[9px] font-black uppercase">ER</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {activeInningData?.currentBowlerPlayerId ? (
                       <TableRow className="bg-secondary/5">
-                        <TableCell className="font-black text-xs uppercase truncate max-w-[100px] py-3">
-                          <Link href={`/players/${activeInningData.currentBowlerPlayerId}`} className="hover:text-secondary transition-colors">{getPlayerName(activeInningData.currentBowlerPlayerId)}</Link>
-                        </TableCell>
+                        <TableCell className="font-black text-xs uppercase truncate max-w-[100px] py-3"><Link href={`/players/${activeInningData.currentBowlerPlayerId}`} className="hover:text-secondary transition-colors">{getPlayerName(activeInningData.currentBowlerPlayerId)}</Link></TableCell>
                         <TableCell className="text-right font-bold text-xs">{(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.oversDisplay || '0.0'}</TableCell>
                         <TableCell className="text-right text-xs">{(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.maidens || 0}</TableCell>
                         <TableCell className="text-right text-xs">{(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.runs || 0}</TableCell>
@@ -384,77 +387,67 @@ export default function MatchScoreboardPage() {
                 <TabsTrigger value="other" className="text-[9px] font-black uppercase" disabled={!inn2 && match?.currentInningNumber === 1}>Inning {match?.currentInningNumber === 1 ? 2 : 1}</TabsTrigger>
               </TabsList>
               
-              {[ {id: 'current', deliveries: currentDeliveries, innKey: `inning_${match?.currentInningNumber}`}, {id: 'other', deliveries: (match?.currentInningNumber === 1 ? inn2Deliveries : inn1Deliveries), innKey: `inning_${match?.currentInningNumber === 1 ? 2 : 1}`} ].map(tab => {
-                const deliveriesWithBalls = useMemo(() => {
-                  if (!tab.deliveries) return [];
-                  let legal = 0;
-                  return tab.deliveries.map((d) => {
-                    const isLegal = d.extraType === 'none';
-                    const ballLabel = isLegal ? formatOverNotation(legal) : formatOverNotation(legal);
-                    if (isLegal) legal++;
-                    return { ...d, ballLabel };
-                  });
-                }, [tab.deliveries]);
-
-                return (
-                  <TabsContent key={tab.id} value={tab.id} className="space-y-1">
-                    {deliveriesWithBalls.slice().reverse().map((d, idx, arr) => {
-                      const prevBallInLog = arr[idx + 1]; 
-                      return (
-                        <div key={d.id} className="space-y-1">
+              {[ 
+                {id: 'current', deliveries: (match?.currentInningNumber === 1 ? inn1WithLabels : inn2WithLabels), innKey: `inning_${match?.currentInningNumber}`}, 
+                {id: 'other', deliveries: (match?.currentInningNumber === 1 ? inn2WithLabels : inn1WithLabels), innKey: `inning_${match?.currentInningNumber === 1 ? 2 : 1}`} 
+              ].map(tab => (
+                <TabsContent key={tab.id} value={tab.id} className="space-y-1">
+                  {tab.deliveries.slice().reverse().map((d, idx, arr) => {
+                    const prevBallInLog = arr[idx + 1]; 
+                    return (
+                      <div key={d.id} className="space-y-1">
+                        {isUmpire && (
+                          <div className="flex justify-center py-1 group">
+                            <Button variant="ghost" size="sm" onClick={() => {
+                              const newTs = prevBallInLog ? (prevBallInLog.timestamp + d.timestamp) / 2 : d.timestamp - 1000;
+                              setCorrectionForm({ id: '', strikerId: d.strikerPlayerId, nonStrikerId: d.nonStrikerPlayerId, bowlerId: d.bowlerId, runs: 0, extra: 'none', isWicket: false, targetTimestamp: newTs, targetInning: tab.innKey });
+                              setIsCorrectionDialogOpen(true);
+                            }} className="h-6 w-6 rounded-full bg-slate-50 text-slate-300 hover:text-primary hover:bg-primary/10 opacity-0 group-hover:opacity-100 transition-all p-0">
+                              <PlusCircle className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        )}
+                        <Card className="border-none shadow-sm bg-white p-3 flex items-center justify-between rounded-xl group animate-in fade-in border-l-4 border-l-slate-100">
+                          <div className="flex items-center gap-4">
+                            <div className="flex flex-col items-center justify-center min-w-[40px] border-r pr-3">
+                              <span className="text-[10px] font-black text-slate-400">BALL</span>
+                              <span className="text-xs font-black text-slate-900">{d.ballLabel}</span>
+                            </div>
+                            <div className={cn("w-10 h-10 rounded-full flex flex-col items-center justify-center font-black text-[10px] border shadow-sm shrink-0", d.isWicket ? "bg-red-500 text-white border-red-600" : d.extraType !== 'none' ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-900 border-slate-100")}>
+                              {d.isWicket ? "W" : d.totalRunsOnDelivery}
+                              {d.extraType === 'wide' && <span className="text-[6px] -mt-1">WD</span>}
+                              {d.extraType === 'noball' && <span className="text-[6px] -mt-1">NB</span>}
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-black text-slate-900 truncate max-w-[160px] uppercase">
+                                {getPlayerName(d.strikerPlayerId)} <span className="text-[8px] text-slate-400 italic">vs</span> {getPlayerName(d.bowlerId)}
+                              </p>
+                              <p className={cn("text-[8px] font-bold uppercase", d.isWicket ? "text-red-500" : "text-slate-400")}>
+                                {d.isWicket ? d.dismissalType : `${d.runsScored} runs ${d.extraType !== 'none' ? `(${d.extraType})` : ''}`}
+                              </p>
+                            </div>
+                          </div>
                           {isUmpire && (
-                            <div className="flex justify-center py-1 group">
-                              <Button variant="ghost" size="sm" onClick={() => {
-                                const newTs = prevBallInLog ? (prevBallInLog.timestamp + d.timestamp) / 2 : d.timestamp - 1000;
-                                setCorrectionForm({ id: '', strikerId: d.strikerPlayerId, nonStrikerId: d.nonStrikerPlayerId, bowlerId: d.bowlerId, runs: 0, extra: 'none', isWicket: false, targetTimestamp: newTs, targetInning: tab.innKey });
-                                setIsCorrectionDialogOpen(true);
-                              }} className="h-6 w-6 rounded-full bg-slate-50 text-slate-300 hover:text-primary hover:bg-primary/10 opacity-0 group-hover:opacity-100 transition-all p-0">
-                                <PlusCircle className="w-4 h-4" />
-                              </Button>
+                            <div className="flex gap-1 shrink-0">
+                              <Button variant="ghost" size="icon" onClick={() => { setCorrectionForm({ ...d, extra: d.extraType, targetInning: tab.innKey }); setIsCorrectionDialogOpen(true); }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3" /></Button>
+                              <Button variant="ghost" size="icon" onClick={async () => { if(confirm("Delete delivery? Score and simulation will recalculate.")) { await deleteDoc(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); recalculateInningState(tab.innKey); } }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-3 h-3" /></Button>
                             </div>
                           )}
-                          <Card className="border-none shadow-sm bg-white p-3 flex items-center justify-between rounded-xl group animate-in fade-in border-l-4 border-l-slate-100">
-                            <div className="flex items-center gap-4">
-                              <div className="flex flex-col items-center justify-center min-w-[40px] border-r pr-3">
-                                <span className="text-[10px] font-black text-slate-400">BALL</span>
-                                <span className="text-xs font-black text-slate-900">{d.ballLabel}</span>
-                              </div>
-                              <div className={cn("w-10 h-10 rounded-full flex flex-col items-center justify-center font-black text-[10px] border shadow-sm shrink-0", d.isWicket ? "bg-red-500 text-white border-red-600" : d.extraType !== 'none' ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-900 border-slate-100")}>
-                                {d.isWicket ? "W" : d.totalRunsOnDelivery}
-                                {d.extraType === 'wide' && <span className="text-[6px] -mt-1">WD</span>}
-                                {d.extraType === 'noball' && <span className="text-[6px] -mt-1">NB</span>}
-                              </div>
-                              <div>
-                                <p className="text-[10px] font-black text-slate-900 truncate max-w-[160px] uppercase">
-                                  {getPlayerName(d.strikerPlayerId)} <span className="text-[8px] text-slate-400 italic">vs</span> {getPlayerName(d.bowlerId)}
-                                </p>
-                                <p className={cn("text-[8px] font-bold uppercase", d.isWicket ? "text-red-500" : "text-slate-400")}>
-                                  {d.isWicket ? d.dismissalType : `${d.runsScored} runs ${d.extraType !== 'none' ? `(${d.extraType})` : ''}`}
-                                </p>
-                              </div>
-                            </div>
-                            {isUmpire && (
-                              <div className="flex gap-1 shrink-0">
-                                <Button variant="ghost" size="icon" onClick={() => { setCorrectionForm({ ...d, extra: d.extraType, targetInning: tab.innKey }); setIsCorrectionDialogOpen(true); }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3" /></Button>
-                                <Button variant="ghost" size="icon" onClick={async () => { if(confirm("Delete delivery? Score and simulation will recalculate.")) { await deleteDoc(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); recalculateInningState(tab.innKey); } }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-3 h-3" /></Button>
-                              </div>
-                            )}
-                          </Card>
-                        </div>
-                      );
-                    })}
-                    {isUmpire && tab.deliveries && tab.deliveries.length > 0 && (
-                      <div className="flex justify-center py-2">
-                        <Button variant="ghost" size="sm" onClick={() => {
-                          const lastBall = tab.deliveries![tab.deliveries!.length - 1];
-                          setCorrectionForm({ id: '', strikerId: lastBall.strikerPlayerId, nonStrikerId: lastBall.nonStrikerPlayerId, bowlerId: lastBall.bowlerId, runs: 0, extra: 'none', isWicket: false, targetTimestamp: lastBall.timestamp + 1000, targetInning: tab.innKey });
-                          setIsCorrectionDialogOpen(true);
-                        }} className="text-[10px] font-black uppercase text-slate-400 hover:text-primary"><PlusCircle className="w-4 h-4 mr-2" /> Append Ball</Button>
+                        </Card>
                       </div>
-                    )}
-                  </TabsContent>
-                );
-              })}
+                    );
+                  })}
+                  {isUmpire && tab.deliveries && tab.deliveries.length > 0 && (
+                    <div className="flex justify-center py-2">
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        const lastBall = tab.deliveries![tab.deliveries!.length - 1];
+                        setCorrectionForm({ id: '', strikerId: lastBall.strikerPlayerId, nonStrikerId: lastBall.nonStrikerPlayerId, bowlerId: lastBall.bowlerId, runs: 0, extra: 'none', isWicket: false, targetTimestamp: lastBall.timestamp + 1000, targetInning: tab.innKey });
+                        setIsCorrectionDialogOpen(true);
+                      }} className="text-[10px] font-black uppercase text-slate-400 hover:text-primary"><PlusCircle className="w-4 h-4 mr-2" /> Append Ball</Button>
+                    </div>
+                  )}
+                </TabsContent>
+              ))}
             </Tabs>
           </TabsContent>
         </Tabs>
