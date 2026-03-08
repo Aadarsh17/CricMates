@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis, ResponsiveContainer } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import Link from 'next/link';
 
 export default function MatchScoreboardPage() {
@@ -61,12 +61,6 @@ export default function MatchScoreboardPage() {
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
-  const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || [], match?.team1SquadPlayerIds || []), [inn1Deliveries, match?.team1SquadPlayerIds]);
-  const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || [], match?.team2SquadPlayerIds || []), [inn2Deliveries, match?.team2SquadPlayerIds]);
-
-  const getPlayerName = (pid: string) => allPlayers?.find(p => p.id === pid)?.name || '---';
-  const getTeamName = (tid: string) => allTeams?.find(t => t.id === tid)?.name || '---';
-
   const processDeliveriesWithLabels = (deliveries: any[] | null) => {
     if (!deliveries) return [];
     let legal = 0;
@@ -81,6 +75,12 @@ export default function MatchScoreboardPage() {
 
   const inn1WithLabels = useMemo(() => processDeliveriesWithLabels(inn1Deliveries), [inn1Deliveries]);
   const inn2WithLabels = useMemo(() => processDeliveriesWithLabels(inn2Deliveries), [inn2Deliveries]);
+
+  const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || [], match?.team1SquadPlayerIds || []), [inn1Deliveries, match?.team1SquadPlayerIds]);
+  const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || [], match?.team2SquadPlayerIds || []), [inn2Deliveries, match?.team2SquadPlayerIds]);
+
+  const getPlayerName = (pid: string) => allPlayers?.find(p => p.id === pid)?.name || '---';
+  const getTeamName = (tid: string) => allTeams?.find(t => t.id === tid)?.name || '---';
 
   const activeInningData = useMemo(() => {
     if (!match) return null;
@@ -224,14 +224,19 @@ export default function MatchScoreboardPage() {
   }, [match?.currentInningNumber, stats1, stats2]);
 
   const manhattanData = useMemo(() => {
-    if (!currentDeliveriesWithLabels) return [];
-    const overMap: Record<number, number> = {};
-    currentDeliveriesWithLabels.forEach(d => {
-      const ov = d.overIndex;
-      overMap[ov] = (overMap[ov] || 0) + (d.totalRunsOnDelivery || 0);
-    });
-    return Object.entries(overMap).map(([ov, runs]) => ({ over: `Ov ${ov}`, runs }));
-  }, [currentDeliveriesWithLabels]);
+    const maxOvers = match?.totalOvers || 6;
+    const data: any[] = [];
+    for (let i = 1; i <= maxOvers; i++) {
+      const r1 = inn1WithLabels.filter(d => d.overIndex === i).reduce((acc, d) => acc + (d.totalRunsOnDelivery || 0), 0);
+      const r2 = inn2WithLabels.filter(d => d.overIndex === i).reduce((acc, d) => acc + (d.totalRunsOnDelivery || 0), 0);
+      data.push({ 
+        over: `Ov ${i}`, 
+        team1: r1, 
+        team2: (inn2Deliveries && inn2Deliveries.length > 0) ? r2 : null 
+      });
+    }
+    return data;
+  }, [inn1WithLabels, inn2WithLabels, match?.totalOvers, inn2Deliveries]);
 
   const wormData = useMemo(() => {
     const data: any[] = [];
@@ -241,7 +246,17 @@ export default function MatchScoreboardPage() {
       const d2 = inn2WithLabels.filter(d => d.overIndex <= i);
       const score1 = d1.reduce((acc, d) => acc + (d.totalRunsOnDelivery || 0), 0);
       const score2 = d2.reduce((acc, d) => acc + (d.totalRunsOnDelivery || 0), 0);
-      data.push({ over: i, team1: score1, team2: (inn2Deliveries && inn2Deliveries.length > 0) ? score2 : null });
+      
+      const w1 = d1.filter(d => d.isWicket && d.overIndex === i && d.extraType === 'none').length > 0;
+      const w2 = d2.filter(d => d.isWicket && d.overIndex === i && d.extraType === 'none').length > 0;
+
+      data.push({ 
+        over: i, 
+        team1: score1, 
+        team2: (inn2Deliveries && inn2Deliveries.length > 0) ? score2 : null,
+        w1: w1 ? score1 : null,
+        w2: w2 ? score2 : null
+      });
     }
     return data;
   }, [inn1WithLabels, inn2WithLabels, match?.totalOvers, inn2Deliveries]);
@@ -464,7 +479,10 @@ export default function MatchScoreboardPage() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="over" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
-                      <Bar dataKey="runs" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                      <Legend verticalAlign="top" align="right" height={36}/>
+                      <Bar name={getTeamName(match?.team1Id)} dataKey="team1" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      <Bar name={getTeamName(match?.team2Id)} dataKey="team2" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -477,8 +495,10 @@ export default function MatchScoreboardPage() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="over" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
-                      <Line type="monotone" dataKey="team1" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: "hsl(var(--primary))" }} />
-                      <Line type="monotone" dataKey="team2" stroke="hsl(var(--secondary))" strokeWidth={3} dot={{ r: 4, fill: "hsl(var(--secondary))" }} connectNulls />
+                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
+                      <Legend verticalAlign="top" align="right" height={36}/>
+                      <Line name={getTeamName(match?.team1Id)} type="monotone" dataKey="team1" stroke="hsl(var(--primary))" strokeWidth={3} dot={(props: any) => props.payload.w1 ? <circle cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : false} />
+                      <Line name={getTeamName(match?.team2Id)} type="monotone" dataKey="team2" stroke="hsl(var(--secondary))" strokeWidth={3} dot={(props: any) => props.payload.w2 ? <circle cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : false} connectNulls />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -530,9 +550,19 @@ export default function MatchScoreboardPage() {
 
                       <div className="space-y-1">
                         {filteredLog.slice().reverse().map((d, idx, arr) => {
-                          const prevBallInLog = arr[idx + 1]; 
+                          const prevBallInLog = arr[idx + 1];
+                          const nextBallInLog = arr[idx - 1];
+                          const isOverStart = !nextBallInLog || nextBallInLog.overIndex !== d.overIndex;
+
                           return (
                             <div key={d.id} className="space-y-1">
+                              {isOverStart && selectedOverFilter === 'all' && (
+                                <div className="pt-6 pb-2 px-2 flex items-center gap-3">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Over {d.overIndex}</span>
+                                  <div className="h-px bg-slate-100 flex-1"></div>
+                                </div>
+                              )}
+                              
                               {isUmpire && (
                                 <div className="flex justify-center py-1 group">
                                   <Button variant="ghost" size="sm" onClick={() => {
@@ -550,7 +580,12 @@ export default function MatchScoreboardPage() {
                                     <span className="text-[10px] font-black text-slate-400">BALL</span>
                                     <span className="text-xs font-black text-slate-900">{d.ballLabel}</span>
                                   </div>
-                                  <div className={cn("w-10 h-10 rounded-full flex flex-col items-center justify-center font-black text-[10px] border shadow-sm shrink-0", d.isWicket ? "bg-red-500 text-white border-red-600" : d.extraType !== 'none' ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-slate-50 text-slate-900 border-slate-100")}>
+                                  <div className={cn("w-10 h-10 rounded-full flex flex-col items-center justify-center font-black text-[10px] border shadow-sm shrink-0", 
+                                    d.isWicket ? "bg-red-500 text-white border-red-600" : 
+                                    d.runsScored === 6 ? "bg-primary text-white border-primary" :
+                                    d.runsScored === 4 ? "bg-blue-500 text-white border-blue-600" :
+                                    d.extraType !== 'none' ? "bg-amber-100 text-amber-700 border-amber-200" : 
+                                    "bg-slate-50 text-slate-900 border-slate-100")}>
                                     {d.isWicket ? "W" : (d.totalRunsOnDelivery || 0)}
                                     {d.extraType === 'wide' && <span className="text-[6px] -mt-1">WD</span>}
                                     {d.extraType === 'noball' && <span className="text-[6px] -mt-1">NB</span>}
@@ -567,7 +602,13 @@ export default function MatchScoreboardPage() {
                                 {isUmpire && (
                                   <div className="flex gap-1 shrink-0">
                                     <Button variant="ghost" size="icon" onClick={() => { setCorrectionForm({ ...d, extra: d.extraType || 'none', runs: d.runsScored || 0, targetInning: tab.innKey }); setIsCorrectionDialogOpen(true); }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3" /></Button>
-                                    <Button variant="ghost" size="icon" onClick={async () => { if(confirm("Permanently delete delivery? Records will re-simulate.")) { await deleteDoc(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); recalculateInningState(tab.innKey); } }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
+                                    <Button variant="ghost" size="icon" onClick={async () => { 
+                                      if(confirm("Permanently delete delivery? Records will re-simulate.")) { 
+                                        await deleteDoc(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); 
+                                        await recalculateInningState(tab.innKey);
+                                        toast({ title: "Delivery Purged" });
+                                      } 
+                                    }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                                   </div>
                                 )}
                               </Card>
