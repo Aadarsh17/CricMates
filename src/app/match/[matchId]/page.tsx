@@ -19,6 +19,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 import Link from 'next/link';
 
 export default function MatchScoreboardPage() {
@@ -69,17 +71,13 @@ export default function MatchScoreboardPage() {
     return `${completedOvers}.${ballsInCurrentOver}`;
   };
 
-  const getBallNumberLabel = (legalCount: number) => {
-    const ov = Math.floor(legalCount / 6);
-    const ball = (legalCount % 6) + 1;
-    return `${ov}.${ball}`;
-  };
-
   const inn1WithLabels = useMemo(() => {
     if (!inn1Deliveries) return [];
     let legal = 0;
     return inn1Deliveries.map(d => {
-      const label = getBallNumberLabel(legal);
+      const ov = Math.floor(legal / 6);
+      const b = (legal % 6) + 1;
+      const label = `${ov}.${b}`;
       if (d.extraType === 'none') legal++;
       return { ...d, ballLabel: label };
     });
@@ -89,7 +87,9 @@ export default function MatchScoreboardPage() {
     if (!inn2Deliveries) return [];
     let legal = 0;
     return inn2Deliveries.map(d => {
-      const label = getBallNumberLabel(legal);
+      const ov = Math.floor(legal / 6);
+      const b = (legal % 6) + 1;
+      const label = `${ov}.${b}`;
       if (d.extraType === 'none') legal++;
       return { ...d, ballLabel: label };
     });
@@ -108,7 +108,7 @@ export default function MatchScoreboardPage() {
     let legalBalls = 0;
     currentDeliveries.forEach(d => {
       const isLegal = d.extraType === 'none';
-      const currentOverIdx = isLegal ? Math.floor(legalBalls / 6) + 1 : Math.floor(legalBalls / 6) + 1;
+      const currentOverIdx = Math.floor(legalBalls / 6) + 1;
       if (isLegal) legalBalls++;
       if (!groups[currentOverIdx]) groups[currentOverIdx] = [];
       groups[currentOverIdx].push(d);
@@ -130,7 +130,6 @@ export default function MatchScoreboardPage() {
       if (d.isWicket && !isRetirement) wkts++;
       if (d.extraType === 'none') legal++;
 
-      // Professional Crease Sync
       if (idx === deliveriesList.length - 1) {
         sId = d.strikerPlayerId;
         nsId = d.nonStrikerPlayerId;
@@ -168,7 +167,6 @@ export default function MatchScoreboardPage() {
     const deliveryId = doc(collection(db, 'temp')).id;
     const dData = { 
       id: deliveryId, 
-      overLabel: formatOverNotation(newTotalLegal), 
       strikerPlayerId: activeInningData.strikerPlayerId || '', 
       nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || '',
       bowlerId: activeInningData.currentBowlerPlayerId || '', 
@@ -238,6 +236,42 @@ export default function MatchScoreboardPage() {
       .map(b => b.id);
   }, [match?.currentInningNumber, stats1, stats2]);
 
+  const manhattanData = useMemo(() => {
+    if (!currentDeliveries) return [];
+    const overMap: Record<number, number> = {};
+    let legal = 0;
+    currentDeliveries.forEach(d => {
+      const ov = Math.floor(legal / 6) + 1;
+      overMap[ov] = (overMap[ov] || 0) + (d.totalRunsOnDelivery || 0);
+      if (d.extraType === 'none') legal++;
+    });
+    return Object.entries(overMap).map(([ov, runs]) => ({ over: `Ov ${ov}`, runs }));
+  }, [currentDeliveries]);
+
+  const wormData = useMemo(() => {
+    const data: any[] = [];
+    let score1 = 0, score2 = 0;
+    let legal1 = 0, legal2 = 0;
+    const maxOvers = match?.totalOvers || 6;
+
+    for (let i = 0; i <= maxOvers; i++) {
+      const d1 = inn1Deliveries?.filter(d => {
+        const isLegalBefore = inn1Deliveries.filter((ball, idx) => inn1Deliveries.indexOf(d) > idx && ball.extraType === 'none').length;
+        return isLegalBefore < i * 6;
+      });
+      const d2 = inn2Deliveries?.filter(d => {
+        const isLegalBefore = inn2Deliveries.filter((ball, idx) => inn2Deliveries.indexOf(d) > idx && ball.extraType === 'none').length;
+        return isLegalBefore < i * 6;
+      });
+      
+      score1 = d1?.reduce((acc, d) => acc + (d.totalRunsOnDelivery || 0), 0) || 0;
+      score2 = d2?.reduce((acc, d) => acc + (d.totalRunsOnDelivery || 0), 0) || 0;
+      
+      data.push({ over: i, team1: score1, team2: score2 > 0 || (inn2Deliveries && inn2Deliveries.length > 0) ? score2 : null });
+    }
+    return data;
+  }, [inn1Deliveries, inn2Deliveries, match?.totalOvers]);
+
   if (!isMounted || isMatchLoading) return <div className="flex flex-col items-center justify-center min-h-screen"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
   return (
@@ -288,7 +322,7 @@ export default function MatchScoreboardPage() {
                         <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: match?.currentInningNumber === 1 ? 2 : 1 })}><Rewind className="w-4 h-4 mr-2 text-amber-500" /> Switch Active Scoring</DropdownMenuItem>
                         <DropdownMenuItem className="font-bold py-3" onClick={() => recalculateInningState(`inning_${match?.currentInningNumber}`)}><RefreshCw className="w-4 h-4 mr-2 text-primary" /> Force Sync Simulation</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="font-bold py-3 text-red-500" onClick={() => { if(confirm("DANGER: This will delete ALL delivery records for the current innings. Continue?")) { /* Hard reset logic */ } }}><RotateCcw className="w-4 h-4 mr-2" /> Hard Reset Innings</DropdownMenuItem>
+                        <DropdownMenuItem className="font-bold py-3 text-red-500" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: false })}><Unlock className="w-4 h-4 mr-2" /> Re-open for Corrections</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <Button variant="outline" onClick={() => setIsPlayerAssignmentOpen(true)} className="flex-1 h-12 border-secondary/20 text-secondary font-black uppercase text-[9px] bg-white/5"><Settings2 className="w-4 h-4 mr-2" /> Assign</Button>
@@ -396,6 +430,109 @@ export default function MatchScoreboardPage() {
             </div>
           </TabsContent>
 
+          <TabsContent value="scorecard" className="space-y-8">
+            {[ {id: 1, stats: stats1, teamId: match?.team1Id, label: '1st Innings'}, {id: 2, stats: stats2, teamId: match?.team2Id, label: '2nd Innings'} ].map(inn => (
+              <div key={inn.id} className="space-y-4">
+                <div className="flex justify-between items-center px-2">
+                  <h2 className="text-lg font-black uppercase text-slate-900">{inn.label} - {getTeamName(inn.teamId)}</h2>
+                  <Badge className="bg-primary text-white font-black">{inn.stats.total}/{inn.stats.wickets} ({inn.stats.overs})</Badge>
+                </div>
+                <Card className="border-none shadow-lg rounded-3xl overflow-hidden bg-white">
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow>
+                        <TableHead className="text-[9px] font-black uppercase">Batter</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">R</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">B</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">4s</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">6s</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inn.stats.batting.map((b: any) => (
+                        <TableRow key={b.id}>
+                          <TableCell className="py-3">
+                            <p className="font-black text-xs uppercase">{getPlayerName(b.id)}</p>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase italic">{(b.dismissal || 'not out').replace('Fielder', getPlayerName(b.fielderId))}</p>
+                          </TableCell>
+                          <TableCell className="text-right font-black">{b.runs}</TableCell>
+                          <TableCell className="text-right text-xs font-bold text-slate-500">{b.balls}</TableCell>
+                          <TableCell className="text-right text-xs text-slate-400">{b.fours}</TableCell>
+                          <TableCell className="text-right text-xs text-slate-400">{b.sixes}</TableCell>
+                          <TableCell className="text-right text-[9px] font-bold text-slate-400">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  <div className="bg-slate-50 p-4 border-t flex justify-between items-center">
+                    <span className="text-[10px] font-black uppercase text-slate-400">Extras: {inn.stats.extras.total} (wd {inn.stats.extras.w}, nb {inn.stats.extras.nb})</span>
+                    <span className="text-xs font-black uppercase text-slate-900">Total: {inn.stats.total}/{inn.stats.wickets}</span>
+                  </div>
+                </Card>
+                <Card className="border-none shadow-lg rounded-3xl overflow-hidden bg-white">
+                  <Table>
+                    <TableHeader className="bg-slate-50">
+                      <TableRow>
+                        <TableHead className="text-[9px] font-black uppercase">Bowler</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">O</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">M</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">R</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">W</TableHead>
+                        <TableHead className="text-right text-[9px] font-black uppercase">ER</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {inn.stats.bowling.map((b: any) => (
+                        <TableRow key={b.id}>
+                          <TableCell className="font-black text-xs uppercase py-3">{getPlayerName(b.id)}</TableCell>
+                          <TableCell className="text-right font-bold text-xs">{b.oversDisplay}</TableCell>
+                          <TableCell className="text-right text-xs">{b.maidens || 0}</TableCell>
+                          <TableCell className="text-right text-xs">{b.runs}</TableCell>
+                          <TableCell className="text-right font-black text-secondary">{b.wickets}</TableCell>
+                          <TableCell className="text-right text-[9px] font-bold text-slate-400">{b.economy}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </div>
+            ))}
+          </TabsContent>
+
+          <TabsContent value="analysis" className="space-y-8">
+            <div className="space-y-4">
+              <h2 className="text-lg font-black uppercase text-slate-900 px-2 flex items-center gap-2"><Activity className="w-5 h-5 text-primary" /> Scoring Momentum</h2>
+              <Card className="p-6 border-none shadow-xl rounded-3xl bg-white">
+                <p className="text-[10px] font-black uppercase text-slate-400 mb-6 tracking-widest">Runs per Over (Manhattan)</p>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={manhattanData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="over" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
+                      <Bar dataKey="runs" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+              <Card className="p-6 border-none shadow-xl rounded-3xl bg-white">
+                <p className="text-[10px] font-black uppercase text-slate-400 mb-6 tracking-widest">Score Comparison (Worm)</p>
+                <div className="h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={wormData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="over" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
+                      <Line type="monotone" dataKey="team1" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: "hsl(var(--primary))" }} />
+                      <Line type="monotone" dataKey="team2" stroke="hsl(var(--secondary))" strokeWidth={3} dot={{ r: 4, fill: "hsl(var(--secondary))" }} connectNulls />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+            </div>
+          </TabsContent>
+
           <TabsContent value="overs" className="space-y-4">
             <h2 className="text-lg font-black uppercase text-slate-900 px-2 flex items-center gap-2"><List className="w-5 h-5 text-primary" /> Delivery History</h2>
             <Tabs defaultValue="current" className="w-full">
@@ -447,25 +584,61 @@ export default function MatchScoreboardPage() {
                           {isUmpire && (
                             <div className="flex gap-1 shrink-0">
                               <Button variant="ghost" size="icon" onClick={() => { setCorrectionForm({ ...d, extra: d.extraType || 'none', runs: d.runsScored || 0, targetInning: tab.innKey }); setIsCorrectionDialogOpen(true); }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3" /></Button>
-                              <Button variant="ghost" size="icon" onClick={async () => { if(confirm("Delete delivery? Score and simulation will recalculate.")) { await deleteDoc(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); recalculateInningState(tab.innKey); } }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-3 h-3" /></Button>
+                              <Button variant="ghost" size="icon" onClick={async () => { if(confirm("Delete delivery? Score and simulation will recalculate.")) { await deleteDoc(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); recalculateInningState(tab.innKey); } }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                             </div>
                           )}
                         </Card>
                       </div>
                     );
                   })}
-                  {isUmpire && tab.deliveries && tab.deliveries.length > 0 && (
-                    <div className="flex justify-center py-2">
-                      <Button variant="ghost" size="sm" onClick={() => {
-                        const lastBall = tab.deliveries![tab.deliveries!.length - 1];
-                        setCorrectionForm({ id: '', strikerId: lastBall.strikerPlayerId || '', nonStrikerId: lastBall.nonStrikerPlayerId || '', bowlerId: lastBall.bowlerId || '', runs: 0, extra: 'none', isWicket: false, targetTimestamp: lastBall.timestamp + 1000, targetInning: tab.innKey });
-                        setIsCorrectionDialogOpen(true);
-                      }} className="text-[10px] font-black uppercase text-slate-400 hover:text-primary"><PlusCircle className="w-4 h-4 mr-2" /> Append Ball</Button>
-                    </div>
-                  )}
                 </TabsContent>
               ))}
             </Tabs>
+          </TabsContent>
+
+          <TabsContent value="info" className="space-y-6">
+            <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+              <div className="p-6 space-y-6">
+                <div className="space-y-2">
+                  <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Match Metadata</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-50 p-4 rounded-2xl border">
+                      <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Toss Result</p>
+                      <p className="text-xs font-black uppercase">{getTeamName(match?.tossWinnerTeamId)} won & elected to {match?.tossDecision}</p>
+                    </div>
+                    <div className="bg-slate-50 p-4 rounded-2xl border">
+                      <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Format</p>
+                      <p className="text-xs font-black uppercase">{match?.totalOvers} Overs per side</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Official Representative</h3>
+                  <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border">
+                    <div className="bg-primary/10 p-2 rounded-xl"><ShieldCheck className="w-5 h-5 text-primary" /></div>
+                    <div>
+                      <p className="text-xs font-black uppercase">Official League Umpire</p>
+                      <p className="text-[10px] font-bold text-slate-400">Verified Session ID: {match?.id.substring(0, 8)}</p>
+                    </div>
+                  </div>
+                </div>
+                <Button className="w-full h-14 bg-secondary font-black uppercase shadow-lg group" onClick={() => {
+                  const report = generateMatchReport(match, 
+                    { [match?.team1Id]: getTeamName(match?.team1Id), [match?.team2Id]: getTeamName(match?.team2Id) },
+                    allPlayers?.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {}) || {},
+                    inn1, inn2, stats1, stats2
+                  );
+                  const blob = new Blob([report], { type: 'text/html' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `CricMates_Report_${match?.id}.html`;
+                  a.click();
+                }}>
+                  <Download className="w-5 h-5 mr-2" /> Download Official Scorecard
+                </Button>
+              </div>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
@@ -649,13 +822,23 @@ export default function MatchScoreboardPage() {
               const totalLegal = (currentDeliveries?.filter(d => d.extraType === 'none').length || 0) + 1;
               const dId = doc(collection(db, 'temp')).id;
               await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currId, 'deliveryRecords', dId), { 
-                id: dId, overLabel: formatOverNotation(totalLegal), strikerPlayerId: activeInningData?.strikerPlayerId || '', nonStrikerPlayerId: activeInningData?.nonStrikerPlayerId || '', bowlerId: activeInningData?.currentBowlerPlayerId || '', fielderPlayerId: wicketForm.fielderId || 'none', isWicket: true, dismissalType: wicketForm.type || 'bowled', batsmanOutPlayerId: wicketForm.batterOutId || '', extraType: 'none', runsScored: wicketForm.runsCompleted || 0, totalRunsOnDelivery: wicketForm.runsCompleted || 0, timestamp: Date.now() 
+                id: dId, strikerPlayerId: activeInningData?.strikerPlayerId || '', nonStrikerPlayerId: activeInningData?.nonStrikerPlayerId || '', bowlerId: activeInningData?.currentBowlerPlayerId || '', fielderPlayerId: wicketForm.fielderId || 'none', isWicket: true, dismissalType: wicketForm.type || 'bowled', batsmanOutPlayerId: wicketForm.batterOutId || '', extraType: 'none', runsScored: wicketForm.runsCompleted || 0, totalRunsOnDelivery: wicketForm.runsCompleted || 0, timestamp: Date.now() 
               }, { merge: true });
+              
               updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currId), { 
-                score: (activeInningData?.score || 0) + (wicketForm.runsCompleted || 0), wickets: (activeInningData?.wickets || 0) + (wicketForm.type === 'retired' ? 0 : 1), oversCompleted: Math.floor(totalLegal / 6), ballsInCurrentOver: totalLegal % 6, [wicketForm.batterOutId === activeInningData?.strikerPlayerId ? 'strikerPlayerId' : 'nonStrikerPlayerId']: '' 
+                score: (activeInningData?.score || 0) + (wicketForm.runsCompleted || 0), 
+                wickets: (activeInningData?.wickets || 0) + (wicketForm.type === 'retired' ? 0 : 1), 
+                oversCompleted: Math.floor(totalLegal / 6), 
+                ballsInCurrentOver: totalLegal % 6, 
+                [wicketForm.batterOutId === activeInningData?.strikerPlayerId ? 'strikerPlayerId' : 'nonStrikerPlayerId']: '' 
               });
+              
               setIsWicketDialogOpen(false);
-              setAssignmentForm({ strikerId: wicketForm.batterOutId === activeInningData?.strikerPlayerId ? '' : activeInningData?.strikerPlayerId || '', nonStrikerId: wicketForm.batterOutId === activeInningData?.nonStrikerPlayerId ? '' : activeInningData?.nonStrikerPlayerId || '', bowlerId: activeInningData?.currentBowlerPlayerId || '' });
+              setAssignmentForm({ 
+                strikerId: wicketForm.batterOutId === activeInningData?.strikerPlayerId ? '' : activeInningData?.strikerPlayerId || '', 
+                nonStrikerId: wicketForm.batterOutId === activeInningData?.nonStrikerPlayerId ? '' : activeInningData?.nonStrikerPlayerId || '', 
+                bowlerId: activeInningData?.currentBowlerPlayerId || '' 
+              });
               setIsPlayerAssignmentOpen(true);
             }} disabled={!wicketForm.batterOutId} className="w-full h-16 bg-destructive text-white font-black uppercase rounded-2xl shadow-xl">Confirm Wicket</Button>
           </div>
