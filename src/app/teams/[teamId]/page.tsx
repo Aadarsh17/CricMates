@@ -9,11 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Upload, AlertCircle, Users, UserMinus } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Upload, AlertCircle, Users, UserMinus, ShieldCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
 import { cn } from '@/lib/utils';
@@ -98,10 +99,10 @@ export default function TeamDetailsPage() {
 
       if (battingTeamId === teamId) {
         forR += (d.totalRunsOnDelivery || 0);
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') forB += 1;
-      } else {
+        if (d.extraType === 'none') forB += 1;
+      } else if (bowlingTeamId === teamId) {
         agR += (d.totalRunsOnDelivery || 0);
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') agB += 1;
+        if (d.extraType === 'none') agB += 1;
       }
     });
 
@@ -136,14 +137,14 @@ export default function TeamDetailsPage() {
       if (careerTotals[sId] && pMatchStats[sId]?.[matchId!]) {
         const sStats = pMatchStats[sId][matchId!]; 
         sStats.runs += d.runsScored || 0;
-        if (d.extraType !== 'wide') sStats.ballsFaced += 1; 
+        if (d.extraType === 'none') sStats.ballsFaced += 1; 
         careerTotals[sId].runs += d.runsScored || 0;
       }
       if (bId && careerTotals[bId] && pMatchStats[bId]?.[matchId!]) {
         const bStats = pMatchStats[bId][matchId!]; 
         bStats.runsConceded += d.totalRunsOnDelivery || 0;
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') bStats.ballsBowled += 1;
-        if (d.isWicket && d.dismissalType !== 'runout' && d.dismissalType !== 'retired') { 
+        if (d.extraType === 'none') bStats.ballsBowled += 1;
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) { 
           bStats.wickets += 1; careerTotals[bId].wickets += 1; 
         }
         if (d.extraType === 'wide') careerTotals[bId].wides += 1; 
@@ -177,7 +178,14 @@ export default function TeamDetailsPage() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [newPlayer, setNewPlayer] = useState({ name: '', role: 'Batsman' });
-  const [editForm, setEditForm] = useState({ name: '', role: 'Batsman', imageUrl: '' });
+  
+  const [editForm, setEditForm] = useState({ 
+    name: '', 
+    role: 'Batsman', 
+    imageUrl: '', 
+    battingStyle: 'Right Handed Bat',
+    isWicketKeeper: false
+  });
 
   const defaultAvatar = PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl || '';
 
@@ -207,14 +215,52 @@ export default function TeamDetailsPage() {
   const handleAddPlayer = () => {
     if (!user || !newPlayer.name.trim()) return;
     const playerId = doc(collection(db, 'players')).id;
-    const playerData = { id: playerId, name: newPlayer.name, teamId, ownerId: user.uid, role: newPlayer.role, battingStyle: 'Right Handed Bat', isWicketKeeper: false, isRetired: false, matchesPlayed: 0, runsScored: 0, wicketsTaken: 0, highestScore: 0, bestBowlingFigures: '0/0', careerCVP: 0, imageUrl: defaultAvatar };
+    const playerData = { 
+      id: playerId, 
+      name: newPlayer.name, 
+      teamId, 
+      ownerId: user.uid, 
+      role: newPlayer.role, 
+      battingStyle: 'Right Handed Bat', 
+      isWicketKeeper: false, 
+      isRetired: false, 
+      matchesPlayed: 0, 
+      runsScored: 0, 
+      wicketsTaken: 0, 
+      highestScore: 0, 
+      bestBowlingFigures: '0/0', 
+      careerCVP: 0, 
+      imageUrl: defaultAvatar 
+    };
     setDocumentNonBlocking(doc(db, 'players', playerId), playerData, { merge: true });
     setIsAddPlayerOpen(false); setNewPlayer({ name: '', role: 'Batsman' }); toast({ title: "Player Added" });
   };
 
-  const openEditDialog = (player: any) => { setEditingPlayerId(player.id); setEditForm({ name: player.name, role: player.role, imageUrl: player.imageUrl || '' }); setIsEditOpen(true); };
-  const handleUpdatePlayer = () => { if (!editingPlayerId) return; updateDocumentNonBlocking(doc(db, 'players', editingPlayerId), editForm); setIsEditOpen(false); toast({ title: "Profile Updated" }); };
-  const handleDeletePlayer = (id: string, name: string) => { if (confirm(`Remove ${name}?`)) { deleteDocumentNonBlocking(doc(db, 'players', id)); toast({ title: "Player Released" }); } };
+  const openEditDialog = (player: any) => { 
+    setEditingPlayerId(player.id); 
+    setEditForm({ 
+      name: player.name, 
+      role: player.role, 
+      imageUrl: player.imageUrl || '',
+      battingStyle: player.battingStyle || 'Right Handed Bat',
+      isWicketKeeper: !!player.isWicketKeeper
+    }); 
+    setIsEditOpen(true); 
+  };
+
+  const handleUpdatePlayer = () => { 
+    if (!editingPlayerId) return; 
+    updateDocumentNonBlocking(doc(db, 'players', editingPlayerId), editForm); 
+    setIsEditOpen(false); 
+    toast({ title: "Profile Updated" }); 
+  };
+
+  const handleDeletePlayer = (id: string, name: string) => { 
+    if (confirm(`PERMANENT ACTION: Are you sure you want to release ${name} from the official league registry?`)) { 
+      deleteDocumentNonBlocking(doc(db, 'players', id)); 
+      toast({ title: "Player Released", description: "Profile has been purged from the league database." }); 
+    } 
+  };
 
   if (!isMounted || isTeamLoading || isDeliveriesLoading || isMatchesLoading || isAllPlayersLoading) return (<div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4"><Loader2 className="w-10 h-10 text-primary animate-spin" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Team History...</p></div>);
   if (!team) return <div className="p-8 text-center font-black uppercase tracking-widest text-slate-400">Franchise Not Found</div>;
@@ -255,8 +301,8 @@ export default function TeamDetailsPage() {
               <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl">
                 <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl">Official Registration</DialogTitle></DialogHeader>
                 <div className="space-y-4 py-4">
-                  <div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Full Name</Label><Input value={newPlayer.name} onChange={(e) => setNewPlayer({...newPlayer, name: e.target.value})} className="font-bold h-12 shadow-sm" /></div>
-                  <div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Primary Role</Label><Select value={newPlayer.role} onValueChange={(v) => setNewPlayer({...newPlayer, role: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman" className="font-bold uppercase text-xs">Batsman</SelectItem><SelectItem value="Bowler" className="font-bold uppercase text-xs">Bowler</SelectItem><SelectItem value="All-rounder" className="font-bold uppercase text-xs">All-rounder</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Full Name</Label><Input value={newPlayer.name} onChange={(e) => setNewPlayer({...newPlayer, name: e.target.value})} className="font-bold h-12 shadow-sm" /></div>
+                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Primary Role</Label><Select value={newPlayer.role} onValueChange={(v) => setNewPlayer({...newPlayer, role: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman" className="font-bold uppercase text-xs">Batsman</SelectItem><SelectItem value="Bowler" className="font-bold uppercase text-xs">Bowler</SelectItem><SelectItem value="All-rounder" className="font-bold uppercase text-xs">All-rounder</SelectItem></SelectContent></Select></div>
                 </div>
                 <DialogFooter><Button onClick={handleAddPlayer} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl bg-primary">Commit Registration</Button></DialogFooter>
               </DialogContent>
@@ -274,14 +320,21 @@ export default function TeamDetailsPage() {
                     <div className="flex items-center gap-4">
                       <div className="relative group/photo">
                         <Avatar className="w-16 h-16 rounded-2xl shadow-md border-2 border-white overflow-hidden ring-4 ring-slate-50"><AvatarImage src={player.imageUrl} className="object-cover" /><AvatarFallback className="font-black text-slate-400 bg-slate-50">{player.name[0]}</AvatarFallback></Avatar>
-                        {user && ( <button onClick={() => openEditDialog(player)} className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-lg border shadow-sm text-primary hover:scale-110 transition-transform"><Camera className="w-3 h-3" /></button> )}
+                        {user && ( 
+                          <button onClick={() => openEditDialog(player)} className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-lg border shadow-sm text-primary hover:scale-110 transition-transform z-10">
+                            <Edit2 className="w-3 h-3" />
+                          </button> 
+                        )}
                       </div>
                       <Link href={`/players/${player.id}`} className="min-w-0">
                         <p className="font-black text-sm truncate max-w-[140px] uppercase tracking-tight text-slate-900 group-hover:text-primary transition-colors">{player.name}</p>
-                        <Badge variant="secondary" className="text-[8px] font-black uppercase px-2 h-5 bg-primary/10 text-primary border-none mt-1">{player.role}</Badge>
+                        <div className="flex gap-1 items-center mt-1">
+                          <Badge variant="secondary" className="text-[8px] font-black uppercase px-2 h-5 bg-primary/10 text-primary border-none">{player.role}</Badge>
+                          {player.isWicketKeeper && <Badge className="bg-secondary text-white text-[7px] font-black h-5 px-1.5">WK</Badge>}
+                        </div>
                       </Link>
                     </div>
-                    {user?.uid === player.ownerId && (
+                    {user && (
                       <Button variant="ghost" size="icon" onClick={() => handleDeletePlayer(player.id, player.name)} className="h-8 w-8 text-slate-200 hover:text-destructive transition-colors"><Trash2 className="w-4 h-4"/></Button>
                     )}
                   </div>
@@ -349,22 +402,73 @@ export default function TeamDetailsPage() {
       )}
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl">
-          <DialogHeader><DialogTitle className="font-black uppercase tracking-widest text-primary flex items-center gap-2">Edit Credentials</DialogTitle></DialogHeader>
-          <div className="space-y-6 py-4">
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl overflow-hidden">
+          <DialogHeader className="bg-slate-50 p-6 -mx-6 -mt-6 border-b mb-6">
+            <DialogTitle className="font-black uppercase tracking-widest text-primary flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5" /> Update Registry
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
             <div className="flex flex-col items-center gap-4">
               <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                <Avatar className="w-28 h-28 border-4 border-slate-100 shadow-xl rounded-3xl overflow-hidden"><AvatarImage src={editForm.imageUrl} className="object-cover" /><AvatarFallback className="bg-primary text-white text-4xl font-black">{editForm.name?.[0] || '?'}</AvatarFallback></Avatar>
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex flex-col items-center justify-center text-white"><Upload className="w-6 h-6 mb-1" /><span className="text-[8px] font-black uppercase">Replace Photo</span></div>
+                <Avatar className="w-28 h-28 border-4 border-white shadow-xl rounded-3xl overflow-hidden ring-4 ring-slate-100">
+                  <AvatarImage src={editForm.imageUrl || defaultAvatar} className="object-cover" />
+                  <AvatarFallback className="bg-primary text-white text-4xl font-black">{editForm.name?.[0] || '?'}</AvatarFallback>
+                </Avatar>
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex flex-col items-center justify-center text-white">
+                  <Camera className="w-6 h-6 mb-1" />
+                  <span className="text-[8px] font-black uppercase">Change Photo</span>
+                </div>
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
               </div>
             </div>
+
             <div className="space-y-4">
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Official Name</Label><Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="font-bold h-12" /></div>
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Specialist Role</Label><Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman" className="font-bold uppercase text-xs">Batsman</SelectItem><SelectItem value="Bowler" className="font-bold uppercase text-xs">Bowler</SelectItem><SelectItem value="All-rounder" className="font-bold uppercase text-xs">All-rounder</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Official Name</Label>
+                <Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="font-bold h-12 shadow-sm" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Specialist Role</Label>
+                  <Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}>
+                    <SelectTrigger className="font-bold h-12 shadow-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-[200]">
+                      <SelectItem value="Batsman" className="font-bold text-xs uppercase">Batsman</SelectItem>
+                      <SelectItem value="Bowler" className="font-bold text-xs uppercase">Bowler</SelectItem>
+                      <SelectItem value="All-rounder" className="font-bold text-xs uppercase">All-rounder</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Batting Style</Label>
+                  <Select value={editForm.battingStyle} onValueChange={(v) => setEditForm({...editForm, battingStyle: v})}>
+                    <SelectTrigger className="font-bold h-12 shadow-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-[200]">
+                      <SelectItem value="Right Handed Bat" className="font-bold text-xs uppercase">RHB</SelectItem>
+                      <SelectItem value="Left Handed Bat" className="font-bold text-xs uppercase">LHB</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <Checkbox 
+                  id="wicket-keeper" 
+                  checked={editForm.isWicketKeeper}
+                  onCheckedChange={(checked) => setEditForm({...editForm, isWicketKeeper: !!checked})}
+                  className="h-5 w-5"
+                />
+                <Label htmlFor="wicket-keeper" className="text-xs font-black uppercase cursor-pointer">Official Wicket Keeper</Label>
+              </div>
             </div>
           </div>
-          <DialogFooter><Button onClick={handleUpdatePlayer} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl bg-primary">Save Changes</Button></DialogFooter>
+
+          <DialogFooter className="mt-8 pt-6 border-t -mx-6 px-6">
+            <Button onClick={handleUpdatePlayer} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl bg-primary">Commit Changes</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
