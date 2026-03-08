@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from 'react';
@@ -301,33 +300,31 @@ export default function MatchScoreboardPage() {
               <TableHead className="text-right text-[10px] font-black uppercase">SR</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {stats.batting.map((b: any) => (
-              <TableRow key={b?.id} className="group hover:bg-slate-50/50">
-                <TableCell className="py-3">
-                  <Link href={`/players/${b?.id}`} className="font-black text-xs uppercase text-blue-600 hover:underline transition-colors">{getPlayerName(b?.id)}</Link>
-                  <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5 italic">{b?.out ? b?.dismissal : 'not out'}</p>
-                </TableCell>
-                <TableCell className="text-right font-black text-sm">{b?.runs}</TableCell>
-                <TableCell className="text-right text-xs text-slate-500 font-medium">{b?.balls}</TableCell>
-                <TableCell className="text-right text-xs text-slate-500">{b?.fours}</TableCell>
-                <TableCell className="text-right text-xs text-slate-500">{b?.sixes}</TableCell>
-                <TableCell className="text-right text-[10px] font-black text-slate-400">{b?.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
-              </TableRow>
-            ))}
-            <TableRow className="bg-slate-50/30 font-bold">
-              <TableCell className="text-[10px] uppercase font-black">Extras</TableCell>
-              <TableCell colSpan={5} className="text-right text-xs">
-                {stats.extras.total} <span className="text-[9px] font-medium text-slate-400">(w {stats.extras.w}, nb {stats.extras.nb})</span>
+          <TableBody>{stats.batting.map((b: any) => (
+            <TableRow key={b?.id} className="group hover:bg-slate-50/50">
+              <TableCell className="py-3">
+                <Link href={`/players/${b?.id}`} className="font-black text-xs uppercase text-blue-600 hover:underline transition-colors">{getPlayerName(b?.id)}</Link>
+                <p className="text-[9px] text-slate-400 font-bold uppercase mt-0.5 italic">{b?.out ? b?.dismissal : 'not out'}</p>
               </TableCell>
+              <TableCell className="text-right font-black text-sm">{b?.runs}</TableCell>
+              <TableCell className="text-right text-xs text-slate-500 font-medium">{b?.balls}</TableCell>
+              <TableCell className="text-right text-xs text-slate-500">{b?.fours}</TableCell>
+              <TableCell className="text-right text-xs text-slate-500">{b?.sixes}</TableCell>
+              <TableCell className="text-right text-[10px] font-black text-slate-400">{b?.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
             </TableRow>
-            <TableRow className="bg-slate-50 font-black">
-              <TableCell className="text-[10px] uppercase">Total</TableCell>
-              <TableCell colSpan={5} className="text-right text-sm">
-                {stats.total}-{stats.wickets} <span className="text-[10px] text-slate-400">({stats.overs} Overs, RR: {stats.rr})</span>
-              </TableCell>
-            </TableRow>
-          </TableBody>
+          ))}
+          <TableRow className="bg-slate-50/30 font-bold">
+            <TableCell className="text-[10px] uppercase font-black">Extras</TableCell>
+            <TableCell colSpan={5} className="text-right text-xs">
+              {stats.extras.total} <span className="text-[9px] font-medium text-slate-400">(w {stats.extras.w}, nb {stats.extras.nb})</span>
+            </TableCell>
+          </TableRow>
+          <TableRow className="bg-slate-50 font-black">
+            <TableCell className="text-[10px] uppercase">Total</TableCell>
+            <TableCell colSpan={5} className="text-right text-sm">
+              {stats.total}-{stats.wickets} <span className="text-[10px] text-slate-400">({stats.overs} Overs, RR: {stats.rr})</span>
+            </TableCell>
+          </TableRow></TableBody>
         </Table>
         {stats.didNotBat.length > 0 && (
           <div className="p-4 border-t bg-white">
@@ -354,18 +351,16 @@ export default function MatchScoreboardPage() {
               <TableHead className="text-right text-[10px] font-black uppercase">ER</TableHead>
             </TableRow>
           </TableHeader>
-          <TableBody>
-            {stats.bowling.map((b: any) => (
-              <TableRow key={b.id}>
-                <TableCell className="font-black text-xs uppercase">{getPlayerName(b.id)}</TableCell>
-                <TableCell className="text-right text-xs">{b.oversDisplay}</TableCell>
-                <TableCell className="text-right text-xs">{b.maidens || 0}</TableCell>
-                <TableCell className="text-right text-xs">{b.runs}</TableCell>
-                <TableCell className="text-right font-black text-secondary">{b.wickets}</TableCell>
-                <TableCell className="text-right text-[10px] text-slate-400 font-bold">{b.economy}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
+          <TableBody>{stats.bowling.map((b: any) => (
+            <TableRow key={b.id}>
+              <TableCell className="font-black text-xs uppercase">{getPlayerName(b.id)}</TableCell>
+              <TableCell className="text-right text-xs">{b.oversDisplay}</TableCell>
+              <TableCell className="text-right text-xs">{b.maidens || 0}</TableCell>
+              <TableCell className="text-right text-xs">{b.runs}</TableCell>
+              <TableCell className="text-right font-black text-secondary">{b.wickets}</TableCell>
+              <TableCell className="text-right text-[10px] text-slate-400 font-bold">{b.economy}</TableCell>
+            </TableRow>
+          ))}</TableBody>
         </Table>
       </Card>
 
@@ -533,31 +528,28 @@ export default function MatchScoreboardPage() {
                       <TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {[activeInningData?.strikerPlayerId, activeInningData?.nonStrikerPlayerId].map((pid, idx) => {
-                      if (!pid || pid === 'none' || pid === '') return null;
-                      const stats = match?.currentInningNumber === 1 ? stats1 : stats2;
-                      const b = stats.batting.find((p: any) => p?.id === pid) || { runs: 0, balls: 0, fours: 0, sixes: 0 };
-                      return (
-                        <TableRow key={pid} className={idx === 0 ? "bg-primary/5" : ""}>
-                          <TableCell className="font-black text-xs uppercase truncate max-w-[100px]">
-                            <Link href={`/players/${pid}`} className="hover:text-primary transition-colors">
-                              {getPlayerName(pid)}{idx === 0 ? '*' : ''}
-                            </Link>
-                          </TableCell>
-                          <TableCell className="text-right font-black">{b.runs}</TableCell>
-                          <TableCell className="text-right text-xs font-bold text-slate-500">{b.balls}</TableCell>
-                          <TableCell className="text-right text-xs text-slate-400">{b.fours}</TableCell>
-                          <TableCell className="text-right text-xs text-slate-400">{b.sixes}</TableCell>
-                          <TableCell className="text-right text-[9px] font-bold text-slate-400">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
+                  <TableBody>{[activeInningData?.strikerPlayerId, activeInningData?.nonStrikerPlayerId].map((pid, idx) => {
+                    if (!pid || pid === 'none' || pid === '') return null;
+                    const stats = match?.currentInningNumber === 1 ? stats1 : stats2;
+                    const b = stats.batting.find((p: any) => p?.id === pid) || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+                    return (
+                      <TableRow key={pid} className={idx === 0 ? "bg-primary/5" : ""}>
+                        <TableCell className="font-black text-xs uppercase truncate max-w-[100px]">
+                          <Link href={`/players/${pid}`} className="hover:text-primary transition-colors">
+                            {getPlayerName(pid)}{idx === 0 ? '*' : ''}
+                          </Link>
+                        </TableCell>
+                        <TableCell className="text-right font-black">{b.runs}</TableCell>
+                        <TableCell className="text-right text-xs font-bold text-slate-500">{b.balls}</TableCell>
+                        <TableCell className="text-right text-xs text-slate-400">{b.fours}</TableCell>
+                        <TableCell className="text-right text-xs text-slate-400">{b.sixes}</TableCell>
+                        <TableCell className="text-right text-[9px] font-bold text-slate-400">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
+                      </TableRow>
+                    );
+                  })}</TableBody>
                 </Table>
               </Card>
 
-              {/* Live Bowling Section */}
               <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
                 <div className="p-3 bg-slate-100 flex items-center justify-between"><span className="text-[10px] font-black uppercase text-slate-500">Live Bowling</span></div>
                 <Table>
@@ -571,36 +563,33 @@ export default function MatchScoreboardPage() {
                       <TableHead className="text-right text-[9px] font-black uppercase">ER</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {activeInningData?.currentBowlerPlayerId && (
-                      <TableRow className="bg-secondary/5">
-                        <TableCell className="font-black text-xs uppercase truncate max-w-[100px]">
-                          <Link href={`/players/${activeInningData.currentBowlerPlayerId}`} className="hover:text-secondary transition-colors">
-                            {getPlayerName(activeInningData.currentBowlerPlayerId)}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-right font-bold text-xs">
-                          {(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.oversDisplay || '0.0'}
-                        </TableCell>
-                        <TableCell className="text-right text-xs">
-                          {(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.maidens || 0}
-                        </TableCell>
-                        <TableCell className="text-right text-xs">
-                          {(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.runs || 0}
-                        </TableCell>
-                        <TableCell className="text-right font-black text-secondary">
-                          {(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.wickets || 0}
-                        </TableCell>
-                        <TableCell className="text-right text-[9px] font-bold text-slate-400">
-                          {(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.economy || '0.00'}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
+                  <TableBody>{activeInningData?.currentBowlerPlayerId && (
+                    <TableRow className="bg-secondary/5">
+                      <TableCell className="font-black text-xs uppercase truncate max-w-[100px]">
+                        <Link href={`/players/${activeInningData.currentBowlerPlayerId}`} className="hover:text-secondary transition-colors">
+                          {getPlayerName(activeInningData.currentBowlerPlayerId)}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-xs">
+                        {(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.oversDisplay || '0.0'}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.maidens || 0}
+                      </TableCell>
+                      <TableCell className="text-right text-xs">
+                        {(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.runs || 0}
+                      </TableCell>
+                      <TableCell className="text-right font-black text-secondary">
+                        {(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.wickets || 0}
+                      </TableCell>
+                      <TableCell className="text-right text-[9px] font-bold text-slate-400">
+                        {(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.economy || '0.00'}
+                      </TableCell>
+                    </TableRow>
+                  )}</TableBody>
                 </Table>
               </Card>
 
-              {/* Over-wise Ball History */}
               <div className="space-y-3">
                 <h3 className="text-[10px] font-black uppercase text-slate-500 px-2 tracking-widest flex items-center gap-2">
                   <Clock className="w-3 h-3" /> Recent Over History
@@ -746,7 +735,6 @@ export default function MatchScoreboardPage() {
         </Tabs>
       </div>
 
-      {/* Official Assignment Dialog with Smart Filtering */}
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl bg-white z-[151]">
           <DialogHeader>
@@ -813,7 +801,6 @@ export default function MatchScoreboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Advanced Wicket Registration Dialog */}
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-destructive shadow-2xl z-[151]">
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl text-destructive">Register Wicket</DialogTitle></DialogHeader>
