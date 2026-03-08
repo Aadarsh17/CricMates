@@ -4,7 +4,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
+import { doc, collection, query, orderBy, limit, getDocs, deleteDoc } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -118,7 +118,6 @@ export default function MatchScoreboardPage() {
       
       const overRuns1 = (inn1Deliveries || [])
         .filter(d => {
-          const ballNum = (inn1Deliveries || []).indexOf(d) + 1; // Simplified over detection
           const legalBefore = (inn1Deliveries || []).slice(0, (inn1Deliveries || []).indexOf(d)).filter(pd => ['none', 'bye', 'legbye'].includes(pd.extraType)).length;
           return legalBefore >= (i-1)*6 && legalBefore < i*6;
         })
@@ -177,6 +176,35 @@ export default function MatchScoreboardPage() {
     updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates);
   };
 
+  const handleHardReset = async () => {
+    if (!isUmpire || !match) return;
+    if (!confirm("DANGER: This will delete ALL delivery records for the current innings and reset the score to 0. Continue?")) return;
+    
+    const currentInningId = `inning_${match.currentInningNumber}`;
+    const deliveriesRef = collection(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords');
+    const snap = await getDocs(deliveriesRef);
+    
+    toast({ title: "Performing Hard Reset..." });
+    
+    for (const d of snap.docs) {
+      await deleteDoc(d.ref);
+    }
+
+    updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), {
+      score: 0,
+      wickets: 0,
+      oversCompleted: 0,
+      ballsInCurrentOver: 0,
+      isDeclaredFinished: false,
+      strikerPlayerId: '',
+      nonStrikerPlayerId: '',
+      currentBowlerPlayerId: ''
+    });
+
+    toast({ title: "Innings Reset Complete", description: "Scoreboard cleared." });
+    setIsPlayerAssignmentOpen(true);
+  };
+
   const handleRecordBall = async (runs: number, extra: any = 'none') => {
     if (!match || !activeInningData || !isUmpire || !activeInningData.currentBowlerPlayerId) return;
     const currentInningId = `inning_${match.currentInningNumber}`;
@@ -186,13 +214,16 @@ export default function MatchScoreboardPage() {
     
     const deliveryId = doc(collection(db, 'temp')).id;
     const dData = { 
-      id: deliveryId, overLabel: formatOverNotation(newTotalLegal), 
+      id: deliveryId, 
+      overLabel: formatOverNotation(newTotalLegal), 
       strikerPlayerId: activeInningData.strikerPlayerId, 
       nonStrikerPlayerId: activeInningData.nonStrikerPlayerId,
       bowlerId: activeInningData.currentBowlerPlayerId, 
       runsScored: extra === 'none' || extra === 'noball' ? runs : 0, 
-      extraType: extra, totalRunsOnDelivery: runs + (extra !== 'none' ? 1 : 0), 
-      isWicket: false, timestamp: Date.now() 
+      extraType: extra, 
+      totalRunsOnDelivery: runs + (extra !== 'none' ? 1 : 0), 
+      isWicket: false, 
+      timestamp: Date.now() 
     };
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', deliveryId), dData, { merge: true });
 
@@ -202,8 +233,10 @@ export default function MatchScoreboardPage() {
 
     const updates: any = { 
       score: activeInningData.score + dData.totalRunsOnDelivery, 
-      oversCompleted: Math.floor(newTotalLegal / 6), ballsInCurrentOver: newTotalLegal % 6, 
-      strikerPlayerId: nextS, nonStrikerPlayerId: nextNS 
+      oversCompleted: Math.floor(newTotalLegal / 6), 
+      ballsInCurrentOver: newTotalLegal % 6, 
+      strikerPlayerId: nextS, 
+      nonStrikerPlayerId: nextNS 
     };
     
     if (newTotalLegal % 6 === 0 && isLegal) updates.currentBowlerPlayerId = '';
@@ -315,12 +348,12 @@ export default function MatchScoreboardPage() {
             <div className="flex items-center gap-3">
               <Link href={`/teams/${match?.team1Id}`} className="font-black uppercase text-[10px] text-slate-400 truncate max-w-[80px] hover:text-white">{getTeamName(match?.team1Id)}</Link>
               <span className={cn("font-black text-xl", match?.currentInningNumber === 1 ? "text-primary" : "text-slate-500")}>{inn1?.score || 0}/{inn1?.wickets || 0}</span>
-              <Badge variant="outline" className="text-[8px] font-black border-white/10 h-4 text-slate-400">({inn1?.oversCompleted}.{inn1?.ballsInCurrentOver || 0})</Badge>
+              <Badge variant="outline" className="text-[8px] font-black border-white/10 h-4 text-slate-400">({inn1?.oversCompleted || 0}.{inn1?.ballsInCurrentOver || 0})</Badge>
             </div>
             <div className="flex items-center gap-3">
               <Link href={`/teams/${match?.team2Id}`} className="font-black uppercase text-[10px] text-slate-400 truncate max-w-[80px] hover:text-white">{getTeamName(match?.team2Id)}</Link>
               <span className={cn("font-black text-xl", match?.currentInningNumber === 2 ? "text-secondary" : "text-slate-500")}>{inn2?.score || 0}/{inn2?.wickets || 0}</span>
-              <Badge variant="outline" className="text-[8px] font-black border-white/10 h-4 text-slate-400">({inn2?.oversCompleted}.{inn2?.ballsInCurrentOver || 0})</Badge>
+              <Badge variant="outline" className="text-[8px] font-black border-white/10 h-4 text-slate-400">({inn2?.oversCompleted || 0}.{inn2?.ballsInCurrentOver || 0})</Badge>
             </div>
           </div>
           <div className="text-right flex flex-col items-end gap-1">
@@ -370,6 +403,8 @@ export default function MatchScoreboardPage() {
                         <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: true })}><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" /> Finish Innings</DropdownMenuItem>
                         <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: match?.currentInningNumber === 1 ? 2 : 1 })}><Rewind className="w-4 h-4 mr-2 text-amber-500" /> Switch Active Scoring</DropdownMenuItem>
                         <DropdownMenuItem className="font-bold py-3" onClick={() => recalculateInningState(`inning_${match?.currentInningNumber}`)}><RefreshCw className="w-4 h-4 mr-2" /> Force Sync Records</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem className="font-bold py-3 text-red-500" onClick={handleHardReset}><RotateCcw className="w-4 h-4 mr-2" /> Hard Reset Innings</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <Button variant="outline" onClick={() => setIsPlayerAssignmentOpen(true)} className="flex-1 h-12 border-secondary/20 text-secondary font-black uppercase text-[9px] bg-white/5"><Settings2 className="w-4 h-4 mr-2" /> Assign</Button>
@@ -412,7 +447,7 @@ export default function MatchScoreboardPage() {
                   </TableHeader>
                   <TableBody>
                     {[activeInningData?.strikerPlayerId, activeInningData?.nonStrikerPlayerId].map((pid, idx) => {
-                      if (!pid || pid === 'none') return null;
+                      if (!pid || pid === 'none' || pid === '') return null;
                       const b = (match?.currentInningNumber === 1 ? stats1 : stats2).batting.find((p: any) => p.id === pid);
                       return (
                         <TableRow key={pid} className={idx === 0 ? "bg-primary/5" : ""}>

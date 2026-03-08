@@ -19,6 +19,9 @@ export default function StatsPage() {
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: players } = useCollection(playersQuery);
 
+  const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
+  const { data: matches } = useCollection(matchesQuery);
+
   const deliveriesQuery = useMemoFirebase(() => {
     if (!isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'));
@@ -26,8 +29,11 @@ export default function StatsPage() {
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
   const records = useMemo(() => {
-    if (!players || !rawDeliveries) return null;
+    if (!players || !rawDeliveries || !matches || matches.length === 0) return null;
     
+    // Create a set of active match IDs to filter out "ghost" data from deleted matches
+    const activeMatchIds = new Set(matches.map(m => m.id));
+
     const batting: any = { 
       highestScore: { val: 0, name: '-' }, 
       most6s: { val: 0, name: '-' }, 
@@ -44,9 +50,21 @@ export default function StatsPage() {
     };
 
     const pMatchStats: Record<string, Record<string, any>> = {};
-    rawDeliveries.forEach(d => {
+    
+    // Filter deliveries to only include those belonging to existing matches
+    const validDeliveries = rawDeliveries.filter(d => {
       const matchId = d.__fullPath?.split('/')[1];
-      const sId = d.strikerPlayerId; const bId = d.bowlerId || d.bowlerPlayerId; const fId = d.fielderPlayerId;
+      return matchId && activeMatchIds.has(matchId);
+    });
+
+    if (validDeliveries.length === 0) return null;
+
+    validDeliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      const sId = d.strikerPlayerId; 
+      const bId = d.bowlerId || d.bowlerPlayerId; 
+      const fId = d.fielderPlayerId;
+      
       if (!matchId) return;
 
       const pIds = [sId, bId, fId].filter(id => id && id !== 'none');
@@ -104,7 +122,7 @@ export default function StatsPage() {
     if (bowling.bestFigures.runs === 999) bowling.bestFigures = { wkts: 0, runs: 0, name: '-' };
 
     return { batting, bowling, fielding };
-  }, [players, rawDeliveries]);
+  }, [players, rawDeliveries, matches]);
 
   if (!isMounted || isDeliveriesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
 
@@ -123,9 +141,9 @@ export default function StatsPage() {
         </h2>
         <div className="grid grid-cols-1 gap-3">
           {[
-            { label: 'Highest Match Score', val: records?.batting.highestScore.val, name: records?.batting.highestScore.name, icon: Trophy },
-            { label: 'Most Sixes (Match)', val: records?.batting.most6s.val, name: records?.batting.most6s.name, icon: Zap },
-            { label: 'Most Fours (Match)', val: records?.batting.most4s.val, name: records?.batting.most4s.name, icon: Zap },
+            { label: 'Highest Match Score', val: records?.batting.highestScore.val || 0, name: records?.batting.highestScore.name || '-', icon: Trophy },
+            { label: 'Most Sixes (Match)', val: records?.batting.most6s.val || 0, name: records?.batting.most6s.name || '-', icon: Zap },
+            { label: 'Most Fours (Match)', val: records?.batting.most4s.val || 0, name: records?.batting.most4s.name || '-', icon: Zap },
           ].map((r, i) => (
             <Card key={i} className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -145,17 +163,17 @@ export default function StatsPage() {
         <div className="grid grid-cols-1 gap-3">
           <Card className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-secondary/5 rounded-lg"><Shield className="w-4 h-4 text-secondary" /></div>
-              <div><p className="text-[10px] font-black uppercase text-slate-400">Best Figures</p><p className="font-black text-slate-900 uppercase text-xs">{records?.bowling.bestFigures.name}</p></div>
+              <div className="p-2 bg-secondary/5 rounded-xl"><Shield className="w-4 h-4 text-secondary" /></div>
+              <div><p className="text-[10px] font-black uppercase text-slate-400">Best Figures</p><p className="font-black text-slate-900 uppercase text-xs">{records?.bowling.bestFigures.name || '-'}</p></div>
             </div>
-            <Badge className="text-lg font-black bg-secondary/10 text-secondary border-none h-10 px-4">{records?.bowling.bestFigures.wkts}/{records?.bowling.bestFigures.runs}</Badge>
+            <Badge className="text-lg font-black bg-secondary/10 text-secondary border-none h-10 px-4">{records?.bowling.bestFigures.wkts || 0}/{records?.bowling.bestFigures.runs || 0}</Badge>
           </Card>
           <Card className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="p-2 bg-secondary/5 rounded-lg"><Shield className="w-4 h-4 text-secondary" /></div>
-              <div><p className="text-[10px] font-black uppercase text-slate-400">Best Economy (Min 2 Ov)</p><p className="font-black text-slate-900 uppercase text-xs">{records?.bowling.bestEcon.name}</p></div>
+              <div className="p-2 bg-secondary/5 rounded-xl"><Shield className="w-4 h-4 text-secondary" /></div>
+              <div><p className="text-[10px] font-black uppercase text-slate-400">Best Economy (Min 2 Ov)</p><p className="font-black text-slate-900 uppercase text-xs">{records?.bowling.bestEcon.name || '-'}</p></div>
             </div>
-            <Badge className="text-lg font-black bg-secondary/10 text-secondary border-none h-10 px-4">{records?.bowling.bestEcon.val === 99 ? '0.00' : records?.bowling.bestEcon.val.toFixed(2)}</Badge>
+            <Badge className="text-lg font-black bg-secondary/10 text-secondary border-none h-10 px-4">{(records?.bowling.bestEcon.val === 99 || !records) ? '0.00' : records.bowling.bestEcon.val.toFixed(2)}</Badge>
           </Card>
         </div>
       </section>
@@ -166,8 +184,8 @@ export default function StatsPage() {
         </h2>
         <div className="grid grid-cols-1 gap-3">
           {[
-            { label: 'Most Catches (Match)', val: records?.fielding.mostCatches.val, name: records?.fielding.mostCatches.name },
-            { label: 'Most Run Outs (Match)', val: records?.fielding.mostRunOuts.val, name: records?.fielding.mostRunOuts.name },
+            { label: 'Most Catches (Match)', val: records?.fielding.mostCatches.val || 0, name: records?.fielding.mostCatches.name || '-' },
+            { label: 'Most Run Outs (Match)', val: records?.fielding.mostRunOuts.val || 0, name: records?.fielding.mostRunOuts.name || '-' },
           ].map((r, i) => (
             <Card key={i} className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
