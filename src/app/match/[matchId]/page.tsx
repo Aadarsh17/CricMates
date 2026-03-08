@@ -248,7 +248,12 @@ export default function MatchScoreboardPage() {
     setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', deliveryId), dData, { merge: true });
 
     let nextS = activeInningData.strikerPlayerId, nextNS = activeInningData.nonStrikerPlayerId;
-    if (dData.totalRunsOnDelivery % 2 !== 0) [nextS, nextNS] = [nextNS, nextS];
+    
+    // Strike rotation only on runs scored by batter (odd runs)
+    // Note: penalty run from wide/noball does not rotate strike unless runs are also taken.
+    if (runs % 2 !== 0) [nextS, nextNS] = [nextNS, nextS];
+    
+    // End of over rotation (only on legal balls)
     if (newTotalLegal % 6 === 0 && isLegal) [nextS, nextNS] = [nextNS, nextS];
 
     const updates: any = { 
@@ -472,7 +477,9 @@ export default function MatchScoreboardPage() {
                       return (
                         <TableRow key={pid} className={idx === 0 ? "bg-primary/5" : ""}>
                           <TableCell className="font-black text-xs uppercase truncate max-w-[100px]">
-                            <Link href={`/players/${pid}`} className="hover:text-primary transition-colors">{getPlayerName(pid)}{idx === 0 ? '*' : ''}</Link>
+                            <Link href={`/players/${pid}`} className="hover:text-primary transition-colors">
+                              {getPlayerName(pid)}{idx === 0 ? '*' : ''}
+                            </Link>
                           </TableCell>
                           <TableCell className="text-right font-black">{b?.runs || 0}</TableCell>
                           <TableCell className="text-right text-xs font-bold text-slate-500">{b?.balls || 0}</TableCell>
@@ -698,6 +705,22 @@ export default function MatchScoreboardPage() {
               setIsWicketDialogOpen(false);
               setIsPlayerAssignmentOpen(true);
             }} disabled={!wicketForm.batterOutId} className="w-full h-16 bg-destructive text-white font-black uppercase rounded-2xl shadow-xl">Confirm Wicket</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isNoBallDialogOpen} onOpenChange={setIsNoBallDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[151]">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase tracking-tight text-xl text-amber-600">No Ball Result</DialogTitle>
+            <DialogDescription className="font-bold uppercase text-[10px]">How many runs were taken off the bat?</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-3 gap-3 py-4">
+            {[0, 1, 2, 3, 4, 6].map(r => (
+              <Button key={r} onClick={() => handleRecordBall(r, 'noball')} variant="outline" className="h-16 font-black text-2xl border-amber-200">
+                {r || '•'}
+              </Button>
+            ))}
           </div>
         </DialogContent>
       </Dialog>
