@@ -16,6 +16,7 @@ import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
 import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, UserPlus, Search, ChevronLeft, User, Award } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
 
 export default function NewMatchPage() {
   const db = useFirestore();
@@ -61,7 +62,7 @@ export default function NewMatchPage() {
 
   const handleQuickRegister = () => {
     if (!user || !quickRegName.trim()) return;
-    const pid = doc(collection(db, 'players')).id;
+    const pid = doc(collection(db, 'temp')).id;
     const targetTeamId = quickRegTarget === 'team1' ? setup.team1Id : setup.team2Id;
     const pData = { id: pid, name: quickRegName, teamId: targetTeamId, ownerId: user.uid, role: 'All-rounder', battingStyle: 'Right Handed Bat', isWicketKeeper: false, isRetired: false, matchesPlayed: 0, runsScored: 0, wicketsTaken: 0, highestScore: 0, bestBowlingFigures: '0/0', careerCVP: 0 };
     setDocumentNonBlocking(doc(db, 'players', pid), pData, { merge: true });
@@ -98,7 +99,7 @@ export default function NewMatchPage() {
     const batId = setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Id : setup.team2Id) : (setup.tossDecision === 'bat' ? setup.team2Id : setup.team1Id);
     const bowlId = batId === setup.team1Id ? setup.team2Id : setup.team1Id;
 
-    const iData = { id: 'inning_1', matchId: mid, inningNumber: 1, battingTeamId: batId, bowlingTeamId: bowlId, score: 0, wickets: 0, oversCompleted: 0, ballsInCurrentOver: 0, strikerPlayerId: setup.strikerId, nonStrikerPlayerId: setup.nonStrikerId, currentBowlerPlayerId: setup.bowlerId };
+    const iData = { id: 'inning_1', battingTeamId: batId, score: 0, wickets: 0, oversCompleted: 0, ballsInCurrentOver: 0, strikerPlayerId: setup.strikerId, nonStrikerPlayerId: setup.nonStrikerId, currentBowlerPlayerId: setup.bowlerId, isDeclaredFinished: false };
     setDocumentNonBlocking(doc(db, 'matches', mid, 'innings', 'inning_1'), iData, { merge: true });
     
     router.push(`/match/${mid}`);
