@@ -249,11 +249,7 @@ export default function MatchScoreboardPage() {
 
     let nextS = activeInningData.strikerPlayerId, nextNS = activeInningData.nonStrikerPlayerId;
     
-    // Strike rotation only on runs scored by batter (odd runs)
-    // Note: penalty run from wide/noball does not rotate strike unless runs are also taken.
     if (runs % 2 !== 0) [nextS, nextNS] = [nextNS, nextS];
-    
-    // End of over rotation (only on legal balls)
     if (newTotalLegal % 6 === 0 && isLegal) [nextS, nextNS] = [nextNS, nextS];
 
     const updates: any = { 
@@ -288,7 +284,7 @@ export default function MatchScoreboardPage() {
   };
 
   const InningScorecard = ({ stats, teamId }: { stats: any, teamId: string }) => (
-    <div className="space-y-4 pb-10">
+    <div className="space-y-6 pb-10">
       <Card className="border-none shadow-xl overflow-hidden rounded-2xl bg-white">
         <div className="p-4 bg-[#009688] text-white flex justify-between items-center">
           <span className="font-black uppercase tracking-tight text-sm">{getTeamName(teamId)}</span>
@@ -344,6 +340,59 @@ export default function MatchScoreboardPage() {
           </div>
         )}
       </Card>
+
+      <Card className="border-none shadow-xl overflow-hidden rounded-2xl bg-white">
+        <div className="p-3 bg-slate-900 text-white font-black uppercase text-[10px] tracking-widest">Bowling Analysis</div>
+        <Table>
+          <TableHeader className="bg-slate-50">
+            <TableRow>
+              <TableHead className="text-[10px] font-black uppercase">Bowler</TableHead>
+              <TableHead className="text-right text-[10px] font-black uppercase">O</TableHead>
+              <TableHead className="text-right text-[10px] font-black uppercase">M</TableHead>
+              <TableHead className="text-right text-[10px] font-black uppercase">R</TableHead>
+              <TableHead className="text-right text-[10px] font-black uppercase">W</TableHead>
+              <TableHead className="text-right text-[10px] font-black uppercase">ER</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {stats.bowling.map((b: any) => (
+              <TableRow key={b.id}>
+                <TableCell className="font-black text-xs uppercase">{getPlayerName(b.id)}</TableCell>
+                <TableCell className="text-right text-xs">{b.oversDisplay}</TableCell>
+                <TableCell className="text-right text-xs">{b.maidens || 0}</TableCell>
+                <TableCell className="text-right text-xs">{b.runs}</TableCell>
+                <TableCell className="text-right font-black text-secondary">{b.wickets}</TableCell>
+                <TableCell className="text-right text-[10px] text-slate-400 font-bold">{b.economy}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="border-none shadow-lg rounded-2xl bg-white p-4">
+          <h4 className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Fall of Wickets</h4>
+          <div className="space-y-2">
+            {stats.fow.map((f: any) => (
+              <div key={f.wicketNum} className="flex justify-between text-[10px] font-bold border-b pb-1">
+                <span className="text-slate-900">{f.wicketNum}-{f.scoreAtWicket} <span className="text-slate-400 font-normal">({getPlayerName(f.playerOutId)})</span></span>
+                <span className="text-slate-400">{f.over} ov</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card className="border-none shadow-lg rounded-2xl bg-white p-4">
+          <h4 className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest">Key Partnerships</h4>
+          <div className="space-y-2">
+            {stats.partnerships.map((p: any, i: number) => (
+              <div key={i} className="flex justify-between text-[10px] font-bold border-b pb-1">
+                <span className="text-slate-900 truncate max-w-[150px]">{p.batters.map((id: string) => getPlayerName(id).split(' ')[0]).join(' - ')}</span>
+                <span className="text-primary">{p.runs} <span className="text-[8px] opacity-50">Runs</span></span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
     </div>
   );
 
@@ -631,7 +680,7 @@ export default function MatchScoreboardPage() {
               <Select value={assignmentForm.bowlerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, bowlerId: v})}>
                 <SelectTrigger className="h-14 font-black"><SelectValue placeholder="Pick Bowler" /></SelectTrigger>
                 <SelectContent className="z-[200]">
-                  {allPlayers?.filter(p => (match?.team1Id === activeInningData?.bowlingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team2SquadPlayerIds : match?.team1SquadPlayerIds)?.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
