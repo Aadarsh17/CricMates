@@ -126,19 +126,24 @@ export default function MatchScoreboardPage() {
 
     deliveriesList.forEach((d, idx) => {
       score += (d.totalRunsOnDelivery || 0);
-      if (d.isWicket && d.dismissalType !== 'retired') wkts++;
+      const isRetirement = d.dismissalType === 'retired';
+      if (d.isWicket && !isRetirement) wkts++;
       if (d.extraType === 'none') legal++;
 
+      // Professional Crease Sync
       if (idx === deliveriesList.length - 1) {
         sId = d.strikerPlayerId;
         nsId = d.nonStrikerPlayerId;
         const runs = d.runsScored || 0;
         const isLegal = d.extraType === 'none';
+        
         if (runs % 2 !== 0) [sId, nsId] = [nsId, sId];
         if (legal % 6 === 0 && isLegal) [sId, nsId] = [nsId, sId];
-        if (d.isWicket && d.dismissalType !== 'retired') {
-          if (d.batsmanOutPlayerId === sId) sId = '';
-          else if (d.batsmanOutPlayerId === nsId) nsId = '';
+        
+        if (d.isWicket) {
+          const outPid = d.batsmanOutPlayerId || d.strikerPlayerId;
+          if (outPid === sId) sId = '';
+          else if (outPid === nsId) nsId = '';
         }
       }
     });
@@ -226,35 +231,42 @@ export default function MatchScoreboardPage() {
     toast({ title: correctionForm.id ? "Delivery Updated" : "Delivery Inserted" });
   };
 
+  const currentPermanentlyOutIds = useMemo(() => {
+    const stats = match?.currentInningNumber === 1 ? stats1 : stats2;
+    return stats.batting
+      .filter(b => b.out && !b.dismissal.toLowerCase().includes('retired'))
+      .map(b => b.id);
+  }, [match?.currentInningNumber, stats1, stats2]);
+
   if (!isMounted || isMatchLoading) return <div className="flex flex-col items-center justify-center min-h-screen"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
   return (
     <div className="space-y-6 max-w-lg mx-auto pb-32 relative px-1">
-      <div className="fixed top-16 left-0 right-0 z-[90] bg-white text-slate-950 shadow-xl px-6 py-4 border-b-2 border-slate-200">
+      <div className="fixed top-16 left-0 right-0 z-[90] bg-white text-slate-950 shadow-2xl px-6 py-4 border-b-4 border-slate-300">
         <div className="max-w-lg mx-auto flex items-center justify-between gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="text-slate-950 hover:bg-slate-100 h-8 w-8 shrink-0"><ChevronLeft className="w-5 h-5" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="text-slate-950 hover:bg-slate-100 h-8 w-8 shrink-0"><ChevronLeft className="w-6 h-6" /></Button>
           <div className="space-y-1 flex-1">
             <div className="flex items-center gap-3">
-              <Link href={`/teams/${match?.team1Id}`} className="font-black uppercase text-[10px] text-slate-600 truncate max-w-[80px] hover:text-slate-900">{getTeamName(match?.team1Id)}</Link>
+              <Link href={`/teams/${match?.team1Id}`} className="font-black uppercase text-[11px] text-slate-700 truncate max-w-[90px] hover:text-slate-900 tracking-tight">{getTeamName(match?.team1Id)}</Link>
               <span className="font-black text-2xl leading-none text-slate-950">{inn1?.score || 0}/{inn1?.wickets || 0}</span>
-              <Badge variant="outline" className="text-[10px] font-black border-slate-300 h-5 text-slate-950 bg-slate-100">({inn1?.oversCompleted || 0}.{inn1?.ballsInCurrentOver || 0})</Badge>
+              <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({inn1?.oversCompleted || 0}.{inn1?.ballsInCurrentOver || 0})</Badge>
             </div>
             <div className="flex items-center gap-3">
-              <Link href={`/teams/${match?.team2Id}`} className="font-black uppercase text-[10px] text-slate-600 truncate max-w-[80px] hover:text-slate-900">{getTeamName(match?.team2Id)}</Link>
+              <Link href={`/teams/${match?.team2Id}`} className="font-black uppercase text-[11px] text-slate-700 truncate max-w-[90px] hover:text-slate-900 tracking-tight">{getTeamName(match?.team2Id)}</Link>
               <span className="font-black text-2xl leading-none text-slate-950">{inn2?.score || 0}/{inn2?.wickets || 0}</span>
-              <Badge variant="outline" className="text-[10px] font-black border-slate-300 h-5 text-slate-950 bg-slate-100">({inn2?.oversCompleted || 0}.{inn2?.ballsInCurrentOver || 0})</Badge>
+              <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({inn2?.oversCompleted || 0}.{inn2?.ballsInCurrentOver || 0})</Badge>
             </div>
           </div>
           <div className="text-right flex flex-col items-end gap-1">
-            {match?.status === 'live' && <Badge variant="destructive" className="animate-pulse text-[10px] h-5 font-black uppercase px-3 shadow-sm border-2 border-white">LIVE</Badge>}
-            <p className="text-[10px] font-black text-primary uppercase tracking-widest">{match?.currentInningNumber === 1 ? "1st Inn" : "2nd Inn"}</p>
+            {match?.status === 'live' && <Badge variant="destructive" className="animate-pulse text-[10px] h-6 font-black uppercase px-3 shadow-md border-2 border-white ring-2 ring-destructive/20">LIVE</Badge>}
+            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">{match?.currentInningNumber === 1 ? "1st INN" : "2nd INN"}</p>
           </div>
         </div>
       </div>
 
-      <div className="pt-28">
+      <div className="pt-32">
         <Tabs defaultValue="live" className="w-full">
-          <TabsList className="grid w-full grid-cols-5 h-12 bg-slate-100 p-1 rounded-xl mb-6 sticky top-[112px] z-[80] shadow-sm">
+          <TabsList className="grid w-full grid-cols-5 h-12 bg-slate-100 p-1 rounded-xl mb-6 sticky top-[120px] z-[80] shadow-sm">
             <TabsTrigger value="live" className="font-black text-[9px] uppercase">Live</TabsTrigger>
             <TabsTrigger value="scorecard" className="font-black text-[9px] uppercase">Score</TabsTrigger>
             <TabsTrigger value="analysis" className="font-black text-[9px] uppercase">Analysis</TabsTrigger>
@@ -286,16 +298,16 @@ export default function MatchScoreboardPage() {
                       <Button key={r} disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(r)} className={cn("h-14 font-black text-2xl rounded-2xl", r >= 4 ? "bg-primary text-white" : "bg-white/5 text-white")}>{r || '•'}</Button>
                     ))}
                     <Button onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { strikerPlayerId: activeInningData?.nonStrikerPlayerId || '', nonStrikerPlayerId: activeInningData?.strikerPlayerId || '' })} className="bg-secondary text-white h-14 font-black rounded-2xl"><ArrowLeftRight className="w-5 h-5"/></Button>
-                    <Button variant="outline" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || '', fielderId: 'none'}); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px]">Wicket</Button>
+                    <Button variant="outline" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || '', fielderId: 'none'}); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px] bg-white/5">Wicket</Button>
                   </div>
                   <div className="grid grid-cols-3 gap-3">
-                    <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px]">Wide</Button>
-                    <Button variant="outline" onClick={() => setIsNoBallDialogOpen(true)} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px]">No Ball</Button>
+                    <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px] bg-white/5">Wide</Button>
+                    <Button variant="outline" onClick={() => setIsNoBallDialogOpen(true)} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px] bg-white/5">No Ball</Button>
                     <Button variant="outline" onClick={async () => { 
                       const currId = `inning_${match?.currentInningNumber}`;
                       const snap = await getDocs(query(collection(db, 'matches', matchId, 'innings', currId, 'deliveryRecords'), orderBy('timestamp', 'desc'), limit(1)));
                       if(!snap.empty) { await deleteDoc(snap.docs[0].ref); recalculateInningState(currId); }
-                    }} className="h-12 border-white/10 text-slate-400 uppercase font-black text-[9px]">Undo</Button>
+                    }} className="h-12 border-white/10 text-slate-400 uppercase font-black text-[9px] bg-white/5">Undo</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -540,7 +552,12 @@ export default function MatchScoreboardPage() {
               <Select value={assignmentForm.strikerId || ''} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
                 <SelectTrigger className="h-14 font-black"><SelectValue placeholder="Pick Striker" /></SelectTrigger>
                 <SelectContent className="z-[200]">
-                  {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.nonStrikerId && p.id !== activeInningData?.currentBowlerPlayerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  {allPlayers?.filter(p => 
+                    (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && 
+                    p.id !== assignmentForm.nonStrikerId && 
+                    p.id !== activeInningData?.currentBowlerPlayerId &&
+                    !currentPermanentlyOutIds.includes(p.id)
+                  ).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -549,7 +566,12 @@ export default function MatchScoreboardPage() {
               <Select value={assignmentForm.nonStrikerId || ''} onValueChange={(v) => setAssignmentForm({...assignmentForm, nonStrikerId: v})}>
                 <SelectTrigger className="h-14 font-black"><SelectValue placeholder="Pick Non-Striker" /></SelectTrigger>
                 <SelectContent className="z-[200]">
-                  {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.strikerId && p.id !== activeInningData?.currentBowlerPlayerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  {allPlayers?.filter(p => 
+                    (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && 
+                    p.id !== assignmentForm.strikerId && 
+                    p.id !== activeInningData?.currentBowlerPlayerId &&
+                    !currentPermanentlyOutIds.includes(p.id)
+                  ).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
