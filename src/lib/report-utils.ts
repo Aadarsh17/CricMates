@@ -89,7 +89,14 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       const outPid = d.batsmanOutPlayerId || sId;
       if (bat[outPid]) {
         bat[outPid].out = true;
-        bat[outPid].dismissal = d.dismissalType || 'out';
+        // Format dismissal with fielder if available
+        let discStr = d.dismissalType || 'out';
+        if (d.fielderPlayerId && d.fielderPlayerId !== 'none') {
+          if (discStr === 'caught') discStr = `c Fielder b Bowler`; // Placeholders for final mapper
+          else if (discStr === 'runout') discStr = `run out (Fielder)`;
+          else if (discStr === 'stumped') discStr = `st Fielder b Bowler`;
+        }
+        bat[outPid].dismissal = discStr;
       }
       
       const overLabel = `${Math.floor(legalBalls / 6)}.${legalBalls % 6}`;
@@ -103,7 +110,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     if (bId) {
       if (!bowl[bId]) bowl[bId] = { id: bId, balls: 0, runs: 0, wickets: 0, maidens: 0 };
       bowl[bId].runs += (d.totalRunsOnDelivery || 0);
-      if (d.isWicket && !['runout', 'retired', '3-Dots Streak'].includes(d.dismissalType || '')) {
+      if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
         bowl[bId].wickets += 1;
       }
       if (isLegal) bowl[bId].balls += 1;
@@ -168,19 +175,25 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
             </tr>
           </thead>
           <tbody>
-            ${stats.batting.map((b: any) => `
-              <tr>
-                <td>
-                  <div class="player-name-cell">${playerNames[b.id] || 'Unknown'}</div>
-                  <div class="dismissal-sub">(${b.out ? b.dismissal : 'NOT OUT'})</div>
-                </td>
-                <td class="text-right bold">${b.runs}</td>
-                <td class="text-right dim">${b.balls}</td>
-                <td class="text-right dim">${b.fours}</td>
-                <td class="text-right dim">${b.sixes}</td>
-                <td class="text-right dim">${b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</td>
-              </tr>
-            `).join('')}
+            ${stats.batting.map((b: any) => {
+              let dismissalStr = b.out ? b.dismissal : 'NOT OUT';
+              // Perform dynamic name injection if placeholders exist
+              dismissalStr = dismissalStr.replace('Fielder', playerNames[b.fielderId] || 'Fielder');
+              
+              return `
+                <tr>
+                  <td>
+                    <div class="player-name-cell">${playerNames[b.id] || 'Unknown'}</div>
+                    <div class="dismissal-sub">(${dismissalStr})</div>
+                  </td>
+                  <td class="text-right bold">${b.runs}</td>
+                  <td class="text-right dim">${b.balls}</td>
+                  <td class="text-right dim">${b.fours}</td>
+                  <td class="text-right dim">${b.sixes}</td>
+                  <td class="text-right dim">${b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</td>
+                </tr>
+              `;
+            }).join('')}
             <tr class="summary-row-item">
               <td class="bold uppercase" style="font-size: 10px;">EXTRAS</td>
               <td colspan="5" class="text-right dim" style="font-size: 10px;">
