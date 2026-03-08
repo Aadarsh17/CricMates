@@ -563,7 +563,7 @@ export default function MatchScoreboardPage() {
                       <TableHead className="text-right text-[9px] font-black uppercase">ER</TableHead>
                     </TableRow>
                   </TableHeader>
-                  <TableBody>{activeInningData?.currentBowlerPlayerId && (
+                  <TableBody>{activeInningData?.currentBowlerPlayerId ? (
                     <TableRow className="bg-secondary/5">
                       <TableCell className="font-black text-xs uppercase truncate max-w-[100px]">
                         <Link href={`/players/${activeInningData.currentBowlerPlayerId}`} className="hover:text-secondary transition-colors">
@@ -586,7 +586,7 @@ export default function MatchScoreboardPage() {
                         {(match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(b => b.id === activeInningData.currentBowlerPlayerId)?.economy || '0.00'}
                       </TableCell>
                     </TableRow>
-                  )}</TableBody>
+                  ) : null}</TableBody>
                 </Table>
               </Card>
 
