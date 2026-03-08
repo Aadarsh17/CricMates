@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, Info, TrendingUp, Trash2, ChevronLeft, Calendar, Clock, UserCheck, ShieldCheck, List, CheckCircle2, MoreVertical, UserPlus, AlertCircle, Settings2, Rewind, RotateCcw, Download, Share2, Check, ChevronRight } from 'lucide-react';
+import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, Info, TrendingUp, Trash2, ChevronLeft, Calendar, Clock, UserCheck, ShieldCheck, List, CheckCircle2, MoreVertical, UserPlus, AlertCircle, Settings2, Rewind, RotateCcw, Download, Share2, Check, ChevronRight, Unlock } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -504,9 +504,19 @@ export default function MatchScoreboardPage() {
                 </CardContent>
               </Card>
             ) : isUmpire && match?.status === 'live' && (
-              <Button onClick={handleEndInnings} className="w-full h-20 bg-emerald-600 text-white font-black text-xl uppercase rounded-3xl shadow-2xl">
-                {match?.currentInningNumber === 1 ? "Finish 1st Innings" : "Finish Match"}
-              </Button>
+              <div className="space-y-4">
+                <Button onClick={handleEndInnings} className="w-full h-20 bg-emerald-600 text-white font-black text-xl uppercase rounded-3xl shadow-2xl">
+                  {match?.currentInningNumber === 1 ? "Finish 1st Innings" : "Finish Match"}
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: false })} className="flex-1 h-12 border-amber-500/20 text-amber-600 font-black uppercase text-[9px] bg-amber-50">
+                    <Unlock className="w-4 h-4 mr-2" /> Re-open Inning for Corrections
+                  </Button>
+                  <Button variant="outline" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: match?.currentInningNumber === 1 ? 2 : 1 })} className="flex-1 h-12 border-primary/20 text-primary font-black uppercase text-[9px] bg-primary/5">
+                    <Rewind className="w-4 h-4 mr-2" /> Switch Active Inning
+                  </Button>
+                </div>
+              </div>
             )}
 
             <div className="space-y-6">
@@ -707,7 +717,7 @@ export default function MatchScoreboardPage() {
               </TabsContent>
               <TabsContent value="other" className="space-y-2">
                 {(match?.currentInningNumber === 1 ? inn2Deliveries : inn1Deliveries)?.slice().reverse().map((d) => (
-                  <Card key={d.id} className="border-none shadow-sm bg-white p-2 flex items-center justify-between rounded-xl opacity-80">
+                  <Card key={d.id} className="border-none shadow-sm bg-white p-2 flex items-center justify-between rounded-xl group">
                     <div className="flex items-center gap-3">
                       <div className={cn("w-8 h-8 rounded-full flex items-center justify-center font-black text-[10px] border", d.isWicket ? "bg-red-500 text-white border-red-600" : "bg-slate-50 text-slate-900 border-slate-100")}>
                         {d.isWicket ? "W" : d.totalRunsOnDelivery}
@@ -719,6 +729,15 @@ export default function MatchScoreboardPage() {
                         </p>
                       </div>
                     </div>
+                    {isUmpire && (
+                      <Button variant="ghost" size="icon" onClick={() => { 
+                        const otherInnId = `inning_${match?.currentInningNumber === 1 ? 2 : 1}`;
+                        if(confirm("Delete delivery from previous inning? Score will recalculate.")) { 
+                          deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', otherInnId, 'deliveryRecords', d.id)); 
+                          recalculateInningState(otherInnId); 
+                        } 
+                      }} className="h-7 w-7 text-slate-200 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-3 h-3" /></Button>
+                    )}
                   </Card>
                 ))}
               </TabsContent>
