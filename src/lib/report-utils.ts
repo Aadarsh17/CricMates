@@ -29,22 +29,24 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
   
   // Partnership tracking variables
   const partnerships: any[] = [];
-  let currentPartnership = {
+  let currentPartnership: any = {
     batters: [] as string[],
     runs: 0,
     balls: 0,
     contributions: {} as Record<string, number>,
-    extras: 0
+    isUnbroken: true
   };
 
   deliveries.forEach((d) => {
     const sId = d.strikerPlayerId;
     const bId = d.bowlerId || d.bowlerPlayerId;
+    const nsId = d.nonStrikerPlayerId;
     
     if (!sId) return;
 
     // Track batting order
     if (!battingOrder.includes(sId)) battingOrder.push(sId);
+    if (nsId && !battingOrder.includes(nsId)) battingOrder.push(nsId);
 
     // Initialize batter stats
     if (!bat[sId]) {
@@ -71,26 +73,17 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     if (isLegal) legalBalls += 1;
 
     // Partnership Logic
-    // If it's a new pair or first pair
-    const nsId = d.nonStrikerPlayerId;
     const currentPair = [sId, nsId].filter(Boolean).sort();
-    
     if (currentPartnership.batters.length === 0) {
       currentPartnership.batters = currentPair;
-    } else if (JSON.stringify(currentPartnership.batters) !== JSON.stringify(currentPair)) {
-      // Wicket happened or retirement happened in previous ball
-      // (This usually triggers on the next ball after a wicket)
     }
 
     currentPartnership.runs += (d.totalRunsOnDelivery || 0);
     if (d.extraType !== 'wide') currentPartnership.balls += 1;
     
-    // Track individual contribution in current partnership
     if (!currentPartnership.contributions[sId]) currentPartnership.contributions[sId] = 0;
     if (d.extraType !== 'wide') {
       currentPartnership.contributions[sId] += (d.runsScored || 0);
-    } else {
-      currentPartnership.extras += (d.totalRunsOnDelivery || 1);
     }
 
     if (d.isWicket) {
@@ -105,14 +98,14 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       fow.push({ wicketNum: currentWickets, scoreAtWicket: currentScore, playerOutId: outPid, over: overLabel, runsOut: bat[outPid].runs });
       
       // Close partnership
-      partnerships.push({ ...currentPartnership });
-      // Reset for next
+      partnerships.push({ ...currentPartnership, isUnbroken: false });
+      // Reset for next stand
       currentPartnership = {
-        batters: [], // Will be set on next ball
+        batters: [],
         runs: 0,
         balls: 0,
         contributions: {},
-        extras: 0
+        isUnbroken: true
       };
     }
 
@@ -127,15 +120,13 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     }
   });
 
-  // Final partnership for not-out batters
   if (currentPartnership.runs > 0 || currentPartnership.balls > 0) {
-    partnerships.push({ ...currentPartnership, isUnbroken: true });
+    partnerships.push(currentPartnership);
   }
 
   extras.total = extras.w + extras.nb + extras.b + extras.lb;
   const oversCompleted = Math.floor(legalBalls / 6);
   const ballsInOver = legalBalls % 6;
-  const oversDisplay = `${oversCompleted}.${ballsInOver}`;
   const totalOversDec = oversCompleted + (ballsInOver / 6);
   const rr = totalOversDec > 0 ? (currentScore / totalOversDec).toFixed(2) : '0.00';
 
@@ -153,7 +144,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     extras,
     total: currentScore,
     wickets: currentWickets,
-    overs: oversDisplay,
+    overs: `${oversCompleted}.${ballsInOver}`,
     rr,
     didNotBat
   };
@@ -162,10 +153,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
 export const generateMatchReport = (match: any, teamNames: Record<string, string>, playerNames: Record<string, string>, inn1: any, inn2: any, stats1: any, stats2: any) => {
   const dateStr = new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const formatStr = `${match.totalOvers} OV MATCH`;
-
-  // Find Player of the Match if available
   const potmName = playerNames[match.potmPlayerId] || 'TBD';
-  const potmPoints = match.potmCvpScore ? `${match.potmCvpScore.toFixed(1)} CVP` : '';
 
   const renderInning = (innNum: number, teamId: string, stats: any) => {
     const title = `${innNum}${innNum === 1 ? 'ST' : '2ND'} INN: ${teamNames[teamId] || 'TEAM'}`;
@@ -178,10 +166,10 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
           <span class="inning-score-top">${scoreText}</span>
         </div>
         
-        <table>
+        <table class="batting-table">
           <thead>
             <tr>
-              <th style="width: 40%">BATTER</th>
+              <th style="width: 45%">BATTER</th>
               <th class="text-right">R</th>
               <th class="text-right">B</th>
               <th class="text-right">4S</th>
@@ -203,22 +191,40 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
                 <td class="text-right dim">${b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</td>
               </tr>
             `).join('')}
+            <tr class="summary-row-item">
+              <td class="bold uppercase" style="font-size: 10px;">EXTRAS</td>
+              <td colspan="5" class="text-right dim" style="font-size: 10px;">
+                ${stats.extras.total} (b ${stats.extras.b}, lb ${stats.extras.lb}, w ${stats.extras.w}, nb ${stats.extras.nb})
+              </td>
+            </tr>
+            <tr class="summary-row-item highlight-row">
+              <td class="bold uppercase" style="font-size: 11px;">TOTAL</td>
+              <td colspan="5" class="text-right bold" style="font-size: 11px;">
+                ${stats.total}/${stats.wickets} (${stats.overs} Overs, RR: ${stats.rr})
+              </td>
+            </tr>
           </tbody>
         </table>
 
-        <div class="stats-row">
-          <div class="fow-column">
+        ${stats.didNotBat.length > 0 ? `
+          <div class="dnb-section">
+            <span class="dnb-label">DID NOT BAT:</span>
+            <span class="dnb-players">${stats.didNotBat.map((id: string) => playerNames[id]).join(', ')}</span>
+          </div>
+        ` : ''}
+
+        <div class="stats-grid">
+          <div class="stats-col">
             <div class="sub-section-title">FALL OF WICKETS</div>
-            <div class="fow-content">
-              ${stats.fow.map((f: any) => `
-                <span class="fow-item"><strong>${f.wicketNum}-${f.scoreAtWicket}</strong> (${playerNames[f.playerOutId]} ${f.runsOut}, ${f.over})</span>
-              `).join(' ')}
-              ${stats.fow.length === 0 ? '<span class="dim">NO WICKETS FELL</span>' : ''}
+            <div class="fow-container">
+              ${stats.fow.length > 0 ? stats.fow.map((f: any) => `
+                <div class="fow-entry"><strong>${f.wicketNum}-${f.scoreAtWicket}</strong> (${playerNames[f.playerOutId].split(' ')[0]} ${f.runsOut}, ${f.over} ov)</div>
+              `).join('') : '<div class="dim">NO WICKETS FELL</div>'}
             </div>
           </div>
-          <div class="partnership-column">
+          <div class="stats-col">
             <div class="sub-section-title">PARTNERSHIPS</div>
-            <table class="nested-table">
+            <table class="partnership-table">
               <thead>
                 <tr>
                   <th>PARTNERS</th>
@@ -260,7 +266,7 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
           <tbody>
             ${stats.bowling.map((b: any) => `
               <tr>
-                <td class="bold">${playerNames[b.id] || 'Unknown'}</td>
+                <td class="bold uppercase">${playerNames[b.id] || 'Unknown'}</td>
                 <td class="text-right dim">${b.oversDisplay}</td>
                 <td class="text-right dim">${b.maidens || 0}</td>
                 <td class="text-right bold">${b.runs}</td>
@@ -279,56 +285,60 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
     <head>
       <title>Official Scorecard - ${teamNames[match.team1Id]} vs ${teamNames[match.team2Id]}</title>
       <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
-        body { font-family: 'Inter', sans-serif; padding: 20px; color: #1e293b; background: #fff; line-height: 1.3; }
-        .container { max-width: 800px; margin: auto; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; padding: 30px; color: #1e293b; background: #fff; line-height: 1.2; }
+        .container { max-width: 850px; margin: auto; border: 1px solid #e2e8f0; padding: 40px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); border-radius: 8px; }
         
-        .main-header { text-align: center; border-bottom: 4px solid #3f51b5; padding-bottom: 10px; margin-bottom: 5px; }
-        .main-header h1 { margin: 0; color: #3f51b5; font-size: 22px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
-        .main-header p { margin: 2px 0; font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; }
+        .main-header { text-align: center; margin-bottom: 20px; }
+        .main-header h1 { margin: 0; color: #3f51b5; font-size: 26px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
+        .main-header p { margin: 5px 0; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; }
 
-        .potm-banner { background: #f59e0b; color: #fff; padding: 8px; text-align: center; font-weight: 900; text-transform: uppercase; font-size: 14px; margin-bottom: 15px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .potm-icon { margin-right: 8px; }
+        .potm-banner { background: #f59e0b; color: #fff; padding: 10px; text-align: center; font-weight: 900; text-transform: uppercase; font-size: 14px; margin-bottom: 25px; border-radius: 6px; }
 
-        .summary-row { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #e2e8f0; margin-bottom: 10px; }
-        .summary-team { flex: 1; text-align: center; }
-        .summary-team-name { font-weight: 900; font-size: 14px; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
-        .summary-score { font-weight: 900; font-size: 24px; color: #3f51b5; }
-        .summary-overs { font-size: 10px; color: #94a3b8; font-weight: 700; }
-        .summary-vs { font-weight: 900; color: #cbd5e1; padding: 0 20px; }
+        .summary-grid { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; margin-bottom: 10px; }
+        .team-box { flex: 1; text-align: center; }
+        .team-name { font-weight: 900; font-size: 16px; color: #64748b; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 1px; }
+        .team-score { font-weight: 900; font-size: 32px; color: #3f51b5; line-height: 1; }
+        .team-ov { font-size: 12px; color: #94a3b8; font-weight: 700; margin-top: 4px; }
+        .vs-divider { font-weight: 900; color: #cbd5e1; padding: 0 30px; font-size: 18px; }
 
-        .result-statement { text-align: center; font-weight: 900; font-size: 18px; color: #3f51b5; text-transform: uppercase; padding: 10px 0; }
+        .result-text { text-align: center; font-weight: 900; font-size: 20px; color: #3f51b5; text-transform: uppercase; padding: 15px 0; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; margin-bottom: 30px; }
 
-        .inning-section { margin-bottom: 30px; }
-        .inning-header { background: #3f51b5; color: white; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-weight: 900; font-size: 13px; text-transform: uppercase; }
+        .inning-section { margin-bottom: 40px; }
+        .inning-header { background: #3f51b5; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-weight: 900; font-size: 14px; text-transform: uppercase; border-radius: 4px 4px 0 0; }
         
-        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-        th { text-align: left; padding: 8px; font-size: 10px; color: #64748b; border-bottom: 1px solid #e2e8f0; font-weight: 800; text-transform: uppercase; }
-        td { padding: 8px; border-bottom: 1px solid #f1f5f9; font-size: 12px; vertical-align: top; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+        th { text-align: left; padding: 10px; font-size: 10px; color: #64748b; border-bottom: 2px solid #e2e8f0; font-weight: 800; text-transform: uppercase; }
+        td { padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
         
-        .player-name-cell { font-weight: 800; text-transform: uppercase; color: #1e293b; }
+        .player-name-cell { font-weight: 800; text-transform: uppercase; color: #1e293b; font-size: 12px; }
         .dismissal-sub { font-size: 9px; font-weight: 700; font-style: italic; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
         
         .text-right { text-align: right; }
         .bold { font-weight: 900; }
-        .dim { color: #94a3b8; font-weight: 600; }
+        .dim { color: #94a3b8; font-weight: 700; }
         .highlight-blue { color: #3f51b5; }
+        .summary-row-item td { background: #f8fafc; padding: 8px 10px; }
+        .highlight-row td { background: #f1f5f9; color: #3f51b5; }
 
-        .stats-row { display: flex; gap: 15px; margin-top: 10px; }
-        .fow-column { flex: 1; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px; }
-        .partnership-column { flex: 1.2; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px; }
+        .dnb-section { padding: 10px 15px; background: #fff; border: 1px solid #f1f5f9; margin-bottom: 20px; font-size: 11px; }
+        .dnb-label { font-weight: 900; color: #94a3b8; margin-right: 8px; }
+        .dnb-players { font-weight: 700; color: #64748b; text-transform: uppercase; }
+
+        .stats-grid { display: flex; gap: 20px; margin-top: 15px; }
+        .stats-col { flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; background: #fff; }
         
-        .sub-section-title { font-weight: 900; font-size: 10px; color: #64748b; text-transform: uppercase; margin-bottom: 8px; }
-        .fow-content { font-size: 11px; line-height: 1.6; }
-        .fow-item { margin-right: 10px; }
+        .sub-section-title { font-weight: 900; font-size: 11px; color: #64748b; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 1px; }
+        .fow-entry { font-size: 11px; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dashed #f1f5f9; color: #475569; }
+        .fow-entry strong { color: #1e293b; }
 
-        .nested-table th { background: #f8fafc; padding: 4px 8px; border: none; }
-        .nested-table td { padding: 4px 8px; border: none; font-size: 11px; }
+        .partnership-table th { background: #f8fafc; padding: 6px 10px; }
+        .partnership-table td { padding: 8px 10px; font-size: 11px; border: none; }
 
-        .bowling-table { margin-top: 5px; }
-        .bowling-table th { background: #f8fafc; border-top: 1px solid #e2e8f0; }
+        .bowling-table th { background: #f8fafc; }
+        .bowling-table td { font-size: 12px; }
 
-        .footer { text-align: center; margin-top: 30px; font-size: 9px; color: #cbd5e1; font-weight: 800; text-transform: uppercase; border-top: 1px solid #f1f5f9; padding-top: 10px; letter-spacing: 1px; }
+        .footer { text-align: center; margin-top: 40px; font-size: 10px; color: #cbd5e1; font-weight: 800; text-transform: uppercase; border-top: 1px solid #f1f5f9; padding-top: 15px; letter-spacing: 2px; }
       </style>
     </head>
     <body>
@@ -339,26 +349,26 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
         </div>
 
         <div class="potm-banner">
-          <span class="potm-icon">🏆</span> PLAYER OF THE MATCH: ${potmName} ${potmPoints ? '(' + potmPoints + ')' : ''}
+          🏆 PLAYER OF THE MATCH: ${potmName}
         </div>
 
-        <div class="summary-row">
-          <div class="summary-team">
-            <div class="summary-team-name">${teamNames[match.team1Id]}</div>
-            <div class="summary-score">${stats1.total}/${stats1.wickets}</div>
-            <div class="summary-overs">${stats1.overs} OV</div>
+        <div class="summary-grid">
+          <div class="team-box">
+            <div class="team-name">${teamNames[match.team1Id]}</div>
+            <div class="team-score">${stats1.total}/${stats1.wickets}</div>
+            <div class="team-ov">${stats1.overs} OV</div>
           </div>
-          <div class="summary-vs">VS</div>
-          <div class="summary-team">
-            <div class="summary-team-name">${teamNames[match.team2Id]}</div>
-            <div class="summary-score">${stats2.total}/${stats2.wickets}</div>
-            <div class="summary-overs">${stats2.overs} OV</div>
+          <div class="vs-divider">VS</div>
+          <div class="team-box">
+            <div class="team-name">${teamNames[match.team2Id]}</div>
+            <div class="team-score">${stats2.total}/${stats2.wickets}</div>
+            <div class="team-ov">${stats2.overs} OV</div>
           </div>
         </div>
 
-        <div class="result-statement">${match.resultDescription}</div>
+        <div class="result-text">${match.resultDescription}</div>
 
-        ${renderInning(1, stats1.total > 0 || stats1.overs !== '0.0' ? (inn1?.battingTeamId || match.team1Id) : match.team1Id, stats1)}
+        ${renderInning(1, inn1?.battingTeamId || match.team1Id, stats1)}
         ${inn2 ? renderInning(2, inn2?.battingTeamId || match.team2Id, stats2) : ''}
 
         <div class="footer">
