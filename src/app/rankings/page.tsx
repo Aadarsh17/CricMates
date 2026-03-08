@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
@@ -8,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trophy, ChevronRight, Loader2, User, Star, Target, Zap, Shield, Hand, ChevronLeft, TrendingUp } from 'lucide-react';
+import { Trophy, ChevronRight, Loader2, User, Star, Target, Zap, Shield, Hand, ChevronLeft, TrendingUp, Clock } from 'lucide-react';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
@@ -36,262 +35,88 @@ export default function RankingsPage() {
 
   const teamStandings = useMemo(() => {
     if (!isMounted || !teams || !matches || !rawDeliveries) return [];
-    
-    const standings: Record<string, any> = {};
-    teams.forEach(t => standings[t.id] = { 
-      id: t.id, 
-      name: t.name, 
-      played: 0, 
-      won: 0, 
-      lost: 0, 
-      nr: 0, 
-      points: 0, 
-      forR: 0, 
-      forB: 0, 
-      agR: 0, 
-      agB: 0,
-      nrr: 0
-    });
-
     const validMatchIds = new Set(matches.filter(m => m.status === 'completed').map(m => m.id));
+    if (validMatchIds.size === 0) return [];
 
-    // Calculate match outcomes
+    const standings: Record<string, any> = {};
+    teams.forEach(t => standings[t.id] = { id: t.id, name: t.name, played: 0, won: 0, lost: 0, nr: 0, points: 0, forR: 0, forB: 0, agR: 0, agB: 0, nrr: 0 });
+
     matches.forEach(m => {
       if (m.status !== 'completed') return;
-      
-      const t1 = teams.find(t => t.id === m.team1Id);
-      const t2 = teams.find(t => t.id === m.team2Id);
-      if (!t1 || !t2) return;
-
-      standings[t1.id].played++;
-      standings[t2.id].played++;
-
+      standings[m.team1Id].played++; standings[m.team2Id].played++;
       const res = m.resultDescription?.toLowerCase() || '';
       if (res.includes('won')) {
         const winner = teams.find(t => res.includes(t.name.toLowerCase()))?.id;
         if (winner) {
-          standings[winner].won++;
-          standings[winner].points += 2;
+          standings[winner].won++; standings[winner].points += 2;
           const loser = winner === m.team1Id ? m.team2Id : m.team1Id;
-          if (standings[loser]) {
-            standings[loser].lost++;
-          }
-        } else {
-          standings[t1.id].nr++;
-          standings[t2.id].nr++;
-          standings[t1.id].points += 1;
-          standings[t2.id].points += 1;
-        }
-      } else {
-        standings[t1.id].nr++;
-        standings[t2.id].nr++;
-        standings[t1.id].points += 1;
-        standings[t2.id].points += 1;
-      }
+          standings[loser].lost++;
+        } else { standings[m.team1Id].nr++; standings[m.team2Id].nr++; standings[m.team1Id].points++; standings[m.team2Id].points++; }
+      } else { standings[m.team1Id].nr++; standings[m.team2Id].nr++; standings[m.team1Id].points++; standings[m.team2Id].points++; }
     });
 
-    // Calculate NRR components from deliveries
     rawDeliveries.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      if (!matchId || !validMatchIds.has(matchId)) return;
-      
-      const match = matches.find(m => m.id === matchId);
-      if (!match) return;
-
-      const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
-      const inn1BatId = match.tossWinnerTeamId === match.team1Id 
-        ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) 
-        : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
-      
-      const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
-      const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
-
-      if (standings[battingTeamId]) {
-        standings[battingTeamId].forR += (d.totalRunsOnDelivery || 0);
-        if (['none', 'bye', 'legbye'].includes(d.extraType)) standings[battingTeamId].forB += 1;
-      }
-      if (standings[bowlingTeamId]) {
-        standings[bowlingTeamId].agR += (d.totalRunsOnDelivery || 0);
-        if (['none', 'bye', 'legbye'].includes(d.extraType)) standings[bowlingTeamId].agB += 1;
-      }
+      const mid = d.__fullPath?.split('/')[1]; if (!mid || !validMatchIds.has(mid)) return;
+      const match = matches.find(m => m.id === mid); if (!match) return;
+      const inn = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
+      const batId = (inn === 1 ? (match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id)) : (match.team1Id === (match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id)) ? match.team2Id : match.team1Id));
+      const bowlId = batId === match.team1Id ? match.team2Id : match.team1Id;
+      standings[batId].forR += d.totalRunsOnDelivery; if (['none', 'bye', 'legbye'].includes(d.extraType)) standings[batId].forB++;
+      standings[bowlId].agR += d.totalRunsOnDelivery; if (['none', 'bye', 'legbye'].includes(d.extraType)) standings[bowlId].agB++;
     });
 
-    Object.values(standings).forEach((s: any) => {
-      const forOvers = s.forB / 6;
-      const agOvers = s.agB / 6;
-      const forRR = forOvers > 0 ? s.forR / forOvers : 0;
-      const agRR = agOvers > 0 ? s.agR / agOvers : 0;
-      s.nrr = forRR - agRR;
-    });
-
-    return Object.values(standings).sort((a: any, b: any) => {
-      if (b.points !== a.points) return b.points - a.points;
-      return b.nrr - a.nrr;
-    });
+    return Object.values(standings).map((s: any) => {
+      const forO = s.forB / 6; const agO = s.agB / 6;
+      s.nrr = (forO > 0 ? s.forR / forO : 0) - (agO > 0 ? s.agR / agO : 0);
+      return s;
+    }).sort((a,b) => b.points !== a.points ? b.points - a.points : b.nrr - a.nrr);
   }, [teams, matches, rawDeliveries, isMounted]);
 
   const playerLeaderboards = useMemo(() => {
-    if (!players || !rawDeliveries || !matches) return {};
+    if (!players || !rawDeliveries || !matches || matches.length === 0) return {};
     const stats: Record<string, any> = {};
-    players.forEach(p => {
-      stats[p.id] = { 
-        id: p.id, name: p.name, runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, 
-        catches: 0, runouts: 0, outs: 0, potm: 0 
-      };
-    });
-
+    players.forEach(p => stats[p.id] = { id: p.id, name: p.name, runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, outs: 0, potm: 0 });
     matches.forEach(m => { if (m.potmPlayerId && stats[m.potmPlayerId]) stats[m.potmPlayerId].potm++; });
-
     rawDeliveries.forEach(d => {
-      const s = stats[d.strikerPlayerId];
-      if (s) { s.runs += (d.runsScored || 0); if (d.extraType !== 'wide') s.balls++; }
+      const s = stats[d.strikerPlayerId]; if (s) { s.runs += d.runsScored || 0; if (d.extraType !== 'wide') s.balls++; }
       if (d.isWicket && stats[d.batsmanOutPlayerId]) stats[d.batsmanOutPlayerId].outs++;
-      
-      const bId = d.bowlerId || d.bowlerPlayerId;
-      const b = stats[bId];
-      if (b) {
-        b.runsCon += (d.totalRunsOnDelivery || 0);
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsB++;
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++;
-      }
-
-      const f = stats[d.fielderPlayerId];
-      if (f) {
-        if (d.dismissalType === 'caught') f.catches++;
-        if (d.dismissalType === 'runout') f.runouts++;
-      }
+      const bId = d.bowlerId || d.bowlerPlayerId; const b = stats[bId];
+      if (b) { b.runsCon += d.totalRunsOnDelivery; if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsB++; if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++; }
+      const f = stats[d.fielderPlayerId]; if (f) { if (d.dismissalType === 'caught') f.catches++; if (d.dismissalType === 'runout') f.runouts++; }
     });
-
-    const list = Object.values(stats).map((s: any) => ({
-      ...s,
-      avg: s.outs > 0 ? s.runs / s.outs : s.runs,
-      sr: s.balls > 0 ? (s.runs / s.balls) * 100 : 0,
-      er: s.ballsB >= 6 ? (s.runsCon / (s.ballsB / 6)) : 0
-    }));
-
-    return {
-      runs: [...list].sort((a,b) => b.runs - a.runs).slice(0, 10),
-      wickets: [...list].sort((a,b) => b.wkts - a.wkts).slice(0, 10),
-      avg: [...list].filter(s => s.runs > 20).sort((a,b) => b.avg - a.avg).slice(0, 10),
-      sr: [...list].filter(s => s.balls > 10).sort((a,b) => b.sr - a.sr).slice(0, 10),
-      er: [...list].filter(s => s.ballsB >= 12).sort((a,b) => a.er - b.er).slice(0, 10),
-      catches: [...list].sort((a,b) => b.catches - a.catches).slice(0, 10),
-      runouts: [...list].sort((a,b) => b.runouts - a.runouts).slice(0, 10),
-      potm: [...list].sort((a,b) => b.potm - a.potm).slice(0, 10)
-    };
+    const list = Object.values(stats).map((s: any) => ({ ...s, avg: s.outs > 0 ? s.runs / s.outs : s.runs, sr: s.balls > 0 ? (s.runs / s.balls) * 100 : 0, er: s.ballsB >= 6 ? (s.runsCon / (s.ballsB / 6)) : 0 }));
+    const filtered = (cat: string) => list.filter(p => cat === 'runs' ? p.runs > 0 : cat === 'wickets' ? p.wkts > 0 : cat === 'avg' ? p.runs > 20 : cat === 'sr' ? p.balls > 10 : cat === 'er' ? p.ballsB >= 12 : true);
+    return { runs: [...filtered('runs')].sort((a,b) => b.runs - a.runs).slice(0, 10), wickets: [...filtered('wickets')].sort((a,b) => b.wkts - a.wkts).slice(0, 10), avg: [...filtered('avg')].sort((a,b) => b.avg - a.avg).slice(0, 10), sr: [...filtered('sr')].sort((a,b) => b.sr - a.sr).slice(0, 10), er: [...filtered('er')].sort((a,b) => a.er - b.er).slice(0, 10), catches: [...filtered('catches')].sort((a,b) => b.catches - a.catches).slice(0, 10), runouts: [...filtered('runouts')].sort((a,b) => b.runouts - a.runouts).slice(0, 10), potm: [...filtered('potm')].sort((a,b) => b.potm - a.potm).slice(0, 10) };
   }, [players, rawDeliveries, matches]);
 
   if (!isMounted || isDeliveriesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
 
-  const categories = [
-    { id: 'runs', label: 'Runs', icon: Zap, suffix: '' },
-    { id: 'wickets', label: 'Wickets', icon: Target, suffix: '' },
-    { id: 'avg', label: 'Average', icon: TrendingUp, suffix: '' },
-    { id: 'sr', label: 'Strike Rate', icon: Zap, suffix: '' },
-    { id: 'er', label: 'Economy', icon: Shield, suffix: '' },
-    { id: 'catches', label: 'Catches', icon: Hand, suffix: '' },
-    { id: 'runouts', label: 'Run Outs', icon: Hand, suffix: '' },
-    { id: 'potm', label: 'POTM Awards', icon: Star, suffix: '' },
-  ];
-
-  const currentLeaderboard = (playerLeaderboards as any)[activeCategory] || [];
-
   return (
     <div className="max-w-6xl mx-auto space-y-8 pb-32 px-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
-        <h1 className="text-2xl font-black uppercase tracking-widest text-slate-900">League Rankings</h1>
-      </div>
+      <div className="flex items-center gap-4"><Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button><h1 className="text-2xl font-black uppercase tracking-widest text-slate-900">League Rankings</h1></div>
       <Tabs defaultValue="points" className="w-full">
-        <TabsList className="grid w-full max-w-[400px] grid-cols-2 h-12 bg-slate-100 p-1 rounded-xl mb-8">
-          <TabsTrigger value="points" className="font-black text-[10px] uppercase">Points Table</TabsTrigger>
-          <TabsTrigger value="leaderboards" className="font-black text-[10px] uppercase">Leaderboards</TabsTrigger>
-        </TabsList>
-        
+        <TabsList className="grid w-full max-w-[400px] grid-cols-2 h-12 bg-slate-100 p-1 rounded-xl mb-8"><TabsTrigger value="points" className="font-black text-[10px] uppercase">Points Table</TabsTrigger><TabsTrigger value="leaderboards" className="font-black text-[10px] uppercase">Leaderboards</TabsTrigger></TabsList>
         <TabsContent value="points">
-          <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white">
-            <Table>
-              <TableHeader className="bg-slate-50">
-                <TableRow>
-                  <TableHead className="w-12 text-[10px] font-black uppercase">Pos</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase">Team</TableHead>
-                  <TableHead className="text-center text-[10px] font-black uppercase">P</TableHead>
-                  <TableHead className="text-center text-[10px] font-black uppercase">W</TableHead>
-                  <TableHead className="text-center text-[10px] font-black uppercase">L</TableHead>
-                  <TableHead className="text-center text-[10px] font-black uppercase">NR</TableHead>
-                  <TableHead className="text-center text-[10px] font-black uppercase">NRR</TableHead>
-                  <TableHead className="text-center text-[10px] font-black uppercase bg-primary/5">PTS</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {teamStandings.map((t, idx) => (
-                  <TableRow key={t.id}>
-                    <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
-                    <TableCell className="font-black text-xs uppercase">
-                      <Link href={`/teams/${t.id}`} className="hover:text-primary transition-colors">
-                        {t.name}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="text-center text-xs font-bold">{t.played}</TableCell>
-                    <TableCell className="text-center text-xs font-bold text-emerald-600">{t.won}</TableCell>
-                    <TableCell className="text-center text-xs font-bold text-red-600">{t.lost}</TableCell>
-                    <TableCell className="text-center text-xs font-bold text-slate-500">{t.nr}</TableCell>
-                    <TableCell className={cn("text-center text-xs font-bold", t.nrr >= 0 ? "text-primary" : "text-amber-600")}>
-                      {t.nrr >= 0 ? '+' : ''}{t.nrr.toFixed(3)}
-                    </TableCell>
-                    <TableCell className="text-center text-xs font-black text-primary bg-primary/5">{t.points}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+          {teamStandings.length === 0 ? <NoDataMessage /> : (
+            <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white"><Table><TableHeader className="bg-slate-50"><TableRow><TableHead className="w-12 text-[10px] font-black uppercase">Pos</TableHead><TableHead className="text-[10px] font-black uppercase">Team</TableHead><TableHead className="text-center text-[10px] font-black uppercase">P</TableHead><TableHead className="text-center text-[10px] font-black uppercase">W</TableHead><TableHead className="text-center text-[10px] font-black uppercase">L</TableHead><TableHead className="text-center text-[10px] font-black uppercase">NR</TableHead><TableHead className="text-center text-[10px] font-black uppercase">NRR</TableHead><TableHead className="text-center text-[10px] font-black uppercase bg-primary/5">PTS</TableHead></TableRow></TableHeader><TableBody>{teamStandings.map((t, idx) => (<TableRow key={t.id}><TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell><TableCell className="font-black text-xs uppercase"><Link href={`/teams/${t.id}`} className="hover:text-primary">{t.name}</Link></TableCell><TableCell className="text-center text-xs font-bold">{t.played}</TableCell><TableCell className="text-center text-xs font-bold text-emerald-600">{t.won}</TableCell><TableCell className="text-center text-xs font-bold text-red-600">{t.lost}</TableCell><TableCell className="text-center text-xs font-bold text-slate-500">{t.nr}</TableCell><TableCell className={cn("text-center text-xs font-bold", t.nrr >= 0 ? "text-primary" : "text-amber-600")}>{t.nrr >= 0 ? '+' : ''}{t.nrr.toFixed(3)}</TableCell><TableCell className="text-center text-xs font-black text-primary bg-primary/5">{t.points}</TableCell></TableRow>))}</TableBody></Table></Card>
+          )}
         </TabsContent>
-
         <TabsContent value="leaderboards" className="space-y-6">
-          <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-            <h2 className="text-lg font-black uppercase flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Player Rankings</h2>
-            <Select value={activeCategory} onValueChange={setActiveCategory}>
-              <SelectTrigger className="w-full md:w-[200px] h-12 font-black uppercase text-[10px]">
-                <SelectValue placeholder="Select Category" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map(c => (
-                  <SelectItem key={c.id} value={c.id} className="font-black uppercase text-[10px]">{c.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white">
-            <Table>
-              <TableHeader className="bg-slate-50">
-                <TableRow>
-                  <TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase">Player</TableHead>
-                  <TableHead className="text-right text-[10px] font-black uppercase bg-primary/5">
-                    {categories.find(c => c.id === activeCategory)?.label}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {currentLeaderboard.map((p: any, idx: number) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
-                    <TableCell className="font-black text-xs uppercase">
-                      <Link href={`/players/${p.id}`} className="hover:text-primary transition-colors">{p.name}</Link>
-                    </TableCell>
-                    <TableCell className="text-right font-black text-primary bg-primary/5">
-                      {['avg', 'sr', 'er'].includes(activeCategory) 
-                        ? p[activeCategory].toFixed(2) 
-                        : p[activeCategory]}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-center"><h2 className="text-lg font-black uppercase flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Player Rankings</h2><Select value={activeCategory} onValueChange={setActiveCategory}><SelectTrigger className="w-full md:w-[200px] h-12 font-black uppercase text-[10px]"><SelectValue placeholder="Category" /></SelectTrigger><SelectContent className="z-[200]">{[ {id:'runs', label:'Runs'}, {id:'wickets', label:'Wickets'}, {id:'avg', label:'Average'}, {id:'sr', label:'Strike Rate'}, {id:'er', label:'Economy'}, {id:'catches', label:'Catches'}, {id:'runouts', label:'Run Outs'}, {id:'potm', label:'POTM'} ].map(c => <SelectItem key={c.id} value={c.id} className="font-black uppercase text-[10px]">{c.label}</SelectItem>)}</SelectContent></Select></div>
+          {(!playerLeaderboards[activeCategory] || playerLeaderboards[activeCategory].length === 0) ? <NoDataMessage /> : (
+            <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white"><Table><TableHeader className="bg-slate-50"><TableRow><TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead><TableHead className="text-[10px] font-black uppercase">Player</TableHead><TableHead className="text-right text-[10px] font-black uppercase bg-primary/5">Score</TableHead></TableRow></TableHeader><TableBody>{playerLeaderboards[activeCategory].map((p: any, idx: number) => (<TableRow key={p.id}><TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell><TableCell className="font-black text-xs uppercase"><Link href={`/players/${p.id}`} className="hover:text-primary">{p.name}</Link></TableCell><TableCell className="text-right font-black text-primary bg-primary/5">{['avg', 'sr', 'er'].includes(activeCategory) ? p[activeCategory].toFixed(2) : p[activeCategory]}</TableCell></TableRow>))}</TableBody></Table></Card>
+          )}
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function NoDataMessage() {
+  return (
+    <div className="p-20 text-center border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center">
+      <Clock className="w-10 h-10 text-slate-200 mb-2" />
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Match History Recorded</p>
     </div>
   );
 }
