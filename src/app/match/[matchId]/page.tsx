@@ -79,6 +79,20 @@ export default function MatchScoreboardPage() {
 
   const currentDeliveries = match?.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries;
 
+  const groupedByOver = useMemo(() => {
+    if (!currentDeliveries) return [];
+    const groups: Record<number, any[]> = {};
+    currentDeliveries.forEach(d => {
+      const parts = d.overLabel.split('.');
+      const completed = parseInt(parts[0]);
+      const current = parseInt(parts[1]);
+      const overNum = current === 0 ? completed : completed + 1;
+      if (!groups[overNum]) groups[overNum] = [];
+      groups[overNum].push(d);
+    });
+    return Object.entries(groups).sort((a, b) => Number(b[0]) - Number(a[0]));
+  }, [currentDeliveries]);
+
   const chartData = useMemo(() => {
     const data: any[] = [];
     const maxOvers = match?.totalOvers || 6;
@@ -118,16 +132,22 @@ export default function MatchScoreboardPage() {
       
       const overRuns1 = (inn1Deliveries || [])
         .filter(d => {
-          const legalBefore = (inn1Deliveries || []).slice(0, (inn1Deliveries || []).indexOf(d)).filter(pd => ['none', 'bye', 'legbye'].includes(pd.extraType)).length;
-          return legalBefore >= (i-1)*6 && legalBefore < i*6;
+          const parts = d.overLabel.split('.');
+          const comp = parseInt(parts[0]);
+          const curr = parseInt(parts[1]);
+          const o = curr === 0 ? comp : comp + 1;
+          return o === i;
         })
         .reduce((acc, d) => acc + (d.totalRunsOnDelivery || 0), 0);
       point.inn1 = overRuns1;
 
       const overRuns2 = (inn2Deliveries || [])
         .filter(d => {
-          const legalBefore = (inn2Deliveries || []).slice(0, (inn2Deliveries || []).indexOf(d)).filter(pd => ['none', 'bye', 'legbye'].includes(pd.extraType)).length;
-          return legalBefore >= (i-1)*6 && legalBefore < i*6;
+          const parts = d.overLabel.split('.');
+          const comp = parseInt(parts[0]);
+          const curr = parseInt(parts[1]);
+          const o = curr === 0 ? comp : comp + 1;
+          return o === i;
         })
         .reduce((acc, d) => acc + (d.totalRunsOnDelivery || 0), 0);
       point.inn2 = overRuns2;
@@ -433,7 +453,7 @@ export default function MatchScoreboardPage() {
               </Button>
             )}
 
-            <div className="space-y-4">
+            <div className="space-y-6">
               <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
                 <div className="p-3 bg-slate-100 flex items-center justify-between"><span className="text-[10px] font-black uppercase text-slate-500">Live Batting</span></div>
                 <Table>
@@ -463,6 +483,47 @@ export default function MatchScoreboardPage() {
                   </TableBody>
                 </Table>
               </Card>
+
+              {/* Over-wise Ball History */}
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-black uppercase text-slate-500 px-2 tracking-widest flex items-center gap-2">
+                  <Clock className="w-3 h-3" /> Recent Over History
+                </h3>
+                {groupedByOver.length > 0 ? groupedByOver.map(([overIdx, deliveries]) => (
+                  <Card key={overIdx} className="border-none shadow-sm bg-white p-3 flex items-center justify-between rounded-xl">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-lg flex items-center justify-center shrink-0">
+                        OV {overIdx}
+                      </div>
+                      <div className="flex flex-wrap gap-1.5 overflow-x-auto scrollbar-hide py-1">
+                        {deliveries.map(d => {
+                          let label = d.totalRunsOnDelivery.toString();
+                          let color = "bg-slate-100 text-slate-600";
+                          if (d.isWicket) { label = "W"; color = "bg-red-500 text-white"; }
+                          else if (d.extraType === 'wide') { label = `${d.totalRunsOnDelivery}wd`; color = "bg-amber-100 text-amber-700"; }
+                          else if (d.extraType === 'noball') { label = `${d.totalRunsOnDelivery}nb`; color = "bg-amber-100 text-amber-700"; }
+                          else if (d.runsScored === 4) color = "bg-blue-500 text-white";
+                          else if (d.runsScored === 6) color = "bg-primary text-white";
+                          else if (d.runsScored === 0) label = "•";
+
+                          return (
+                            <div key={d.id} className={cn("min-w-[24px] h-6 px-1.5 rounded flex items-center justify-center text-[10px] font-black whitespace-nowrap", color)}>
+                              {label}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 ml-2 border-l pl-3">
+                      <p className="text-[10px] font-black text-slate-900">{deliveries.reduce((acc, d) => acc + d.totalRunsOnDelivery, 0)} R</p>
+                    </div>
+                  </Card>
+                )) : (
+                  <div className="text-center py-8 border-2 border-dashed rounded-2xl bg-slate-50/50">
+                    <p className="text-[10px] font-black uppercase text-slate-300">Awaiting first delivery</p>
+                  </div>
+                )}
+              </div>
             </div>
           </TabsContent>
 
