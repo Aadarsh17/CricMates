@@ -10,7 +10,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       bowling: [], 
       fow: [], 
       partnerships: [], 
-      extras: { total: 0, w: 0, nb: 0, b: 0, lb: 0 }, 
+      extras: { total: 0, w: 0, nb: 0, b: 0 }, 
       total: 0, 
       overs: '0.0', 
       rr: '0.00', 
@@ -22,7 +22,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
   const bowl: Record<string, any> = {};
   const fow: any[] = [];
   const battingOrder: string[] = [];
-  const extras = { total: 0, w: 0, nb: 0, b: 0, lb: 0 };
+  const extras = { total: 0, w: 0, nb: 0, b: 0 };
 
   let currentScore = 0;
   let legalBalls = 0;
@@ -65,9 +65,8 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     if (d.extraType === 'wide') extras.w += (d.totalRunsOnDelivery || 1);
     else if (d.extraType === 'noball') extras.nb += (d.totalRunsOnDelivery || 1);
     else if (d.extraType === 'bye') extras.b += (d.totalRunsOnDelivery || 0);
-    else if (d.extraType === 'legbye') extras.lb += (d.totalRunsOnDelivery || 0);
 
-    const isLegal = ['none', 'bye', 'legbye'].includes(d.extraType);
+    const isLegal = ['none', 'bye'].includes(d.extraType);
     if (isLegal) legalBalls += 1;
 
     // Detailed Partnership Logic
@@ -117,7 +116,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     partnerships.push({ ...currentPartnership, batters: Object.keys(currentPartnership.contributions) });
   }
 
-  extras.total = extras.w + extras.nb + extras.b + extras.lb;
+  extras.total = extras.w + extras.nb + extras.b;
   const oversCompleted = Math.floor(legalBalls / 6);
   const ballsInOver = legalBalls % 6;
   const totalOversDec = oversCompleted + (ballsInOver / 6);
@@ -187,7 +186,7 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
             <tr class="summary-row-item">
               <td class="bold uppercase" style="font-size: 10px;">EXTRAS</td>
               <td colspan="5" class="text-right dim" style="font-size: 10px;">
-                ${stats.extras.total} (b ${stats.extras.b}, lb ${stats.extras.lb}, w ${stats.extras.w}, nb ${stats.extras.nb})
+                ${stats.extras.total} (b ${stats.extras.b}, w ${stats.extras.w}, nb ${stats.extras.nb})
               </td>
             </tr>
             <tr class="summary-row-item highlight-row">

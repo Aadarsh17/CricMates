@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -627,7 +628,6 @@ export default function NumberGame() {
                   <SelectItem value="bowled" className="font-bold">Bowled</SelectItem>
                   <SelectItem value="runout" className="font-bold">Run Out</SelectItem>
                   <SelectItem value="stumped" className="font-bold">Stumped</SelectItem>
-                  <SelectItem value="lbw" className="font-bold">LBW</SelectItem>
                   <SelectItem value="3-Dots Streak" className="font-bold text-destructive">3-Dots Rule</SelectItem>
                 </SelectContent>
               </Select>

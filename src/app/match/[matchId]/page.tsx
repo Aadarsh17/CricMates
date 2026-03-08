@@ -103,7 +103,7 @@ export default function MatchScoreboardPage() {
       let score1 = 0, legal1 = 0, wkts1 = 0;
       for (const d of d1) {
         score1 += d.totalRunsOnDelivery || 0;
-        if (['none', 'bye', 'legbye'].includes(d.extraType)) legal1++;
+        if (['none', 'bye'].includes(d.extraType)) legal1++;
         if (legal1 > i * 6) break;
         if (d.isWicket && d.dismissalType !== 'retired') wkts1++;
       }
@@ -113,7 +113,7 @@ export default function MatchScoreboardPage() {
       let score2 = 0, legal2 = 0, wkts2 = 0;
       for (const d of d2) {
         score2 += d.totalRunsOnDelivery || 0;
-        if (['none', 'bye', 'legbye'].includes(d.extraType)) legal2++;
+        if (['none', 'bye'].includes(d.extraType)) legal2++;
         if (legal2 > i * 6) break;
         if (d.isWicket && d.dismissalType !== 'retired') wkts2++;
       }
@@ -185,7 +185,7 @@ export default function MatchScoreboardPage() {
     deliveriesList.forEach(d => { 
       score += d.totalRunsOnDelivery; 
       if (d.isWicket && d.dismissalType !== 'retired') wkts++; 
-      if (['none', 'bye', 'legbye'].includes(d.extraType)) legal++; 
+      if (['none', 'bye'].includes(d.extraType)) legal++; 
     });
     
     const isActuallyFinished = (legal >= (match?.totalOvers || 6) * 6) || (wkts >= 10);
@@ -228,8 +228,8 @@ export default function MatchScoreboardPage() {
   const handleRecordBall = async (runs: number, extra: any = 'none') => {
     if (!match || !activeInningData || !isUmpire || !activeInningData.currentBowlerPlayerId) return;
     const currentInningId = `inning_${match.currentInningNumber}`;
-    const isLegal = ['none', 'bye', 'legbye'].includes(extra);
-    const totalLegalCount = (currentDeliveries?.filter(d => ['none', 'bye', 'legbye'].includes(d.extraType)).length || 0);
+    const isLegal = ['none', 'bye'].includes(extra);
+    const totalLegalCount = (currentDeliveries?.filter(d => ['none', 'bye'].includes(d.extraType)).length || 0);
     const newTotalLegal = totalLegalCount + (isLegal ? 1 : 0);
     
     const deliveryId = doc(collection(db, 'temp')).id;
@@ -249,7 +249,7 @@ export default function MatchScoreboardPage() {
 
     let nextS = activeInningData.strikerPlayerId, nextNS = activeInningData.nonStrikerPlayerId;
     
-    // Rotate strike if runs off the bat are odd
+    // Rotate strike if runs physically taken are odd
     if (runs % 2 !== 0) [nextS, nextNS] = [nextNS, nextS];
     // Rotate ends at over completion
     if (newTotalLegal % 6 === 0 && isLegal) [nextS, nextNS] = [nextNS, nextS];
@@ -320,7 +320,7 @@ export default function MatchScoreboardPage() {
             <TableRow className="bg-slate-50/30 font-bold">
               <TableCell className="text-[10px] uppercase font-black">Extras</TableCell>
               <TableCell colSpan={5} className="text-right text-xs">
-                {stats.extras.total} <span className="text-[9px] font-medium text-slate-400">(b {stats.extras.b}, lb {stats.extras.lb}, w {stats.extras.w}, nb {stats.extras.nb})</span>
+                {stats.extras.total} <span className="text-[9px] font-medium text-slate-400">(b {stats.extras.b}, w {stats.extras.w}, nb {stats.extras.nb})</span>
               </TableCell>
             </TableRow>
             <TableRow className="bg-slate-50 font-black">
@@ -721,7 +721,6 @@ export default function MatchScoreboardPage() {
                   <SelectItem value="bowled">Bowled</SelectItem>
                   <SelectItem value="caught">Caught</SelectItem>
                   <SelectItem value="runout">Run Out</SelectItem>
-                  <SelectItem value="lbw">LBW</SelectItem>
                   <SelectItem value="stumped">Stumped</SelectItem>
                   <SelectItem value="retired">Retired</SelectItem>
                 </SelectContent>
@@ -743,7 +742,7 @@ export default function MatchScoreboardPage() {
             <Button onClick={async () => {
               if (!wicketForm.batterOutId) return;
               const currId = `inning_${match?.currentInningNumber}`;
-              const totalLegal = (currentDeliveries?.filter(d => ['none', 'bye', 'legbye'].includes(d.extraType)).length || 0) + 1;
+              const totalLegal = (currentDeliveries?.filter(d => ['none', 'bye'].includes(d.extraType)).length || 0) + 1;
               const dId = doc(collection(db, 'temp')).id;
               
               await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currId, 'deliveryRecords', dId), { 
