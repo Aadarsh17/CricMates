@@ -31,8 +31,14 @@ export default function StatsPage() {
   const records = useMemo(() => {
     if (!players || !rawDeliveries || !matches || matches.length === 0) return null;
     
-    // Create a set of active match IDs to filter out "ghost" data from deleted matches
+    // Filter out deliveries from deleted matches
     const activeMatchIds = new Set(matches.map(m => m.id));
+    const validDeliveries = rawDeliveries.filter(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      return matchId && activeMatchIds.has(matchId);
+    });
+
+    if (validDeliveries.length === 0) return null;
 
     const batting: any = { 
       highestScore: { val: 0, name: '-' }, 
@@ -51,14 +57,6 @@ export default function StatsPage() {
 
     const pMatchStats: Record<string, Record<string, any>> = {};
     
-    // Filter deliveries to only include those belonging to existing matches
-    const validDeliveries = rawDeliveries.filter(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      return matchId && activeMatchIds.has(matchId);
-    });
-
-    if (validDeliveries.length === 0) return null;
-
     validDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       const sId = d.strikerPlayerId; 
@@ -75,23 +73,19 @@ export default function StatsPage() {
         }
       });
 
-      if (sId && pMatchStats[sId]) {
+      if (sId && pMatchStats[sId]?.[matchId]) {
         const s = pMatchStats[sId][matchId];
-        if (s) {
-          s.runs += (d.runsScored || 0);
-          if (d.runsScored === 4) s.fours++;
-          if (d.runsScored === 6) s.sixes++;
-        }
+        s.runs += (d.runsScored || 0);
+        if (d.runsScored === 4) s.fours++;
+        if (d.runsScored === 6) s.sixes++;
       }
-      if (bId && pMatchStats[bId]) {
+      if (bId && pMatchStats[bId]?.[matchId]) {
         const b = pMatchStats[bId][matchId];
-        if (b) {
-          b.runsCon += (d.totalRunsOnDelivery || 0);
-          if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsB++;
-          if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wickets++;
-        }
+        b.runsCon += (d.totalRunsOnDelivery || 0);
+        if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsB++;
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wickets++;
       }
-      if (fId && pMatchStats[fId] && pMatchStats[fId][matchId]) {
+      if (fId && pMatchStats[fId]?.[matchId]) {
         if (d.dismissalType === 'caught') pMatchStats[fId][matchId].catches++;
         if (d.dismissalType === 'runout') pMatchStats[fId][matchId].runouts++;
       }

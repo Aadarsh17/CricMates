@@ -105,7 +105,7 @@ export default function MatchScoreboardPage() {
         score1 += d.totalRunsOnDelivery || 0;
         if (['none', 'bye', 'legbye'].includes(d.extraType)) legal1++;
         if (legal1 > i * 6) break;
-        if (d.isWicket) wkts1++;
+        if (d.isWicket && d.dismissalType !== 'retired') wkts1++;
       }
       if (legal1 > 0 || i === 0) { point.inn1 = score1; point.w1 = wkts1; }
 
@@ -115,7 +115,7 @@ export default function MatchScoreboardPage() {
         score2 += d.totalRunsOnDelivery || 0;
         if (['none', 'bye', 'legbye'].includes(d.extraType)) legal2++;
         if (legal2 > i * 6) break;
-        if (d.isWicket) wkts2++;
+        if (d.isWicket && d.dismissalType !== 'retired') wkts2++;
       }
       if (legal2 > 0 || (i === 0 && match?.currentInningNumber === 2)) { point.inn2 = score2; point.w2 = wkts2; }
       
@@ -249,7 +249,9 @@ export default function MatchScoreboardPage() {
 
     let nextS = activeInningData.strikerPlayerId, nextNS = activeInningData.nonStrikerPlayerId;
     
+    // Rotate strike if runs off the bat are odd
     if (runs % 2 !== 0) [nextS, nextNS] = [nextNS, nextS];
+    // Rotate ends at over completion
     if (newTotalLegal % 6 === 0 && isLegal) [nextS, nextNS] = [nextNS, nextS];
 
     const updates: any = { 
@@ -522,7 +524,8 @@ export default function MatchScoreboardPage() {
                   <TableBody>
                     {[activeInningData?.strikerPlayerId, activeInningData?.nonStrikerPlayerId].map((pid, idx) => {
                       if (!pid || pid === 'none' || pid === '') return null;
-                      const b = (match?.currentInningNumber === 1 ? stats1 : stats2).batting.find((p: any) => p?.id === pid);
+                      const stats = match?.currentInningNumber === 1 ? stats1 : stats2;
+                      const b = stats.batting.find((p: any) => p?.id === pid) || { runs: 0, balls: 0 };
                       return (
                         <TableRow key={pid} className={idx === 0 ? "bg-primary/5" : ""}>
                           <TableCell className="font-black text-xs uppercase truncate max-w-[100px]">
@@ -530,9 +533,9 @@ export default function MatchScoreboardPage() {
                               {getPlayerName(pid)}{idx === 0 ? '*' : ''}
                             </Link>
                           </TableCell>
-                          <TableCell className="text-right font-black">{b?.runs || 0}</TableCell>
-                          <TableCell className="text-right text-xs font-bold text-slate-500">{b?.balls || 0}</TableCell>
-                          <TableCell className="text-right text-[9px] font-bold text-slate-400">{b?.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
+                          <TableCell className="text-right font-black">{b.runs}</TableCell>
+                          <TableCell className="text-right text-xs font-bold text-slate-500">{b.balls}</TableCell>
+                          <TableCell className="text-right text-[9px] font-bold text-slate-400">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
                         </TableRow>
                       );
                     })}
