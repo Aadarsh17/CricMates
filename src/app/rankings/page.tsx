@@ -13,7 +13,7 @@ import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { useMemo, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
-import { cn } from '@/lib/utils';
+import { cn, formatTeamName } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -44,33 +44,36 @@ export default function RankingsPage() {
 
     matches.forEach(m => {
       if (m.status !== 'completed') return;
+      if (!standings[m.team1Id] || !standings[m.team2Id]) return;
+      
       standings[m.team1Id].played++; standings[m.team2Id].played++;
       
-      // Precision ID Check
+      const winnerId = m.winnerTeamId;
       if (m.isTie) {
         standings[m.team1Id].tied++; standings[m.team2Id].tied++;
         standings[m.team1Id].points += 1; standings[m.team2Id].points += 1;
-      } else if (m.winnerTeamId && m.winnerTeamId !== 'none' && standings[m.winnerTeamId]) {
-        const winner = m.winnerTeamId;
-        const loser = winner === m.team1Id ? m.team2Id : m.team1Id;
-        standings[winner].won++; standings[winner].points += 2;
-        if (standings[loser]) standings[loser].lost++;
+      } else if (winnerId && winnerId !== 'none' && standings[winnerId]) {
+        const loserId = winnerId === m.team1Id ? m.team2Id : m.team1Id;
+        standings[winnerId].won++; standings[winnerId].points += 2;
+        if (standings[loserId]) standings[loserId].lost++;
       } else {
         // Fallback or NR
         const res = m.resultDescription?.toLowerCase() || '';
-        if (res.includes('won')) {
-          const winnerTeamId = teams.find(t => res.includes(t.name.toLowerCase()))?.id;
-          if (winnerTeamId && standings[winnerTeamId]) {
-            standings[winnerTeamId].won++; standings[winnerTeamId].points += 2;
-            const loser = winnerTeamId === m.team1Id ? m.team2Id : m.team1Id;
-            if (standings[loser]) standings[loser].lost++;
-          } else { 
-            standings[m.team1Id].nr++; standings[m.team2Id].nr++; 
-            standings[m.team1Id].points++; standings[m.team2Id].points++; 
-          }
-        } else {
-          standings[m.team1Id].nr++; standings[m.team2Id].nr++;
+        const t1 = teams.find(t => t.id === m.team1Id);
+        const t2 = teams.find(t => t.id === m.team2Id);
+        
+        if (res.includes('tied') || res.includes('drawn')) {
+          standings[m.team1Id].tied++; standings[m.team2Id].tied++;
           standings[m.team1Id].points += 1; standings[m.team2Id].points += 1;
+        } else if (t1 && res.includes(t1.name.toLowerCase())) {
+          standings[m.team1Id].won++; standings[m.team1Id].points += 2;
+          standings[m.team2Id].lost++;
+        } else if (t2 && res.includes(t2.name.toLowerCase())) {
+          standings[m.team2Id].won++; standings[m.team2Id].points += 2;
+          standings[m.team1Id].lost++;
+        } else {
+          standings[m.team1Id].nr++; standings[m.team2Id].nr++; 
+          standings[m.team1Id].points++; standings[m.team2Id].points++; 
         }
       }
     });
@@ -131,7 +134,7 @@ export default function RankingsPage() {
         <TabsList className="grid w-full max-w-[400px] grid-cols-2 h-12 bg-slate-100 p-1 rounded-xl mb-8"><TabsTrigger value="points" className="font-black text-[10px] uppercase">Points Table</TabsTrigger><TabsTrigger value="leaderboards" className="font-black text-[10px] uppercase">Leaderboards</TabsTrigger></TabsList>
         <TabsContent value="points">
           {teamStandings.length === 0 ? <NoDataMessage /> : (
-            <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white"><Table><TableHeader className="bg-slate-50"><TableRow><TableHead className="w-12 text-[10px] font-black uppercase">Pos</TableHead><TableHead className="text-[10px] font-black uppercase">Team</TableHead><TableHead className="text-center text-[10px] font-black uppercase">P</TableHead><TableHead className="text-center text-[10px] font-black uppercase">W</TableHead><TableHead className="text-center text-[10px] font-black uppercase">L</TableHead><TableHead className="text-center text-[10px] font-black uppercase">T</TableHead><TableHead className="text-center text-[10px] font-black uppercase">NR</TableHead><TableHead className="text-center text-[10px] font-black uppercase">NRR</TableHead><TableHead className="text-center text-[10px] font-black uppercase bg-primary/5">PTS</TableHead></TableRow></TableHeader><TableBody>{teamStandings.map((t, idx) => (<TableRow key={t.id}><TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell><TableCell className="font-black text-xs uppercase truncate max-w-[120px]"><Link href={`/teams/${t.id}`} className="hover:text-primary">{t.name}</Link></TableCell><TableCell className="text-center text-xs font-bold">{t.played}</TableCell><TableCell className="text-center text-xs font-bold text-emerald-600">{t.won}</TableCell><TableCell className="text-center text-xs font-bold text-red-600">{t.lost}</TableCell><TableCell className="text-center text-xs font-bold text-amber-600">{t.tied}</TableCell><TableCell className="text-center text-xs font-bold text-slate-500">{t.nr}</TableCell><TableCell className={cn("text-center text-xs font-bold", t.nrr >= 0 ? "text-primary" : "text-amber-600")}>{t.nrr >= 0 ? '+' : ''}{t.nrr.toFixed(3)}</TableCell><TableCell className="text-center text-xs font-black text-primary bg-primary/5">{t.points}</TableCell></TableRow>))}</TableBody></Table></Card>
+            <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white"><Table><TableHeader className="bg-slate-50"><TableRow><TableHead className="w-12 text-[10px] font-black uppercase">Pos</TableHead><TableHead className="text-[10px] font-black uppercase">Team</TableHead><TableHead className="text-center text-[10px] font-black uppercase">P</TableHead><TableHead className="text-center text-[10px] font-black uppercase">W</TableHead><TableHead className="text-center text-[10px] font-black uppercase">L</TableHead><TableHead className="text-center text-[10px] font-black uppercase">T</TableHead><TableHead className="text-center text-[10px] font-black uppercase">NR</TableHead><TableHead className="text-center text-[10px] font-black uppercase">NRR</TableHead><TableHead className="text-center text-[10px] font-black uppercase bg-primary/5">PTS</TableHead></TableRow></TableHeader><TableBody>{teamStandings.map((t, idx) => (<TableRow key={t.id}><TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell><TableCell className="font-black text-xs uppercase truncate max-w-[120px]"><Link href={`/teams/${t.id}`} className="hover:text-primary">{formatTeamName(t.name)}</Link></TableCell><TableCell className="text-center text-xs font-bold">{t.played}</TableCell><TableCell className="text-center text-xs font-bold text-emerald-600">{t.won}</TableCell><TableCell className="text-center text-xs font-bold text-red-600">{t.lost}</TableCell><TableCell className="text-center text-xs font-bold text-amber-600">{t.tied}</TableCell><TableCell className="text-center text-xs font-bold text-slate-500">{t.nr}</TableCell><TableCell className={cn("text-center text-xs font-bold", t.nrr >= 0 ? "text-primary" : "text-amber-600")}>{t.nrr >= 0 ? '+' : ''}{t.nrr.toFixed(3)}</TableCell><TableCell className="text-center text-xs font-black text-primary bg-primary/5">{t.points}</TableCell></TableRow>))}</TableBody></Table></Card>
           )}
         </TabsContent>
         <TabsContent value="leaderboards" className="space-y-6">

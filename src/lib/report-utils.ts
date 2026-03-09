@@ -2,6 +2,7 @@
 /**
  * @fileOverview Utility functions for match statistics, professional scorecard generation, and match flow timeline logic.
  */
+import { formatTeamName } from './utils';
 
 export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = []) => {
   if (!deliveries || deliveries.length === 0) {
@@ -153,15 +154,33 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
   };
 };
 
-export const generateMatchReport = (match: any, teamNames: Record<string, string>, playerNames: Record<string, string>, inn1: any, inn2: any, stats1: any, stats2: any) => {
+export const generateMatchReport = (match: any, allTeams: any[], playerNames: Record<string, string>, inn1: any, inn2: any, stats1: any, stats2: any) => {
   const dateStr = match.matchDate ? new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---';
   const matchTagStr = match.matchNumber || 'Match X';
   const formatStr = `${match.totalOvers} OV MATCH`;
   const venueStr = match.venue || 'NOT SPECIFIED';
   const potmName = match.potmPlayerId ? (playerNames[match.potmPlayerId] || 'Unknown Player') : 'NOT DECLARED';
 
+  const getTeamName = (id: string) => {
+    const t = allTeams.find((team: any) => team.id === id);
+    return t ? formatTeamName(t.name) : 'Unknown Team';
+  };
+
+  const getDynamicResult = () => {
+    if (match.status !== 'completed') return 'Match in Progress';
+    if (match.isTie) return 'Match Tied';
+    const winner = allTeams.find(t => t.id === match.winnerTeamId);
+    if (winner) {
+      const winnerName = formatTeamName(winner.name);
+      const desc = match.resultDescription || '';
+      const suffix = desc.toLowerCase().includes('won by') ? desc.split(/won by/i)[1] : '';
+      return suffix ? `${winnerName} won by ${suffix.trim()}` : `${winnerName} won`;
+    }
+    return match.resultDescription || 'Match Completed';
+  };
+
   const renderInning = (innNum: number, teamId: string, stats: any) => {
-    const title = `${innNum}${innNum === 1 ? 'ST' : '2ND'} INN: ${teamNames[teamId] || 'TEAM'}`;
+    const title = `${innNum}${innNum === 1 ? 'ST' : '2ND'} INN: ${getTeamName(teamId)}`;
     const scoreText = `${stats.total}/${stats.wickets} (${stats.overs})`;
 
     return `
@@ -285,7 +304,7 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Official Scorecard - ${teamNames[match.team1Id]} vs ${teamNames[match.team2Id]}</title>
+      <title>Official Scorecard - ${getTeamName(match.team1Id)} vs ${getTeamName(match.team2Id)}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
         body { font-family: 'Inter', sans-serif; padding: 20px; color: #1e293b; background: #f8fafc; line-height: 1.1; margin: 0; }
@@ -356,19 +375,19 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
 
         <div class="summary-grid">
           <div class="team-box">
-            <div class="team-name">${teamNames[match.team1Id] || 'TEAM 1'}</div>
+            <div class="team-name">${getTeamName(match.team1Id)}</div>
             <div class="team-score">${stats1.total}/${stats1.wickets}</div>
             <div class="team-ov">${stats1.overs} OV</div>
           </div>
           <div class="vs-divider">VS</div>
           <div class="team-box">
-            <div class="team-name">${teamNames[match.team2Id] || 'TEAM 2'}</div>
+            <div class="team-name">${getTeamName(match.team2Id)}</div>
             <div class="team-score">${stats2.total}/${stats2.wickets}</div>
             <div class="team-ov">${stats2.overs} OV</div>
           </div>
         </div>
 
-        <div class="result-text">${match.resultDescription}</div>
+        <div class="result-text">${getDynamicResult()}</div>
 
         ${renderInning(1, inn1?.battingTeamId || match.team1Id, stats1)}
         ${stats2.batting.length > 0 || stats2.total > 0 ? renderInning(2, inn2?.battingTeamId || match.team2Id, stats2) : ''}

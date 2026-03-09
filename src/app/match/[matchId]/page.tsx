@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { cn, formatTeamName } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
 import { getExtendedInningStats, generateMatchReport } from '@/lib/report-utils';
@@ -100,7 +100,10 @@ export default function MatchScoreboardPage() {
   const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || [], match?.team2SquadPlayerIds || []), [inn2Deliveries, match?.team2SquadPlayerIds]);
 
   const getPlayerName = (pid: string) => allPlayers?.find(p => p.id === pid)?.name || '---';
-  const getTeamName = (tid: string) => allTeams?.find(t => t.id === tid)?.name || '---';
+  const getTeamName = (tid: string) => {
+    const t = allTeams?.find(t => t.id === tid);
+    return t ? formatTeamName(t.name) : '---';
+  };
 
   const activeInningData = useMemo(() => {
     if (!match) return null;
@@ -727,7 +730,7 @@ export default function MatchScoreboardPage() {
                   </Button>
                   <Button variant="outline" className="w-full h-12 font-black uppercase text-[10px] border-slate-200" onClick={() => {
                     const playerNamesMap = allPlayers?.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {}) || {};
-                    const report = generateMatchReport(match, { [match?.team1Id || '']: getTeamName(match?.team1Id || ''), [match?.team2Id || '']: getTeamName(match?.team2Id || '') }, playerNamesMap, inn1, inn2, stats1, stats2);
+                    const report = generateMatchReport(match, allTeams || [], playerNamesMap, inn1, inn2, stats1, stats2);
                     const blob = new Blob([report], { type: 'text/html' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a'); a.href = url; a.download = `CricMates_${match?.id}.html`; a.click();
@@ -756,13 +759,13 @@ export default function MatchScoreboardPage() {
 
           <div className="flex justify-between items-center gap-6 mb-10">
             <div className="flex-1 text-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-              <p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(match?.team1Id || '')}</p>
+              <p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(match?.team1Id)}</p>
               <p className="text-4xl font-black text-slate-900">{stats1.total}/{stats1.wickets}</p>
               <p className="text-[10px] font-bold text-primary uppercase mt-1">({stats1.overs} Overs)</p>
             </div>
             <div className="bg-slate-900 text-white font-black h-12 w-12 rounded-full flex items-center justify-center text-sm shadow-xl">VS</div>
             <div className="flex-1 text-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-              <p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(match?.team2Id || '')}</p>
+              <p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(match?.team2Id)}</p>
               <p className="text-4xl font-black text-slate-900">{stats2.total}/{stats2.wickets}</p>
               <p className="text-[10px] font-bold text-secondary uppercase mt-1">({stats2.overs} Overs)</p>
             </div>

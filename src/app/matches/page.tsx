@@ -14,6 +14,7 @@ import { useApp } from '@/context/AppContext';
 import { useEffect, useState } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { formatTeamName } from '@/lib/utils';
 
 function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, teams: any[], isUmpire: boolean, isMounted: boolean }) {
   const db = useFirestore();
@@ -29,6 +30,36 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
   const formatDate = (dateString: string) => {
     if (!isMounted || !dateString) return '---';
     return new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const getDynamicResult = () => {
+    if (match.status !== 'completed') return 'Match in Progress';
+    if (match.isTie) return 'Match Tied';
+    
+    // Primarily use IDs to find names from the latest teams collection
+    const winner = getTeam(match.winnerTeamId);
+    if (winner) {
+      const winnerName = formatTeamName(winner.name);
+      const desc = match.resultDescription || '';
+      const suffix = desc.toLowerCase().includes('won by') ? desc.split(/won by/i)[1] : '';
+      return suffix ? `${winnerName} won by ${suffix.trim()}` : `${winnerName} won`;
+    }
+    
+    // Full fallback: try to identify which current team name is in the stale description
+    const t1 = getTeam(match.team1Id);
+    const t2 = getTeam(match.team2Id);
+    const staleDesc = match.resultDescription?.toLowerCase() || '';
+    
+    if (t1 && staleDesc.includes(t1.name.toLowerCase())) {
+      const suffix = staleDesc.includes('won by') ? staleDesc.split(/won by/i)[1] : '';
+      return suffix ? `${formatTeamName(t1.name)} won by ${suffix.trim()}` : `${formatTeamName(t1.name)} won`;
+    }
+    if (t2 && staleDesc.includes(t2.name.toLowerCase())) {
+      const suffix = staleDesc.includes('won by') ? staleDesc.split(/won by/i)[1] : '';
+      return suffix ? `${formatTeamName(t2.name)} won by ${suffix.trim()}` : `${formatTeamName(t2.name)} won`;
+    }
+
+    return match.resultDescription || 'Match Completed';
   };
 
   const executeDeepDelete = async () => {
@@ -64,7 +95,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
         <div className="flex items-center gap-3 overflow-hidden">
           <Avatar className="h-8 w-8 border bg-muted shrink-0"><AvatarFallback>{team?.name?.[0] || '?'}</AvatarFallback></Avatar>
           <Link href={`/teams/${inning.battingTeamId}`} className="font-black text-lg text-slate-800 tracking-tight hover:text-primary transition-colors truncate">
-            {team?.name || 'Unknown'}
+            {team ? formatTeamName(team.name) : 'Unknown'}
           </Link>
         </div>
         <div className="flex items-baseline gap-2 shrink-0 ml-4">
@@ -84,7 +115,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
               <span className="flex items-center gap-1 text-primary"><Hash className="w-3 h-3"/> {match.matchNumber || 'Match X'}</span>
               <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(match.matchDate)}</span>
             </span>
-            <div className="text-xs font-black text-primary mt-1">{match.resultDescription}</div>
+            <div className="text-xs font-black text-primary mt-1">{getDynamicResult()}</div>
           </div>
           {isUmpire && (
             <AlertDialog>

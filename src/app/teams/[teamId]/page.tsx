@@ -17,7 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase';
-import { cn } from '@/lib/utils';
+import { cn, formatTeamName } from '@/lib/utils';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -47,6 +47,9 @@ export default function TeamDetailsPage() {
     return query(collectionGroup(db, 'deliveryRecords'));
   }, [db, isMounted]);
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(squadDeliveriesQuery);
+
+  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
+  const { data: allTeams } = useCollection(allTeamsQuery);
 
   const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
 
@@ -82,16 +85,32 @@ export default function TeamDetailsPage() {
       if (m.status !== 'completed' || (m.team1Id !== teamId && m.team2Id !== teamId)) return;
       played++;
       
-      if (m.winnerTeamId === teamId) {
-        won++;
-      } else if (m.isTie) {
-        drawn++;
-      } else if (m.winnerTeamId && m.winnerTeamId !== 'none') {
-        lost++;
-      } else if (m.resultDescription?.toLowerCase().includes('drawn') || m.resultDescription?.toLowerCase().includes('tied')) {
-        drawn++;
+      const winnerId = m.winnerTeamId;
+      if (winnerId) {
+        if (winnerId === teamId) {
+          won++;
+        } else if (m.isTie) {
+          drawn++;
+        } else if (winnerId !== 'none') {
+          lost++;
+        } else {
+          drawn++; // NR case
+        }
       } else {
-        drawn++; // NR case
+        // Fallback for older matches: check resultDescription against current team names
+        const res = m.resultDescription?.toLowerCase() || '';
+        const t1 = allTeams?.find(t => t.id === m.team1Id);
+        const t2 = allTeams?.find(t => t.id === m.team2Id);
+        
+        if (m.isTie || res.includes('tied') || res.includes('drawn')) {
+          drawn++;
+        } else if (t1 && res.includes(t1.name.toLowerCase())) {
+          if (m.team1Id === teamId) won++; else lost++;
+        } else if (t2 && res.includes(t2.name.toLowerCase())) {
+          if (m.team2Id === teamId) won++; else lost++;
+        } else {
+          drawn++;
+        }
       }
     });
 
@@ -117,7 +136,7 @@ export default function TeamDetailsPage() {
     const agRR = agB > 0 ? (agR / (agB / 6)) : 0;
 
     return { played, won, lost, drawn, nrr: forRR - agRR };
-  }, [allMatches, teamId, allDeliveries]);
+  }, [allMatches, teamId, allDeliveries, allTeams]);
 
   const squadStats = useMemo(() => {
     if (!allPlayers || allPlayers.length === 0) return {};
@@ -292,7 +311,7 @@ export default function TeamDetailsPage() {
         <Avatar className="w-16 h-16 border-4 border-primary rounded-2xl shadow-lg"><AvatarImage src={team.logoUrl} className="object-cover" /><AvatarFallback className="bg-primary text-white font-black text-2xl">{team.name[0]}</AvatarFallback></Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl md:text-4xl font-black truncate uppercase tracking-tighter">{team.name}</h1>
+            <h1 className="text-2xl md:text-4xl font-black truncate uppercase tracking-tighter">{formatTeamName(team.name)}</h1>
             {user && (
               <Button variant="ghost" size="icon" onClick={() => setIsEditTeamOpen(true)} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>
             )}
