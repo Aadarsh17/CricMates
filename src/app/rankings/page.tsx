@@ -103,16 +103,14 @@ export default function RankingsPage() {
   }, [teams, matches, rawDeliveries, isMounted]);
 
   const playerLeaderboards = useMemo(() => {
-    if (!players || !rawDeliveries || !matches || !teams || teams.length === 0) return {};
+    if (!players || !rawDeliveries || !matches || !isMounted) return {};
     const validMatchIds = new Set(matches.map(m => m.id));
-    const activeTeamIds = new Set(teams.map(t => t.id));
     
     const stats: Record<string, any> = {};
     const pMatchStats: Record<string, Record<string, any>> = {};
 
-    // Initialize stats for ALL players in active teams
+    // Initialize stats for ALL players in the registry to ensure no one is missing
     players.forEach(p => {
-      if (!activeTeamIds.has(p.teamId)) return;
       stats[p.id] = { id: p.id, name: p.name, runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, outs: 0, potm: 0, cvp: 0 };
     });
     
@@ -205,7 +203,7 @@ export default function RankingsPage() {
       runouts: getRanked('runouts'), 
       potm: getRanked('potm') 
     };
-  }, [players, rawDeliveries, matches, teams, isMounted]);
+  }, [players, rawDeliveries, matches, isMounted]);
 
   if (!isMounted || isDeliveriesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
 
@@ -245,7 +243,7 @@ function NoDataMessage() {
   return (
     <div className="p-20 text-center border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center">
       <Clock className="w-10 h-10 text-slate-200 mb-2" />
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Match History Recorded</p>
+      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Registry Data Available</p>
     </div>
   );
 }
