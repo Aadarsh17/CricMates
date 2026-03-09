@@ -380,8 +380,7 @@ export default function MatchScoreboardPage() {
                 <div className="p-3 bg-slate-100 flex items-center justify-between"><span className="text-[10px] font-black uppercase text-slate-500">Live Batting</span></div>
                 <Table>
                   <TableHeader><TableRow><TableHead className="text-[9px] font-black uppercase">Batter</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">B</TableHead><TableHead className="text-right text-[9px] font-black uppercase">4s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">6s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {[activeInningData?.strikerPlayerId, activeInningData?.nonStrikerPlayerId].map((pid, idx) => {
+                  <TableBody>{[activeInningData?.strikerPlayerId, activeInningData?.nonStrikerPlayerId].map((pid, idx) => {
                       if (!pid) return null;
                       const stats = match?.currentInningNumber === 1 ? stats1 : stats2;
                       const b = stats.batting.find((p: any) => p?.id === pid) || { runs: 0, balls: 0, fours: 0, sixes: 0 };
@@ -395,8 +394,7 @@ export default function MatchScoreboardPage() {
                           <TableCell className="text-right text-[9px] font-bold text-slate-400">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
                         </TableRow>
                       );
-                    })}
-                  </TableBody>
+                    })}</TableBody>
                 </Table>
               </Card>
 
@@ -404,8 +402,7 @@ export default function MatchScoreboardPage() {
                 <div className="p-3 bg-slate-100 flex items-center justify-between"><span className="text-[10px] font-black uppercase text-slate-500">Live Bowling</span></div>
                 <Table>
                   <TableHeader><TableRow><TableHead className="text-[9px] font-black uppercase">Bowler</TableHead><TableHead className="text-right text-[9px] font-black uppercase">O</TableHead><TableHead className="text-right text-[9px] font-black uppercase">M</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">W</TableHead><TableHead className="text-right text-[9px] font-black uppercase">ER</TableHead></TableRow></TableHeader>
-                  <TableBody>
-                    {activeInningData?.currentBowlerPlayerId ? (() => {
+                  <TableBody>{activeInningData?.currentBowlerPlayerId ? (() => {
                       const b = (match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(bowler => bowler.id === activeInningData.currentBowlerPlayerId);
                       return (
                         <TableRow className="bg-secondary/5">
@@ -417,8 +414,7 @@ export default function MatchScoreboardPage() {
                           <TableCell className="text-right text-[9px] font-bold text-slate-400">{b?.economy || '0.00'}</TableCell>
                         </TableRow>
                       );
-                    })() : null}
-                  </TableBody>
+                    })() : null}</TableBody>
                 </Table>
               </Card>
 
@@ -461,8 +457,7 @@ export default function MatchScoreboardPage() {
                 <Card className="border-none shadow-lg rounded-3xl overflow-hidden bg-white">
                   <Table>
                     <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Batter</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">B</TableHead><TableHead className="text-right text-[9px] font-black uppercase">4s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">6s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {inn.stats.batting.map((b: any) => (
+                    <TableBody>{inn.stats.batting.map((b: any) => (
                         <TableRow key={b.id}>
                           <TableCell className="py-3"><p className="font-black text-xs uppercase">{getPlayerName(b.id)}</p><p className="text-[8px] font-bold text-slate-400 uppercase italic">{(b.dismissal || 'not out').replace('Fielder', getPlayerName(b.fielderId))}</p></TableCell>
                           <TableCell className="text-right font-black">{b.runs}</TableCell>
@@ -471,16 +466,14 @@ export default function MatchScoreboardPage() {
                           <TableCell className="text-right text-xs text-slate-400">{b.sixes}</TableCell>
                           <TableCell className="text-right text-[9px] font-bold text-slate-400">{b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
+                      ))}</TableBody>
                   </Table>
                   <div className="bg-slate-50 p-4 border-t flex justify-between items-center"><span className="text-[10px] font-black uppercase text-slate-400">Extras: {inn.stats.extras.total} (wd {inn.stats.extras.w}, nb {inn.stats.extras.nb})</span><span className="text-xs font-black uppercase text-slate-900">Total: {inn.stats.total}/{inn.stats.wickets}</span></div>
                 </Card>
                 <Card className="border-none shadow-lg rounded-3xl overflow-hidden bg-white">
                   <Table>
                     <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Bowler</TableHead><TableHead className="text-right text-[9px] font-black uppercase">O</TableHead><TableHead className="text-right text-[9px] font-black uppercase">M</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">W</TableHead><TableHead className="text-right text-[9px] font-black uppercase">ER</TableHead></TableRow></TableHeader>
-                    <TableBody>
-                      {inn.stats.bowling.map((b: any) => (
+                    <TableBody>{inn.stats.bowling.map((b: any) => (
                         <TableRow key={b.id}>
                           <TableCell className="font-black text-xs uppercase py-3">{getPlayerName(b.id)}</TableCell>
                           <TableCell className="text-right font-bold text-xs">{b.oversDisplay}</TableCell>
@@ -489,8 +482,7 @@ export default function MatchScoreboardPage() {
                           <TableCell className="text-right font-black text-secondary">{b.wickets}</TableCell>
                           <TableCell className="text-right text-[9px] font-bold text-slate-400">{b.economy}</TableCell>
                         </TableRow>
-                      ))}
-                    </TableBody>
+                      ))}</TableBody>
                   </Table>
                 </Card>
               </div>
@@ -526,8 +518,8 @@ export default function MatchScoreboardPage() {
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
                       <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
                       <Legend verticalAlign="top" align="right" height={36}/>
-                      <Line name={getTeamName(match?.team1Id)} type="monotone" dataKey="team1" stroke="hsl(var(--primary))" strokeWidth={3} dot={(props: any) => props.payload.w1 ? <circle cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : false} />
-                      <Line name={getTeamName(match?.team2Id)} type="monotone" dataKey="team2" stroke="hsl(var(--secondary))" strokeWidth={3} dot={(props: any) => props.payload.w2 ? <circle cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : false} connectNulls />
+                      <Line name={getTeamName(match?.team1Id)} type="monotone" dataKey="team1" stroke="hsl(var(--primary))" strokeWidth={3} dot={(props: any) => props.payload.w1 ? <circle key={`w1-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : null} />
+                      <Line name={getTeamName(match?.team2Id)} type="monotone" dataKey="team2" stroke="hsl(var(--secondary))" strokeWidth={3} dot={(props: any) => props.payload.w2 ? <circle key={`w2-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : null} connectNulls />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -691,9 +683,10 @@ export default function MatchScoreboardPage() {
                 </div>
 
                 <Button className="w-full h-14 bg-secondary font-black uppercase shadow-lg" onClick={() => {
+                  const playerNamesMap = allPlayers?.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {}) || {};
                   const report = generateMatchReport(match, 
                     { [match?.team1Id]: getTeamName(match?.team1Id), [match?.team2Id]: getTeamName(match?.team2Id) },
-                    allPlayers?.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {}) || {},
+                    playerNamesMap,
                     inn1, inn2, stats1, stats2
                   );
                   const blob = new Blob([report], { type: 'text/html' });
