@@ -57,7 +57,6 @@ export default function RankingsPage() {
         standings[winnerId].won++; standings[winnerId].points += 2;
         if (standings[loserId]) standings[loserId].lost++;
       } else {
-        // Fallback or NR
         const res = m.resultDescription?.toLowerCase() || '';
         const t1 = teams.find(t => t.id === m.team1Id);
         const t2 = teams.find(t => t.id === m.team2Id);
@@ -104,10 +103,16 @@ export default function RankingsPage() {
   }, [teams, matches, rawDeliveries, isMounted]);
 
   const playerLeaderboards = useMemo(() => {
-    if (!players || !rawDeliveries || !matches || matches.length === 0) return {};
+    if (!players || !rawDeliveries || !matches || !teams || teams.length === 0) return {};
     const validMatchIds = new Set(matches.map(m => m.id));
+    const activeTeamIds = new Set(teams.map(t => t.id));
+    
     const stats: Record<string, any> = {};
-    players.forEach(p => stats[p.id] = { id: p.id, name: p.name, runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, outs: 0, potm: 0 });
+    players.forEach(p => {
+      if (!activeTeamIds.has(p.teamId)) return; // Strictly only players from active teams
+      stats[p.id] = { id: p.id, name: p.name, runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, outs: 0, potm: 0 };
+    });
+    
     matches.forEach(m => { if (m.potmPlayerId && stats[m.potmPlayerId]) stats[m.potmPlayerId].potm++; });
     
     rawDeliveries.forEach(d => {
@@ -120,10 +125,33 @@ export default function RankingsPage() {
       if (b) { b.runsCon += d.totalRunsOnDelivery; if (d.extraType === 'none') b.ballsB++; if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++; }
       const f = stats[d.fielderPlayerId]; if (f) { if (d.dismissalType === 'caught') f.catches++; if (d.dismissalType === 'runout') f.runouts++; }
     });
+
     const list = Object.values(stats).map((s: any) => ({ ...s, avg: s.outs > 0 ? s.runs / s.outs : s.runs, sr: s.balls > 0 ? (s.runs / s.balls) * 100 : 0, er: s.ballsB >= 6 ? (s.runsCon / (s.ballsB / 6)) : 0 }));
-    const filtered = (cat: string) => list.filter(p => cat === 'runs' ? p.runs > 0 : cat === 'wickets' ? p.wkts > 0 : cat === 'avg' ? p.runs > 20 : cat === 'sr' ? p.balls > 10 : cat === 'er' ? p.ballsB >= 12 : true);
-    return { runs: [...filtered('runs')].sort((a,b) => b.runs - a.runs).slice(0, 10), wickets: [...filtered('wickets')].sort((a,b) => b.wkts - a.wkts).slice(0, 10), avg: [...filtered('avg')].sort((a,b) => b.avg - a.avg).slice(0, 10), sr: [...filtered('sr')].sort((a,b) => b.sr - a.sr).slice(0, 10), er: [...filtered('er')].sort((a,b) => a.er - b.er).slice(0, 10), catches: [...filtered('catches')].sort((a,b) => b.catches - a.catches).slice(0, 10), runouts: [...filtered('runouts')].sort((a,b) => b.runouts - a.runouts).slice(0, 10), potm: [...filtered('potm')].sort((a,b) => b.potm - a.potm).slice(0, 10) };
-  }, [players, rawDeliveries, matches]);
+    
+    const getRanked = (cat: string) => {
+      let filtered = [];
+      if (cat === 'runs') filtered = list.filter(p => p.runs > 0).sort((a,b) => b.runs - a.runs);
+      else if (cat === 'wickets') filtered = list.filter(p => p.wkts > 0).sort((a,b) => b.wkts - a.wkts);
+      else if (cat === 'avg') filtered = list.filter(p => p.runs > 20).sort((a,b) => b.avg - a.avg);
+      else if (cat === 'sr') filtered = list.filter(p => p.balls > 10).sort((a,b) => b.sr - a.sr);
+      else if (cat === 'er') filtered = list.filter(p => p.ballsB >= 12).sort((a,b) => a.er - b.er);
+      else if (cat === 'catches') filtered = list.filter(p => p.catches > 0).sort((a,b) => b.catches - a.catches);
+      else if (cat === 'runouts') filtered = list.filter(p => p.runouts > 0).sort((a,b) => b.runouts - a.runouts);
+      else if (cat === 'potm') filtered = list.filter(p => p.potm > 0).sort((a,b) => b.potm - a.potm);
+      return filtered.slice(0, 10);
+    };
+
+    return { 
+      runs: getRanked('runs'), 
+      wickets: getRanked('wickets'), 
+      avg: getRanked('avg'), 
+      sr: getRanked('sr'), 
+      er: getRanked('er'), 
+      catches: getRanked('catches'), 
+      runouts: getRanked('runouts'), 
+      potm: getRanked('potm') 
+    };
+  }, [players, rawDeliveries, matches, teams, isMounted]);
 
   if (!isMounted || isDeliveriesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
 
@@ -140,7 +168,18 @@ export default function RankingsPage() {
         <TabsContent value="leaderboards" className="space-y-6">
           <div className="flex flex-col md:flex-row gap-4 justify-between items-center"><h2 className="text-lg font-black uppercase flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Player Rankings</h2><Select value={activeCategory} onValueChange={setActiveCategory}><SelectTrigger className="w-full md:w-[200px] h-12 font-black uppercase text-[10px]"><SelectValue placeholder="Category" /></SelectTrigger><SelectContent className="z-[200]">{[ {id:'runs', label:'Runs'}, {id:'wickets', label:'Wickets'}, {id:'avg', label:'Average'}, {id:'sr', label:'Strike Rate'}, {id:'er', label:'Economy'}, {id:'catches', label:'Catches'}, {id:'runouts', label:'Run Outs'}, {id:'potm', label:'POTM'} ].map(c => <SelectItem key={c.id} value={c.id} className="font-black uppercase text-[10px]">{c.label}</SelectItem>)}</SelectContent></Select></div>
           {(!playerLeaderboards[activeCategory] || playerLeaderboards[activeCategory].length === 0) ? <NoDataMessage /> : (
-            <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white"><Table><TableHeader className="bg-slate-50"><TableRow><TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead><TableHead className="text-[10px] font-black uppercase">Player</TableHead><TableHead className="text-right text-[10px] font-black uppercase bg-primary/5">Score</TableHead></TableRow></TableHeader><TableBody>{playerLeaderboards[activeCategory].map((p: any, idx: number) => (<TableRow key={p.id}><TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell><TableCell className="font-black text-xs uppercase"><Link href={`/players/${p.id}`} className="hover:text-primary">{p.name}</Link></TableCell><TableCell className="text-right font-black text-primary bg-primary/5">{['avg', 'sr', 'er'].includes(activeCategory) ? p[activeCategory].toFixed(2) : p[activeCategory]}</TableCell></TableRow>))}</TableBody></Table></Card>
+            <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white"><Table><TableHeader className="bg-slate-50"><TableRow><TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead><TableHead className="text-[10px] font-black uppercase">Player</TableHead><TableHead className="text-right text-[10px] font-black uppercase bg-primary/5">Score</TableHead></TableRow></TableHeader><TableBody>{playerLeaderboards[activeCategory].map((p: any, idx: number) => (
+              <TableRow key={p.id}>
+                <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
+                <TableCell className="font-black text-xs uppercase"><Link href={`/players/${p.id}`} className="hover:text-primary">{p.name}</Link></TableCell>
+                <TableCell className="text-right font-black text-primary bg-primary/5">
+                  {['avg', 'sr', 'er'].includes(activeCategory) 
+                    ? (p[activeCategory] || 0).toFixed(2) 
+                    : (activeCategory === 'wickets' ? p.wkts : p[activeCategory])
+                  }
+                </TableCell>
+              </TableRow>))}
+            </TableBody></Table></Card>
           )}
         </TabsContent>
       </Tabs>
