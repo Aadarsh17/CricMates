@@ -78,20 +78,23 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
     const team = getTeam(teamId);
     
     return (
-      <div className="flex justify-between items-center w-full py-2">
-        <div className="flex items-center gap-3 overflow-hidden">
+      <div className="flex justify-between items-center w-full py-2 border-b border-slate-100 last:border-0">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <Avatar className="h-8 w-8 border bg-muted shrink-0">
             <AvatarFallback>{team?.name?.[0] || '?'}</AvatarFallback>
           </Avatar>
-          <Link href={`/teams/${teamId}`} className="font-black text-lg text-slate-800 tracking-tight hover:text-primary transition-colors truncate">
+          <Link 
+            href={`/teams/${teamId}`} 
+            className="font-black text-sm md:text-lg text-slate-800 tracking-tight hover:text-primary transition-colors leading-tight py-1"
+          >
             {team ? formatTeamName(team.name) : 'Syncing Team...'}
           </Link>
         </div>
         <div className="flex items-baseline gap-2 shrink-0 ml-4">
           {inning ? (
             <>
-              <span className="font-black text-2xl text-slate-900">{inning.score}/{inning.wickets}</span>
-              <span className="text-sm font-bold text-slate-500">({inning.oversCompleted}.{inning.ballsInCurrentOver || 0})</span>
+              <span className="font-black text-xl md:text-2xl text-slate-900">{inning.score}/{inning.wickets}</span>
+              <span className="text-[10px] md:text-sm font-bold text-slate-500">({inning.oversCompleted}.{inning.ballsInCurrentOver || 0})</span>
             </>
           ) : (
             <span className="text-[10px] font-bold text-slate-300 uppercase animate-pulse">Wait...</span>
@@ -110,7 +113,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
               <span className="flex items-center gap-1 text-primary"><Hash className="w-3 h-3"/> {match.matchNumber || 'Match X'}</span>
               <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(match.matchDate)}</span>
             </span>
-            <div className="text-xs font-black text-primary mt-1">{getDynamicResult()}</div>
+            <div className="text-sm font-black text-primary mt-1">{getDynamicResult()}</div>
           </div>
           {isUmpire && (
             <AlertDialog>
@@ -132,7 +135,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
             </AlertDialog>
           )}
         </div>
-        <div className="space-y-1 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
+        <div className="space-y-0 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
           {renderInningRow('inning_1', match.team1Id)}
           {renderInningRow('inning_2', match.team2Id)}
         </div>
