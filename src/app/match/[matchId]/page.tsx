@@ -3,8 +3,8 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNonBlocking, setDocumentNonBlocking } from '@/firebase';
-import { doc, collection, query, orderBy, limit, getDocs, deleteDoc } from 'firebase/firestore';
+import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { doc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -156,7 +156,7 @@ export default function MatchScoreboardPage() {
     };
     if (legal % 6 === 0 && legal > 0) updates.currentBowlerPlayerId = '';
 
-    await updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates);
+    await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates, { merge: true });
   };
 
   const handleFinalizeMatch = async () => {
@@ -175,11 +175,15 @@ export default function MatchScoreboardPage() {
       result = "Match Tied";
     }
     
-    await updateDocumentNonBlocking(doc(db, 'matches', matchId), { 
-      status: 'completed',
-      resultDescription: result
-    });
-    toast({ title: "Match Finalized", description: result });
+    try {
+      await updateDocumentNonBlocking(doc(db, 'matches', matchId), { 
+        status: 'completed',
+        resultDescription: result
+      });
+      toast({ title: "Match Finalized", description: result });
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to finalize match.", variant: "destructive" });
+    }
   };
 
   const handleRecordBall = async (runs: number, extra: any = 'none') => {
@@ -204,6 +208,7 @@ export default function MatchScoreboardPage() {
       isWicket: false, 
       timestamp: Date.now() 
     };
+    
     await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', deliveryId), dData, { merge: true });
 
     let nextS = activeInningData.strikerPlayerId, nextNS = activeInningData.nonStrikerPlayerId;
@@ -221,7 +226,7 @@ export default function MatchScoreboardPage() {
     if (newTotalLegal % 6 === 0 && isLegal) updates.currentBowlerPlayerId = '';
     if (newTotalLegal >= match.totalOvers * 6) updates.isDeclaredFinished = true;
 
-    await updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), updates);
+    await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), updates, { merge: true });
     setIsNoBallDialogOpen(false);
   };
 
@@ -406,8 +411,12 @@ export default function MatchScoreboardPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="w-56 rounded-xl" align="end">
                           <DropdownMenuItem className="font-bold py-3" onClick={async () => {
-                            await updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: true });
-                            toast({ title: "Innings Declared Finished" });
+                            try {
+                              await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: true }, { merge: true });
+                              toast({ title: "Innings Declared Finished" });
+                            } catch (e) {
+                              toast({ title: "Error", description: "Failed to update innings status.", variant: "destructive" });
+                            }
                           }}><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" /> Finish Innings</DropdownMenuItem>
                           <DropdownMenuItem className="font-bold py-3" onClick={() => setIsPotmDialogOpen(true)}><UserCheck className="w-4 h-4 mr-2 text-amber-500" /> Declare POTM</DropdownMenuItem>
                           <DropdownMenuSeparator />
@@ -422,7 +431,7 @@ export default function MatchScoreboardPage() {
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="font-bold py-3" onClick={handleFinalizeMatch}><ShieldCheck className="w-4 h-4 mr-2 text-emerald-500" /> Finalize Match</DropdownMenuItem>
                           <DropdownMenuItem className="font-bold py-3 text-red-500" onClick={async () => {
-                            await updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: false });
+                            await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: false }, { merge: true });
                             toast({ title: "Innings Re-opened" });
                           }}><Unlock className="w-4 h-4 mr-2" /> Re-open Innings</DropdownMenuItem>
                         </DropdownMenuContent>
@@ -435,7 +444,7 @@ export default function MatchScoreboardPage() {
                           {[0, 1, 2, 3, 4, 6].map(r => (
                             <Button key={r} disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(r)} className={cn("h-14 font-black text-2xl rounded-2xl", r >= 4 ? "bg-primary text-white" : "bg-white/5 text-white")}>{r || '•'}</Button>
                           ))}
-                          <Button onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { strikerPlayerId: activeInningData?.nonStrikerPlayerId || '', nonStrikerPlayerId: activeInningData?.strikerPlayerId || '' })} className="bg-secondary text-white h-14 font-black rounded-2xl"><ArrowLeftRight className="w-5 h-5"/></Button>
+                          <Button onClick={() => setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { strikerPlayerId: activeInningData?.nonStrikerPlayerId || '', nonStrikerPlayerId: activeInningData?.strikerPlayerId || '' }, { merge: true })} className="bg-secondary text-white h-14 font-black rounded-2xl"><ArrowLeftRight className="w-5 h-5"/></Button>
                           <Button variant="outline" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || '', fielderId: 'none', successorId: ''}); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px] bg-white/5">Wicket</Button>
                         </div>
                         <div className="grid grid-cols-3 gap-3">
@@ -444,7 +453,7 @@ export default function MatchScoreboardPage() {
                           <Button variant="outline" onClick={async () => { 
                             const currId = `inning_${match?.currentInningNumber}`;
                             const snap = await getDocs(query(collection(db, 'matches', matchId, 'innings', currId, 'deliveryRecords'), orderBy('timestamp', 'desc'), limit(1)));
-                            if(!snap.empty) { await deleteDoc(snap.docs[0].ref); await recalculateInningState(currId); toast({ title: "Last action undone" }); }
+                            if(!snap.empty) { await deleteDocumentNonBlocking(snap.docs[0].ref); await recalculateInningState(currId); toast({ title: "Last action undone" }); }
                           }} className="h-12 border-white/10 text-slate-400 uppercase font-black text-[9px] bg-white/5">Undo</Button>
                         </div>
                       </>
@@ -455,17 +464,21 @@ export default function MatchScoreboardPage() {
                   <Button onClick={async () => {
                     if (match?.currentInningNumber === 1) {
                       const batId = match.team1Id === inn1?.battingTeamId ? match.team2Id : match.team1Id;
-                      await updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 });
-                      await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), {
-                        id: 'inning_2',
-                        battingTeamId: batId,
-                        score: 0,
-                        wickets: 0,
-                        oversCompleted: 0,
-                        ballsInCurrentOver: 0,
-                        isDeclaredFinished: false
-                      }, { merge: true });
-                      toast({ title: "2nd Innings Started" });
+                      try {
+                        await updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 });
+                        await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), {
+                          id: 'inning_2',
+                          battingTeamId: batId,
+                          score: 0,
+                          wickets: 0,
+                          oversCompleted: 0,
+                          ballsInCurrentOver: 0,
+                          isDeclaredFinished: false
+                        }, { merge: true });
+                        toast({ title: "2nd Innings Started" });
+                      } catch (e) {
+                        toast({ title: "Error", description: "Failed to start 2nd innings.", variant: "destructive" });
+                      }
                     } else {
                       await handleFinalizeMatch();
                     }
@@ -779,7 +792,7 @@ export default function MatchScoreboardPage() {
                                     <Button variant="ghost" size="icon" onClick={() => { setCorrectionForm({ ...d, extra: d.extraType || 'none', runs: d.runsScored || 0, targetInning: tab.innKey }); setIsCorrectionDialogOpen(true); }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3" /></Button>
                                     <Button variant="ghost" size="icon" onClick={async () => { 
                                       if(confirm("Permanently delete action? Records will re-simulate.")) { 
-                                        await deleteDoc(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); 
+                                        await deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); 
                                         await recalculateInningState(tab.innKey);
                                         toast({ title: "Action Purged" });
                                       } 
@@ -880,9 +893,13 @@ export default function MatchScoreboardPage() {
               if (matchDateForm) updates.matchDate = new Date(matchDateForm).toISOString();
               updates.venue = venueForm;
               updates.matchNumber = matchNumberForm;
-              await updateDocumentNonBlocking(doc(db, 'matches', matchId), updates);
-              setIsMatchDetailsDialogOpen(false);
-              toast({ title: "Metadata Updated" });
+              try {
+                await updateDocumentNonBlocking(doc(db, 'matches', matchId), updates);
+                setIsMatchDetailsDialogOpen(false);
+                toast({ title: "Metadata Updated" });
+              } catch (e) {
+                toast({ title: "Error", description: "Failed to update match metadata.", variant: "destructive" });
+              }
             }} className="w-full h-14 bg-primary font-black uppercase shadow-xl">Apply Changes</Button>
           </DialogFooter>
         </DialogContent>
@@ -909,9 +926,13 @@ export default function MatchScoreboardPage() {
           </div>
           <DialogFooter>
             <Button onClick={async () => { 
-              await updateDocumentNonBlocking(doc(db, 'matches', matchId), { potmPlayerId: potmId === 'none' ? '' : potmId });
-              setIsPotmDialogOpen(false);
-              toast({ title: "POTM Recorded", description: "This will reflect in the official scorecard." });
+              try {
+                await updateDocumentNonBlocking(doc(db, 'matches', matchId), { potmPlayerId: potmId === 'none' ? '' : potmId });
+                setIsPotmDialogOpen(false);
+                toast({ title: "POTM Recorded", description: "This will reflect in the official scorecard." });
+              } catch (e) {
+                toast({ title: "Error", description: "Failed to declare POTM.", variant: "destructive" });
+              }
             }} className="w-full h-14 bg-amber-600 font-black uppercase shadow-xl">Confirm Declaration</Button>
           </DialogFooter>
         </DialogContent>
@@ -1039,9 +1060,13 @@ export default function MatchScoreboardPage() {
               if (assignmentForm.strikerId) updates.strikerPlayerId = assignmentForm.strikerId;
               if (assignmentForm.nonStrikerId) updates.nonStrikerPlayerId = assignmentForm.nonStrikerId;
               if (assignmentForm.bowlerId) updates.currentBowlerPlayerId = assignmentForm.bowlerId;
-              await updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), updates);
-              setIsPlayerAssignmentOpen(false);
-              toast({ title: "Assignments Updated" });
+              try {
+                await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), updates, { merge: true });
+                setIsPlayerAssignmentOpen(false);
+                toast({ title: "Assignments Updated" });
+              } catch (e) {
+                toast({ title: "Error", description: "Failed to update assignments.", variant: "destructive" });
+              }
             }} className="w-full h-16 bg-primary font-black uppercase rounded-2xl shadow-xl">Confirm Assignment</Button>
           </div>
         </DialogContent>
@@ -1117,33 +1142,37 @@ export default function MatchScoreboardPage() {
               }
               const currId = `inning_${match?.currentInningNumber}`;
               const dId = doc(collection(db, 'temp')).id;
-              await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currId, 'deliveryRecords', dId), { 
-                id: dId, 
-                strikerPlayerId: activeInningData?.strikerPlayerId || '', 
-                nonStrikerPlayerId: activeInningData?.nonStrikerPlayerId || '', 
-                bowlerId: activeInningData?.currentBowlerPlayerId || '', 
-                fielderPlayerId: wicketForm.fielderId || 'none', 
-                isWicket: true, 
-                dismissalType: wicketForm.type || 'bowled', 
-                batsmanOutPlayerId: wicketForm.batterOutId || '', 
-                successorPlayerId: wicketForm.successorId || '',
-                extraType: 'none', 
-                runsScored: wicketForm.runsCompleted || 0, 
-                totalRunsOnDelivery: wicketForm.runsCompleted || 0, 
-                timestamp: Date.now() 
-              }, { merge: true });
-              await recalculateInningState(currId);
-              setIsWicketDialogOpen(false);
-              
-              if (wicketForm.type !== 'retired') {
-                setAssignmentForm({ 
-                  strikerId: wicketForm.batterOutId === activeInningData?.strikerPlayerId ? '' : activeInningData?.strikerPlayerId || '', 
-                  nonStrikerId: wicketForm.batterOutId === activeInningData?.nonStrikerPlayerId ? '' : activeInningData?.nonStrikerPlayerId || '', 
-                  bowlerId: activeInningData?.currentBowlerPlayerId || '' 
-                });
-                setIsPlayerAssignmentOpen(true);
+              try {
+                await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currId, 'deliveryRecords', dId), { 
+                  id: dId, 
+                  strikerPlayerId: activeInningData?.strikerPlayerId || '', 
+                  nonStrikerPlayerId: activeInningData?.nonStrikerPlayerId || '', 
+                  bowlerId: activeInningData?.currentBowlerPlayerId || '', 
+                  fielderPlayerId: wicketForm.fielderId || 'none', 
+                  isWicket: true, 
+                  dismissalType: wicketForm.type || 'bowled', 
+                  batsmanOutPlayerId: wicketForm.batterOutId || '', 
+                  successorPlayerId: wicketForm.successorId || '',
+                  extraType: 'none', 
+                  runsScored: wicketForm.runsCompleted || 0, 
+                  totalRunsOnDelivery: wicketForm.runsCompleted || 0, 
+                  timestamp: Date.now() 
+                }, { merge: true });
+                await recalculateInningState(currId);
+                setIsWicketDialogOpen(false);
+                
+                if (wicketForm.type !== 'retired') {
+                  setAssignmentForm({ 
+                    strikerId: wicketForm.batterOutId === activeInningData?.strikerPlayerId ? '' : activeInningData?.strikerPlayerId || '', 
+                    nonStrikerId: wicketForm.batterOutId === activeInningData?.nonStrikerPlayerId ? '' : activeInningData?.nonStrikerPlayerId || '', 
+                    bowlerId: activeInningData?.currentBowlerPlayerId || '' 
+                  });
+                  setIsPlayerAssignmentOpen(true);
+                }
+                toast({ title: wicketForm.type === 'retired' ? "Player Retired" : "Wicket Registered" });
+              } catch (e) {
+                toast({ title: "Error", description: "Failed to record dismissal.", variant: "destructive" });
               }
-              toast({ title: wicketForm.type === 'retired' ? "Player Retired" : "Wicket Registered" });
             }} disabled={!wicketForm.batterOutId} className={cn("w-full h-16 text-white font-black uppercase rounded-2xl shadow-xl", wicketForm.type === 'retired' ? "bg-slate-600" : "bg-destructive")}>
               Confirm {wicketForm.type === 'retired' ? 'Retirement' : 'Wicket'}
             </Button>
