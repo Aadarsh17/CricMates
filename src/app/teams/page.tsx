@@ -82,7 +82,7 @@ export default function TeamsPage() {
         
         const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
         const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
-        const bowlingTeamId = battingTeamId === teamId ? match.team2Id : match.team1Id;
+        const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
 
         if (totals[battingTeamId]) {
           totals[battingTeamId].forR += (d.totalRunsOnDelivery || 0);
@@ -96,11 +96,11 @@ export default function TeamsPage() {
     }
 
     allMatches.filter(m => m.status === 'completed').forEach(m => {
-      const res = m.resultDescription?.toLowerCase() || '';
-      const t1 = teams.find(t => t.id === m.team1Id); const t2 = teams.find(t => t.id === m.team2Id);
-      if (t1 && t2) {
-        if (res.includes(t1.name.toLowerCase()) && res.includes('won')) { totals[t1.id].wins++; totals[t2.id].losses++; }
-        else if (res.includes(t2.name.toLowerCase()) && res.includes('won')) { totals[t2.id].wins++; totals[t1.id].losses++; }
+      const winnerId = m.winnerTeamId;
+      if (winnerId && winnerId !== 'none' && totals[winnerId]) {
+        totals[winnerId].wins++;
+        const loserId = winnerId === m.team1Id ? m.team2Id : m.team1Id;
+        if (totals[loserId]) totals[loserId].losses++;
       }
     });
 
@@ -112,8 +112,33 @@ export default function TeamsPage() {
     return stats;
   }, [teams, allMatches, rawDeliveries]);
 
+  const handleCreateTeam = () => {
+    if (!isUmpire || !user || !newTeamName.trim()) return;
+    const teamId = doc(collection(db, 'teams')).id;
+    const defaultTeamLogo = PlaceHolderImages.find(img => img.id === 'team-logo')?.imageUrl || '';
+    
+    setDocumentNonBlocking(doc(db, 'teams', teamId), { 
+      id: teamId, 
+      name: newTeamName, 
+      logoUrl: defaultTeamLogo, 
+      ownerId: user.uid, 
+      matchesWon: 0, 
+      matchesLost: 0, 
+      matchesDrawn: 0, 
+      totalRunsScored: 0, 
+      totalRunsConceded: 0, 
+      totalBallsFaced: 0, 
+      totalBallsBowled: 0, 
+      totalWicketsTaken: 0, 
+      netRunRate: 0 
+    }, { merge: true });
+    
+    setIsCreateOpen(false);
+    setNewTeamName('');
+    toast({ title: "Team Registered" });
+  };
+
   const isLoading = isTeamsLoading || isMatchesLoading || isDeliveriesLoading;
-  const defaultTeamLogo = PlaceHolderImages.find(img => img.id === 'team-logo')?.imageUrl || '';
 
   const getCaptainName = (team: any) => {
     if (!team.captainId) return null;
@@ -136,12 +161,51 @@ export default function TeamsPage() {
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div><h1 className="text-2xl md:text-3xl font-black font-headline tracking-tight text-slate-900">Franchises</h1><p className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mt-1">Calculated based on current league matches</p></div>
-        <div className="flex items-center gap-2 w-full md:w-auto"><div className="bg-slate-100 p-1 rounded flex border shrink-0"><Button variant={view === 'grid' ? "secondary" : "ghost"} size="sm" onClick={() => setView('grid')} className="h-8 w-8 p-0"><LayoutGrid className="w-4 h-4"/></Button><Button variant={view === 'list' ? "secondary" : "ghost"} size="sm" onClick={() => setView('list')} className="h-8 w-8 p-0"><List className="w-4 h-4"/></Button></div>
-          {isUmpire && (<Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}><DialogTrigger asChild><Button className="bg-primary hover:bg-primary/90 font-bold h-10 px-4 flex-1 md:flex-none"><Plus className="mr-2 h-4 w-4"/> Register</Button></DialogTrigger><DialogContent className="max-w-[90vw] sm:max-w-md"><DialogHeader><DialogTitle>Create New Team</DialogTitle></DialogHeader><div className="space-y-4 py-4"><Label>Team Name</Label><Input placeholder="e.g. Royal Challengers" value={newTeamName} onChange={(e) => setNewTeamName(e.target.value)} /></div><DialogFooter><Button onClick={() => { if (!isUmpire || !user || !newTeamName.trim()) return; const teamId = doc(collection(db, 'teams')).id; setDocumentNonBlocking(doc(db, 'teams', teamId), { id: teamId, name: newTeamName, logoUrl: defaultTeamLogo, ownerId: user.uid, matchesWon: 0, matchesLost: 0, matchesDrawn: 0, totalRunsScored: 0, totalRunsConceded: 0, totalBallsFaced: 0, totalBallsBowled: 0, totalWicketsTaken: 0, netRunRate: 0 }, { merge: true }); setIsCreateOpen(false); setNewTeamName(''); toast({ title: "Team Registered" }); }} disabled={!newTeamName.trim()} className="w-full h-12">Register Franchise</Button></DialogFooter></DialogContent>)}
+        <div className="flex items-center gap-2 w-full md:w-auto">
+          <div className="bg-slate-100 p-1 rounded flex border shrink-0">
+            <Button variant={view === 'grid' ? "secondary" : "ghost"} size="sm" onClick={() => setView('grid')} className="h-8 w-8 p-0"><LayoutGrid className="w-4 h-4"/></Button>
+            <Button variant={view === 'list' ? "secondary" : "ghost"} size="sm" onClick={() => setView('list')} className="h-8 w-8 p-0"><List className="w-4 h-4"/></Button>
+          </div>
+          {isUmpire && (
+            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-primary hover:bg-primary/90 font-bold h-10 px-4 flex-1 md:flex-none">
+                  <Plus className="mr-2 h-4 w-4"/> Register
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-[90vw] sm:max-w-md">
+                <DialogHeader><DialogTitle>Create New Team</DialogTitle></DialogHeader>
+                <div className="space-y-4 py-4">
+                  <Label>Team Name</Label>
+                  <Input 
+                    placeholder="e.g. Royal Challengers" 
+                    value={newTeamName} 
+                    onChange={(e) => setNewTeamName(e.target.value)} 
+                  />
+                </div>
+                <DialogFooter>
+                  <Button 
+                    onClick={handleCreateTeam} 
+                    disabled={!newTeamName.trim()} 
+                    className="w-full h-12"
+                  >
+                    Register Franchise
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
-      {isLoading ? (<div className="py-20 flex flex-col items-center justify-center space-y-4"><Loader2 className="w-10 h-10 text-primary animate-spin" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Franchise Data...</p></div>) : (
-        <div className={view === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>{teams?.map(team => {
+      
+      {isLoading ? (
+        <div className="py-20 flex flex-col items-center justify-center space-y-4">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Franchise Data...</p>
+        </div>
+      ) : (
+        <div className={view === 'grid' ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}>
+          {teams?.map(team => {
             const stats = teamStats[team.id] || { wins: 0, losses: 0, nrr: 0 };
             const isHistoryOpen = openHistories[team.id] ?? false;
             const captainName = getCaptainName(team);
@@ -179,7 +243,8 @@ export default function TeamsPage() {
                 </CardContent>
               </Card>
             );
-          })}</div>
+          })}
+        </div>
       )}
     </div>
   );

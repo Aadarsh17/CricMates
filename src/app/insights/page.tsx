@@ -8,10 +8,11 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Clock, Medal, ChevronLeft, Swords, Target, Zap, TrendingUp, Search } from 'lucide-react';
+import { Loader2, Clock, Medal, ChevronLeft, Swords, Target, Zap, TrendingUp, Search, Crown, Shield, Activity, Scale } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { calculatePlayerCVP } from '@/lib/cvp-utils';
 
 export default function InsightsPage() {
   const db = useFirestore();
@@ -19,6 +20,8 @@ export default function InsightsPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [p1Id, setP1Id] = useState<string>('');
   const [p2Id, setP2Id] = useState<string>('');
+  const [cap1Id, setCap1Id] = useState<string>('');
+  const [cap2Id, setCap2Id] = useState<string>('');
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -45,7 +48,6 @@ export default function InsightsPage() {
     deliveries.forEach(d => {
       const bId = d.bowlerId || d.bowlerPlayerId;
       
-      // P1 Batting vs P2 Bowling
       if (d.strikerPlayerId === p1Id && bId === p2Id) {
         stats.p1BatVsP2Bowl.runs += (d.runsScored || 0);
         if (d.extraType === 'none') stats.p1BatVsP2Bowl.balls++;
@@ -54,7 +56,6 @@ export default function InsightsPage() {
         if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) stats.p1BatVsP2Bowl.wkts++;
       }
 
-      // P2 Batting vs P1 Bowling
       if (d.strikerPlayerId === p2Id && bId === p1Id) {
         stats.p2BatVsP1Bowl.runs += (d.runsScored || 0);
         if (d.extraType === 'none') stats.p2BatVsP1Bowl.balls++;
@@ -67,6 +68,60 @@ export default function InsightsPage() {
     return stats;
   }, [deliveries, p1Id, p2Id]);
 
+  const captainStats = useMemo(() => {
+    if (!matches || !cap1Id || !cap2Id || !deliveries) return null;
+
+    const getCapRecord = (cid: string) => {
+      const rec = { played: 0, won: 0, lost: 0, tied: 0, runs: 0, wkts: 0 };
+      matches.forEach(m => {
+        if (m.status !== 'completed') return;
+        const isC1 = m.team1CaptainId === cid;
+        const isC2 = m.team2CaptainId === cid;
+        if (!isC1 && !isC2) return;
+
+        rec.played++;
+        const myTeamId = isC1 ? m.team1Id : m.team2Id;
+        if (m.isTie) rec.tied++;
+        else if (m.winnerTeamId === myTeamId) rec.won++;
+        else if (m.winnerTeamId && m.winnerTeamId !== 'none') rec.lost++;
+      });
+
+      deliveries.forEach(d => {
+        const mid = d.__fullPath?.split('/')[1];
+        const match = matches.find(m => m.id === mid);
+        if (!match) return;
+        const isC1 = match.team1CaptainId === cid;
+        const isC2 = match.team2CaptainId === cid;
+        if (!isC1 && !isC2) return;
+
+        if (d.strikerPlayerId === cid) rec.runs += (d.runsScored || 0);
+        const bId = d.bowlerId || d.bowlerPlayerId;
+        if (bId === cid) {
+          if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) rec.wkts++;
+        }
+      });
+
+      return rec;
+    };
+
+    const h2h = { c1Won: 0, c2Won: 0, ties: 0 };
+    matches.forEach(m => {
+      if (m.status !== 'completed') return;
+      const isC1_T1 = m.team1CaptainId === cap1Id;
+      const isC1_T2 = m.team2CaptainId === cap1Id;
+      const isC2_T1 = m.team1CaptainId === cap2Id;
+      const isC2_T2 = m.team2CaptainId === cap2Id;
+
+      if ((isC1_T1 && isC2_T2) || (isC1_T2 && isC2_T1)) {
+        if (m.isTie) h2h.ties++;
+        else if (m.winnerTeamId === (isC1_T1 ? m.team1Id : m.team2Id)) h2h.c1Won++;
+        else h2h.c2Won++;
+      }
+    });
+
+    return { cap1: getCapRecord(cap1Id), cap2: getCapRecord(cap2Id), h2h };
+  }, [matches, cap1Id, cap2Id, deliveries]);
+
   const milestones = useMemo(() => {
     if (!players || !deliveries || !matches) return null;
     
@@ -74,7 +129,6 @@ export default function InsightsPage() {
     const hats: any[] = [];
     const winKnocks: any[] = [];
 
-    // 1. FASTEST 30
     const pInnings: Record<string, Record<string, any>> = {};
     deliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
@@ -94,7 +148,6 @@ export default function InsightsPage() {
       }
     });
 
-    // 2. HAT-TRICKS
     const sorted = [...deliveries].sort((a,b) => a.timestamp - b.timestamp);
     const bBals: Record<string, Record<string, any[]>> = {};
     sorted.forEach(d => {
@@ -113,7 +166,6 @@ export default function InsightsPage() {
       }
     });
 
-    // 3. MATCH WINNING KNOCKS
     matches.filter(m => m.status === 'completed' && m.resultDescription?.includes('won')).forEach(m => {
       const matchDeliveries = deliveries.filter(d => d.__fullPath?.includes(m.id)).sort((a,b) => a.timestamp - b.timestamp);
       const lastBall = matchDeliveries[matchDeliveries.length - 1];
@@ -129,7 +181,6 @@ export default function InsightsPage() {
       }
     });
 
-    // 4. CAREER FASTEST
     const career: Record<string, { runs: number, wkts: number, matches: Set<string> }> = {};
     players.forEach(p => career[p.id] = { runs: 0, wkts: 0, matches: new Set() });
 
@@ -184,13 +235,105 @@ export default function InsightsPage() {
       </div>
 
       <Tabs defaultValue="matches" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-12 bg-slate-100 p-1 rounded-xl mb-8">
+        <TabsList className="grid w-full grid-cols-6 h-12 bg-slate-100 p-1 rounded-xl mb-8">
           <TabsTrigger value="matches" className="font-bold text-[7px] uppercase">Ranks</TabsTrigger>
+          <TabsTrigger value="captaincy" className="font-bold text-[7px] uppercase">Leader</TabsTrigger>
           <TabsTrigger value="comparison" className="font-bold text-[7px] uppercase">H2H</TabsTrigger>
           <TabsTrigger value="f30" className="font-bold text-[7px] uppercase">Fast 30</TabsTrigger>
           <TabsTrigger value="hats" className="font-bold text-[7px] uppercase">Hats</TabsTrigger>
           <TabsTrigger value="knocks" className="font-bold text-[7px] uppercase">Finisher</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="captaincy" className="space-y-8 animate-in fade-in zoom-in-95">
+          <div className="space-y-6">
+            <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Crown className="w-5 h-5 text-amber-500" /> Captaincy Analysis</h2>
+            <Card className="border-none shadow-xl bg-white p-6 space-y-6 rounded-3xl">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Select Captain A</Label>
+                  <Select value={cap1Id} onValueChange={setCap1Id}>
+                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Captain" /></SelectTrigger>
+                    <SelectContent>
+                      {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-center -my-2 relative z-10">
+                  <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-full flex items-center justify-center border-4 border-white shadow-lg">VS</div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Select Captain B</Label>
+                  <Select value={cap2Id} onValueChange={setCap2Id}>
+                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Captain" /></SelectTrigger>
+                    <SelectContent>
+                      {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </Card>
+
+            {captainStats ? (
+              <div className="space-y-6">
+                <div className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-2xl">
+                  <div className="p-4 bg-primary text-center">
+                    <p className="text-[10px] font-black uppercase tracking-widest">Leadership Head-to-Head</p>
+                  </div>
+                  <div className="p-6 grid grid-cols-3 items-center gap-4 text-center">
+                    <div className="space-y-1">
+                      <p className="text-[8px] font-black text-slate-400 uppercase">Wins</p>
+                      <p className="text-3xl font-black">{captainStats.h2h.c1Won}</p>
+                    </div>
+                    <div className="bg-white/5 p-3 rounded-2xl border border-white/10">
+                      <p className="text-[8px] font-black text-slate-500 uppercase mb-1">Ties</p>
+                      <p className="text-xl font-black">{captainStats.h2h.ties}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[8px] font-black text-slate-400 uppercase">Wins</p>
+                      <p className="text-3xl font-black">{captainStats.h2h.c2Won}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { id: cap1Id, data: captainStats.cap1, color: 'border-primary' },
+                    { id: cap2Id, data: captainStats.cap2, color: 'border-secondary' }
+                  ].map((c, i) => (
+                    <Card key={i} className={cn("border-t-8 shadow-lg p-5 space-y-4 rounded-3xl", c.color)}>
+                      <p className="text-[10px] font-black uppercase text-slate-400 truncate">{getPlayerName(c.id)}</p>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center border-b pb-2">
+                          <span className="text-[8px] font-black text-slate-400 uppercase">Played</span>
+                          <span className="font-black">{c.data.played}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b pb-2">
+                          <span className="text-[8px] font-black text-slate-400 uppercase">Win %</span>
+                          <span className="font-black text-emerald-600">{c.data.played > 0 ? ((c.data.won / c.data.played) * 100).toFixed(1) : '0.0'}%</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-center pt-2">
+                          <div className="bg-slate-50 p-2 rounded-xl">
+                            <p className="text-[7px] font-black text-slate-400 uppercase">Runs</p>
+                            <p className="text-sm font-black">{c.data.runs}</p>
+                          </div>
+                          <div className="bg-slate-50 p-2 rounded-xl">
+                            <p className="text-[7px] font-black text-slate-400 uppercase">Wkts</p>
+                            <p className="text-sm font-black">{c.data.wkts}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+                <Crown className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select two leaders to compare captaincy impact</p>
+              </div>
+            )}
+          </div>
+        </TabsContent>
 
         <TabsContent value="comparison" className="space-y-8 animate-in fade-in zoom-in-95">
           <div className="space-y-6">
