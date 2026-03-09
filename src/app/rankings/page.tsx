@@ -46,27 +46,28 @@ export default function RankingsPage() {
       if (m.status !== 'completed') return;
       standings[m.team1Id].played++; standings[m.team2Id].played++;
       
+      // Precision ID Check
       if (m.isTie) {
         standings[m.team1Id].tied++; standings[m.team2Id].tied++;
         standings[m.team1Id].points += 1; standings[m.team2Id].points += 1;
-      } else if (m.winnerTeamId && m.winnerTeamId !== 'none') {
+      } else if (m.winnerTeamId && m.winnerTeamId !== 'none' && standings[m.winnerTeamId]) {
         const winner = m.winnerTeamId;
         const loser = winner === m.team1Id ? m.team2Id : m.team1Id;
         standings[winner].won++; standings[winner].points += 2;
-        standings[loser].lost++;
+        if (standings[loser]) standings[loser].lost++;
       } else {
-        // Fallback for older matches without explicit IDs
+        // Fallback or NR
         const res = m.resultDescription?.toLowerCase() || '';
         if (res.includes('won')) {
-          const winnerTeam = teams.find(t => res.includes(t.name.toLowerCase()))?.id;
-          if (winnerTeam) {
-            standings[winnerTeam].won++; standings[winnerTeam].points += 2;
-            const loser = winnerTeam === m.team1Id ? m.team2Id : m.team1Id;
-            standings[loser].lost++;
-          } else { standings[m.team1Id].nr++; standings[m.team2Id].nr++; standings[m.team1Id].points++; standings[m.team2Id].points++; }
-        } else if (res.includes('tied') || res.includes('drawn')) {
-          standings[m.team1Id].tied++; standings[m.team2Id].tied++;
-          standings[m.team1Id].points += 1; standings[m.team2Id].points += 1;
+          const winnerTeamId = teams.find(t => res.includes(t.name.toLowerCase()))?.id;
+          if (winnerTeamId && standings[winnerTeamId]) {
+            standings[winnerTeamId].won++; standings[winnerTeamId].points += 2;
+            const loser = winnerTeamId === m.team1Id ? m.team2Id : m.team1Id;
+            if (standings[loser]) standings[loser].lost++;
+          } else { 
+            standings[m.team1Id].nr++; standings[m.team2Id].nr++; 
+            standings[m.team1Id].points++; standings[m.team2Id].points++; 
+          }
         } else {
           standings[m.team1Id].nr++; standings[m.team2Id].nr++;
           standings[m.team1Id].points += 1; standings[m.team2Id].points += 1;
@@ -83,11 +84,11 @@ export default function RankingsPage() {
       const bowlId = batId === match.team1Id ? match.team2Id : match.team1Id;
       
       if (standings[batId]) {
-        standings[batId].forR += d.totalRunsOnDelivery; 
+        standings[batId].forR += (d.totalRunsOnDelivery || 0); 
         if (d.extraType === 'none') standings[batId].forB++;
       }
       if (standings[bowlId]) {
-        standings[bowlId].agR += d.totalRunsOnDelivery; 
+        standings[bowlId].agR += (d.totalRunsOnDelivery || 0); 
         if (d.extraType === 'none') standings[bowlId].agB++;
       }
     });

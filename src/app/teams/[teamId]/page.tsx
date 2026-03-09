@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useRouter } from 'navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { collection, query, where, doc, orderBy, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -82,7 +82,6 @@ export default function TeamDetailsPage() {
       if (m.status !== 'completed' || (m.team1Id !== teamId && m.team2Id !== teamId)) return;
       played++;
       
-      // High-precision ID-based checking
       if (m.winnerTeamId === teamId) {
         won++;
       } else if (m.isTie) {
@@ -91,6 +90,8 @@ export default function TeamDetailsPage() {
         lost++;
       } else if (m.resultDescription?.toLowerCase().includes('drawn') || m.resultDescription?.toLowerCase().includes('tied')) {
         drawn++;
+      } else {
+        drawn++; // NR case
       }
     });
 
