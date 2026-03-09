@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Upload, AlertCircle, Users, UserMinus, ShieldCheck, Settings, Scale } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Upload, AlertCircle, Users, UserMinus, ShieldCheck, Settings, Scale, Crown } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -97,7 +97,6 @@ export default function TeamDetailsPage() {
           drawn++; // NR case
         }
       } else {
-        // Fallback for older matches: check resultDescription against current team names
         const res = m.resultDescription?.toLowerCase() || '';
         const t1 = allTeams?.find(t => t.id === m.team1Id);
         const t2 = allTeams?.find(t => t.id === m.team2Id);
@@ -206,6 +205,7 @@ export default function TeamDetailsPage() {
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [newPlayer, setNewPlayer] = useState({ name: '', role: 'Batsman' });
   const [teamNameForm, setTeamNameForm] = useState('');
+  const [captainIdForm, setCaptainIdForm] = useState('');
   
   const [editForm, setEditForm] = useState({ 
     name: '', 
@@ -218,7 +218,10 @@ export default function TeamDetailsPage() {
   const defaultAvatar = PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl || '';
 
   useEffect(() => {
-    if (team) setTeamNameForm(team.name);
+    if (team) {
+      setTeamNameForm(team.name);
+      setCaptainIdForm(team.captainId || '');
+    }
   }, [team]);
 
   const resizeImage = (file: File): Promise<string> => {
@@ -270,9 +273,12 @@ export default function TeamDetailsPage() {
 
   const handleUpdateTeam = () => {
     if (!teamId || !teamNameForm.trim()) return;
-    updateDocumentNonBlocking(doc(db, 'teams', teamId), { name: teamNameForm });
+    updateDocumentNonBlocking(doc(db, 'teams', teamId), { 
+      name: teamNameForm,
+      captainId: captainIdForm
+    });
     setIsEditTeamOpen(false);
-    toast({ title: "Franchise Renamed", description: "All league records updated." });
+    toast({ title: "Franchise Updated", description: "Identity and leadership records synchronized." });
   };
 
   const openEditDialog = (player: any) => { 
@@ -301,6 +307,11 @@ export default function TeamDetailsPage() {
     } 
   };
 
+  const captainName = useMemo(() => {
+    if (!team?.captainId) return null;
+    return allPlayers?.find(p => p.id === team.captainId)?.name;
+  }, [team?.captainId, allPlayers]);
+
   if (!isMounted || isTeamLoading || isDeliveriesLoading || isMatchesLoading || isAllPlayersLoading) return (<div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4"><Loader2 className="w-10 h-10 text-primary animate-spin" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Team History...</p></div>);
   if (!team) return <div className="p-8 text-center font-black uppercase tracking-widest text-slate-400">Franchise Not Found</div>;
 
@@ -316,7 +327,14 @@ export default function TeamDetailsPage() {
               <Button variant="ghost" size="icon" onClick={() => setIsEditTeamOpen(true)} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>
             )}
           </div>
-          <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">Official Franchise Dashboard</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">Official Franchise Dashboard</p>
+            {captainName && (
+              <Badge className="bg-amber-500 text-white font-black text-[8px] uppercase h-5 px-2 flex items-center gap-1">
+                <Crown className="w-2.5 h-2.5" /> Captain: {captainName}
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 
@@ -358,8 +376,9 @@ export default function TeamDetailsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {activeSquad.map(player => {
             const stats = squadStats[player.id] || { runs: 0, wickets: 0, cvp: 0 };
+            const isCaptain = player.id === team.captainId;
             return (
-              <Card key={player.id} className="border-l-8 border-l-primary shadow-lg hover:translate-y-[-2px] transition-all group rounded-2xl bg-white overflow-hidden">
+              <Card key={player.id} className={cn("border-l-8 shadow-lg hover:translate-y-[-2px] transition-all group rounded-2xl bg-white overflow-hidden", isCaptain ? "border-l-amber-500" : "border-l-primary")}>
                 <CardContent className="p-5">
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-4">
@@ -372,7 +391,9 @@ export default function TeamDetailsPage() {
                         )}
                       </div>
                       <Link href={`/players/${player.id}`} className="min-w-0">
-                        <p className="font-black text-sm truncate max-w-[140px] uppercase tracking-tight text-slate-900 group-hover:text-primary transition-colors">{player.name}</p>
+                        <p className="font-black text-sm truncate max-w-[140px] uppercase tracking-tight text-slate-900 group-hover:text-primary transition-colors">
+                          {player.name} {isCaptain && <span className="text-amber-600 ml-1">(C)</span>}
+                        </p>
                         <div className="flex gap-1 items-center mt-1">
                           <Badge variant="secondary" className="text-[8px] font-black uppercase px-2 h-5 bg-primary/10 text-primary border-none">{player.role}</Badge>
                           {player.isWicketKeeper && <Badge className="bg-secondary text-white text-[7px] font-black h-5 px-1.5">WK</Badge>}
@@ -453,6 +474,20 @@ export default function TeamDetailsPage() {
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase text-slate-400">Team Name</Label>
               <Input value={teamNameForm} onChange={(e) => setTeamNameForm(e.target.value)} className="font-bold h-12" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Official Captain</Label>
+              <Select value={captainIdForm} onValueChange={setCaptainIdForm}>
+                <SelectTrigger className="font-bold h-12">
+                  <SelectValue placeholder="Assign Leader" />
+                </SelectTrigger>
+                <SelectContent className="z-[200]">
+                  <SelectItem value="none" className="font-bold uppercase text-xs">No Captain Assigned</SelectItem>
+                  {activeSquad.map(p => (
+                    <SelectItem key={p.id} value={p.id} className="font-bold uppercase text-xs">{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter><Button onClick={handleUpdateTeam} className="w-full h-14 font-black uppercase tracking-widest shadow-xl bg-primary">Save Changes</Button></DialogFooter>

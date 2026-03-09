@@ -74,6 +74,18 @@ export default function NewMatchPage() {
     }
   }, [searchParams]);
 
+  // Effect to pre-fill captains when teams are selected
+  useEffect(() => {
+    if (teams && setup.team1Id && !setup.team1CaptainId) {
+      const t1 = teams.find(t => t.id === setup.team1Id);
+      if (t1?.captainId) setSetup(prev => ({ ...prev, team1CaptainId: t1.captainId }));
+    }
+    if (teams && setup.team2Id && !setup.team2CaptainId) {
+      const t2 = teams.find(t => t.id === setup.team2Id);
+      if (t2?.captainId) setSetup(prev => ({ ...prev, team2CaptainId: t2.captainId }));
+    }
+  }, [teams, setup.team1Id, setup.team2Id]);
+
   const filteredPool = allPlayers?.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())) || [];
 
   const handleQuickRegister = () => {
@@ -169,7 +181,8 @@ export default function NewMatchPage() {
                 {id: 'team1', tid: setup.team1Id, squad: setup.team1Squad, otherSquad: setup.team2Squad, captainKey: 'team1CaptainId' as const}, 
                 {id: 'team2', tid: setup.team2Id, squad: setup.team2Squad, otherSquad: setup.team1Squad, captainKey: 'team2CaptainId' as const} 
               ].map(t => {
-                const teamName = teams?.find(team => team.id === t.tid)?.name || 'Team';
+                const teamData = teams?.find(team => team.id === t.tid);
+                const teamName = teamData?.name || 'Team';
                 return (
                   <div key={t.id} className="space-y-4 bg-white p-5 rounded-3xl border-2 border-slate-100 shadow-sm">
                     <div className="flex justify-between items-center border-b pb-3">
@@ -189,10 +202,10 @@ export default function NewMatchPage() {
                               onCheckedChange={(c) => {
                                 if (t.id === 'team1') {
                                   const nextSquad = c ? [...setup.team1Squad, p.id] : setup.team1Squad.filter(id => id !== p.id);
-                                  setSetup({...setup, team1Squad: nextSquad, team1CaptainId: nextSquad.includes(setup.team1CaptainId) ? setup.team1CaptainId : ''});
+                                  setSetup({...setup, team1Squad: nextSquad, team1CaptainId: nextSquad.includes(setup.team1CaptainId) ? setup.team1CaptainId : (teamData?.captainId === p.id ? p.id : '')});
                                 } else {
                                   const nextSquad = c ? [...setup.team2Squad, p.id] : setup.team2Squad.filter(id => id !== p.id);
-                                  setSetup({...setup, team2Squad: nextSquad, team2CaptainId: nextSquad.includes(setup.team2CaptainId) ? setup.team2CaptainId : ''});
+                                  setSetup({...setup, team2Squad: nextSquad, team2CaptainId: nextSquad.includes(setup.team2CaptainId) ? setup.team2CaptainId : (teamData?.captainId === p.id ? p.id : '')});
                                 }
                               }} 
                               id={`${t.id}-${p.id}`} 
@@ -274,7 +287,7 @@ export default function NewMatchPage() {
       <Dialog open={isQuickRegOpen} onOpenChange={setIsQuickRegOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-primary z-[200]">
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Quick Player Add</DialogTitle></DialogHeader>
-          <div className="py-4 space-y-4"><Label className="text-[10px] font-black uppercase text-slate-400">Player Name</Label><Input value={quickRegName} onChange={(e) => setQuickRegName(e.target.value)} placeholder="Full Name" className="h-12 font-bold" /></div>
+          <div className="py-4 space-y-4"><Label className="text-[10px] font-black uppercase text-slate-400">Player Name</Label><Input value={quickRegName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="Full Name" className="h-12 font-bold" /></div>
           <DialogFooter><Button onClick={handleQuickRegister} disabled={!quickRegName.trim()} className="w-full h-14 font-black uppercase">Add to Squad</Button></DialogFooter>
         </DialogContent>
       </Dialog>
