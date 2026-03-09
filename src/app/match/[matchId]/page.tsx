@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, UserCheck, MapPin, Hash, ChevronLeft } from 'lucide-react';
+import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -372,7 +372,12 @@ export default function MatchScoreboardPage() {
           </div>
           <div className="text-right flex flex-col items-end gap-1">
             {match?.status === 'live' && <Badge variant="destructive" className="animate-pulse text-[10px] h-6 font-black uppercase px-3 shadow-md border-2 border-white ring-2 ring-destructive/20">LIVE</Badge>}
-            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">{match?.matchNumber || 'Match X'}</p>
+            <button 
+              onClick={() => isUmpire && setIsMatchDetailsDialogOpen(true)}
+              className={cn("text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-1", isUmpire ? "text-primary hover:underline" : "text-slate-400")}
+            >
+              {match?.matchNumber || 'Match X'} {isUmpire && <Edit2 className="w-2 h-2" />}
+            </button>
           </div>
         </div>
       </div>
