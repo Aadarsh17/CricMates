@@ -151,6 +151,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
 
 export const generateMatchReport = (match: any, teamNames: Record<string, string>, playerNames: Record<string, string>, inn1: any, inn2: any, stats1: any, stats2: any) => {
   const dateStr = match.matchDate ? new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---';
+  const matchTagStr = match.matchNumber || 'Match X';
   const formatStr = `${match.totalOvers} OV MATCH`;
   const venueStr = match.venue || 'NOT SPECIFIED';
   const potmName = match.potmPlayerId ? (playerNames[match.potmPlayerId] || 'Unknown Player') : 'NOT DECLARED';
@@ -279,6 +280,7 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
   return `
     <html>
     <head>
+      <meta charset="UTF-8">
       <title>Official Scorecard - ${teamNames[match.team1Id]} vs ${teamNames[match.team2Id]}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
@@ -289,7 +291,7 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
         .main-header h1 { margin: 0; color: #3f51b5; font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
         .main-header p { margin: 4px 0; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
 
-        .potm-banner { background: #f59e0b; color: #fff; padding: 8px; text-align: center; font-weight: 900; text-transform: uppercase; font-size: 12px; margin-bottom: 15px; border-radius: 4px; }
+        .potm-banner { background: #f59e0b; color: #fff; padding: 8px; text-align: center; font-weight: 900; text-transform: uppercase; font-size: 12px; margin-bottom: 15px; border-radius: 4px; border-top: 4px solid #d97706; }
 
         .summary-grid { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; margin-bottom: 5px; border-bottom: 1px solid #f1f5f9; }
         .team-box { flex: 1; text-align: center; }
@@ -341,11 +343,11 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
       <div class="container">
         <div class="main-header">
           <h1>OFFICIAL MATCH SCORECARD</h1>
-          <p>${dateStr} | ${venueStr} | ${formatStr}</p>
+          <p>${matchTagStr} | ${dateStr} | ${venueStr} | ${formatStr}</p>
         </div>
 
         <div class="potm-banner">
-          🏆 PLAYER OF THE MATCH: ${potmName}
+          AWARD: PLAYER OF THE MATCH — ${potmName}
         </div>
 
         <div class="summary-grid">

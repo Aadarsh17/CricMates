@@ -6,7 +6,7 @@ import { collection, query, orderBy, doc, getDocs, deleteDoc } from 'firebase/fi
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Trash2, Trophy, Loader2, ChevronLeft } from 'lucide-react';
+import { Calendar, Trash2, Trophy, Loader2, ChevronLeft, Hash } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
@@ -81,7 +81,10 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
       <div className="p-5">
         <div className="flex justify-between items-start mb-3">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(match.matchDate)}</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-3">
+              <span className="flex items-center gap-1 text-primary"><Hash className="w-3 h-3"/> {match.matchNumber || 'Match X'}</span>
+              <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(match.matchDate)}</span>
+            </span>
             <div className="text-xs font-black text-primary mt-1">{match.resultDescription}</div>
           </div>
           {isUmpire && (
@@ -111,7 +114,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
         <div className="flex gap-2 mt-4">
           <Button asChild className="flex-1 bg-primary font-bold h-10 shadow-sm"><Link href={`/match/${match.id}`}>Scorecard</Link></Button>
           {match.status === 'completed' && (
-            <Button asChild variant="outline" className="flex-1 border-secondary text-secondary font-black uppercase text-[10px] h-10"><Link href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}`}>Play Again</Link></Button>
+            <Button asChild variant="outline" className="flex-1 border-secondary text-secondary font-black uppercase text-[10px] h-10"><Link href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}&mNum=${match.matchNumber}`}>Play Again</Link></Button>
           )}
         </div>
       </div>

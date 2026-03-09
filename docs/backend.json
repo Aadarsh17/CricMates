@@ -55,6 +55,7 @@
       "description": "Details about a specific match.",
       "properties": {
         "id": { "type": "string" },
+        "matchNumber": { "type": "string", "description": "Display number like 'Match 1'" },
         "team1Id": { "type": "string" },
         "team2Id": { "type": "string" },
         "team1SquadPlayerIds": { "type": "array", "items": { "type": "string" } },

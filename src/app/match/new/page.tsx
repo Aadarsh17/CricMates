@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCollection, useMemoFirebase, useFirestore, useUser } from '@/firebase';
-import { collection, query, orderBy, doc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, getDocs, where } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { PlayCircle, ShieldCheck, CheckCircle2, ArrowRight, ArrowLeft, UserPlus, Search, ChevronLeft, User, Award } from 'lucide-react';
+import { ShieldCheck, ArrowRight, UserPlus, Search, ChevronLeft, Award } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +32,7 @@ export default function NewMatchPage() {
   const [quickRegName, setQuickRegName] = useState('');
 
   const [setup, setSetup] = useState({
+    matchNumber: 'Match 1',
     team1Id: '',
     team2Id: '',
     team1Squad: [] as string[],
@@ -55,7 +56,22 @@ export default function NewMatchPage() {
   useEffect(() => {
     const t1 = searchParams.get('t1');
     const t2 = searchParams.get('t2');
-    if (t1 && t2) setSetup(prev => ({ ...prev, team1Id: t1, team2Id: t2, totalOvers: searchParams.get('overs') || '6' }));
+    const prevNum = searchParams.get('mNum');
+    
+    if (t1 && t2) {
+      let nextNum = 'Match 1';
+      if (prevNum && prevNum.startsWith('Match ')) {
+        const num = parseInt(prevNum.split(' ')[1]);
+        if (!isNaN(num)) nextNum = `Match ${num + 1}`;
+      }
+      setSetup(prev => ({ 
+        ...prev, 
+        team1Id: t1, 
+        team2Id: t2, 
+        matchNumber: nextNum,
+        totalOvers: searchParams.get('overs') || '6' 
+      }));
+    }
   }, [searchParams]);
 
   const filteredPool = allPlayers?.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase())) || [];
@@ -79,6 +95,7 @@ export default function NewMatchPage() {
     const mid = doc(collection(db, 'matches')).id;
     const mData = { 
       id: mid, 
+      matchNumber: setup.matchNumber,
       team1Id: setup.team1Id, 
       team2Id: setup.team2Id, 
       team1SquadPlayerIds: setup.team1Squad, 
@@ -118,6 +135,15 @@ export default function NewMatchPage() {
         <Card className="border-t-4 border-t-primary shadow-lg">
           <CardHeader><CardTitle className="text-xl font-black uppercase">Teams & Format</CardTitle></CardHeader>
           <CardContent className="space-y-6">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase">Match Number</Label>
+              <Input 
+                value={setup.matchNumber} 
+                onChange={(e) => setSetup({...setup, matchNumber: e.target.value})} 
+                placeholder="e.g. Match 1"
+                className="h-12 font-bold" 
+              />
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Home Team</Label><Select value={setup.team1Id} onValueChange={(v) => setSetup({...setup, team1Id: v, team1Squad: [], team1CaptainId: ''})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Team" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Away Team</Label><Select value={setup.team2Id} onValueChange={(v) => setSetup({...setup, team2Id: v, team2Squad: [], team2CaptainId: ''})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Team" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
@@ -179,7 +205,7 @@ export default function NewMatchPage() {
                     </div>
                     <div className="pt-4 border-t space-y-2">
                       <Label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-1">
-                        <Award className="w-3 h-3" /> Assign Captain
+                        <Award className="w-3" /> Assign Captain
                       </Label>
                       <Select 
                         value={setup[t.captainKey]} 

@@ -44,8 +44,8 @@ export default function PlayerProfilePage() {
         logs[matchId] = { 
           matchId, 
           date: m.matchDate || '', 
-          batting: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0, out: false }, 
-          bowling: { wickets: 0, runsConceded: 0, ballsBowled: 0 }, 
+          batting: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0, out: false, dots: 0 }, 
+          bowling: { wickets: 0, runsConceded: 0, ballsBowled: 0, dots: 0 }, 
           fielding: { catches: 0, stumpings: 0, runOuts: 0 } 
         };
       }
@@ -54,12 +54,18 @@ export default function PlayerProfilePage() {
         log.batting.runs += d.runsScored || 0; 
         if (d.runsScored === 4) log.batting.fours++;
         if (d.runsScored === 6) log.batting.sixes++;
-        if (d.extraType !== 'wide') log.batting.ballsFaced++; 
+        if (d.extraType !== 'wide') {
+          log.batting.ballsFaced++; 
+          if (d.runsScored === 0) log.batting.dots++;
+        }
       }
       if (d.isWicket && d.batsmanOutPlayerId === playerId) log.batting.out = true;
       if ((d.bowlerId || d.bowlerPlayerId) === playerId) { 
         log.bowling.runsConceded += d.totalRunsOnDelivery || 0; 
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') log.bowling.ballsBowled++; 
+        if (d.extraType === 'none') {
+          log.bowling.ballsBowled++; 
+          if (d.totalRunsOnDelivery === 0) log.bowling.dots++;
+        }
         if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) log.bowling.wickets++; 
       }
       if (d.fielderPlayerId === playerId) {
@@ -78,11 +84,11 @@ export default function PlayerProfilePage() {
     const s = { 
       matches: 0, cvp: 0,
       batting: { 
-        innings: 0, runs: 0, balls: 0, fours: 0, sixes: 0, outs: 0, high: 0, sr: 0, avg: 0, 
+        innings: 0, runs: 0, balls: 0, fours: 0, sixes: 0, outs: 0, high: 0, sr: 0, avg: 0, dots: 0,
         milestones: { tens: 0, twenties: 0, thirties: 0, forties: 0, fifties: 0, hundreds: 0 },
         ducks: { regular: 0, golden: 0, diamond: 0 }
       },
-      bowling: { innings: 0, overs: 0, balls: 0, runs: 0, wkts: 0, best: { wkts: 0, runs: 0 }, econ: 0, sr: 0, avg: 0, mil: { oneW: 0, twoW: 0, threeW: 0, fourW: 0, fiveW: 0 } },
+      bowling: { innings: 0, overs: 0, balls: 0, runs: 0, wkts: 0, dots: 0, best: { wkts: 0, runs: 0 }, econ: 0, sr: 0, avg: 0, mil: { oneW: 0, twoW: 0, threeW: 0, fourW: 0, fiveW: 0 } },
       fielding: { catches: 0, stumpings: 0, runouts: 0 }
     };
 
@@ -98,6 +104,7 @@ export default function PlayerProfilePage() {
         s.batting.balls += log.batting.ballsFaced;
         s.batting.fours += log.batting.fours;
         s.batting.sixes += log.batting.sixes;
+        s.batting.dots += log.batting.dots;
         if (log.batting.out) {
           s.batting.outs++;
           if (log.batting.runs === 0) {
@@ -122,6 +129,7 @@ export default function PlayerProfilePage() {
         s.bowling.balls += log.bowling.ballsBowled;
         s.bowling.runs += log.bowling.runsConceded;
         s.bowling.wkts += log.bowling.wickets;
+        s.bowling.dots += log.bowling.dots;
 
         if (firstBowl) {
           s.bowling.best = { wkts: log.bowling.wickets, runs: log.bowling.runsConceded };
@@ -223,9 +231,10 @@ export default function PlayerProfilePage() {
               <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.batting.innings} Innings</Badge>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-3 md:grid-cols-5 gap-4 text-center">
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-xl font-black text-slate-900">{careerStats.batting.runs}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-xl font-black text-slate-900">{careerStats.batting.balls}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Dots</p><p className="text-xl font-black text-slate-900">{careerStats.batting.dots}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Best</p><p className="text-xl font-black text-slate-900">{careerStats.batting.high}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.batting.avg.toFixed(2)}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">S.R.</p><p className="text-xl font-black text-slate-900">{careerStats.batting.sr.toFixed(1)}</p></div>
@@ -277,9 +286,10 @@ export default function PlayerProfilePage() {
               <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.bowling.innings} Innings</Badge>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center">
+              <div className="grid grid-cols-3 md:grid-cols-7 gap-4 text-center">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Wickets</p><p className="text-xl font-black text-secondary">{careerStats.bowling.wkts}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.balls}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Dots</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.dots}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.runs}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">ER</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.econ.toFixed(2)}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.avg.toFixed(2)}</p></div>
