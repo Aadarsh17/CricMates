@@ -254,7 +254,7 @@ export default function InsightsPage() {
                   <Label className="text-[10px] font-black uppercase text-slate-400">Select Captain A</Label>
                   <Select value={cap1Id} onValueChange={setCap1Id}>
                     <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Captain" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-[250px]">
                       {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -266,7 +266,7 @@ export default function InsightsPage() {
                   <Label className="text-[10px] font-black uppercase text-slate-400">Select Captain B</Label>
                   <Select value={cap2Id} onValueChange={setCap2Id}>
                     <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Captain" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-[250px]">
                       {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -346,7 +346,7 @@ export default function InsightsPage() {
                   <Label className="text-[10px] font-black uppercase text-slate-400">Select Player A</Label>
                   <Select value={p1Id} onValueChange={setP1Id}>
                     <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-[250px]">
                       {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -358,7 +358,7 @@ export default function InsightsPage() {
                   <Label className="text-[10px] font-black uppercase text-slate-400">Select Player B</Label>
                   <Select value={p2Id} onValueChange={setP2Id}>
                     <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-[250px]">
                       {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>

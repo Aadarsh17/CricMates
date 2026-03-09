@@ -847,7 +847,7 @@ export default function MatchScoreboardPage() {
       <Dialog open={isMatchDetailsDialogOpen} onOpenChange={setIsMatchDetailsDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl z-[151]">
           <DialogHeader><DialogTitle className="font-black uppercase text-xl">Edit Match Details</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto scrollbar-hide px-1">
             <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Match Number / Tag</Label><Input value={matchNumberForm} onChange={(e) => setMatchNumberForm(e.target.value)} placeholder="e.g. Match 1" className="h-14 font-bold" /></div>
             <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Ground Name / Venue</Label><Input value={venueForm} onChange={(e) => setVenueForm(e.target.value)} placeholder="e.g. Lords Ground" className="h-14 font-bold" /></div>
             <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Date & Time</Label><Input type="datetime-local" value={matchDateForm} onChange={(e) => setMatchDateForm(e.target.value)} className="h-14 font-bold" /></div>
@@ -865,12 +865,12 @@ export default function MatchScoreboardPage() {
       <Dialog open={isPotmDialogOpen} onOpenChange={setIsPotmDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[151]">
           <DialogHeader><DialogTitle className="font-black uppercase text-xl text-amber-600">Declare POTM</DialogTitle></DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1 scrollbar-hide">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase text-slate-400">Select Player (Ranked by CVP)</Label>
               <Select value={potmId} onValueChange={setPotmId}>
                 <SelectTrigger className="h-14 font-bold"><SelectValue placeholder="Pick MVP" /></SelectTrigger>
-                <SelectContent className="z-[200]">
+                <SelectContent className="z-[200] max-h-[300px]">
                   <SelectItem value="none" className="font-bold">Not Decided</SelectItem>
                   {allPlayers?.filter(p => [...(match?.team1SquadPlayerIds || []), ...(match?.team2SquadPlayerIds || [])].includes(p.id))
                     .sort((a, b) => (matchCvpMap[b.id] || 0) - (matchCvpMap[a.id] || 0))
@@ -894,12 +894,12 @@ export default function MatchScoreboardPage() {
           <DialogHeader><DialogTitle className="font-black uppercase text-xl text-amber-600">Correction</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1 scrollbar-hide">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Striker</Label><Select value={correctionForm.strikerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, strikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200]">{allPlayers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Bowler</Label><Select value={correctionForm.bowlerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, bowlerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200]">{allPlayers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Striker</Label><Select value={correctionForm.strikerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, strikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{allPlayers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Bowler</Label><Select value={correctionForm.bowlerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, bowlerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{allPlayers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Bat Runs</Label><Select value={(correctionForm.runs || 0).toString()} onValueChange={(v) => setCorrectionForm({...correctionForm, runs: parseInt(v)})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200]">{[0,1,2,3,4,6].map(r => <SelectItem key={r} value={r.toString()}>{r}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Extra</Label><Select value={correctionForm.extra || 'none'} onValueChange={(v) => setCorrectionForm({...correctionForm, extra: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200]"><SelectItem value="none">None</SelectItem><SelectItem value="wide">Wide</SelectItem><SelectItem value="noball">No Ball</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Bat Runs</Label><Select value={(correctionForm.runs || 0).toString()} onValueChange={(v) => setCorrectionForm({...correctionForm, runs: parseInt(v)})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{[0,1,2,3,4,6].map(r => <SelectItem key={r} value={r.toString()}>{r}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Extra</Label><Select value={correctionForm.extra || 'none'} onValueChange={(v) => setCorrectionForm({...correctionForm, extra: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]"><SelectItem value="none">None</SelectItem><SelectItem value="wide">Wide</SelectItem><SelectItem value="noball">No Ball</SelectItem></SelectContent></Select></div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border">
               <Label className="text-[10px] font-black uppercase flex-1">Wicket/Retire?</Label>
@@ -907,8 +907,8 @@ export default function MatchScoreboardPage() {
             </div>
             {correctionForm.isWicket && (
               <div className="space-y-3">
-                <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Type</Label><Select value={correctionForm.wicketType || 'bowled'} onValueChange={(v) => setCorrectionForm({...correctionForm, wicketType: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200]"><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="caught">Caught</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumped">Stumped</SelectItem><SelectItem value="retired">Retired</SelectItem></SelectContent></Select></div>
-                <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Batter Out</Label><Select value={correctionForm.batterOutId || correctionForm.strikerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, batterOutId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200]"><SelectItem value={correctionForm.strikerId}>Striker</SelectItem><SelectItem value={correctionForm.nonStrikerId}>Non-Striker</SelectItem></SelectContent></Select></div>
+                <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Type</Label><Select value={correctionForm.wicketType || 'bowled'} onValueChange={(v) => setCorrectionForm({...correctionForm, wicketType: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]"><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="caught">Caught</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumped">Stumped</SelectItem><SelectItem value="retired">Retired</SelectItem></SelectContent></Select></div>
+                <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Batter Out</Label><Select value={correctionForm.batterOutId || correctionForm.strikerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, batterOutId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]"><SelectItem value={correctionForm.strikerId}>Striker</SelectItem><SelectItem value={correctionForm.nonStrikerId}>Non-Striker</SelectItem></SelectContent></Select></div>
               </div>
             )}
           </div>
@@ -919,12 +919,12 @@ export default function MatchScoreboardPage() {
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl z-[151]">
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl">Assign Positions</DialogTitle></DialogHeader>
-          <div className="space-y-6 py-4">
+          <div className="space-y-6 py-4 max-h-[60vh] overflow-y-auto px-1 scrollbar-hide">
             <div className="space-y-2">
               <Label className="text-xs font-black uppercase">STRIKER</Label>
               <Select value={assignmentForm.strikerId || ''} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
                 <SelectTrigger className="h-14 font-black"><SelectValue placeholder="Pick Striker" /></SelectTrigger>
-                <SelectContent className="z-[200]">
+                <SelectContent className="z-[200] max-h-[250px]">
                   {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.nonStrikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -933,7 +933,7 @@ export default function MatchScoreboardPage() {
               <Label className="text-xs font-black uppercase">NON-STRIKER</Label>
               <Select value={assignmentForm.nonStrikerId || ''} onValueChange={(v) => setAssignmentForm({...assignmentForm, nonStrikerId: v})}>
                 <SelectTrigger className="h-14 font-black"><SelectValue placeholder="Pick Non-Striker" /></SelectTrigger>
-                <SelectContent className="z-[200]">
+                <SelectContent className="z-[200] max-h-[250px]">
                   {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.strikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -942,7 +942,7 @@ export default function MatchScoreboardPage() {
               <Label className="text-xs font-black uppercase">BOWLER</Label>
               <Select value={assignmentForm.bowlerId || ''} onValueChange={(v) => setAssignmentForm({...assignmentForm, bowlerId: v})}>
                 <SelectTrigger className="h-14 font-black"><SelectValue placeholder="Pick Bowler" /></SelectTrigger>
-                <SelectContent className="z-[200]">
+                <SelectContent className="z-[200] max-h-[250px]">
                   {allPlayers?.filter(p => (activeInningData?.battingTeamId === match?.team1Id ? match?.team2SquadPlayerIds : match?.team1SquadPlayerIds)?.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -963,12 +963,12 @@ export default function MatchScoreboardPage() {
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-destructive shadow-2xl z-[151]">
           <DialogHeader><DialogTitle className="font-black uppercase text-xl text-destructive">{wicketForm.type === 'retired' ? 'Retire Player' : 'Register Out'}</DialogTitle></DialogHeader>
-          <div className="space-y-6 py-4">
+          <div className="space-y-6 py-4 max-h-[60vh] overflow-y-auto px-1 scrollbar-hide">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase text-slate-400">Batter Out</Label>
               <Select value={wicketForm.batterOutId || ''} onValueChange={(v) => setWicketForm({...wicketForm, batterOutId: v})}>
                 <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent className="z-[200]">
+                <SelectContent className="z-[200] max-h-[250px]">
                   {activeInningData?.strikerPlayerId && <SelectItem value={activeInningData.strikerPlayerId}>{getPlayerName(activeInningData.strikerPlayerId)} (Striker)</SelectItem>}
                   {activeInningData?.nonStrikerPlayerId && <SelectItem value={activeInningData.nonStrikerPlayerId}>{getPlayerName(activeInningData.nonStrikerPlayerId)} (Non-Striker)</SelectItem>}
                 </SelectContent>
@@ -978,7 +978,7 @@ export default function MatchScoreboardPage() {
               <Label className="text-[10px] font-black uppercase text-slate-400">Type</Label>
               <Select value={wicketForm.type || 'bowled'} onValueChange={(v) => setWicketForm({...wicketForm, type: v, runsCompleted: 0, fielderId: 'none', successorId: ''})}>
                 <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent className="z-[200]"><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="caught">Caught</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumped">Stumped</SelectItem><SelectItem value="retired">Retired</SelectItem></SelectContent>
+                <SelectContent className="z-[200] max-h-[250px]"><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="caught">Caught</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumped">Stumped</SelectItem><SelectItem value="retired">Retired</SelectItem></SelectContent>
               </Select>
             </div>
             {wicketForm.type === 'retired' && (
@@ -986,7 +986,7 @@ export default function MatchScoreboardPage() {
                 <Label className="text-[10px] font-black uppercase text-slate-400">Successor</Label>
                 <Select value={wicketForm.successorId || ''} onValueChange={(v) => setWicketForm({...wicketForm, successorId: v})}>
                   <SelectTrigger className="h-14 font-black border-2 rounded-xl border-primary/30"><SelectValue /></SelectTrigger>
-                  <SelectContent className="z-[200]">
+                  <SelectContent className="z-[200] max-h-[250px]">
                     {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -997,7 +997,7 @@ export default function MatchScoreboardPage() {
                 <Label className="text-[10px] font-black uppercase text-slate-400">Fielder</Label>
                 <Select value={wicketForm.fielderId || 'none'} onValueChange={(v) => setWicketForm({...wicketForm, fielderId: v})}>
                   <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent className="z-[200]">
+                  <SelectContent className="z-[200] max-h-[250px]">
                     <SelectItem value="none">Direct</SelectItem>
                     {allPlayers?.filter(p => (activeInningData?.battingTeamId === match?.team1Id ? match?.team2SquadPlayerIds : match?.team1SquadPlayerIds)?.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                   </SelectContent>
@@ -1009,7 +1009,7 @@ export default function MatchScoreboardPage() {
                 <Label className="text-[10px] font-black uppercase text-slate-400">Runs Completed</Label>
                 <Select value={(wicketForm.runsCompleted || 0).toString()} onValueChange={(v) => setWicketForm({...wicketForm, runsCompleted: parseInt(v)})}>
                   <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue /></SelectTrigger>
-                  <SelectContent className="z-[200]">{[0, 1, 2, 3].map(r => <SelectItem key={r} value={r.toString()}>{r} Runs</SelectItem>)}</SelectContent>
+                  <SelectContent className="z-[200] max-h-[250px]">{[0, 1, 2, 3].map(r => <SelectItem key={r} value={r.toString()}>{r} Runs</SelectItem>)}</SelectContent>
                 </Select>
               </div>
             )}

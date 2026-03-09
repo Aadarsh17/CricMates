@@ -449,7 +449,7 @@ export default function TeamDetailsPage() {
                 <Label className="text-[10px] font-black uppercase text-slate-400">Official Captain</Label>
                 <Select value={captainIdForm || 'none'} onValueChange={setCaptainIdForm}>
                   <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign Leader" /></SelectTrigger>
-                  <SelectContent className="z-[200]">
+                  <SelectContent className="z-[200] max-h-[250px]">
                     <SelectItem value="none" className="font-bold uppercase text-xs">No Captain</SelectItem>
                     {activeSquad.map(p => <SelectItem key={p.id} value={p.id} className="font-bold text-xs">{p.name}</SelectItem>)}
                   </SelectContent>
@@ -460,7 +460,7 @@ export default function TeamDetailsPage() {
                 <Label className="text-[10px] font-black uppercase text-slate-400">Vice-Captain</Label>
                 <Select value={vcIdForm || 'none'} onValueChange={setVcIdForm}>
                   <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign VC" /></SelectTrigger>
-                  <SelectContent className="z-[200]">
+                  <SelectContent className="z-[200] max-h-[250px]">
                     <SelectItem value="none" className="font-bold uppercase text-xs">No Vice-Captain</SelectItem>
                     {activeSquad.map(p => <SelectItem key={p.id} value={p.id} className="font-bold text-xs">{p.name}</SelectItem>)}
                   </SelectContent>
@@ -471,7 +471,7 @@ export default function TeamDetailsPage() {
                 <Label className="text-[10px] font-black uppercase text-slate-400">Designated Wicket-Keeper</Label>
                 <Select value={wkIdForm || 'none'} onValueChange={setWkIdForm}>
                   <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign WK" /></SelectTrigger>
-                  <SelectContent className="z-[200]">
+                  <SelectContent className="z-[200] max-h-[250px]">
                     <SelectItem value="none" className="font-bold uppercase text-xs">No Wicket-Keeper</SelectItem>
                     {activeSquad.map(p => <SelectItem key={p.id} value={p.id} className="font-bold text-xs">{p.name}</SelectItem>)}
                   </SelectContent>
