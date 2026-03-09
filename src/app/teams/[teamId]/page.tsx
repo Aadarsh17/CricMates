@@ -192,13 +192,6 @@ export default function TeamDetailsPage() {
     return careerTotals;
   }, [allPlayers, allDeliveries]);
 
-  const extrasLeaderboard = useMemo(() => {
-    return Object.values(squadStats)
-      .filter((s: any) => activeSquad.some(ap => ap.id === s.id))
-      .map((s: any) => ({ ...s, totalExtras: (s.wides || 0) + (s.noBalls || 0) }))
-      .filter(s => s.totalExtras > 0).sort((a, b) => b.totalExtras - a.totalExtras).slice(0, 5);
-  }, [squadStats, activeSquad]);
-
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isEditTeamOpen, setIsEditTeamOpen] = useState(false);
@@ -439,34 +432,6 @@ export default function TeamDetailsPage() {
           })}
         </div>
       </div>
-
-      {formerPlayers.length > 0 && (
-        <div className="space-y-6">
-          <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight flex items-center gap-2 text-slate-400"><UserMinus className="w-6 h-6" /> Former Representatives</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-70 grayscale hover:grayscale-0 transition-all">
-            {formerPlayers.map(player => {
-              const stats = squadStats[player.id] || { runs: 0, wickets: 0, cvp: 0 };
-              return (
-                <Card key={player.id} className="border-l-8 border-l-slate-200 shadow-sm rounded-2xl bg-white overflow-hidden">
-                  <CardContent className="p-5">
-                    <div className="flex items-center gap-4">
-                      <Avatar className="w-12 h-12 rounded-xl border grayscale-0"><AvatarImage src={player.imageUrl}/><AvatarFallback>{player.name[0]}</AvatarFallback></Avatar>
-                      <Link href={`/players/${player.id}`} className="min-w-0">
-                        <p className="font-black text-xs truncate uppercase tracking-tight text-slate-600">{player.name}</p>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase">Legacy Rep</p>
-                      </Link>
-                    </div>
-                    <div className="mt-4 flex justify-between items-center border-t pt-3 px-1">
-                      <span className="text-[9px] font-black uppercase text-slate-400">Career Contribution:</span>
-                      <span className="font-black text-xs text-slate-600">{stats.runs} Runs • {stats.wickets} Wkts</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       <Dialog open={isEditTeamOpen} onOpenChange={setIsEditTeamOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl">

@@ -22,7 +22,6 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import Link from 'link';
 import { toPng } from 'html-to-image';
 
 export default function MatchScoreboardPage() {
@@ -372,12 +371,12 @@ export default function MatchScoreboardPage() {
           <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="text-slate-950 hover:bg-slate-100 h-8 w-8 shrink-0"><ChevronLeft className="w-6 h-6" /></Button>
           <div className="space-y-1 flex-1">
             <div className="flex items-center gap-3">
-              <span className="font-black uppercase text-[11px] text-slate-700 truncate max-w-[120px] tracking-tight">{getTeamName(match?.team1Id)}</span>
+              <span className="font-black uppercase text-[11px] text-slate-700 max-w-[120px] tracking-tight">{getTeamName(match?.team1Id)}</span>
               <span className="font-black text-2xl leading-none text-slate-950">{stats1.total}/{stats1.wickets}</span>
               <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({stats1.overs})</Badge>
             </div>
             <div className="flex items-center gap-3">
-              <span className="font-black uppercase text-[11px] text-slate-700 truncate max-w-[120px] tracking-tight">{getTeamName(match?.team2Id)}</span>
+              <span className="font-black uppercase text-[11px] text-slate-700 max-w-[120px] tracking-tight">{getTeamName(match?.team2Id)}</span>
               <span className="font-black text-2xl leading-none text-slate-950">{stats2.total}/{stats2.wickets}</span>
               <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({stats2.overs})</Badge>
             </div>
