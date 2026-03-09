@@ -41,7 +41,7 @@ export default function MatchScoreboardPage() {
   
   const [assignmentForm, setAssignmentForm] = useState({ strikerId: '', nonStrikerId: '', bowlerId: '' });
   const [wicketForm, setWicketForm] = useState({ type: 'bowled', batterOutId: '', extraType: 'none', runsCompleted: 0, fielderId: 'none' });
-  const [correctionForm, setCorrectionForm] = useState<any>({ id: '', strikerId: '', nonStrikerId: '', bowlerId: '', runs: 0, extra: 'none', isWicket: false, wicketType: 'bowled', targetTimestamp: 0, targetInning: '' });
+  const [correctionForm, setCorrectionForm] = useState<any>({ id: '', strikerId: '', nonStrikerId: '', bowlerId: '', runs: 0, extra: 'none', isWicket: false, wicketType: 'bowled', timestamp: 0, targetInning: '' });
   const [matchDateForm, setMatchDateForm] = useState('');
   const [potmId, setPotmId] = useState('');
 
@@ -136,15 +136,8 @@ export default function MatchScoreboardPage() {
         
         if (d.isWicket) {
           const outPid = d.batsmanOutPlayerId || d.strikerPlayerId;
-          const dismissalType = d.dismissalType || 'out';
-          const isPermanent = !dismissalType.toLowerCase().includes('retired');
-          if (isPermanent) {
-            if (outPid === sId) sId = '';
-            else if (outPid === nsId) nsId = '';
-          } else {
-            if (outPid === sId) sId = '';
-            else if (outPid === nsId) nsId = '';
-          }
+          if (outPid === sId) sId = '';
+          else if (outPid === nsId) nsId = '';
         }
       }
     });
@@ -247,7 +240,7 @@ export default function MatchScoreboardPage() {
       isWicket: isWicket,
       dismissalType: isWicket ? (correctionForm.wicketType || 'bowled') : '',
       batsmanOutPlayerId: isWicket ? (correctionForm.batterOutId || correctionForm.strikerId) : '',
-      timestamp: correctionForm.targetTimestamp || Date.now()
+      timestamp: correctionForm.timestamp || Date.now()
     };
 
     await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', correctionForm.targetInning, 'deliveryRecords', deliveryId), dData, { merge: true });
@@ -722,7 +715,7 @@ export default function MatchScoreboardPage() {
                                 <div className="flex justify-center py-1 group">
                                   <Button variant="ghost" size="sm" onClick={() => {
                                     const newTs = prevBallInLog ? (prevBallInLog.timestamp + d.timestamp) / 2 : d.timestamp - 1000;
-                                    setCorrectionForm({ id: '', strikerId: d.strikerPlayerId || '', nonStrikerId: d.nonStrikerPlayerId || '', bowlerId: d.bowlerId || '', runs: 0, extra: 'none', isWicket: false, targetTimestamp: newTs, targetInning: tab.innKey });
+                                    setCorrectionForm({ id: '', strikerId: d.strikerPlayerId || '', nonStrikerId: d.nonStrikerPlayerId || '', bowlerId: d.bowlerId || '', runs: 0, extra: 'none', isWicket: false, timestamp: newTs, targetInning: tab.innKey });
                                     setIsCorrectionDialogOpen(true);
                                   }} className="h-6 w-6 rounded-full bg-slate-50 text-slate-300 hover:text-primary hover:bg-primary/10 opacity-0 group-hover:opacity-100 transition-all p-0">
                                     <PlusCircle className="w-4 h-4" />
