@@ -36,7 +36,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
     if (match.status !== 'completed') return 'Match in Progress';
     if (match.isTie) return 'Match Tied';
     
-    // Primarily use IDs to find names from the latest teams collection
+    // Resolve names from IDs
     const winner = getTeam(match.winnerTeamId);
     if (winner) {
       const winnerName = formatTeamName(winner.name);
@@ -45,20 +45,6 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
       return suffix ? `${winnerName} won by ${suffix.trim()}` : `${winnerName} won`;
     }
     
-    // Full fallback: try to identify which current team name is in the stale description
-    const t1 = getTeam(match.team1Id);
-    const t2 = getTeam(match.team2Id);
-    const staleDesc = match.resultDescription?.toLowerCase() || '';
-    
-    if (t1 && staleDesc.includes(t1.name.toLowerCase())) {
-      const suffix = staleDesc.includes('won by') ? staleDesc.split(/won by/i)[1] : '';
-      return suffix ? `${formatTeamName(t1.name)} won by ${suffix.trim()}` : `${formatTeamName(t1.name)} won`;
-    }
-    if (t2 && staleDesc.includes(t2.name.toLowerCase())) {
-      const suffix = staleDesc.includes('won by') ? staleDesc.split(/won by/i)[1] : '';
-      return suffix ? `${formatTeamName(t2.name)} won by ${suffix.trim()}` : `${formatTeamName(t2.name)} won`;
-    }
-
     return match.resultDescription || 'Match Completed';
   };
 
@@ -87,20 +73,29 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
     }
   };
 
-  const renderInningRow = (inning: any) => {
-    if (!inning) return null;
-    const team = getTeam(inning.battingTeamId);
+  const renderInningRow = (inningId: 'inning_1' | 'inning_2', teamId: string) => {
+    const inning = inningId === 'inning_1' ? inn1 : inn2;
+    const team = getTeam(teamId);
+    
     return (
       <div className="flex justify-between items-center w-full py-2">
         <div className="flex items-center gap-3 overflow-hidden">
-          <Avatar className="h-8 w-8 border bg-muted shrink-0"><AvatarFallback>{team?.name?.[0] || '?'}</AvatarFallback></Avatar>
-          <Link href={`/teams/${inning.battingTeamId}`} className="font-black text-lg text-slate-800 tracking-tight hover:text-primary transition-colors truncate">
+          <Avatar className="h-8 w-8 border bg-muted shrink-0">
+            <AvatarFallback>{team?.name?.[0] || '?'}</AvatarFallback>
+          </Avatar>
+          <Link href={`/teams/${teamId}`} className="font-black text-lg text-slate-800 tracking-tight hover:text-primary transition-colors truncate">
             {team ? formatTeamName(team.name) : 'Unknown'}
           </Link>
         </div>
         <div className="flex items-baseline gap-2 shrink-0 ml-4">
-          <span className="font-black text-2xl text-slate-900">{inning.score}/{inning.wickets}</span>
-          <span className="text-sm font-bold text-slate-500">({inning.oversCompleted}.{inning.ballsInCurrentOver || 0})</span>
+          {inning ? (
+            <>
+              <span className="font-black text-2xl text-slate-900">{inning.score}/{inning.wickets}</span>
+              <span className="text-sm font-bold text-slate-500">({inning.oversCompleted}.{inning.ballsInCurrentOver || 0})</span>
+            </>
+          ) : (
+            <span className="text-xs font-bold text-slate-300 uppercase animate-pulse">Syncing...</span>
+          )}
         </div>
       </div>
     );
@@ -138,13 +133,15 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
           )}
         </div>
         <div className="space-y-1 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-          {renderInningRow(inn1)}
-          {renderInningRow(inn2)}
+          {renderInningRow('inning_1', match.team1Id)}
+          {renderInningRow('inning_2', match.team2Id)}
         </div>
         <div className="flex gap-2 mt-4">
           <Button asChild className="flex-1 bg-primary font-bold h-10 shadow-sm"><Link href={`/match/${match.id}`}>Scorecard</Link></Button>
           {match.status === 'completed' && (
-            <Button asChild variant="outline" className="flex-1 border-secondary text-secondary font-black uppercase text-[10px] h-10"><Link href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}&mNum=${match.matchNumber}`}>Play Again</Link></Button>
+            <Button asChild variant="outline" className="flex-1 border-secondary text-secondary font-black uppercase text-[10px] h-10">
+              <Link href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}&mNum=${match.matchNumber}`}>Play Again</Link>
+            </Button>
           )}
         </div>
       </div>
