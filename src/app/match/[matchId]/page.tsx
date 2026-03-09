@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, List, Trash2, ChevronLeft, ShieldCheck, CheckCircle2, MoreVertical, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, User, UserCheck, UserPlus } from 'lucide-react';
+import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, List, Trash2, ChevronLeft, ShieldCheck, CheckCircle2, MoreVertical, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, User, UserCheck, UserPlus, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -36,13 +36,14 @@ export default function MatchScoreboardPage() {
   const [isNoBallDialogOpen, setIsNoBallDialogOpen] = useState(false);
   const [isPlayerAssignmentOpen, setIsPlayerAssignmentOpen] = useState(false);
   const [isCorrectionDialogOpen, setIsCorrectionDialogOpen] = useState(false);
-  const [isDateEditDialogOpen, setIsDateEditDialogOpen] = useState(false);
+  const [isMatchDetailsDialogOpen, setIsMatchDetailsDialogOpen] = useState(false);
   const [isPotmDialogOpen, setIsPotmDialogOpen] = useState(false);
   
   const [assignmentForm, setAssignmentForm] = useState({ strikerId: '', nonStrikerId: '', bowlerId: '' });
   const [wicketForm, setWicketForm] = useState({ type: 'bowled', batterOutId: '', extraType: 'none', runsCompleted: 0, fielderId: 'none' });
   const [correctionForm, setCorrectionForm] = useState<any>({ id: '', strikerId: '', nonStrikerId: '', bowlerId: '', runs: 0, extra: 'none', isWicket: false, wicketType: 'bowled', timestamp: 0, targetInning: '' });
   const [matchDateForm, setMatchDateForm] = useState('');
+  const [venueForm, setVenueForm] = useState('');
   const [potmId, setPotmId] = useState('');
 
   const [selectedOverFilter, setSelectedOverFilter] = useState<string>('all');
@@ -69,12 +70,12 @@ export default function MatchScoreboardPage() {
 
   useEffect(() => {
     if (match?.matchDate) setMatchDateForm(match.matchDate.substring(0, 16));
+    if (match?.venue) setVenueForm(match.venue);
     if (match?.potmPlayerId) setPotmId(match.potmPlayerId);
   }, [match]);
 
   const processDeliveriesWithLabels = (deliveries: any[] | null) => {
     if (!deliveries) return [];
-    // Force stable sort by timestamp AND ID to prevent flickering/jumping during edits
     const sorted = [...deliveries].sort((a, b) => (a.timestamp - b.timestamp) || a.id.localeCompare(b.id));
     let legal = 0;
     return sorted.map(d => {
@@ -116,7 +117,7 @@ export default function MatchScoreboardPage() {
   const recalculateInningState = async (inningId: string) => {
     const deliveriesRef = collection(db, 'matches', matchId, 'innings', inningId, 'deliveryRecords');
     const snap = await getDocs(query(deliveriesRef, orderBy('timestamp', 'asc')));
-    const deliveriesList = snap.docs.map(d => d.data());
+    const deliveriesList = snap.docs.map(d => d.data()).sort((a,b) => (a.timestamp - b.timestamp) || a.id.localeCompare(b.id));
     
     let score = 0, wkts = 0, legal = 0;
     let sId = '', nsId = '';
@@ -779,9 +780,10 @@ export default function MatchScoreboardPage() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Official Metadata</h3>
-                    {isUmpire && <Button variant="ghost" size="sm" onClick={() => setIsDateEditDialogOpen(true)} className="h-8 font-black uppercase text-[9px]"><Edit2 className="w-3 h-3 mr-1" /> Edit Match Details</Button>}
+                    {isUmpire && <Button variant="ghost" size="sm" onClick={() => setIsMatchDetailsDialogOpen(true)} className="h-8 font-black uppercase text-[9px]"><Edit2 className="w-3 h-3 mr-1" /> Edit Details</Button>}
                   </div>
                   <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-slate-50 p-4 rounded-2xl border col-span-2"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Venue</p><p className="text-xs font-black uppercase flex items-center gap-2"><MapPin className="w-3 h-3 text-secondary" /> {match?.venue || 'GULLY CRICKET GROUND'}</p></div>
                     <div className="bg-slate-50 p-4 rounded-2xl border"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Toss</p><p className="text-xs font-black uppercase">{getTeamName(match?.tossWinnerTeamId || '')} elected to {match?.tossDecision}</p></div>
                     <div className="bg-slate-50 p-4 rounded-2xl border"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Format</p><p className="text-xs font-black uppercase">{match?.totalOvers} Overs</p></div>
                     <div className="bg-slate-50 p-4 rounded-2xl border col-span-2"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Match Schedule</p><p className="text-xs font-black uppercase flex items-center gap-2"><Calendar className="w-3 h-3" /> {match?.matchDate ? new Date(match.matchDate).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---'}</p></div>
@@ -830,10 +832,14 @@ export default function MatchScoreboardPage() {
         </Tabs>
       </div>
 
-      <Dialog open={isDateEditDialogOpen} onOpenChange={setIsDateEditDialogOpen}>
+      <Dialog open={isMatchDetailsDialogOpen} onOpenChange={setIsMatchDetailsDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl z-[151]">
-          <DialogHeader><DialogTitle className="font-black uppercase text-xl">Edit Match Schedule</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-black uppercase text-xl">Edit Match Details</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Ground Name / Venue</Label>
+              <Input value={venueForm} onChange={(e) => setVenueForm(e.target.value)} placeholder="e.g. Lord's Cricket Ground" className="h-14 font-bold" />
+            </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase text-slate-400">Match Date & Time</Label>
               <Input type="datetime-local" value={matchDateForm} onChange={(e) => setMatchDateForm(e.target.value)} className="h-14 font-bold" />
@@ -841,10 +847,12 @@ export default function MatchScoreboardPage() {
           </div>
           <DialogFooter>
             <Button onClick={async () => { 
-              if (!matchDateForm) return;
-              await updateDocumentNonBlocking(doc(db, 'matches', matchId), { matchDate: new Date(matchDateForm).toISOString() });
-              setIsDateEditDialogOpen(false);
-              toast({ title: "Schedule Updated" });
+              const updates: any = {};
+              if (matchDateForm) updates.matchDate = new Date(matchDateForm).toISOString();
+              updates.venue = venueForm;
+              await updateDocumentNonBlocking(doc(db, 'matches', matchId), updates);
+              setIsMatchDetailsDialogOpen(false);
+              toast({ title: "Metadata Updated" });
             }} className="w-full h-14 bg-primary font-black uppercase shadow-xl">Apply Changes</Button>
           </DialogFooter>
         </DialogContent>

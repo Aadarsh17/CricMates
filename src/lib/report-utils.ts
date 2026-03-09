@@ -152,6 +152,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
 export const generateMatchReport = (match: any, teamNames: Record<string, string>, playerNames: Record<string, string>, inn1: any, inn2: any, stats1: any, stats2: any) => {
   const dateStr = match.matchDate ? new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---';
   const formatStr = `${match.totalOvers} OV MATCH`;
+  const venueStr = match.venue || 'NOT SPECIFIED';
   const potmName = match.potmPlayerId ? (playerNames[match.potmPlayerId] || 'Unknown Player') : 'NOT DECLARED';
 
   const renderInning = (innNum: number, teamId: string, stats: any) => {
@@ -168,9 +169,10 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
         <table class="batting-table">
           <thead>
             <tr>
-              <th style="width: 45%">BATTER</th>
+              <th style="width: 40%">BATTER</th>
               <th class="text-right">R</th>
               <th class="text-right">B</th>
+              <th class="text-right">DOT</th>
               <th class="text-right">4S</th>
               <th class="text-right">6S</th>
               <th class="text-right">SR</th>
@@ -187,10 +189,11 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
                 <tr>
                   <td>
                     <div class="player-name-cell">${playerNames[b.id] || 'Unknown'}</div>
-                    <div class="dismissal-sub">(${dismissalStr})</div>
+                    <div class="dismissal-sub">${dismissalStr}</div>
                   </td>
                   <td class="text-right bold">${b.runs}</td>
                   <td class="text-right dim">${b.balls}</td>
+                  <td class="text-right dim">${b.dots || 0}</td>
                   <td class="text-right dim">${b.fours}</td>
                   <td class="text-right dim">${b.sixes}</td>
                   <td class="text-right dim">${b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0'}</td>
@@ -198,15 +201,9 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
               `;
             }).join('')}
             <tr class="summary-row-item">
-              <td class="bold uppercase" style="font-size: 10px;">EXTRAS</td>
-              <td colspan="5" class="text-right dim" style="font-size: 10px;">
-                ${stats.extras.total} (w ${stats.extras.w}, nb ${stats.extras.nb})
-              </td>
-            </tr>
-            <tr class="summary-row-item highlight-row">
-              <td class="bold uppercase" style="font-size: 11px;">TOTAL</td>
-              <td colspan="5" class="text-right bold" style="font-size: 11px;">
-                ${stats.total}/${stats.wickets} (${stats.overs} Overs, RR: ${stats.rr})
+              <td class="bold" style="font-size: 10px;">EXTRAS: ${stats.extras.total} (w ${stats.extras.w}, nb ${stats.extras.nb})</td>
+              <td colspan="6" class="text-right bold highlight-text" style="font-size: 11px;">
+                TOTAL: ${stats.total}/${stats.wickets} (${stats.overs} Overs, RR: ${stats.rr})
               </td>
             </tr>
           </tbody>
@@ -219,8 +216,8 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
           </div>
         ` : ''}
 
-        <div class="stats-grid">
-          <div class="stats-col">
+        <div class="stats-compact-grid">
+          <div class="stats-compact-col">
             <div class="sub-section-title">FALL OF WICKETS</div>
             <div class="fow-container">
               ${stats.fow.length > 0 ? stats.fow.map((f: any) => `
@@ -228,43 +225,34 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
               `).join('') : '<div class="dim">NO WICKETS FELL</div>'}
             </div>
           </div>
-          <div class="stats-col">
+          <div class="stats-compact-col">
             <div class="sub-section-title">PARTNERSHIPS</div>
-            <table class="partnership-table">
-              <thead>
-                <tr>
-                  <th>PARTNERS</th>
-                  <th class="text-right">RUNS(B)</th>
-                  <th class="text-right">CONTRIBUTION</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${stats.partnerships.map((p: any) => {
-                  const involved = p.batters.map((id: string) => playerNames[id] || 'Unknown');
-                  const pNames = involved.length > 1 ? involved.join(' - ') : involved[0];
-                  const contribs = Object.entries(p.contributions)
-                    .map(([id, s]: [any, any]) => `${playerNames[id]?.split(' ')[0] || 'Unknown'} ${s.runs}(${s.balls})`)
-                    .join(', ');
-                  return `
-                    <tr>
-                      <td class="dim" style="font-size: 10px;">${pNames}</td>
-                      <td class="text-right bold">${p.runs}(${p.balls})</td>
-                      <td class="text-right dim" style="font-size: 9px;">${contribs}</td>
-                    </tr>
-                  `;
-                }).join('')}
-              </tbody>
-            </table>
+            <div class="partnership-container">
+              ${stats.partnerships.map((p: any) => {
+                const involved = p.batters.map((id: string) => playerNames[id] || 'Unknown');
+                const pNames = involved.length > 1 ? involved.join(' - ') : involved[0];
+                const contribs = Object.entries(p.contributions)
+                  .map(([id, s]: [any, any]) => `${playerNames[id]?.split(' ')[0] || 'Unknown'} ${s.runs}`)
+                  .join(', ');
+                return `
+                  <div class="partnership-entry">
+                    <div class="p-names">${pNames}</div>
+                    <div class="p-details"><strong>${p.runs} (${p.balls}b)</strong> | <span class="dim">${contribs}</span></div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
           </div>
         </div>
 
-        <div class="sub-section-title" style="margin-top: 15px;">BOWLING ANALYSIS</div>
+        <div class="sub-section-title" style="margin-top: 10px;">BOWLING ANALYSIS</div>
         <table class="bowling-table">
           <thead>
             <tr>
               <th style="width: 40%">BOWLER</th>
               <th class="text-right">O</th>
               <th class="text-right">M</th>
+              <th class="text-right">DOT</th>
               <th class="text-right">R</th>
               <th class="text-right">W</th>
               <th class="text-right">ECO</th>
@@ -276,8 +264,9 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
                 <td class="bold uppercase">${playerNames[b.id] || 'Unknown'}</td>
                 <td class="text-right dim">${b.oversDisplay}</td>
                 <td class="text-right dim">${b.maidens || 0}</td>
+                <td class="text-right dim">${b.dots || 0}</td>
                 <td class="text-right bold">${b.runs}</td>
-                <td class="text-right bold highlight-blue">${b.wickets}</td>
+                <td class="text-right bold highlight-text">${b.wickets}</td>
                 <td class="text-right dim">${b.economy}</td>
               </tr>
             `).join('')}
@@ -293,66 +282,66 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
       <title>Official Scorecard - ${teamNames[match.team1Id]} vs ${teamNames[match.team2Id]}</title>
       <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
-        body { font-family: 'Inter', sans-serif; padding: 30px; color: #1e293b; background: #fff; line-height: 1.2; }
-        .container { max-width: 850px; margin: auto; border: 1px solid #e2e8f0; padding: 40px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1); border-radius: 8px; }
+        body { font-family: 'Inter', sans-serif; padding: 20px; color: #1e293b; background: #f8fafc; line-height: 1.1; margin: 0; }
+        .container { max-width: 800px; margin: auto; background: #fff; border: 1px solid #e2e8f0; padding: 25px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-radius: 4px; }
         
-        .main-header { text-align: center; margin-bottom: 20px; }
-        .main-header h1 { margin: 0; color: #3f51b5; font-size: 26px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; }
-        .main-header p { margin: 5px 0; font-size: 11px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 2px; }
+        .main-header { text-align: center; margin-bottom: 15px; }
+        .main-header h1 { margin: 0; color: #3f51b5; font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
+        .main-header p { margin: 4px 0; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
 
-        .potm-banner { background: #f59e0b; color: #fff; padding: 10px; text-align: center; font-weight: 900; text-transform: uppercase; font-size: 14px; margin-bottom: 25px; border-radius: 6px; }
+        .potm-banner { background: #f59e0b; color: #fff; padding: 8px; text-align: center; font-weight: 900; text-transform: uppercase; font-size: 12px; margin-bottom: 15px; border-radius: 4px; }
 
-        .summary-grid { display: flex; justify-content: space-between; align-items: center; padding: 20px 0; margin-bottom: 10px; }
+        .summary-grid { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; margin-bottom: 5px; border-bottom: 1px solid #f1f5f9; }
         .team-box { flex: 1; text-align: center; }
-        .team-name { font-weight: 900; font-size: 16px; color: #64748b; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 1px; }
-        .team-score { font-weight: 900; font-size: 32px; color: #3f51b5; line-height: 1; }
-        .team-ov { font-size: 12px; color: #94a3b8; font-weight: 700; margin-top: 4px; }
-        .vs-divider { font-weight: 900; color: #cbd5e1; padding: 0 30px; font-size: 18px; }
+        .team-name { font-weight: 900; font-size: 14px; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
+        .team-score { font-weight: 900; font-size: 28px; color: #3f51b5; }
+        .team-ov { font-size: 11px; color: #94a3b8; font-weight: 700; }
+        .vs-divider { font-weight: 900; color: #cbd5e1; padding: 0 20px; font-size: 14px; }
 
-        .result-text { text-align: center; font-weight: 900; font-size: 20px; color: #3f51b5; text-transform: uppercase; padding: 15px 0; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; margin-bottom: 30px; }
+        .result-text { text-align: center; font-weight: 900; font-size: 16px; color: #3f51b5; text-transform: uppercase; padding: 10px 0; margin-bottom: 20px; border-bottom: 2px solid #3f51b5; }
 
-        .inning-section { margin-bottom: 40px; }
-        .inning-header { background: #3f51b5; color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; font-weight: 900; font-size: 14px; text-transform: uppercase; border-radius: 4px 4px 0 0; }
+        .inning-section { margin-bottom: 25px; border: 1px solid #f1f5f9; border-radius: 4px; overflow: hidden; }
+        .inning-header { background: #3f51b5; color: white; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-weight: 900; font-size: 12px; text-transform: uppercase; }
         
-        table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-        th { text-align: left; padding: 10px; font-size: 10px; color: #64748b; border-bottom: 2px solid #e2e8f0; font-weight: 800; text-transform: uppercase; }
-        td { padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; vertical-align: middle; }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: left; padding: 8px; font-size: 9px; color: #64748b; border-bottom: 1px solid #e2e8f0; font-weight: 800; text-transform: uppercase; }
+        td { padding: 8px; border-bottom: 1px solid #f1f5f9; font-size: 11px; vertical-align: middle; }
         
-        .player-name-cell { font-weight: 800; text-transform: uppercase; color: #1e293b; font-size: 12px; }
-        .dismissal-sub { font-size: 9px; font-weight: 700; font-style: italic; color: #94a3b8; text-transform: uppercase; margin-top: 2px; }
+        .player-name-cell { font-weight: 800; text-transform: uppercase; color: #1e293b; font-size: 11px; }
+        .dismissal-sub { font-size: 8px; font-weight: 700; font-style: italic; color: #94a3b8; text-transform: uppercase; margin-top: 1px; }
         
         .text-right { text-align: right; }
         .bold { font-weight: 900; }
         .dim { color: #94a3b8; font-weight: 700; }
-        .highlight-blue { color: #3f51b5; }
-        .summary-row-item td { background: #f8fafc; padding: 8px 10px; }
-        .highlight-row td { background: #f1f5f9; color: #3f51b5; }
+        .highlight-text { color: #3f51b5; }
+        .summary-row-item td { background: #f8fafc; padding: 6px 10px; }
 
-        .dnb-section { padding: 10px 15px; background: #fff; border: 1px solid #f1f5f9; margin-bottom: 20px; font-size: 11px; }
-        .dnb-label { font-weight: 900; color: #94a3b8; margin-right: 8px; }
+        .dnb-section { padding: 8px 12px; background: #fff; border-bottom: 1px solid #f1f5f9; font-size: 9px; }
+        .dnb-label { font-weight: 900; color: #94a3b8; margin-right: 6px; }
         .dnb-players { font-weight: 700; color: #64748b; text-transform: uppercase; }
 
-        .stats-grid { display: flex; gap: 20px; margin-top: 15px; }
-        .stats-col { flex: 1; border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; background: #fff; }
+        .stats-compact-grid { display: flex; gap: 0; border-bottom: 1px solid #f1f5f9; }
+        .stats-compact-col { flex: 1; padding: 10px; border-right: 1px solid #f1f5f9; }
+        .stats-compact-col:last-child { border-right: none; }
         
-        .sub-section-title { font-weight: 900; font-size: 11px; color: #64748b; text-transform: uppercase; margin-bottom: 12px; letter-spacing: 1px; }
-        .fow-entry { font-size: 11px; margin-bottom: 6px; padding-bottom: 6px; border-bottom: 1px dashed #f1f5f9; color: #475569; }
-        .fow-entry strong { color: #1e293b; }
-
-        .partnership-table th { background: #f8fafc; padding: 6px 10px; }
-        .partnership-table td { padding: 8px 10px; font-size: 11px; border: none; }
+        .sub-section-title { font-weight: 900; font-size: 9px; color: #64748b; text-transform: uppercase; margin-bottom: 8px; padding: 4px 10px; background: #f8fafc; }
+        .fow-entry { font-size: 9px; margin-bottom: 4px; color: #475569; }
+        
+        .partnership-entry { font-size: 9px; margin-bottom: 6px; }
+        .p-names { font-weight: 800; text-transform: uppercase; color: #1e293b; }
+        .p-details { margin-top: 1px; }
 
         .bowling-table th { background: #f8fafc; }
-        .bowling-table td { font-size: 12px; }
+        .bowling-table td { font-size: 10px; }
 
-        .footer { text-align: center; margin-top: 40px; font-size: 10px; color: #cbd5e1; font-weight: 800; text-transform: uppercase; border-top: 1px solid #f1f5f9; padding-top: 15px; letter-spacing: 2px; }
+        .footer { text-align: center; margin-top: 20px; font-size: 8px; color: #cbd5e1; font-weight: 800; text-transform: uppercase; padding-top: 10px; letter-spacing: 1px; }
       </style>
     </head>
     <body>
       <div class="container">
         <div class="main-header">
           <h1>OFFICIAL MATCH SCORECARD</h1>
-          <p>${dateStr} | ${formatStr}</p>
+          <p>${dateStr} | ${venueStr} | ${formatStr}</p>
         </div>
 
         <div class="potm-banner">
@@ -379,7 +368,7 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
         ${stats2.batting.length > 0 || stats2.total > 0 ? renderInning(2, inn2?.battingTeamId || match.team2Id, stats2) : ''}
 
         <div class="footer">
-          GENERATED BY CRICMATES | ONE-PAGE PRO SCORECARD
+          GENERATED BY CRICMATES | ONE-PAGE COMPACT PRO SCORECARD
         </div>
       </div>
     </body>

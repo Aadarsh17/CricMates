@@ -66,6 +66,7 @@
         "currentInningNumber": { "type": "number" },
         "resultDescription": { "type": "string" },
         "matchDate": { "type": "string", "format": "date-time" },
+        "venue": { "type": "string" },
         "umpireId": { "type": "string" },
         "potmPlayerId": { "type": "string" },
         "potmCvpScore": { "type": "number" }
