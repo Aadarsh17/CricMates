@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { setDocumentNonBlocking } from '@/firebase';
 import { useApp } from '@/context/AppContext';
-import { ShieldCheck, ArrowRight, UserPlus, Search, ChevronLeft, Award } from 'lucide-react';
+import { ShieldCheck, ArrowRight, UserPlus, Search, ChevronLeft, Award, Shield } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
@@ -38,7 +38,11 @@ export default function NewMatchPage() {
     team1Squad: [] as string[],
     team2Squad: [] as string[],
     team1CaptainId: '',
+    team1ViceCaptainId: '',
+    team1WicketKeeperId: '',
     team2CaptainId: '',
+    team2ViceCaptainId: '',
+    team2WicketKeeperId: '',
     totalOvers: '6',
     tossWinner: '',
     tossDecision: 'bat',
@@ -74,15 +78,29 @@ export default function NewMatchPage() {
     }
   }, [searchParams]);
 
-  // Effect to pre-fill captains when teams are selected
+  // Effect to pre-fill roles when teams are selected
   useEffect(() => {
-    if (teams && setup.team1Id && !setup.team1CaptainId) {
+    if (teams && setup.team1Id) {
       const t1 = teams.find(t => t.id === setup.team1Id);
-      if (t1?.captainId) setSetup(prev => ({ ...prev, team1CaptainId: t1.captainId }));
+      if (t1) {
+        setSetup(prev => ({ 
+          ...prev, 
+          team1CaptainId: t1.captainId || prev.team1CaptainId,
+          team1ViceCaptainId: t1.viceCaptainId || prev.team1ViceCaptainId,
+          team1WicketKeeperId: t1.wicketKeeperId || prev.team1WicketKeeperId
+        }));
+      }
     }
-    if (teams && setup.team2Id && !setup.team2CaptainId) {
+    if (teams && setup.team2Id) {
       const t2 = teams.find(t => t.id === setup.team2Id);
-      if (t2?.captainId) setSetup(prev => ({ ...prev, team2CaptainId: t2.captainId }));
+      if (t2) {
+        setSetup(prev => ({ 
+          ...prev, 
+          team2CaptainId: t2.captainId || prev.team2CaptainId,
+          team2ViceCaptainId: t2.viceCaptainId || prev.team2ViceCaptainId,
+          team2WicketKeeperId: t2.wicketKeeperId || prev.team2WicketKeeperId
+        }));
+      }
     }
   }, [teams, setup.team1Id, setup.team2Id]);
 
@@ -113,7 +131,11 @@ export default function NewMatchPage() {
       team1SquadPlayerIds: setup.team1Squad, 
       team2SquadPlayerIds: setup.team2Squad, 
       team1CaptainId: setup.team1CaptainId,
+      team1ViceCaptainId: setup.team1ViceCaptainId,
+      team1WicketKeeperId: setup.team1WicketKeeperId,
       team2CaptainId: setup.team2CaptainId,
+      team2ViceCaptainId: setup.team2ViceCaptainId,
+      team2WicketKeeperId: setup.team2WicketKeeperId,
       totalOvers: parseInt(setup.totalOvers), 
       status: 'live', 
       tossWinnerTeamId: setup.tossWinner, 
@@ -140,7 +162,7 @@ export default function NewMatchPage() {
     <div className="max-w-4xl mx-auto space-y-6 pb-24 px-4">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
-        <h1 className="text-2xl font-black uppercase text-primary">New Match</h1>
+        <h1 className="text-2xl font-black uppercase text-primary">New Match setup</h1>
       </div>
 
       {step === 1 && (
@@ -148,7 +170,7 @@ export default function NewMatchPage() {
           <CardHeader><CardTitle className="text-xl font-black uppercase">Teams & Format</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase">Match Number</Label>
+              <Label className="text-[10px] font-black uppercase text-slate-400">Match Label</Label>
               <Input 
                 value={setup.matchNumber} 
                 onChange={(e) => setSetup({...setup, matchNumber: e.target.value})} 
@@ -157,8 +179,8 @@ export default function NewMatchPage() {
               />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Home Team</Label><Select value={setup.team1Id} onValueChange={(v) => setSetup({...setup, team1Id: v, team1Squad: [], team1CaptainId: ''})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Team" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Away Team</Label><Select value={setup.team2Id} onValueChange={(v) => setSetup({...setup, team2Id: v, team2Squad: [], team2CaptainId: ''})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Team" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Home Team</Label><Select value={setup.team1Id} onValueChange={(v) => setSetup({...setup, team1Id: v, team1Squad: [], team1CaptainId: '', team1ViceCaptainId: '', team1WicketKeeperId: ''})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Team" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Away Team</Label><Select value={setup.team2Id} onValueChange={(v) => setSetup({...setup, team2Id: v, team2Squad: [], team2CaptainId: '', team2ViceCaptainId: '', team2WicketKeeperId: ''})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Team" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
             <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Overs</Label><Input type="number" value={setup.totalOvers} onChange={(e) => setSetup({...setup, totalOvers: e.target.value})} className="h-12 font-bold" /></div>
             <Button className="w-full h-14 font-black uppercase" disabled={!setup.team1Id || !setup.team2Id} onClick={() => setStep(2)}>Configure Squads</Button>
@@ -169,7 +191,7 @@ export default function NewMatchPage() {
       {step === 2 && (
         <Card className="border-t-4 border-t-primary shadow-lg overflow-hidden">
           <CardHeader>
-            <CardTitle className="text-xl font-black uppercase">Select Squads</CardTitle>
+            <CardTitle className="text-xl font-black uppercase">Official Squads</CardTitle>
             <div className="relative mt-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <Input placeholder="Search player pool..." className="pl-10 h-12 font-bold bg-slate-50 border-2" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
@@ -178,8 +200,8 @@ export default function NewMatchPage() {
           <CardContent className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {[ 
-                {id: 'team1', tid: setup.team1Id, squad: setup.team1Squad, otherSquad: setup.team2Squad, captainKey: 'team1CaptainId' as const}, 
-                {id: 'team2', tid: setup.team2Id, squad: setup.team2Squad, otherSquad: setup.team1Squad, captainKey: 'team2CaptainId' as const} 
+                {id: 'team1', tid: setup.team1Id, squad: setup.team1Squad, otherSquad: setup.team2Squad, captainKey: 'team1CaptainId' as const, vcKey: 'team1ViceCaptainId' as const, wkKey: 'team1WicketKeeperId' as const}, 
+                {id: 'team2', tid: setup.team2Id, squad: setup.team2Squad, otherSquad: setup.team1Squad, captainKey: 'team2CaptainId' as const, vcKey: 'team2ViceCaptainId' as const, wkKey: 'team2WicketKeeperId' as const} 
               ].map(t => {
                 const teamData = teams?.find(team => team.id === t.tid);
                 const teamName = teamData?.name || 'Team';
@@ -202,10 +224,10 @@ export default function NewMatchPage() {
                               onCheckedChange={(c) => {
                                 if (t.id === 'team1') {
                                   const nextSquad = c ? [...setup.team1Squad, p.id] : setup.team1Squad.filter(id => id !== p.id);
-                                  setSetup({...setup, team1Squad: nextSquad, team1CaptainId: nextSquad.includes(setup.team1CaptainId) ? setup.team1CaptainId : (teamData?.captainId === p.id ? p.id : '')});
+                                  setSetup({...setup, team1Squad: nextSquad});
                                 } else {
                                   const nextSquad = c ? [...setup.team2Squad, p.id] : setup.team2Squad.filter(id => id !== p.id);
-                                  setSetup({...setup, team2Squad: nextSquad, team2CaptainId: nextSquad.includes(setup.team2CaptainId) ? setup.team2CaptainId : (teamData?.captainId === p.id ? p.id : '')});
+                                  setSetup({...setup, team2Squad: nextSquad});
                                 }
                               }} 
                               id={`${t.id}-${p.id}`} 
@@ -216,24 +238,37 @@ export default function NewMatchPage() {
                         );
                       })}
                     </div>
-                    <div className="pt-4 border-t space-y-2">
-                      <Label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-1">
-                        <Award className="w-3" /> Assign Captain
-                      </Label>
-                      <Select 
-                        value={setup[t.captainKey]} 
-                        onValueChange={(v) => setSetup({...setup, [t.captainKey]: v})}
-                        disabled={t.squad.length === 0}
-                      >
-                        <SelectTrigger className="h-10 font-bold bg-slate-50 border-none shadow-none">
-                          <SelectValue placeholder="Pick Captain" />
-                        </SelectTrigger>
-                        <SelectContent className="z-[200]">
-                          {allPlayers?.filter(p => t.squad.includes(p.id)).map(p => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                    <div className="pt-4 border-t space-y-3">
+                      <div className="space-y-1">
+                        <Label className="text-[8px] font-black uppercase text-slate-400 flex items-center gap-1"><Award className="w-2.5 h-2.5" /> Captain</Label>
+                        <Select value={setup[t.captainKey] || 'none'} onValueChange={(v) => setSetup({...setup, [t.captainKey]: v === 'none' ? '' : v})}>
+                          <SelectTrigger className="h-9 font-bold bg-slate-50 border-none shadow-none text-xs"><SelectValue placeholder="Pick Captain" /></SelectTrigger>
+                          <SelectContent className="z-[200]">
+                            <SelectItem value="none" className="text-xs font-bold uppercase">No Captain</SelectItem>
+                            {allPlayers?.filter(p => t.squad.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id} className="text-xs font-bold">{p.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[8px] font-black uppercase text-slate-400 flex items-center gap-1"><Shield className="w-2.5 h-2.5" /> Vice-Captain</Label>
+                        <Select value={setup[t.vcKey] || 'none'} onValueChange={(v) => setSetup({...setup, [t.vcKey]: v === 'none' ? '' : v})}>
+                          <SelectTrigger className="h-9 font-bold bg-slate-50 border-none shadow-none text-xs"><SelectValue placeholder="Pick VC" /></SelectTrigger>
+                          <SelectContent className="z-[200]">
+                            <SelectItem value="none" className="text-xs font-bold uppercase">No Vice-Captain</SelectItem>
+                            {allPlayers?.filter(p => t.squad.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id} className="text-xs font-bold">{p.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[8px] font-black uppercase text-slate-400 flex items-center gap-1"><ShieldCheck className="w-2.5 h-2.5" /> Wicket-Keeper</Label>
+                        <Select value={setup[t.wkKey] || 'none'} onValueChange={(v) => setSetup({...setup, [t.wkKey]: v === 'none' ? '' : v})}>
+                          <SelectTrigger className="h-9 font-bold bg-slate-50 border-none shadow-none text-xs"><SelectValue placeholder="Pick WK" /></SelectTrigger>
+                          <SelectContent className="z-[200]">
+                            <SelectItem value="none" className="text-xs font-bold uppercase">No Wicket-Keeper</SelectItem>
+                            {allPlayers?.filter(p => t.squad.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id} className="text-xs font-bold">{p.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
                 );
@@ -246,7 +281,7 @@ export default function NewMatchPage() {
                 disabled={setup.team1Squad.length < 1 || setup.team2Squad.length < 1}
                 onClick={() => setStep(3)}
               >
-                The Toss
+                Match Start
               </Button>
             </div>
           </CardContent>
@@ -287,7 +322,7 @@ export default function NewMatchPage() {
       <Dialog open={isQuickRegOpen} onOpenChange={setIsQuickRegOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-primary z-[200]">
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Quick Player Add</DialogTitle></DialogHeader>
-          <div className="py-4 space-y-4"><Label className="text-[10px] font-black uppercase text-slate-400">Player Name</Label><Input value={quickRegName} onChange={(e) => setNewTeamName(e.target.value)} placeholder="Full Name" className="h-12 font-bold" /></div>
+          <div className="py-4 space-y-4"><Label className="text-[10px] font-black uppercase text-slate-400">Player Name</Label><Input value={quickRegName} onChange={(e) => setQuickRegName(e.target.value)} placeholder="Full Name" className="h-12 font-bold" /></div>
           <DialogFooter><Button onClick={handleQuickRegister} disabled={!quickRegName.trim()} className="w-full h-14 font-black uppercase">Add to Squad</Button></DialogFooter>
         </DialogContent>
       </Dialog>

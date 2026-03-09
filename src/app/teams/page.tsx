@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LayoutGrid, List, Plus, Trash2, History, ChevronDown, ChevronUp, Loader2, ChevronLeft, Crown } from 'lucide-react';
+import { LayoutGrid, List, Plus, Trash2, History, ChevronDown, ChevronUp, Loader2, ChevronLeft, Crown, Shield } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -82,7 +82,7 @@ export default function TeamsPage() {
         
         const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
         const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
-        const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+        const bowlingTeamId = battingTeamId === teamId ? match.team2Id : match.team1Id;
 
         if (totals[battingTeamId]) {
           totals[battingTeamId].forR += (d.totalRunsOnDelivery || 0);
@@ -120,6 +120,11 @@ export default function TeamsPage() {
     return allPlayers?.find(p => p.id === team.captainId)?.name;
   };
 
+  const getVcName = (team: any) => {
+    if (!team.viceCaptainId) return null;
+    return allPlayers?.find(p => p.id === team.viceCaptainId)?.name;
+  };
+
   return (
     <div className="space-y-6 pb-24 px-4 max-w-6xl mx-auto">
       <div className="flex items-center gap-4">
@@ -140,6 +145,7 @@ export default function TeamsPage() {
             const stats = teamStats[team.id] || { wins: 0, losses: 0, nrr: 0 };
             const isHistoryOpen = openHistories[team.id] ?? false;
             const captainName = getCaptainName(team);
+            const vcName = getVcName(team);
             return (
               <Card key={team.id} className="hover:shadow-md transition-all group flex flex-col border shadow-sm rounded-xl overflow-hidden bg-white">
                 <CardHeader className="flex flex-row items-center justify-between p-4 pb-2 space-y-0">
@@ -147,13 +153,21 @@ export default function TeamsPage() {
                     <Avatar className="w-10 h-10 border rounded-lg bg-white shadow-sm"><AvatarImage src={team.logoUrl} /><AvatarFallback>{team.name[0]}</AvatarFallback></Avatar>
                     <div className="min-w-0">
                       <CardTitle className="text-base font-black tracking-tight truncate max-w-[120px] uppercase">{formatTeamName(team.name)}</CardTitle>
-                      {captainName ? (
-                        <p className="text-[8px] text-amber-600 font-black uppercase tracking-widest flex items-center gap-1">
-                          <Crown className="w-2 h-2" /> {captainName}
-                        </p>
-                      ) : (
-                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Franchise</p>
-                      )}
+                      <div className="flex flex-wrap gap-1 mt-0.5">
+                        {captainName && (
+                          <p className="text-[7px] text-amber-600 font-black uppercase tracking-widest flex items-center gap-0.5">
+                            <Crown className="w-1.5 h-1.5" /> {captainName}
+                          </p>
+                        )}
+                        {vcName && (
+                          <p className="text-[7px] text-slate-500 font-black uppercase tracking-widest flex items-center gap-0.5">
+                            <Shield className="w-1.5 h-1.5" /> {vcName}
+                          </p>
+                        )}
+                        {!captainName && !vcName && (
+                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">Franchise</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {isUmpire && (<Button variant="ghost" size="icon" onClick={() => { if(confirm(`Delete ${team.name}?`)) { deleteDocumentNonBlocking(doc(db, 'teams', team.id)); toast({ title: "Team Deleted" }); } }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>)}
@@ -161,7 +175,7 @@ export default function TeamsPage() {
                 <CardContent className="flex-1 flex flex-col p-4 pt-2">
                   <div className="grid grid-cols-3 gap-2 mb-4"><div className="bg-slate-50 p-2 rounded-lg text-center border"><p className="text-[8px] font-black uppercase text-slate-400">Wins</p><p className="text-sm font-black text-secondary">{stats.wins}</p></div><div className="bg-slate-50 p-2 rounded-lg text-center border"><p className="text-[8px] font-black uppercase text-slate-400">Losses</p><p className="text-sm font-black text-destructive">{stats.losses}</p></div><div className="bg-slate-50 p-2 rounded-lg text-center border"><p className="text-[8px] font-black uppercase text-slate-400">NRR</p><p className={cn("text-sm font-black", stats.nrr >= 0 ? "text-primary" : "text-amber-600")}>{(stats.nrr || 0).toFixed(3)}</p></div></div>
                   <Collapsible open={isHistoryOpen} onOpenChange={(open) => setOpenHistories(prev => ({...prev, [team.id]: open}))} className="border rounded-lg bg-slate-50/30 overflow-hidden"><CollapsibleTrigger asChild><Button variant="ghost" className="w-full flex items-center justify-between px-3 py-2 h-auto hover:bg-slate-100"><div className="flex items-center gap-2"><History className="w-3 h-3 text-slate-400" /><span className="text-[9px] font-black text-slate-500 uppercase">Recent Form</span></div>{isHistoryOpen ? <ChevronUp className="w-3 h-3 text-slate-400" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}</Button></CollapsibleTrigger><CollapsibleContent className="px-2 pb-2"><TeamMatchHistory teamId={team.id} matches={allMatches} teams={teams || []} /></CollapsibleContent></Collapsible>
-                  <div className="mt-4 pt-4 border-t"><Button variant="outline" className="w-full text-[10px] font-black uppercase tracking-widest h-10 shadow-sm" asChild><Link href={`/teams/${team.id}`}>View Squad & Full Stats</Link></Button></div>
+                  <div className="mt-4 pt-4 border-t"><Button variant="outline" className="w-full text-[10px] font-black uppercase tracking-widest h-10 shadow-sm" asChild><Link href={`/teams/${team.id}`}>View Squad & Leadership</Link></Button></div>
                 </CardContent>
               </Card>
             );

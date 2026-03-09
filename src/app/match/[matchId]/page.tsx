@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target } from 'lucide-react';
+import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Shield, Crown } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -99,7 +99,15 @@ export default function MatchScoreboardPage() {
   const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || [], match?.team1SquadPlayerIds || []), [inn1Deliveries, match?.team1SquadPlayerIds]);
   const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || [], match?.team2SquadPlayerIds || []), [inn2Deliveries, match?.team2SquadPlayerIds]);
 
-  const getPlayerName = (pid: string) => allPlayers?.find(p => p.id === pid)?.name || '---';
+  const getPlayerName = (pid: string) => {
+    const p = allPlayers?.find(p => p.id === pid);
+    if (!p) return '---';
+    const isC = pid === match?.team1CaptainId || pid === match?.team2CaptainId;
+    const isVC = pid === match?.team1ViceCaptainId || pid === match?.team2ViceCaptainId;
+    const isWK = pid === match?.team1WicketKeeperId || pid === match?.team2WicketKeeperId;
+    return `${p.name}${isC ? ' (C)' : isVC ? ' (VC)' : ''}${isWK ? ' (WK)' : ''}`;
+  };
+
   const getTeamName = (tid: string) => {
     const t = allTeams?.find(t => t.id === tid);
     return t ? formatTeamName(t.name) : '---';
