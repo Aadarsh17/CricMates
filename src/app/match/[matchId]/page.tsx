@@ -74,8 +74,8 @@ export default function MatchScoreboardPage() {
 
   const processDeliveriesWithLabels = (deliveries: any[] | null) => {
     if (!deliveries) return [];
-    // Force sort by timestamp before labeling to prevent jump-to-end issues
-    const sorted = [...deliveries].sort((a, b) => a.timestamp - b.timestamp);
+    // Force stable sort by timestamp AND ID to prevent flickering/jumping during edits
+    const sorted = [...deliveries].sort((a, b) => (a.timestamp - b.timestamp) || a.id.localeCompare(b.id));
     let legal = 0;
     return sorted.map(d => {
       const ov = Math.floor(legal / 6);
@@ -242,7 +242,7 @@ export default function MatchScoreboardPage() {
       isWicket: isWicket,
       dismissalType: isWicket ? (correctionForm.wicketType || 'bowled') : '',
       batsmanOutPlayerId: isWicket ? (correctionForm.batterOutId || correctionForm.strikerId) : '',
-      timestamp: correctionForm.timestamp || Date.now() // Preservation is key here
+      timestamp: correctionForm.timestamp || Date.now()
     };
 
     await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', correctionForm.targetInning, 'deliveryRecords', deliveryId), dData, { merge: true });
@@ -716,7 +716,6 @@ export default function MatchScoreboardPage() {
                               {isUmpire && (
                                 <div className="flex justify-center py-1 group">
                                   <Button variant="ghost" size="sm" onClick={() => {
-                                    // Use original ball timestamp or anchor nearby to preserve sequence
                                     const newTs = prevBallInLog ? (prevBallInLog.timestamp + d.timestamp) / 2 : d.timestamp - 1000;
                                     setCorrectionForm({ id: '', strikerId: d.strikerPlayerId || '', nonStrikerId: d.nonStrikerPlayerId || '', bowlerId: d.bowlerId || '', runs: 0, extra: 'none', isWicket: false, timestamp: newTs, targetInning: tab.innKey });
                                     setIsCorrectionDialogOpen(true);
