@@ -2,14 +2,14 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'navigation';
 import { useCollection, useDoc, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { collection, query, where, doc, orderBy, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Upload, AlertCircle, Users, UserMinus, ShieldCheck, Settings } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Upload, AlertCircle, Users, UserMinus, ShieldCheck, Settings, Scale } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -77,15 +77,21 @@ export default function TeamDetailsPage() {
     
     let forR = 0, forB = 0, agR = 0, agB = 0;
     let played = 0, won = 0, lost = 0, drawn = 0;
-    const teamName = team?.name.toLowerCase() || '';
 
     allMatches.forEach(m => {
       if (m.status !== 'completed' || (m.team1Id !== teamId && m.team2Id !== teamId)) return;
       played++;
-      const result = m.resultDescription?.toLowerCase() || '';
-      if (result.includes(teamName) && result.includes('won')) won++;
-      else if (result.includes('drawn') || result.includes('tied')) drawn++;
-      else lost++;
+      
+      // High-precision ID-based checking
+      if (m.winnerTeamId === teamId) {
+        won++;
+      } else if (m.isTie) {
+        drawn++;
+      } else if (m.winnerTeamId && m.winnerTeamId !== 'none') {
+        lost++;
+      } else if (m.resultDescription?.toLowerCase().includes('drawn') || m.resultDescription?.toLowerCase().includes('tied')) {
+        drawn++;
+      }
     });
 
     allDeliveries.forEach(d => {
@@ -110,7 +116,7 @@ export default function TeamDetailsPage() {
     const agRR = agB > 0 ? (agR / (agB / 6)) : 0;
 
     return { played, won, lost, drawn, nrr: forRR - agRR };
-  }, [allMatches, teamId, team?.name, allDeliveries]);
+  }, [allMatches, teamId, allDeliveries]);
 
   const squadStats = useMemo(() => {
     if (!allPlayers || allPlayers.length === 0) return {};
@@ -294,10 +300,11 @@ export default function TeamDetailsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {[
           { label: 'Wins', value: standingsForThisTeam.won, icon: Trophy, color: 'text-secondary' },
           { label: 'Losses', value: standingsForThisTeam.lost, icon: Activity, color: 'text-destructive' },
+          { label: 'NR/Ties', value: standingsForThisTeam.drawn, icon: Scale, color: 'text-amber-500' },
           { label: 'NRR', value: (standingsForThisTeam.nrr || 0).toFixed(3), icon: HistoryIcon, color: 'text-primary' },
           { label: 'Played', value: standingsForThisTeam.played, icon: Users, color: 'text-slate-600' },
         ].map((stat, i) => (

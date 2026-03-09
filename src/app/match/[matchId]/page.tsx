@@ -196,23 +196,31 @@ export default function MatchScoreboardPage() {
     const bat2Id = inn2?.battingTeamId || match?.team2Id;
     
     let result = "Match Completed";
+    let winnerId = "";
+    let isTie = false;
+
     if (s1 > s2) {
-      const winner = getTeamName(bat1Id || '');
-      result = `${winner} won by ${s1 - s2} runs`;
+      winnerId = bat1Id;
+      const winnerName = getTeamName(bat1Id || '');
+      result = `${winnerName} won by ${s1 - s2} runs`;
     } else if (s2 > s1) {
-      const winner = getTeamName(bat2Id || '');
+      winnerId = bat2Id;
+      const winnerName = getTeamName(bat2Id || '');
       const squadSize = bat2Id === match?.team1Id ? match?.team1SquadPlayerIds?.length : match?.team2SquadPlayerIds?.length;
       const maxWicketsPossible = (squadSize || 11) - 1;
       const wicketsLeft = Math.max(0, maxWicketsPossible - w2);
-      result = `${winner} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
+      result = `${winnerName} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
     } else {
+      isTie = true;
       result = "Match Tied";
     }
     
     try {
       await setDocumentNonBlocking(doc(db, 'matches', matchId), { 
         status: 'completed',
-        resultDescription: result
+        resultDescription: result,
+        winnerTeamId: winnerId || 'none',
+        isTie: isTie
       }, { merge: true });
       toast({ title: "Match Finalized", description: result });
     } catch (e) {
@@ -348,12 +356,12 @@ export default function MatchScoreboardPage() {
           <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="text-slate-950 hover:bg-slate-100 h-8 w-8 shrink-0"><ChevronLeft className="w-6 h-6" /></Button>
           <div className="space-y-1 flex-1">
             <div className="flex items-center gap-3">
-              <span className="font-black uppercase text-[11px] text-slate-700 truncate max-w-[90px] tracking-tight">{getTeamName(match?.team1Id)}</span>
+              <span className="font-black uppercase text-[11px] text-slate-700 truncate max-w-[120px] tracking-tight">{getTeamName(match?.team1Id)}</span>
               <span className="font-black text-2xl leading-none text-slate-950">{stats1.total}/{stats1.wickets}</span>
               <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({stats1.overs})</Badge>
             </div>
             <div className="flex items-center gap-3">
-              <span className="font-black uppercase text-[11px] text-slate-700 truncate max-w-[90px] tracking-tight">{getTeamName(match?.team2Id)}</span>
+              <span className="font-black uppercase text-[11px] text-slate-700 truncate max-w-[120px] tracking-tight">{getTeamName(match?.team2Id)}</span>
               <span className="font-black text-2xl leading-none text-slate-950">{stats2.total}/{stats2.wickets}</span>
               <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({stats2.overs})</Badge>
             </div>
@@ -452,7 +460,7 @@ export default function MatchScoreboardPage() {
                       const b = stats.batting.find((p: any) => p?.id === pid) || { runs: 0, balls: 0, dots: 0 };
                       return (
                         <TableRow key={pid} className={idx === 0 ? "bg-primary/5" : ""}>
-                          <TableCell className="font-black text-xs uppercase py-3 truncate max-w-[100px]">{getPlayerName(pid)}{idx === 0 ? '*' : ''}</TableCell>
+                          <TableCell className="font-black text-xs uppercase py-3 truncate max-w-[140px]">{getPlayerName(pid)}{idx === 0 ? '*' : ''}</TableCell>
                           <TableCell className="text-right font-black">{b.runs}</TableCell>
                           <TableCell className="text-right text-xs font-bold text-slate-500">{b.balls}</TableCell>
                           <TableCell className="text-right text-xs text-slate-400">{b.dots}</TableCell>
@@ -471,7 +479,7 @@ export default function MatchScoreboardPage() {
                       const b = (match?.currentInningNumber === 1 ? stats1 : stats2).bowling.find(bowler => bowler.id === activeInningData.currentBowlerPlayerId);
                       return (
                         <TableRow className="bg-secondary/5">
-                          <TableCell className="font-black text-xs uppercase py-3 truncate max-w-[100px]">{getPlayerName(activeInningData.currentBowlerPlayerId)}</TableCell>
+                          <TableCell className="font-black text-xs uppercase py-3 truncate max-w-[140px]">{getPlayerName(activeInningData.currentBowlerPlayerId)}</TableCell>
                           <TableCell className="text-right font-bold text-xs">{b?.oversDisplay || '0.0'}</TableCell>
                           <TableCell className="text-right text-xs">{b?.dots || 0}</TableCell>
                           <TableCell className="text-right text-xs">{b?.runs || 0}</TableCell>
