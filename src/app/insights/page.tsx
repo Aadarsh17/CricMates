@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
+import { cn } from '@/lib/utils';
 
 export default function InsightsPage() {
   const db = useFirestore();

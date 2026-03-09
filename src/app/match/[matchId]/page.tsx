@@ -22,7 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import Link from 'next/link';
+import Link from 'link';
 import { toPng } from 'html-to-image';
 
 export default function MatchScoreboardPage() {
@@ -692,7 +692,17 @@ export default function MatchScoreboardPage() {
                                 <div className="flex justify-center py-1 group">
                                   <Button variant="ghost" size="sm" onClick={() => {
                                     const newTs = prevBallInLog ? (prevBallInLog.timestamp + d.timestamp) / 2 : d.timestamp - 1000;
-                                    setCorrectionForm({ id: '', strikerId: d.strikerPlayerId || '', nonStrikerId: d.nonStrikerPlayerId || '', bowlerId: d.bowlerId || '', runs: 0, extra: 'none', isWicket: false, timestamp: newTs, targetInning: tab.innKey });
+                                    setCorrectionForm({ 
+                                      id: '', 
+                                      strikerId: d.strikerPlayerId || '', 
+                                      nonStrikerId: d.nonStrikerPlayerId || '', 
+                                      bowlerId: d.bowlerId || d.bowlerPlayerId || '', 
+                                      runs: 0, 
+                                      extra: 'none', 
+                                      isWicket: false, 
+                                      timestamp: newTs, 
+                                      targetInning: tab.innKey 
+                                    });
                                     setIsCorrectionDialogOpen(true);
                                   }} className="h-6 w-6 rounded-full bg-slate-50 text-slate-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-all p-0"><PlusCircle className="w-4 h-4" /></Button>
                                 </div>
@@ -709,7 +719,18 @@ export default function MatchScoreboardPage() {
                                     <p className={cn("text-[8px] font-bold uppercase", d.isWicket ? (d.dismissalType === 'retired' ? "text-slate-500" : "text-red-500") : "text-slate-400")}>{d.isWicket ? d.dismissalType : `${d.runsScored || 0} runs`}</p>
                                   </div>
                                 </div>
-                                {isUmpire && <div className="flex gap-1 shrink-0"><Button variant="ghost" size="icon" onClick={() => { setCorrectionForm({ ...d, extra: d.extraType || 'none', runs: d.runsScored || 0, targetInning: tab.innKey }); setIsCorrectionDialogOpen(true); }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3" /></Button><Button variant="ghost" size="icon" onClick={async () => { if(confirm("Delete delivery?")) { await deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); await recalculateInningState(tab.innKey); toast({ title: "Action Purged" }); } }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button></div>}
+                                {isUmpire && <div className="flex gap-1 shrink-0"><Button variant="ghost" size="icon" onClick={() => { 
+                                  setCorrectionForm({ 
+                                    ...d, 
+                                    strikerId: d.strikerPlayerId, 
+                                    nonStrikerId: d.nonStrikerPlayerId, 
+                                    bowlerId: d.bowlerId || d.bowlerPlayerId, 
+                                    extra: d.extraType || 'none', 
+                                    runs: d.runsScored || 0, 
+                                    targetInning: tab.innKey 
+                                  }); 
+                                  setIsCorrectionDialogOpen(true); 
+                                }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3" /></Button><Button variant="ghost" size="icon" onClick={async () => { if(confirm("Delete delivery?")) { await deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); await recalculateInningState(tab.innKey); toast({ title: "Action Purged" }); } }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button></div>}
                               </Card>
                             </div>
                           );
