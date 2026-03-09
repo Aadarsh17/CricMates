@@ -12,6 +12,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       partnerships: [], 
       extras: { total: 0, w: 0, nb: 0 }, 
       total: 0, 
+      wickets: 0,
       overs: '0.0', 
       rr: '0.00', 
       didNotBat: squadIds 
@@ -47,10 +48,10 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     if (nsId && !battingOrder.includes(nsId)) battingOrder.push(nsId);
 
     if (!bat[sId]) {
-      bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out', fielderId: 'none' };
+      bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, dots: 0, out: false, dismissal: 'not out', fielderId: 'none' };
     }
     if (nsId && !bat[nsId]) {
-      bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out', fielderId: 'none' };
+      bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, dots: 0, out: false, dismissal: 'not out', fielderId: 'none' };
     }
     
     if (d.extraType !== 'wide') {
@@ -58,6 +59,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       bat[sId].runs += (d.runsScored || 0);
       if (d.runsScored === 4) bat[sId].fours += 1;
       if (d.runsScored === 6) bat[sId].sixes += 1;
+      if (d.runsScored === 0) bat[sId].dots += 1;
     }
 
     currentScore += (d.totalRunsOnDelivery || 0);
@@ -72,14 +74,12 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     currentPartnership.runs += (d.totalRunsOnDelivery || 0);
     if (d.extraType !== 'wide') currentPartnership.balls += 1;
     
-    // Register striker in contribution
     if (!currentPartnership.contributions[sId]) currentPartnership.contributions[sId] = { runs: 0, balls: 0 };
     if (d.extraType !== 'wide') {
       currentPartnership.contributions[sId].runs += (d.runsScored || 0);
       currentPartnership.contributions[sId].balls += 1;
     }
     
-    // Ensure non-striker is also registered as part of the partnership
     if (nsId && !currentPartnership.contributions[nsId]) {
       currentPartnership.contributions[nsId] = { runs: 0, balls: 0 };
     }
@@ -90,7 +90,6 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       if (bat[outPid]) {
         bat[outPid].out = true;
         bat[outPid].fielderId = d.fielderPlayerId || 'none';
-        // Format dismissal with fielder if available
         let discStr = d.dismissalType || 'out';
         if (d.fielderPlayerId && d.fielderPlayerId !== 'none') {
           if (discStr === 'caught') discStr = `c Fielder b Bowler`; 
@@ -101,20 +100,22 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       }
       
       const overLabel = `${Math.floor(legalBalls / 6)}.${legalBalls % 6}`;
-      fow.push({ wicketNum: currentWickets, scoreAtWicket: currentScore, playerOutId: outPid, over: overLabel, runsOut: bat[outPid].runs });
+      fow.push({ wicketNum: currentWickets, scoreAtWicket: currentScore, playerOutId: outPid, over: overLabel, runsOut: bat[outPid]?.runs || 0 });
       
-      // Close partnership
       partnerships.push({ ...currentPartnership, batters: Object.keys(currentPartnership.contributions), isUnbroken: false });
       currentPartnership = { runs: 0, balls: 0, contributions: {}, isUnbroken: true };
     }
 
     if (bId) {
-      if (!bowl[bId]) bowl[bId] = { id: bId, balls: 0, runs: 0, wickets: 0, maidens: 0 };
+      if (!bowl[bId]) bowl[bId] = { id: bId, balls: 0, runs: 0, wickets: 0, maidens: 0, dots: 0 };
       bowl[bId].runs += (d.totalRunsOnDelivery || 0);
       if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
         bowl[bId].wickets += 1;
       }
-      if (isLegal) bowl[bId].balls += 1;
+      if (isLegal) {
+        bowl[bId].balls += 1;
+        if (d.totalRunsOnDelivery === 0) bowl[bId].dots += 1;
+      }
     }
   });
 
@@ -178,7 +179,6 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
           <tbody>
             ${stats.batting.map((b: any) => {
               let dismissalStr = b.out ? b.dismissal : 'NOT OUT';
-              // Performance dynamic mapping for the report template
               if (b.fielderId && b.fielderId !== 'none') {
                 dismissalStr = dismissalStr.replace('Fielder', playerNames[b.fielderId] || 'Fielder');
               }
