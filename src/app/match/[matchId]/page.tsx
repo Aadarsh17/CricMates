@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, List, Trash2, ChevronLeft, ShieldCheck, CheckCircle2, MoreVertical, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock } from 'lucide-react';
+import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, List, Trash2, ChevronLeft, ShieldCheck, CheckCircle2, MoreVertical, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, User, UserCheck } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -18,6 +18,7 @@ import { getExtendedInningStats, generateMatchReport } from '@/lib/report-utils'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import Link from 'next/link';
@@ -34,10 +35,14 @@ export default function MatchScoreboardPage() {
   const [isNoBallDialogOpen, setIsNoBallDialogOpen] = useState(false);
   const [isPlayerAssignmentOpen, setIsPlayerAssignmentOpen] = useState(false);
   const [isCorrectionDialogOpen, setIsCorrectionDialogOpen] = useState(false);
+  const [isDateEditDialogOpen, setIsDateEditDialogOpen] = useState(false);
+  const [isPotmDialogOpen, setIsPotmDialogOpen] = useState(false);
   
   const [assignmentForm, setAssignmentForm] = useState({ strikerId: '', nonStrikerId: '', bowlerId: '' });
   const [wicketForm, setWicketForm] = useState({ type: 'bowled', batterOutId: '', extraType: 'none', runsCompleted: 0, fielderId: 'none' });
   const [correctionForm, setCorrectionForm] = useState<any>({ id: '', strikerId: '', nonStrikerId: '', bowlerId: '', runs: 0, extra: 'none', isWicket: false, wicketType: 'bowled', targetTimestamp: 0, targetInning: '' });
+  const [matchDateForm, setMatchDateForm] = useState('');
+  const [potmId, setPotmId] = useState('');
 
   const [selectedOverFilter, setSelectedOverFilter] = useState<string>('all');
 
@@ -60,6 +65,11 @@ export default function MatchScoreboardPage() {
   const { data: allPlayers } = useCollection(allPlayersQuery);
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
+
+  useEffect(() => {
+    if (match?.matchDate) setMatchDateForm(match.matchDate.substring(0, 16));
+    if (match?.potmPlayerId) setPotmId(match.potmPlayerId);
+  }, [match]);
 
   const processDeliveriesWithLabels = (deliveries: any[] | null) => {
     if (!deliveries) return [];
@@ -308,6 +318,7 @@ export default function MatchScoreboardPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent className="w-56 rounded-xl" align="end">
                         <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: true })}><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" /> Finish Innings</DropdownMenuItem>
+                        <DropdownMenuItem className="font-bold py-3" onClick={() => setIsPotmDialogOpen(true)}><UserCheck className="w-4 h-4 mr-2 text-amber-500" /> Declare POTM</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 1 })}><Rewind className="w-4 h-4 mr-2 text-amber-500" /> Score Inning 1</DropdownMenuItem>
                         <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 })}><Rewind className="w-4 h-4 mr-2 text-primary" /> Score Inning 2</DropdownMenuItem>
@@ -643,14 +654,42 @@ export default function MatchScoreboardPage() {
 
           <TabsContent value="info" className="space-y-6">
             <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
-              <div className="p-6 space-y-6">
-                <div className="space-y-2">
-                  <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Metadata</h3>
+              <div className="p-6 space-y-8">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Official Metadata</h3>
+                    {isUmpire && <Button variant="ghost" size="sm" onClick={() => setIsDateEditDialogOpen(true)} className="h-8 font-black uppercase text-[9px]"><Edit2 className="w-3 h-3 mr-1" /> Edit Match Details</Button>}
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-slate-50 p-4 rounded-2xl border"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Toss</p><p className="text-xs font-black uppercase">{getTeamName(match?.tossWinnerTeamId)} elected to {match?.tossDecision}</p></div>
                     <div className="bg-slate-50 p-4 rounded-2xl border"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Format</p><p className="text-xs font-black uppercase">{match?.totalOvers} Overs</p></div>
+                    <div className="bg-slate-50 p-4 rounded-2xl border col-span-2"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Match Schedule</p><p className="text-xs font-black uppercase flex items-center gap-2"><Calendar className="w-3 h-3" /> {match?.matchDate ? new Date(match.matchDate).toLocaleString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---'}</p></div>
+                    <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 col-span-2"><p className="text-[8px] font-black text-amber-600 uppercase mb-1">Player of the Match</p><p className="text-sm font-black uppercase flex items-center gap-2 text-amber-900"><Trophy className="w-4 h-4 text-amber-500" /> {match?.potmPlayerId ? getPlayerName(match.potmPlayerId) : 'TO BE DECLARED'}</p></div>
                   </div>
                 </div>
+
+                <div className="space-y-4 pt-4 border-t">
+                  <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><Swords className="w-3 h-3" /> Official Squad Lists</h3>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <p className="text-[9px] font-black text-primary uppercase">{getTeamName(match?.team1Id)}</p>
+                      <div className="space-y-1.5">
+                        {match?.team1SquadPlayerIds?.map((pid: string) => (
+                          <Link key={pid} href={`/players/${pid}`} className="block text-[11px] font-bold text-slate-600 hover:text-primary transition-colors">• {getPlayerName(pid)}</Link>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-[9px] font-black text-secondary uppercase">{getTeamName(match?.team2Id)}</p>
+                      <div className="space-y-1.5">
+                        {match?.team2SquadPlayerIds?.map((pid: string) => (
+                          <Link key={pid} href={`/players/${pid}`} className="block text-[11px] font-bold text-slate-600 hover:text-secondary transition-colors">• {getPlayerName(pid)}</Link>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <Button className="w-full h-14 bg-secondary font-black uppercase shadow-lg" onClick={() => {
                   const report = generateMatchReport(match, 
                     { [match?.team1Id]: getTeamName(match?.team1Id), [match?.team2Id]: getTeamName(match?.team2Id) },
@@ -659,15 +698,62 @@ export default function MatchScoreboardPage() {
                   );
                   const blob = new Blob([report], { type: 'text/html' });
                   const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a'); a.href = url; a.download = `Report_${match?.id}.html`; a.click();
+                  const a = document.createElement('a'); a.href = url; a.download = `MatchReport_${match?.id}.html`; a.click();
                 }}>
-                  <Download className="w-5 h-5 mr-2" /> Download Official Scorecard
+                  <Download className="w-5 h-5 mr-2" /> Download Professional Scorecard
                 </Button>
               </div>
             </Card>
           </TabsContent>
         </Tabs>
       </div>
+
+      <Dialog open={isDateEditDialogOpen} onOpenChange={setIsDateEditDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl z-[151]">
+          <DialogHeader><DialogTitle className="font-black uppercase text-xl">Edit Match Schedule</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Match Date & Time</Label>
+              <Input type="datetime-local" value={matchDateForm} onChange={(e) => setMatchDateForm(e.target.value)} className="h-14 font-bold" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => { 
+              if (!matchDateForm) return;
+              updateDocumentNonBlocking(doc(db, 'matches', matchId), { matchDate: new Date(matchDateForm).toISOString() });
+              setIsDateEditDialogOpen(false);
+              toast({ title: "Schedule Updated" });
+            }} className="w-full h-14 bg-primary font-black uppercase shadow-xl">Apply Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isPotmDialogOpen} onOpenChange={setIsPotmDialogOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[151]">
+          <DialogHeader><DialogTitle className="font-black uppercase text-xl text-amber-600">Declare POTM</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Select Player of the Match</Label>
+              <Select value={potmId} onValueChange={setPotmId}>
+                <SelectTrigger className="h-14 font-bold"><SelectValue placeholder="Pick MVP" /></SelectTrigger>
+                <SelectContent className="z-[200]">
+                  <SelectItem value="none" className="font-bold">Not Decided</SelectItem>
+                  {allPlayers?.filter(p => [...(match?.team1SquadPlayerIds || []), ...(match?.team2SquadPlayerIds || [])].includes(p.id)).map(p => (
+                    <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => { 
+              updateDocumentNonBlocking(doc(db, 'matches', matchId), { potmPlayerId: potmId === 'none' ? '' : potmId });
+              setIsPotmDialogOpen(false);
+              toast({ title: "POTM Recorded", description: "This will reflect in the official scorecard." });
+            }} className="w-full h-14 bg-amber-600 font-black uppercase shadow-xl">Confirm Declaration</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isCorrectionDialogOpen} onOpenChange={setIsCorrectionDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[151]">

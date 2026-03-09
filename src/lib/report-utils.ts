@@ -47,10 +47,10 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     if (nsId && !battingOrder.includes(nsId)) battingOrder.push(nsId);
 
     if (!bat[sId]) {
-      bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out' };
+      bat[sId] = { id: sId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out', fielderId: 'none' };
     }
     if (nsId && !bat[nsId]) {
-      bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out' };
+      bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: 'not out', fielderId: 'none' };
     }
     
     if (d.extraType !== 'wide') {
@@ -89,10 +89,11 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       const outPid = d.batsmanOutPlayerId || sId;
       if (bat[outPid]) {
         bat[outPid].out = true;
+        bat[outPid].fielderId = d.fielderPlayerId || 'none';
         // Format dismissal with fielder if available
         let discStr = d.dismissalType || 'out';
         if (d.fielderPlayerId && d.fielderPlayerId !== 'none') {
-          if (discStr === 'caught') discStr = `c Fielder b Bowler`; // Placeholders for final mapper
+          if (discStr === 'caught') discStr = `c Fielder b Bowler`; 
           else if (discStr === 'runout') discStr = `run out (Fielder)`;
           else if (discStr === 'stumped') discStr = `st Fielder b Bowler`;
         }
@@ -148,9 +149,9 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
 };
 
 export const generateMatchReport = (match: any, teamNames: Record<string, string>, playerNames: Record<string, string>, inn1: any, inn2: any, stats1: any, stats2: any) => {
-  const dateStr = new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const dateStr = match.matchDate ? new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '---';
   const formatStr = `${match.totalOvers} OV MATCH`;
-  const potmName = playerNames[match.potmPlayerId] || 'TBD';
+  const potmName = match.potmPlayerId ? (playerNames[match.potmPlayerId] || 'Unknown Player') : 'NOT DECLARED';
 
   const renderInning = (innNum: number, teamId: string, stats: any) => {
     const title = `${innNum}${innNum === 1 ? 'ST' : '2ND'} INN: ${teamNames[teamId] || 'TEAM'}`;
@@ -177,8 +178,10 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
           <tbody>
             ${stats.batting.map((b: any) => {
               let dismissalStr = b.out ? b.dismissal : 'NOT OUT';
-              // Perform dynamic name injection if placeholders exist
-              dismissalStr = dismissalStr.replace('Fielder', playerNames[b.fielderId] || 'Fielder');
+              // Performance dynamic mapping for the report template
+              if (b.fielderId && b.fielderId !== 'none') {
+                dismissalStr = dismissalStr.replace('Fielder', playerNames[b.fielderId] || 'Fielder');
+              }
               
               return `
                 <tr>
@@ -221,7 +224,7 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
             <div class="sub-section-title">FALL OF WICKETS</div>
             <div class="fow-container">
               ${stats.fow.length > 0 ? stats.fow.map((f: any) => `
-                <div class="fow-entry"><strong>${f.wicketNum}-${f.scoreAtWicket}</strong> (${playerNames[f.playerOutId].split(' ')[0]} ${f.runsOut}, ${f.over} ov)</div>
+                <div class="fow-entry"><strong>${f.wicketNum}-${f.scoreAtWicket}</strong> (${playerNames[f.playerOutId]?.split(' ')[0]} ${f.runsOut}, ${f.over} ov)</div>
               `).join('') : '<div class="dim">NO WICKETS FELL</div>'}
             </div>
           </div>
@@ -382,12 +385,4 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
     </body>
     </html>
   `;
-};
-
-export const generateStreetReport = (players: any[], date: string) => {
-  const sorted = [...players].sort((a, b) => b.batting.runs - a.batting.runs);
-  let html = `<html><head><style>body{font-family:sans-serif;padding:20px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ddd;padding:8px;text-align:left;}th{background:#f4f4f4;}</style></head><body><h1>Street Pro - ${date}</h1><table><thead><tr><th>Name</th><th>Runs</th><th>Balls</th><th>Wickets</th></tr></thead><tbody>`;
-  sorted.forEach(p => { html += `<tr><td>${p.name}</td><td>${p.batting.runs}</td><td>${p.batting.balls}</td><td>${p.bowling.wickets}</td></tr>`; });
-  html += `</tbody></table></body></html>`;
-  return html;
 };
