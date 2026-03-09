@@ -532,11 +532,15 @@ export default function MatchScoreboardPage() {
                             if (d.dismissalType === 'retired') {
                               label = "RET"; color = "bg-slate-200 text-slate-600";
                             } else {
-                              label = "W"; color = "bg-red-500 text-white"; 
+                              label = d.dismissalType === 'runout' && d.runsScored > 0 ? `${d.runsScored}+W` : "W";
+                              color = "bg-red-500 text-white"; 
                             }
                           }
                           else if (d.extraType === 'wide') { label = `${d.totalRunsOnDelivery || 1}wd`; color = "bg-amber-100 text-amber-700"; }
-                          else if (d.extraType === 'noball') { label = `${d.totalRunsOnDelivery || 1}nb`; color = "bg-amber-100 text-amber-700"; }
+                          else if (d.extraType === 'noball') { 
+                            label = d.runsScored === 0 ? "NB" : `${d.runsScored}+NB`;
+                            color = "bg-amber-100 text-amber-700"; 
+                          }
                           else if (d.runsScored === 4) color = "bg-blue-500 text-white";
                           else if (d.runsScored === 6) color = "bg-primary text-white";
                           else if (d.runsScored === 0) label = "•";
@@ -746,15 +750,20 @@ export default function MatchScoreboardPage() {
                                     <span className="text-[10px] font-black text-slate-400">BALL</span>
                                     <span className="text-xs font-black text-slate-900">{d.ballLabel}</span>
                                   </div>
-                                  <div className={cn("w-10 h-10 rounded-full flex flex-col items-center justify-center font-black text-[10px] border shadow-sm shrink-0", 
+                                  <div className={cn("w-10 h-10 rounded-full flex flex-col items-center justify-center font-black text-[10px] border shadow-sm shrink-0 px-1 text-center", 
                                     d.isWicket ? (d.dismissalType === 'retired' ? "bg-slate-200 text-slate-600 border-slate-300" : "bg-red-500 text-white border-red-600") : 
                                     d.runsScored === 6 ? "bg-primary text-white border-primary" :
                                     d.runsScored === 4 ? "bg-blue-500 text-white border-blue-600" :
                                     d.extraType !== 'none' ? "bg-amber-100 text-amber-700 border-amber-200" : 
                                     "bg-slate-50 text-slate-900 border-slate-100")}>
-                                    {d.isWicket ? (d.dismissalType === 'retired' ? "RET" : "W") : (d.totalRunsOnDelivery || 0)}
+                                    {d.isWicket ? (
+                                      d.dismissalType === 'retired' ? "RET" : (
+                                        d.dismissalType === 'runout' && d.runsScored > 0 ? `${d.runsScored}+W` : "W"
+                                      )
+                                    ) : (
+                                      d.extraType === 'noball' ? (d.runsScored === 0 ? "NB" : `${d.runsScored}+NB`) : (d.totalRunsOnDelivery || 0)
+                                    )}
                                     {d.extraType === 'wide' && <span className="text-[6px] -mt-1">WD</span>}
-                                    {d.extraType === 'noball' && <span className="text-[6px] -mt-1">NB</span>}
                                   </div>
                                   <div className="min-w-0">
                                     <p className="text-[10px] font-black text-slate-900 truncate max-w-[120px] uppercase">
