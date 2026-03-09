@@ -1,3 +1,4 @@
+
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -12,16 +13,22 @@ export function cn(...inputs: ClassValue[]) {
 export function formatTeamName(name: string | null | undefined): string {
   if (!name) return '---';
   const trimmed = name.trim();
-  // If it already has parentheses with content, assume it's already formatted
-  if (/\(.*\)/.test(trimmed)) return trimmed;
   
+  // If it already has parentheses with content at the end, assume it's already formatted
+  if (/\([A-Z0-9]{2,}\)$/.test(trimmed)) return trimmed;
+  
+  // If user entered something like "India (IND)", just return it
+  if (trimmed.includes('(') && trimmed.includes(')')) return trimmed;
+
   const parts = trimmed.split(/\s+/);
   let abbr = '';
   if (parts.length === 1) {
     abbr = trimmed.substring(0, 3).toUpperCase();
   } else {
     // Take first letter of each word
-    abbr = parts.map(p => p[0]).join('').toUpperCase().substring(0, 3);
+    abbr = parts.map(p => p[0]).join('').toUpperCase();
+    // If abbreviation is too long, cap it at 4
+    if (abbr.length > 4) abbr = abbr.substring(0, 4);
   }
   return `${trimmed} (${abbr})`;
 }

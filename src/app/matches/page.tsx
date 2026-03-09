@@ -11,7 +11,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { toast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { formatTeamName } from '@/lib/utils';
@@ -36,7 +36,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
     if (match.status !== 'completed') return 'Match in Progress';
     if (match.isTie) return 'Match Tied';
     
-    // Resolve names from IDs
+    // Resolve names from IDs dynamically
     const winner = getTeam(match.winnerTeamId);
     if (winner) {
       const winnerName = formatTeamName(winner.name);
@@ -84,7 +84,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
             <AvatarFallback>{team?.name?.[0] || '?'}</AvatarFallback>
           </Avatar>
           <Link href={`/teams/${teamId}`} className="font-black text-lg text-slate-800 tracking-tight hover:text-primary transition-colors truncate">
-            {team ? formatTeamName(team.name) : 'Unknown'}
+            {team ? formatTeamName(team.name) : 'Syncing Team...'}
           </Link>
         </div>
         <div className="flex items-baseline gap-2 shrink-0 ml-4">
@@ -94,7 +94,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
               <span className="text-sm font-bold text-slate-500">({inning.oversCompleted}.{inning.ballsInCurrentOver || 0})</span>
             </>
           ) : (
-            <span className="text-xs font-bold text-slate-300 uppercase animate-pulse">Syncing...</span>
+            <span className="text-[10px] font-bold text-slate-300 uppercase animate-pulse">Wait...</span>
           )}
         </div>
       </div>
@@ -119,7 +119,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
                   {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent className="z-[200]">
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete Match Permanently?</AlertDialogTitle>
                   <AlertDialogDescription>This will purge the match and <strong>ALL associated records</strong>. Data integrity will be maintained across rankings.</AlertDialogDescription>
@@ -161,8 +161,15 @@ export default function MatchHistoryPage() {
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: teams = [] } = useCollection(teamsQuery);
 
-  const liveMatches = matches?.filter(m => m.status === 'live') || [];
-  const pastMatches = matches?.filter(m => m.status === 'completed') || [];
+  // Filter matches: Only show matches where both teams exist in the current registry (Removes Ghost Data)
+  const filteredMatches = useMemo(() => {
+    if (!matches || !teams || teams.length === 0) return matches || [];
+    const teamIds = new Set(teams.map(t => t.id));
+    return matches.filter(m => teamIds.has(m.team1Id) && teamIds.has(m.team2Id));
+  }, [matches, teams]);
+
+  const liveMatches = filteredMatches.filter(m => m.status === 'live');
+  const pastMatches = filteredMatches.filter(m => m.status === 'completed');
 
   if (!isMounted) return null;
 
