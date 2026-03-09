@@ -337,7 +337,25 @@ export default function MatchScoreboardPage() {
               </Card>
             ) : isUmpire && match?.status === 'live' && (
               <div className="space-y-4">
-                <Button onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: match?.currentInningNumber === 1 ? 'live' : 'completed' })} className="w-full h-20 bg-emerald-600 text-white font-black text-xl uppercase rounded-3xl shadow-2xl">
+                <Button onClick={async () => {
+                  if (match?.currentInningNumber === 1) {
+                    await updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 });
+                    const batId = match.team1Id === inn1?.battingTeamId ? match.team2Id : match.team1Id;
+                    await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), {
+                      id: 'inning_2',
+                      battingTeamId: batId,
+                      score: 0,
+                      wickets: 0,
+                      oversCompleted: 0,
+                      ballsInCurrentOver: 0,
+                      isDeclaredFinished: false
+                    }, { merge: true });
+                    toast({ title: "2nd Innings Started", description: "Assign openers to continue scoring." });
+                  } else {
+                    updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed' });
+                    toast({ title: "Match Completed" });
+                  }
+                }} className="w-full h-20 bg-emerald-600 text-white font-black text-xl uppercase rounded-3xl shadow-2xl">
                   {match?.currentInningNumber === 1 ? "Finish 1st Innings" : "Finish Match"}
                 </Button>
                 <div className="flex gap-2">
