@@ -395,7 +395,7 @@ export default function MatchScoreboardPage() {
                           <DropdownMenuItem className="font-bold py-3" onClick={() => setIsPotmDialogOpen(true)}><UserCheck className="w-4 h-4 mr-2 text-amber-500" /> Declare POTM</DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="font-bold py-3" onClick={async () => { await setDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 1 }, { merge: true }); toast({ title: "Scoring Inning 1" }); }}><Rewind className="w-4 h-4 mr-2 text-amber-500" /> Score Inning 1</DropdownMenuItem>
-                          <DropdownMenuItem className="font-bold py-3" onClick={async () => { await setDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 }, { merge: true }); toast({ title: "Scoring Inning 2" }); }}><Rewind className="w-4 h-4 mr-2 text-primary" /> Score Inning 2</DropdownMenuItem>
+                          <DropdownMenuItem className="font-bold py-3" onClick={async () => { await setDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 }, { merge: true }); toast({ title: "Score Inning 2" }); }}><Rewind className="w-4 h-4 mr-2 text-primary" /> Score Inning 2</DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="font-bold py-3" onClick={handleFinalizeMatch}><ShieldCheck className="w-4 h-4 mr-2 text-emerald-500" /> Finalize Match</DropdownMenuItem>
                         </DropdownMenuContent>
@@ -845,7 +845,6 @@ export default function MatchScoreboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Other dialogs (Wicket, Correction, Assignment, etc.) remain unchanged */}
       <Dialog open={isCorrectionDialogOpen} onOpenChange={setIsCorrectionDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[151]">
           <DialogHeader><DialogTitle className="font-black uppercase text-xl text-amber-600">Correction</DialogTitle></DialogHeader>

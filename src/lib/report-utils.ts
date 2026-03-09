@@ -381,3 +381,49 @@ export const generateMatchReport = (match: any, teamNames: Record<string, string
     </html>
   `;
 };
+
+export const generateStreetReport = (players: any[], dateStr: string) => {
+  return `
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>CricMates Street Pro - Session ${dateStr}</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; padding: 20px; color: #1e293b; background: #f8fafc; }
+        .container { max-width: 600px; margin: auto; background: #fff; border: 4px solid #3f51b5; padding: 20px; border-radius: 12px; }
+        h1 { text-align: center; color: #3f51b5; margin: 0; font-weight: 900; text-transform: uppercase; }
+        .date { text-align: center; font-size: 12px; font-weight: 700; color: #94a3b8; margin-bottom: 20px; text-transform: uppercase; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; padding: 10px; background: #3f51b5; color: white; font-size: 10px; text-transform: uppercase; }
+        td { padding: 10px; border-bottom: 1px solid #f1f5f9; font-size: 13px; font-weight: 700; }
+        .highlight { color: #3f51b5; font-weight: 900; }
+        .dim { color: #94a3b8; }
+        .footer { text-align: center; margin-top: 20px; font-size: 10px; color: #cbd5e1; font-weight: 800; text-transform: uppercase; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>STREET PRO SESSION</h1>
+        <div class="date">${dateStr}</div>
+        <table>
+          <thead>
+            <tr><th>PLAYER</th><th>RUNS</th><th>WKTS</th><th>B.S.</th></tr>
+          </thead>
+          <tbody>
+            ${players.sort((a,b) => b.batting.runs - a.batting.runs).map(p => `
+              <tr>
+                <td>${p.name.toUpperCase()}</td>
+                <td class="highlight">${p.batting.runs} <span class="dim">(${p.batting.balls})</span></td>
+                <td class="highlight">${p.bowling.wickets}</td>
+                <td class="dim">${p.batting.highScore}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div class="footer">POWERED BY CRICMATES LEAGUE ENGINE</div>
+      </div>
+    </body>
+    </html>
+  `;
+};
