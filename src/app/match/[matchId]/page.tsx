@@ -160,17 +160,24 @@ export default function MatchScoreboardPage() {
   };
 
   const handleFinalizeMatch = async () => {
-    const s1 = inn1?.score || 0;
-    const s2 = inn2?.score || 0;
-    const bat1Id = inn1?.battingTeamId;
-    const bat2Id = inn2?.battingTeamId;
+    // Use the processed statistical totals for absolute accuracy
+    const s1 = stats1.total;
+    const s2 = stats2.total;
+    const w2 = stats2.wickets;
+    const bat1Id = inn1?.battingTeamId || match?.team1Id;
+    const bat2Id = inn2?.battingTeamId || match?.team2Id;
     
     let result = "Match Completed";
     if (s1 > s2) {
-      result = `${getTeamName(bat1Id || '')} won by ${s1 - s2} runs`;
+      const winner = getTeamName(bat1Id || '');
+      result = `${winner} won by ${s1 - s2} runs`;
     } else if (s2 > s1) {
-      const wktsLeft = 10 - (inn2?.wickets || 0);
-      result = `${getTeamName(bat2Id || '')} won by ${wktsLeft} wickets`;
+      const winner = getTeamName(bat2Id || '');
+      // Calculate dynamic wickets based on squad size
+      const squadSize = bat2Id === match?.team1Id ? match?.team1SquadPlayerIds?.length : match?.team2SquadPlayerIds?.length;
+      const maxWicketsPossible = (squadSize || 11) - 1; // 11 players = 10 wickets limit
+      const wicketsLeft = Math.max(0, maxWicketsPossible - w2);
+      result = `${winner} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
     } else {
       result = "Match Tied";
     }
@@ -368,13 +375,13 @@ export default function MatchScoreboardPage() {
           <div className="space-y-1 flex-1">
             <div className="flex items-center gap-3">
               <Link href={`/teams/${match?.team1Id}`} className="font-black uppercase text-[11px] text-slate-700 truncate max-w-[90px] hover:text-slate-900 tracking-tight">{getTeamName(match?.team1Id)}</Link>
-              <span className="font-black text-2xl leading-none text-slate-950">{inn1?.score || 0}/{inn1?.wickets || 0}</span>
-              <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({inn1?.oversCompleted || 0}.{inn1?.ballsInCurrentOver || 0})</Badge>
+              <span className="font-black text-2xl leading-none text-slate-950">{stats1.total}/{stats1.wickets}</span>
+              <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({stats1.overs})</Badge>
             </div>
             <div className="flex items-center gap-3">
               <Link href={`/teams/${match?.team2Id}`} className="font-black uppercase text-[11px] text-slate-700 truncate max-w-[90px] hover:text-slate-900 tracking-tight">{getTeamName(match?.team2Id)}</Link>
-              <span className="font-black text-2xl leading-none text-slate-950">{inn2?.score || 0}/{inn2?.wickets || 0}</span>
-              <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({inn2?.oversCompleted || 0}.{inn2?.ballsInCurrentOver || 0})</Badge>
+              <span className="font-black text-2xl leading-none text-slate-950">{stats2.total}/{stats2.wickets}</span>
+              <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({stats2.overs})</Badge>
             </div>
           </div>
           <div className="text-right flex flex-col items-end gap-1">
@@ -421,11 +428,11 @@ export default function MatchScoreboardPage() {
                           <DropdownMenuItem className="font-bold py-3" onClick={() => setIsPotmDialogOpen(true)}><UserCheck className="w-4 h-4 mr-2 text-amber-500" /> Declare POTM</DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="font-bold py-3" onClick={async () => {
-                            await updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 1 });
+                            await setDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 1 }, { merge: true });
                             toast({ title: "Switched to Inning 1 scoring" });
                           }}><Rewind className="w-4 h-4 mr-2 text-amber-500" /> Score Inning 1</DropdownMenuItem>
                           <DropdownMenuItem className="font-bold py-3" onClick={async () => {
-                            await updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 });
+                            await setDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 }, { merge: true });
                             toast({ title: "Switched to Inning 2 scoring" });
                           }}><Rewind className="w-4 h-4 mr-2 text-primary" /> Score Inning 2</DropdownMenuItem>
                           <DropdownMenuSeparator />
@@ -465,7 +472,7 @@ export default function MatchScoreboardPage() {
                     if (match?.currentInningNumber === 1) {
                       const batId = match.team1Id === inn1?.battingTeamId ? match.team2Id : match.team1Id;
                       try {
-                        await updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 });
+                        await setDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 }, { merge: true });
                         await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), {
                           id: 'inning_2',
                           battingTeamId: batId,
@@ -680,8 +687,8 @@ export default function MatchScoreboardPage() {
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
                       <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
                       <Legend verticalAlign="top" align="right" height={36}/>
-                      <Line name={getTeamName(match?.team1Id || '')} type="monotone" dataKey="team1" stroke="hsl(var(--primary))" strokeWidth={3} dot={(props: any) => props.payload.w1 ? <circle key={`w1-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : null} />
-                      <Line name={getTeamName(match?.team2Id || '')} type="monotone" dataKey="team2" stroke="hsl(var(--secondary))" strokeWidth={3} dot={(props: any) => props.payload.w2 ? <circle key={`w2-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : null} connectNulls />
+                      <Line key="line-t1" name={getTeamName(match?.team1Id || '')} type="monotone" dataKey="team1" stroke="hsl(var(--primary))" strokeWidth={3} dot={(props: any) => props.payload.w1 ? <circle key={`w1-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : null} />
+                      <Line key="line-t2" name={getTeamName(match?.team2Id || '')} type="monotone" dataKey="team2" stroke="hsl(var(--secondary))" strokeWidth={3} dot={(props: any) => props.payload.w2 ? <circle key={`w2-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : null} connectNulls />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -894,7 +901,7 @@ export default function MatchScoreboardPage() {
               updates.venue = venueForm;
               updates.matchNumber = matchNumberForm;
               try {
-                await updateDocumentNonBlocking(doc(db, 'matches', matchId), updates);
+                await setDocumentNonBlocking(doc(db, 'matches', matchId), updates, { merge: true });
                 setIsMatchDetailsDialogOpen(false);
                 toast({ title: "Metadata Updated" });
               } catch (e) {
@@ -927,7 +934,7 @@ export default function MatchScoreboardPage() {
           <DialogFooter>
             <Button onClick={async () => { 
               try {
-                await updateDocumentNonBlocking(doc(db, 'matches', matchId), { potmPlayerId: potmId === 'none' ? '' : potmId });
+                await setDocumentNonBlocking(doc(db, 'matches', matchId), { potmPlayerId: potmId === 'none' ? '' : potmId }, { merge: true });
                 setIsPotmDialogOpen(false);
                 toast({ title: "POTM Recorded", description: "This will reflect in the official scorecard." });
               } catch (e) {
