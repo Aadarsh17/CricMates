@@ -9,12 +9,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, List, Trash2, ChevronLeft, ShieldCheck, CheckCircle2, MoreVertical, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, User, UserCheck } from 'lucide-react';
+import { Trophy, History, Loader2, Zap, PlayCircle, ArrowLeftRight, RefreshCw, Swords, Target, Activity, List, Trash2, ChevronLeft, ShieldCheck, CheckCircle2, MoreVertical, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, User, UserCheck, UserPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
 import { getExtendedInningStats, generateMatchReport } from '@/lib/report-utils';
+import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -135,8 +136,16 @@ export default function MatchScoreboardPage() {
         
         if (d.isWicket) {
           const outPid = d.batsmanOutPlayerId || d.strikerPlayerId;
-          if (outPid === sId) sId = '';
-          else if (outPid === nsId) nsId = '';
+          const dismissalType = d.dismissalType || 'out';
+          const isPermanent = !dismissalType.toLowerCase().includes('retired');
+          if (isPermanent) {
+            if (outPid === sId) sId = '';
+            else if (outPid === nsId) nsId = '';
+          } else {
+            // Retired players simply leave the crease
+            if (outPid === sId) sId = '';
+            else if (outPid === nsId) nsId = '';
+          }
         }
       }
     });
@@ -233,6 +242,58 @@ export default function MatchScoreboardPage() {
       .map(b => b.id);
   }, [match?.currentInningNumber, stats1, stats2]);
 
+  // MATCH CVP AGGREGATOR FOR POTM DROPDOWN
+  const matchCvpMap = useMemo(() => {
+    if (!isMounted || !allPlayers || (!inn1Deliveries && !inn2Deliveries)) return {};
+    const squads = [...(match?.team1SquadPlayerIds || []), ...(match?.team2SquadPlayerIds || [])];
+    const map: Record<string, number> = {};
+    const allMatchDeliveries = [...(inn1Deliveries || []), ...(inn2Deliveries || [])];
+
+    squads.forEach(pid => {
+      const p = allPlayers.find(pl => pl.id === pid);
+      if (!p) return;
+
+      const pStats = {
+        id: pid,
+        name: p.name,
+        runs: 0,
+        ballsFaced: 0,
+        fours: 0,
+        sixes: 0,
+        wickets: 0,
+        maidens: 0,
+        ballsBowled: 0,
+        runsConceded: 0,
+        catches: 0,
+        stumpings: 0,
+        runOuts: 0
+      };
+
+      allMatchDeliveries.forEach(d => {
+        if (d.strikerPlayerId === pid) {
+          pStats.runs += (d.runsScored || 0);
+          if (d.extraType !== 'wide') pStats.ballsFaced++;
+          if (d.runsScored === 4) pStats.fours++;
+          if (d.runsScored === 6) pStats.sixes++;
+        }
+        const bId = d.bowlerId || d.bowlerPlayerId;
+        if (bId === pid) {
+          pStats.runsConceded += (d.totalRunsOnDelivery || 0);
+          if (d.extraType === 'none') pStats.ballsBowled++;
+          if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) pStats.wickets++;
+        }
+        if (d.fielderPlayerId === pid) {
+          if (d.dismissalType === 'caught') pStats.catches++;
+          if (d.dismissalType === 'stumped') pStats.stumpings++;
+          if (d.dismissalType === 'runout') pStats.runOuts++;
+        }
+      });
+
+      map[pid] = calculatePlayerCVP(pStats);
+    });
+    return map;
+  }, [inn1Deliveries, inn2Deliveries, match, allPlayers, isMounted]);
+
   const manhattanData = useMemo(() => {
     const maxOvers = match?.totalOvers || 6;
     const data: any[] = [];
@@ -310,86 +371,70 @@ export default function MatchScoreboardPage() {
           <TabsContent value="live" className="space-y-6">
             {isUmpire && (
               <div className="flex flex-col gap-4">
-                {match?.status === 'live' && !activeInningData?.isDeclaredFinished ? (
-                  <Card className="bg-slate-900 border-none rounded-3xl overflow-hidden shadow-2xl">
-                    <CardContent className="p-6 space-y-6">
-                      <div className="flex gap-2">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="flex-1 h-12 border-primary/20 text-primary font-black uppercase text-[9px] bg-white/5"><ShieldCheck className="w-4 h-4 mr-2" /> Match Actions</Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent className="w-56 rounded-xl" align="end">
-                            <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: true })}><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" /> Finish Innings</DropdownMenuItem>
-                            <DropdownMenuItem className="font-bold py-3" onClick={() => setIsPotmDialogOpen(true)}><UserCheck className="w-4 h-4 mr-2 text-amber-500" /> Declare POTM</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 1 })}><Rewind className="w-4 h-4 mr-2 text-amber-500" /> Score Inning 1</DropdownMenuItem>
-                            <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 })}><Rewind className="w-4 h-4 mr-2 text-primary" /> Score Inning 2</DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed' })}><ShieldCheck className="w-4 h-4 mr-2 text-emerald-500" /> Finalize Match</DropdownMenuItem>
-                            <DropdownMenuItem className="font-bold py-3 text-red-500" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: false })}><Unlock className="w-4 h-4 mr-2" /> Re-open Innings</DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                        <Button variant="outline" onClick={() => setIsPlayerAssignmentOpen(true)} className="flex-1 h-12 border-secondary/20 text-secondary font-black uppercase text-[9px] bg-white/5"><Settings2 className="w-4 h-4 mr-2" /> Assign</Button>
-                      </div>
-                      <div className="grid grid-cols-4 gap-2">
-                        {[0, 1, 2, 3, 4, 6].map(r => (
-                          <Button key={r} disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(r)} className={cn("h-14 font-black text-2xl rounded-2xl", r >= 4 ? "bg-primary text-white" : "bg-white/5 text-white")}>{r || '•'}</Button>
-                        ))}
-                        <Button onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { strikerPlayerId: activeInningData?.nonStrikerPlayerId || '', nonStrikerPlayerId: activeInningData?.strikerPlayerId || '' })} className="bg-secondary text-white h-14 font-black rounded-2xl"><ArrowLeftRight className="w-5 h-5"/></Button>
-                        <Button variant="outline" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || '', fielderId: 'none'}); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px] bg-white/5">Wicket</Button>
-                      </div>
-                      <div className="grid grid-cols-3 gap-3">
-                        <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px] bg-white/5">Wide</Button>
-                        <Button variant="outline" onClick={() => setIsNoBallDialogOpen(true)} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px] bg-white/5">No Ball</Button>
-                        <Button variant="outline" onClick={async () => { 
-                          const currId = `inning_${match?.currentInningNumber}`;
-                          const snap = await getDocs(query(collection(db, 'matches', matchId, 'innings', currId, 'deliveryRecords'), orderBy('timestamp', 'desc'), limit(1)));
-                          if(!snap.empty) { await deleteDoc(snap.docs[0].ref); recalculateInningState(currId); }
-                        }} className="h-12 border-white/10 text-slate-400 uppercase font-black text-[9px] bg-white/5">Undo</Button>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <div className="space-y-4">
-                    {activeInningData?.isDeclaredFinished && match?.status === 'live' && (
-                      <Button onClick={async () => {
-                        if (match?.currentInningNumber === 1) {
-                          await updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 });
-                          const batId = match.team1Id === inn1?.battingTeamId ? match.team2Id : match.team1Id;
-                          await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), {
-                            id: 'inning_2',
-                            battingTeamId: batId,
-                            score: 0,
-                            wickets: 0,
-                            oversCompleted: 0,
-                            ballsInCurrentOver: 0,
-                            isDeclaredFinished: false
-                          }, { merge: true });
-                          toast({ title: "2nd Innings Started", description: "Assign openers to continue scoring." });
-                        } else {
-                          updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed' });
-                          toast({ title: "Match Finalized" });
-                        }
-                      }} className="w-full h-20 bg-emerald-600 text-white font-black text-xl uppercase rounded-3xl shadow-2xl">
-                        {match?.currentInningNumber === 1 ? "Start 2nd Innings" : "Finalize Match"}
-                      </Button>
+                <Card className="bg-slate-900 border-none rounded-3xl overflow-hidden shadow-2xl">
+                  <CardContent className="p-6 space-y-6">
+                    <div className="flex gap-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="outline" className="flex-1 h-12 border-primary/20 text-primary font-black uppercase text-[9px] bg-white/5"><ShieldCheck className="w-4 h-4 mr-2" /> Match Actions</Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-56 rounded-xl" align="end">
+                          <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: true })}><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" /> Finish Innings</DropdownMenuItem>
+                          <DropdownMenuItem className="font-bold py-3" onClick={() => setIsPotmDialogOpen(true)}><UserCheck className="w-4 h-4 mr-2 text-amber-500" /> Declare POTM</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 1 })}><Rewind className="w-4 h-4 mr-2 text-amber-500" /> Score Inning 1</DropdownMenuItem>
+                          <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 })}><Rewind className="w-4 h-4 mr-2 text-primary" /> Score Inning 2</DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem className="font-bold py-3" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed' })}><ShieldCheck className="w-4 h-4 mr-2 text-emerald-500" /> Finalize Match</DropdownMenuItem>
+                          <DropdownMenuItem className="font-bold py-3 text-red-500" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: false })}><Unlock className="w-4 h-4 mr-2" /> Re-open Innings</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <Button variant="outline" onClick={() => setIsPlayerAssignmentOpen(true)} className="flex-1 h-12 border-secondary/20 text-secondary font-black uppercase text-[9px] bg-white/5"><Settings2 className="w-4 h-4 mr-2" /> Assign</Button>
+                    </div>
+                    {match?.status === 'live' && !activeInningData?.isDeclaredFinished && (
+                      <>
+                        <div className="grid grid-cols-4 gap-2">
+                          {[0, 1, 2, 3, 4, 6].map(r => (
+                            <Button key={r} disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(r)} className={cn("h-14 font-black text-2xl rounded-2xl", r >= 4 ? "bg-primary text-white" : "bg-white/5 text-white")}>{r || '•'}</Button>
+                          ))}
+                          <Button onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { strikerPlayerId: activeInningData?.nonStrikerPlayerId || '', nonStrikerPlayerId: activeInningData?.strikerPlayerId || '' })} className="bg-secondary text-white h-14 font-black rounded-2xl"><ArrowLeftRight className="w-5 h-5"/></Button>
+                          <Button variant="outline" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || '', fielderId: 'none'}); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px] bg-white/5">Wicket</Button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                          <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px] bg-white/5">Wide</Button>
+                          <Button variant="outline" onClick={() => setIsNoBallDialogOpen(true)} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px] bg-white/5">No Ball</Button>
+                          <Button variant="outline" onClick={async () => { 
+                            const currId = `inning_${match?.currentInningNumber}`;
+                            const snap = await getDocs(query(collection(db, 'matches', matchId, 'innings', currId, 'deliveryRecords'), orderBy('timestamp', 'desc'), limit(1)));
+                            if(!snap.empty) { await deleteDoc(snap.docs[0].ref); recalculateInningState(currId); }
+                          }} className="h-12 border-white/10 text-slate-400 uppercase font-black text-[9px] bg-white/5">Undo</Button>
+                        </div>
+                      </>
                     )}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="w-full h-14 border-primary text-primary font-black uppercase text-xs rounded-2xl"><ShieldCheck className="w-5 h-5 mr-2" /> Match Actions</Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="w-64 rounded-2xl" align="center">
-                        <DropdownMenuItem className="font-bold py-4" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 1 })}><Rewind className="w-4 h-4 mr-2 text-amber-500" /> Score Inning 1</DropdownMenuItem>
-                        <DropdownMenuItem className="font-bold py-4" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 })}><Rewind className="w-4 h-4 mr-2 text-primary" /> Score Inning 2</DropdownMenuItem>
-                        <DropdownMenuItem className="font-bold py-4" onClick={() => setIsPotmDialogOpen(true)}><UserCheck className="w-4 h-4 mr-2 text-amber-500" /> Declare POTM</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="font-bold py-4 text-emerald-600" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed' })}><CheckCircle2 className="w-4 h-4 mr-2" /> Mark as Completed</DropdownMenuItem>
-                        <DropdownMenuItem className="font-bold py-4 text-blue-600" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'live' })}><Activity className="w-4 h-4 mr-2" /> Mark as Live</DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem className="font-bold py-4 text-red-500" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: false })}><Unlock className="w-4 h-4 mr-2" /> Re-open for Scoring</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                  </CardContent>
+                </Card>
+                {activeInningData?.isDeclaredFinished && match?.status === 'live' && (
+                  <Button onClick={async () => {
+                    if (match?.currentInningNumber === 1) {
+                      await updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 });
+                      const batId = match.team1Id === inn1?.battingTeamId ? match.team2Id : match.team1Id;
+                      await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), {
+                        id: 'inning_2',
+                        battingTeamId: batId,
+                        score: 0,
+                        wickets: 0,
+                        oversCompleted: 0,
+                        ballsInCurrentOver: 0,
+                        isDeclaredFinished: false
+                      }, { merge: true });
+                      toast({ title: "2nd Innings Started" });
+                    } else {
+                      updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed' });
+                      toast({ title: "Match Finalized" });
+                    }
+                  }} className="w-full h-20 bg-emerald-600 text-white font-black text-xl uppercase rounded-3xl shadow-2xl">
+                    {match?.currentInningNumber === 1 ? "Start 2nd Innings" : "Finalize Match"}
+                  </Button>
                 )}
               </div>
             )}
@@ -783,13 +828,15 @@ export default function MatchScoreboardPage() {
           <DialogHeader><DialogTitle className="font-black uppercase text-xl text-amber-600">Declare POTM</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Select Player of the Match</Label>
+              <Label className="text-[10px] font-black uppercase text-slate-400">Select Player of the Match (Ranked by Match CVP)</Label>
               <Select value={potmId} onValueChange={setPotmId}>
                 <SelectTrigger className="h-14 font-bold"><SelectValue placeholder="Pick MVP" /></SelectTrigger>
                 <SelectContent className="z-[200]">
                   <SelectItem value="none" className="font-bold">Not Decided</SelectItem>
-                  {allPlayers?.filter(p => [...(match?.team1SquadPlayerIds || []), ...(match?.team2SquadPlayerIds || [])].includes(p.id)).map(p => (
-                    <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
+                  {allPlayers?.filter(p => [...(match?.team1SquadPlayerIds || []), ...(match?.team2SquadPlayerIds || [])].includes(p.id))
+                    .sort((a, b) => (matchCvpMap[b.id] || 0) - (matchCvpMap[a.id] || 0))
+                    .map(p => (
+                    <SelectItem key={p.id} value={p.id} className="font-bold">{p.name} ({(matchCvpMap[p.id] || 0).toFixed(1)} PTS)</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
