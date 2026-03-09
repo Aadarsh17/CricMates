@@ -25,7 +25,6 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
   const { data: inn2 } = useDoc(inn2Ref);
 
   const getTeam = (id: string) => teams.find(t => t.id === id);
-  const getAbbr = (name: string) => (name || 'UNK').substring(0, 3).toUpperCase();
 
   const formatDate = (dateString: string) => {
     if (!isMounted || !dateString) return '---';
@@ -62,13 +61,13 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
     const team = getTeam(inning.battingTeamId);
     return (
       <div className="flex justify-between items-center w-full py-2">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8 border bg-muted"><AvatarFallback>{getAbbr(team?.name || '')[0]}</AvatarFallback></Avatar>
-          <Link href={`/teams/${inning.battingTeamId}`} className="font-black text-lg text-slate-800 tracking-tight hover:text-primary transition-colors">
-            {getAbbr(team?.name || '')}
+        <div className="flex items-center gap-3 overflow-hidden">
+          <Avatar className="h-8 w-8 border bg-muted shrink-0"><AvatarFallback>{team?.name?.[0] || '?'}</AvatarFallback></Avatar>
+          <Link href={`/teams/${inning.battingTeamId}`} className="font-black text-lg text-slate-800 tracking-tight hover:text-primary transition-colors truncate">
+            {team?.name || 'Unknown'}
           </Link>
         </div>
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline gap-2 shrink-0 ml-4">
           <span className="font-black text-2xl text-slate-900">{inning.score}/{inning.wickets}</span>
           <span className="text-sm font-bold text-slate-500">({inning.oversCompleted}.{inning.ballsInCurrentOver || 0})</span>
         </div>
