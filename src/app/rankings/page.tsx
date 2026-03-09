@@ -108,9 +108,12 @@ export default function RankingsPage() {
     const activeTeamIds = new Set(teams.map(t => t.id));
     
     const stats: Record<string, any> = {};
+    const pMatchStats: Record<string, Record<string, any>> = {};
+
+    // Initialize stats for ALL players in active teams
     players.forEach(p => {
-      if (!activeTeamIds.has(p.teamId)) return; // Strictly only players from active teams
-      stats[p.id] = { id: p.id, name: p.name, runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, outs: 0, potm: 0 };
+      if (!activeTeamIds.has(p.teamId)) return;
+      stats[p.id] = { id: p.id, name: p.name, runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, outs: 0, potm: 0, cvp: 0 };
     });
     
     matches.forEach(m => { if (m.potmPlayerId && stats[m.potmPlayerId]) stats[m.potmPlayerId].potm++; });
@@ -119,31 +122,82 @@ export default function RankingsPage() {
       const matchId = d.__fullPath?.split('/')[1];
       if (!matchId || !validMatchIds.has(matchId)) return;
 
-      const s = stats[d.strikerPlayerId]; if (s) { s.runs += d.runsScored || 0; if (d.extraType !== 'wide') s.balls++; }
+      const pIds = [d.strikerPlayerId, d.bowlerId || d.bowlerPlayerId, d.fielderPlayerId].filter(id => id && id !== 'none');
+      pIds.forEach(pid => {
+        if (!stats[pid]) return;
+        if (!pMatchStats[pid]) pMatchStats[pid] = {};
+        if (!pMatchStats[pid][matchId]) {
+          pMatchStats[pid][matchId] = { id: pid, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+        }
+      });
+
+      const s = stats[d.strikerPlayerId]; 
+      if (s) { 
+        s.runs += d.runsScored || 0; 
+        if (d.extraType !== 'wide') s.balls++; 
+        const mBat = pMatchStats[d.strikerPlayerId][matchId];
+        mBat.runs += d.runsScored || 0;
+        if (d.extraType !== 'wide') mBat.ballsFaced++;
+        if (d.runsScored === 4) mBat.fours++;
+        if (d.runsScored === 6) mBat.sixes++;
+      }
+
       if (d.isWicket && stats[d.batsmanOutPlayerId]) stats[d.batsmanOutPlayerId].outs++;
-      const bId = d.bowlerId || d.bowlerPlayerId; const b = stats[bId];
-      if (b) { b.runsCon += d.totalRunsOnDelivery; if (d.extraType === 'none') b.ballsB++; if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++; }
-      const f = stats[d.fielderPlayerId]; if (f) { if (d.dismissalType === 'caught') f.catches++; if (d.dismissalType === 'runout') f.runouts++; }
+
+      const bId = d.bowlerId || d.bowlerPlayerId; 
+      const b = stats[bId];
+      if (b) { 
+        b.runsCon += d.totalRunsOnDelivery; 
+        if (d.extraType === 'none') b.ballsB++; 
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++; 
+        
+        const mBowl = pMatchStats[bId][matchId];
+        mBowl.runsConceded += d.totalRunsOnDelivery;
+        if (d.extraType === 'none') mBowl.ballsBowled++;
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) mBowl.wickets++;
+      }
+
+      const f = stats[d.fielderPlayerId]; 
+      if (f) { 
+        const mField = pMatchStats[d.fielderPlayerId][matchId];
+        if (d.dismissalType === 'caught') { f.catches++; mField.catches++; }
+        if (d.dismissalType === 'stumped') mField.stumpings++;
+        if (d.dismissalType === 'runout') { f.runouts++; mField.runOuts++; }
+      }
     });
 
-    const list = Object.values(stats).map((s: any) => ({ ...s, avg: s.outs > 0 ? s.runs / s.outs : s.runs, sr: s.balls > 0 ? (s.runs / s.balls) * 100 : 0, er: s.ballsB >= 6 ? (s.runsCon / (s.ballsB / 6)) : 0 }));
+    const list = Object.values(stats).map((s: any) => {
+      const matchHistory = pMatchStats[s.id] || {};
+      let totalCvp = 0;
+      Object.values(matchHistory).forEach(ms => { totalCvp += calculatePlayerCVP(ms as any); });
+      
+      return { 
+        ...s, 
+        cvp: totalCvp,
+        avg: s.outs > 0 ? s.runs / s.outs : s.runs, 
+        sr: s.balls > 0 ? (s.runs / s.balls) * 100 : 0, 
+        er: s.ballsB >= 6 ? (s.runsCon / (s.ballsB / 6)) : 0 
+      };
+    });
     
     const getRanked = (cat: string) => {
-      let filtered = [];
-      if (cat === 'runs') filtered = list.filter(p => p.runs > 0).sort((a,b) => b.runs - a.runs);
-      else if (cat === 'wickets') filtered = list.filter(p => p.wkts > 0).sort((a,b) => b.wkts - a.wkts);
-      else if (cat === 'avg') filtered = list.filter(p => p.runs > 20).sort((a,b) => b.avg - a.avg);
-      else if (cat === 'sr') filtered = list.filter(p => p.balls > 10).sort((a,b) => b.sr - a.sr);
-      else if (cat === 'er') filtered = list.filter(p => p.ballsB >= 12).sort((a,b) => a.er - b.er);
-      else if (cat === 'catches') filtered = list.filter(p => p.catches > 0).sort((a,b) => b.catches - a.catches);
-      else if (cat === 'runouts') filtered = list.filter(p => p.runouts > 0).sort((a,b) => b.runouts - a.runouts);
-      else if (cat === 'potm') filtered = list.filter(p => p.potm > 0).sort((a,b) => b.potm - a.potm);
-      return filtered.slice(0, 10);
+      let sorted = [...list];
+      if (cat === 'runs') sorted.sort((a,b) => b.runs - a.runs);
+      else if (cat === 'wickets') sorted.sort((a,b) => b.wkts - a.wkts);
+      else if (cat === 'cvp') sorted.sort((a,b) => b.cvp - a.cvp);
+      else if (cat === 'avg') sorted.sort((a,b) => b.avg - a.avg);
+      else if (cat === 'sr') sorted.sort((a,b) => b.sr - a.sr);
+      else if (cat === 'er') sorted.sort((a,b) => a.er - b.er); // Economy: lower is better
+      else if (cat === 'catches') sorted.sort((a,b) => b.catches - a.catches);
+      else if (cat === 'runouts') sorted.sort((a,b) => b.runouts - a.runouts);
+      else if (cat === 'potm') sorted.sort((a,b) => b.potm - a.potm);
+      return sorted;
     };
 
     return { 
       runs: getRanked('runs'), 
       wickets: getRanked('wickets'), 
+      cvp: getRanked('cvp'),
       avg: getRanked('avg'), 
       sr: getRanked('sr'), 
       er: getRanked('er'), 
@@ -166,7 +220,7 @@ export default function RankingsPage() {
           )}
         </TabsContent>
         <TabsContent value="leaderboards" className="space-y-6">
-          <div className="flex flex-col md:flex-row gap-4 justify-between items-center"><h2 className="text-lg font-black uppercase flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Player Rankings</h2><Select value={activeCategory} onValueChange={setActiveCategory}><SelectTrigger className="w-full md:w-[200px] h-12 font-black uppercase text-[10px]"><SelectValue placeholder="Category" /></SelectTrigger><SelectContent className="z-[200]">{[ {id:'runs', label:'Runs'}, {id:'wickets', label:'Wickets'}, {id:'avg', label:'Average'}, {id:'sr', label:'Strike Rate'}, {id:'er', label:'Economy'}, {id:'catches', label:'Catches'}, {id:'runouts', label:'Run Outs'}, {id:'potm', label:'POTM'} ].map(c => <SelectItem key={c.id} value={c.id} className="font-black uppercase text-[10px]">{c.label}</SelectItem>)}</SelectContent></Select></div>
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-center"><h2 className="text-lg font-black uppercase flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Player Rankings</h2><Select value={activeCategory} onValueChange={setActiveCategory}><SelectTrigger className="w-full md:w-[200px] h-12 font-black uppercase text-[10px]"><SelectValue placeholder="Category" /></SelectTrigger><SelectContent className="z-[200]">{[ {id:'runs', label:'Runs'}, {id:'wickets', label:'Wickets'}, {id:'cvp', label:'Impact (CVP)'}, {id:'avg', label:'Average'}, {id:'sr', label:'Strike Rate'}, {id:'er', label:'Economy'}, {id:'catches', label:'Catches'}, {id:'runouts', label:'Run Outs'}, {id:'potm', label:'POTM'} ].map(c => <SelectItem key={c.id} value={c.id} className="font-black uppercase text-[10px]">{c.label}</SelectItem>)}</SelectContent></Select></div>
           {(!playerLeaderboards[activeCategory] || playerLeaderboards[activeCategory].length === 0) ? <NoDataMessage /> : (
             <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white"><Table><TableHeader className="bg-slate-50"><TableRow><TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead><TableHead className="text-[10px] font-black uppercase">Player</TableHead><TableHead className="text-right text-[10px] font-black uppercase bg-primary/5">Score</TableHead></TableRow></TableHeader><TableBody>{playerLeaderboards[activeCategory].map((p: any, idx: number) => (
               <TableRow key={p.id}>
@@ -175,7 +229,7 @@ export default function RankingsPage() {
                 <TableCell className="text-right font-black text-primary bg-primary/5">
                   {['avg', 'sr', 'er'].includes(activeCategory) 
                     ? (p[activeCategory] || 0).toFixed(2) 
-                    : (activeCategory === 'wickets' ? p.wkts : p[activeCategory])
+                    : (activeCategory === 'wickets' ? p.wkts : (activeCategory === 'cvp' ? p.cvp.toFixed(1) : p[activeCategory]))
                   }
                 </TableCell>
               </TableRow>))}

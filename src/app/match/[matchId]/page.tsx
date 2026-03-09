@@ -129,12 +129,11 @@ export default function MatchScoreboardPage() {
     toast({ title: "Generating HD Card...", description: "Optimizing for broadcast quality." });
 
     try {
-      // Use toPng with options to handle cross-origin fonts and high-density rendering
       const dataUrl = await toPng(shareCardRef.current, { 
         cacheBust: true,
         pixelRatio: 2,
         backgroundColor: '#f8fafc',
-        skipFonts: false, // Ensure we try to load fonts but layout fix handles CORS
+        skipFonts: false,
       });
       
       const link = document.createElement('a');
