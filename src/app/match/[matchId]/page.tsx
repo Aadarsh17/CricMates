@@ -129,10 +129,12 @@ export default function MatchScoreboardPage() {
     toast({ title: "Generating HD Card...", description: "Optimizing for broadcast quality." });
 
     try {
+      // Use toPng with options to handle cross-origin fonts and high-density rendering
       const dataUrl = await toPng(shareCardRef.current, { 
         cacheBust: true,
         pixelRatio: 2,
-        backgroundColor: '#f8fafc'
+        backgroundColor: '#f8fafc',
+        skipFonts: false, // Ensure we try to load fonts but layout fix handles CORS
       });
       
       const link = document.createElement('a');
@@ -141,9 +143,13 @@ export default function MatchScoreboardPage() {
       link.click();
       
       toast({ title: "Image Ready", description: "HD Share Card saved to gallery." });
-    } catch (err) {
-      console.error('oops, something went wrong!', err);
-      toast({ title: "Sharing Error", variant: "destructive" });
+    } catch (err: any) {
+      console.error('Share Image Error:', err);
+      toast({ 
+        title: "Sharing Error", 
+        description: "Failed to generate HD image. Try again or check your connection.",
+        variant: "destructive" 
+      });
     } finally {
       setIsSharing(false);
     }
