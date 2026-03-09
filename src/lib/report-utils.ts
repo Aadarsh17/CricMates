@@ -37,7 +37,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     isUnbroken: true
   };
 
-  deliveries.forEach((d) => {
+  deliveries.sort((a,b) => (a.timestamp - b.timestamp) || a.id.localeCompare(b.id)).forEach((d) => {
     const sId = d.strikerPlayerId;
     const nsId = d.nonStrikerPlayerId;
     const bId = d.bowlerId || d.bowlerPlayerId;
@@ -54,7 +54,9 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       bat[nsId] = { id: nsId, runs: 0, balls: 0, fours: 0, sixes: 0, dots: 0, out: false, dismissal: 'not out', fielderId: 'none' };
     }
     
-    if (d.extraType !== 'wide') {
+    const isRetirement = d.dismissalType === 'retired';
+
+    if (d.extraType !== 'wide' && !isRetirement) {
       bat[sId].balls += 1;
       bat[sId].runs += (d.runsScored || 0);
       if (d.runsScored === 4) bat[sId].fours += 1;
@@ -67,15 +69,15 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     if (d.extraType === 'wide') extras.w += (d.totalRunsOnDelivery || 1);
     else if (d.extraType === 'noball') extras.nb += (d.totalRunsOnDelivery || 1);
 
-    const isLegal = d.extraType === 'none';
+    const isLegal = d.extraType === 'none' && !isRetirement;
     if (isLegal) legalBalls += 1;
 
     // Detailed Partnership Logic
     currentPartnership.runs += (d.totalRunsOnDelivery || 0);
-    if (d.extraType !== 'wide') currentPartnership.balls += 1;
+    if (d.extraType !== 'wide' && !isRetirement) currentPartnership.balls += 1;
     
     if (!currentPartnership.contributions[sId]) currentPartnership.contributions[sId] = { runs: 0, balls: 0 };
-    if (d.extraType !== 'wide') {
+    if (d.extraType !== 'wide' && !isRetirement) {
       currentPartnership.contributions[sId].runs += (d.runsScored || 0);
       currentPartnership.contributions[sId].balls += 1;
     }
@@ -85,7 +87,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
     }
 
     if (d.isWicket) {
-      if (d.dismissalType !== 'retired') currentWickets += 1;
+      if (!isRetirement) currentWickets += 1;
       const outPid = d.batsmanOutPlayerId || sId;
       if (bat[outPid]) {
         bat[outPid].out = true;
@@ -99,8 +101,10 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
         bat[outPid].dismissal = discStr;
       }
       
-      const overLabel = `${Math.floor(legalBalls / 6)}.${legalBalls % 6}`;
-      fow.push({ wicketNum: currentWickets, scoreAtWicket: currentScore, playerOutId: outPid, over: overLabel, runsOut: bat[outPid]?.runs || 0 });
+      if (!isRetirement) {
+        const overLabel = `${Math.floor(legalBalls / 6)}.${legalBalls % 6}`;
+        fow.push({ wicketNum: currentWickets, scoreAtWicket: currentScore, playerOutId: outPid, over: overLabel, runsOut: bat[outPid]?.runs || 0 });
+      }
       
       partnerships.push({ ...currentPartnership, batters: Object.keys(currentPartnership.contributions), isUnbroken: false });
       currentPartnership = { runs: 0, balls: 0, contributions: {}, isUnbroken: true };

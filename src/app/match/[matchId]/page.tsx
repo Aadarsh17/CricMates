@@ -40,7 +40,7 @@ export default function MatchScoreboardPage() {
   const [isPotmDialogOpen, setIsPotmDialogOpen] = useState(false);
   
   const [assignmentForm, setAssignmentForm] = useState({ strikerId: '', nonStrikerId: '', bowlerId: '' });
-  const [wicketForm, setWicketForm] = useState({ type: 'bowled', batterOutId: '', extraType: 'none', runsCompleted: 0, fielderId: 'none' });
+  const [wicketForm, setWicketForm] = useState({ type: 'bowled', batterOutId: '', extraType: 'none', runsCompleted: 0, fielderId: 'none', successorId: '' });
   const [correctionForm, setCorrectionForm] = useState<any>({ id: '', strikerId: '', nonStrikerId: '', bowlerId: '', runs: 0, extra: 'none', isWicket: false, wicketType: 'bowled', timestamp: 0, targetInning: '' });
   const [matchDateForm, setMatchDateForm] = useState('');
   const [venueForm, setVenueForm] = useState('');
@@ -81,10 +81,11 @@ export default function MatchScoreboardPage() {
     const sorted = [...deliveries].sort((a, b) => (a.timestamp - b.timestamp) || a.id.localeCompare(b.id));
     let legal = 0;
     return sorted.map(d => {
+      const isLegal = d.extraType === 'none' && d.dismissalType !== 'retired';
       const ov = Math.floor(legal / 6);
       const b = (legal % 6) + 1;
-      const label = `${ov}.${b}`;
-      if (d.extraType === 'none') legal++;
+      const label = isLegal ? `${ov}.${b}` : (d.dismissalType === 'retired' ? 'RET' : '---');
+      if (isLegal) legal++;
       return { ...d, ballLabel: label, overIndex: ov + 1 };
     });
   };
@@ -128,21 +129,22 @@ export default function MatchScoreboardPage() {
       score += (d.totalRunsOnDelivery || 0);
       const isRetirement = d.dismissalType === 'retired';
       if (d.isWicket && !isRetirement) wkts++;
-      if (d.extraType === 'none') legal++;
+      if (d.extraType === 'none' && !isRetirement) legal++;
 
       if (idx === deliveriesList.length - 1) {
         sId = d.strikerPlayerId;
         nsId = d.nonStrikerPlayerId;
         const runs = d.runsScored || 0;
-        const isLegal = d.extraType === 'none';
+        const isLegal = d.extraType === 'none' && !isRetirement;
         
         if (runs % 2 !== 0) [sId, nsId] = [nsId, sId];
         if (legal % 6 === 0 && isLegal) [sId, nsId] = [nsId, sId];
         
         if (d.isWicket) {
           const outPid = d.batsmanOutPlayerId || d.strikerPlayerId;
-          if (outPid === sId) sId = '';
-          else if (outPid === nsId) nsId = '';
+          const successor = d.successorPlayerId || '';
+          if (outPid === sId) sId = successor;
+          else if (outPid === nsId) nsId = successor;
         }
       }
     });
@@ -187,7 +189,7 @@ export default function MatchScoreboardPage() {
     }
     const currentInningId = `inning_${match.currentInningNumber}`;
     const isLegal = extra === 'none';
-    const totalLegalCount = (currentDeliveriesWithLabels?.filter(d => d.extraType === 'none').length || 0);
+    const totalLegalCount = (currentDeliveriesWithLabels?.filter(d => d.extraType === 'none' && d.dismissalType !== 'retired').length || 0);
     const newTotalLegal = totalLegalCount + (isLegal ? 1 : 0);
     
     const deliveryId = doc(collection(db, 'temp')).id;
@@ -298,7 +300,7 @@ export default function MatchScoreboardPage() {
         const bId = d.bowlerId || d.bowlerPlayerId;
         if (bId === pid) {
           pStats.runsConceded += (d.totalRunsOnDelivery || 0);
-          if (d.extraType === 'none') pStats.ballsBowled++;
+          if (d.extraType === 'none' && d.dismissalType !== 'retired') pStats.ballsBowled++;
           if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) pStats.wickets++;
         }
         if (d.fielderPlayerId === pid) {
@@ -337,8 +339,8 @@ export default function MatchScoreboardPage() {
       const score1 = d1.reduce((acc, d) => acc + (d.totalRunsOnDelivery || 0), 0);
       const score2 = d2.reduce((acc, d) => acc + (d.totalRunsOnDelivery || 0), 0);
       
-      const w1 = d1.filter(d => d.isWicket && d.overIndex === i && d.extraType === 'none').length > 0;
-      const w2 = d2.filter(d => d.isWicket && d.overIndex === i && d.extraType === 'none').length > 0;
+      const w1 = d1.filter(d => d.isWicket && d.dismissalType !== 'retired' && d.overIndex === i && d.extraType === 'none').length > 0;
+      const w2 = d2.filter(d => d.isWicket && d.dismissalType !== 'retired' && d.overIndex === i && d.extraType === 'none').length > 0;
 
       data.push({ 
         over: i, 
@@ -434,7 +436,7 @@ export default function MatchScoreboardPage() {
                             <Button key={r} disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(r)} className={cn("h-14 font-black text-2xl rounded-2xl", r >= 4 ? "bg-primary text-white" : "bg-white/5 text-white")}>{r || '•'}</Button>
                           ))}
                           <Button onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { strikerPlayerId: activeInningData?.nonStrikerPlayerId || '', nonStrikerPlayerId: activeInningData?.strikerPlayerId || '' })} className="bg-secondary text-white h-14 font-black rounded-2xl"><ArrowLeftRight className="w-5 h-5"/></Button>
-                          <Button variant="outline" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || '', fielderId: 'none'}); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px] bg-white/5">Wicket</Button>
+                          <Button variant="outline" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || '', fielderId: 'none', successorId: ''}); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px] bg-white/5">Wicket</Button>
                         </div>
                         <div className="grid grid-cols-3 gap-3">
                           <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px] bg-white/5">Wide</Button>
@@ -442,7 +444,7 @@ export default function MatchScoreboardPage() {
                           <Button variant="outline" onClick={async () => { 
                             const currId = `inning_${match?.currentInningNumber}`;
                             const snap = await getDocs(query(collection(db, 'matches', matchId, 'innings', currId, 'deliveryRecords'), orderBy('timestamp', 'desc'), limit(1)));
-                            if(!snap.empty) { await deleteDoc(snap.docs[0].ref); await recalculateInningState(currId); toast({ title: "Last ball undone" }); }
+                            if(!snap.empty) { await deleteDoc(snap.docs[0].ref); await recalculateInningState(currId); toast({ title: "Last action undone" }); }
                           }} className="h-12 border-white/10 text-slate-400 uppercase font-black text-[9px] bg-white/5">Undo</Button>
                         </div>
                       </>
@@ -526,7 +528,13 @@ export default function MatchScoreboardPage() {
                         {deliveries.map(d => {
                           let label = (d.totalRunsOnDelivery || 0).toString();
                           let color = "bg-slate-100 text-slate-600";
-                          if (d.isWicket) { label = "W"; color = "bg-red-500 text-white"; }
+                          if (d.isWicket) { 
+                            if (d.dismissalType === 'retired') {
+                              label = "RET"; color = "bg-slate-200 text-slate-600";
+                            } else {
+                              label = "W"; color = "bg-red-500 text-white"; 
+                            }
+                          }
                           else if (d.extraType === 'wide') { label = `${d.totalRunsOnDelivery || 1}wd`; color = "bg-amber-100 text-amber-700"; }
                           else if (d.extraType === 'noball') { label = `${d.totalRunsOnDelivery || 1}nb`; color = "bg-amber-100 text-amber-700"; }
                           else if (d.runsScored === 4) color = "bg-blue-500 text-white";
@@ -739,12 +747,12 @@ export default function MatchScoreboardPage() {
                                     <span className="text-xs font-black text-slate-900">{d.ballLabel}</span>
                                   </div>
                                   <div className={cn("w-10 h-10 rounded-full flex flex-col items-center justify-center font-black text-[10px] border shadow-sm shrink-0", 
-                                    d.isWicket ? "bg-red-500 text-white border-red-600" : 
+                                    d.isWicket ? (d.dismissalType === 'retired' ? "bg-slate-200 text-slate-600 border-slate-300" : "bg-red-500 text-white border-red-600") : 
                                     d.runsScored === 6 ? "bg-primary text-white border-primary" :
                                     d.runsScored === 4 ? "bg-blue-500 text-white border-blue-600" :
                                     d.extraType !== 'none' ? "bg-amber-100 text-amber-700 border-amber-200" : 
                                     "bg-slate-50 text-slate-900 border-slate-100")}>
-                                    {d.isWicket ? "W" : (d.totalRunsOnDelivery || 0)}
+                                    {d.isWicket ? (d.dismissalType === 'retired' ? "RET" : "W") : (d.totalRunsOnDelivery || 0)}
                                     {d.extraType === 'wide' && <span className="text-[6px] -mt-1">WD</span>}
                                     {d.extraType === 'noball' && <span className="text-[6px] -mt-1">NB</span>}
                                   </div>
@@ -752,7 +760,7 @@ export default function MatchScoreboardPage() {
                                     <p className="text-[10px] font-black text-slate-900 truncate max-w-[120px] uppercase">
                                       {getPlayerName(d.strikerPlayerId)} <span className="text-[8px] text-slate-400 italic">vs</span> {getPlayerName(d.bowlerId)}
                                     </p>
-                                    <p className={cn("text-[8px] font-bold uppercase", d.isWicket ? "text-red-500" : "text-slate-400")}>
+                                    <p className={cn("text-[8px] font-bold uppercase", d.isWicket ? (d.dismissalType === 'retired' ? "text-slate-500" : "text-red-500") : "text-slate-400")}>
                                       {d.isWicket ? d.dismissalType : `${d.runsScored || 0} runs ${d.extraType !== 'none' ? `(${d.extraType})` : ''}`}
                                     </p>
                                   </div>
@@ -761,10 +769,10 @@ export default function MatchScoreboardPage() {
                                   <div className="flex gap-1 shrink-0">
                                     <Button variant="ghost" size="icon" onClick={() => { setCorrectionForm({ ...d, extra: d.extraType || 'none', runs: d.runsScored || 0, targetInning: tab.innKey }); setIsCorrectionDialogOpen(true); }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3" /></Button>
                                     <Button variant="ghost" size="icon" onClick={async () => { 
-                                      if(confirm("Permanently delete delivery? Records will re-simulate.")) { 
+                                      if(confirm("Permanently delete action? Records will re-simulate.")) { 
                                         await deleteDoc(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); 
                                         await recalculateInningState(tab.innKey);
-                                        toast({ title: "Delivery Purged" });
+                                        toast({ title: "Action Purged" });
                                       } 
                                     }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button>
                                   </div>
@@ -903,7 +911,7 @@ export default function MatchScoreboardPage() {
       <Dialog open={isCorrectionDialogOpen} onOpenChange={setIsCorrectionDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[151]">
           <DialogHeader>
-            <DialogTitle className="font-black uppercase text-xl text-amber-600">Ball Correction</DialogTitle>
+            <DialogTitle className="font-black uppercase text-xl text-amber-600">Action Correction</DialogTitle>
             <DialogDescription className="text-[10px] font-bold uppercase text-slate-400">Records will auto-simulate after save</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1 scrollbar-hide">
@@ -944,13 +952,13 @@ export default function MatchScoreboardPage() {
               </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border">
-              <Label className="text-[10px] font-black uppercase flex-1">Is it a Wicket?</Label>
+              <Label className="text-[10px] font-black uppercase flex-1">Is it a Wicket/Retire?</Label>
               <Button variant={correctionForm.isWicket ? "destructive" : "outline"} size="sm" onClick={() => setCorrectionForm({...correctionForm, isWicket: !correctionForm.isWicket})} className="font-black h-8 uppercase text-[10px]">{correctionForm.isWicket ? "YES" : "NO"}</Button>
             </div>
             {correctionForm.isWicket && (
               <div className="space-y-3 animate-in slide-in-from-top-2">
                 <div className="space-y-1.5">
-                  <Label className="text-[10px] font-black uppercase">Wicket Type</Label>
+                  <Label className="text-[10px] font-black uppercase">Type</Label>
                   <Select value={correctionForm.wicketType || 'bowled'} onValueChange={(v) => setCorrectionForm({...correctionForm, wicketType: v})}>
                     <SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger>
                     <SelectContent className="z-[200]"><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="caught">Caught</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumped">Stumped</SelectItem><SelectItem value="retired">Retired</SelectItem></SelectContent>
@@ -1032,10 +1040,10 @@ export default function MatchScoreboardPage() {
 
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-destructive shadow-2xl z-[151]">
-          <DialogHeader><DialogTitle className="font-black uppercase text-xl text-destructive">Register Wicket</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-black uppercase text-xl text-destructive">{wicketForm.type === 'retired' ? 'Retire Player' : 'Register Wicket'}</DialogTitle></DialogHeader>
           <div className="space-y-6 py-4">
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Batter Out</Label>
+              <Label className="text-[10px] font-black uppercase text-slate-400">{wicketForm.type === 'retired' ? 'Retiring Player' : 'Batter Out'}</Label>
               <Select value={wicketForm.batterOutId || ''} onValueChange={(v) => setWicketForm({...wicketForm, batterOutId: v})}>
                 <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue placeholder="Select Batter" /></SelectTrigger>
                 <SelectContent className="z-[200]">
@@ -1045,12 +1053,30 @@ export default function MatchScoreboardPage() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Dismissal Type</Label>
-              <Select value={wicketForm.type || 'bowled'} onValueChange={(v) => setWicketForm({...wicketForm, type: v, runsCompleted: 0, fielderId: 'none'})}>
+              <Label className="text-[10px] font-black uppercase text-slate-400">Dismissal / Retire Type</Label>
+              <Select value={wicketForm.type || 'bowled'} onValueChange={(v) => setWicketForm({...wicketForm, type: v, runsCompleted: 0, fielderId: 'none', successorId: ''})}>
                 <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue /></SelectTrigger>
                 <SelectContent className="z-[200]"><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="caught">Caught</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumped">Stumped</SelectItem><SelectItem value="retired">Retired</SelectItem></SelectContent>
               </Select>
             </div>
+            
+            {wicketForm.type === 'retired' && (
+              <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-200">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Successor (Next Batter)</Label>
+                <Select value={wicketForm.successorId || ''} onValueChange={(v) => setWicketForm({...wicketForm, successorId: v})}>
+                  <SelectTrigger className="h-14 font-black border-2 rounded-xl border-primary/30"><SelectValue placeholder="Pick Successor" /></SelectTrigger>
+                  <SelectContent className="z-[200]">
+                    {allPlayers?.filter(p => 
+                      (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && 
+                      p.id !== activeInningData?.strikerPlayerId && 
+                      p.id !== activeInningData?.nonStrikerPlayerId &&
+                      !currentPermanentlyOutIds.includes(p.id)
+                    ).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {['caught', 'runout', 'stumped'].includes(wicketForm.type) && (
               <div className="space-y-1.5 animate-in slide-in-from-top-2 duration-200">
                 <Label className="text-[10px] font-black uppercase text-slate-400">{wicketForm.type === 'runout' ? 'Effected By' : 'Fielder'}</Label>
@@ -1076,21 +1102,42 @@ export default function MatchScoreboardPage() {
             )}
             <Button onClick={async () => {
               if (!wicketForm.batterOutId) return;
+              if (wicketForm.type === 'retired' && !wicketForm.successorId) {
+                toast({ title: "Validation Error", description: "Select a successor for retirement.", variant: "destructive" });
+                return;
+              }
               const currId = `inning_${match?.currentInningNumber}`;
               const dId = doc(collection(db, 'temp')).id;
               await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currId, 'deliveryRecords', dId), { 
-                id: dId, strikerPlayerId: activeInningData?.strikerPlayerId || '', nonStrikerPlayerId: activeInningData?.nonStrikerPlayerId || '', bowlerId: activeInningData?.currentBowlerPlayerId || '', fielderPlayerId: wicketForm.fielderId || 'none', isWicket: true, dismissalType: wicketForm.type || 'bowled', batsmanOutPlayerId: wicketForm.batterOutId || '', extraType: 'none', runsScored: wicketForm.runsCompleted || 0, totalRunsOnDelivery: wicketForm.runsCompleted || 0, timestamp: Date.now() 
+                id: dId, 
+                strikerPlayerId: activeInningData?.strikerPlayerId || '', 
+                nonStrikerPlayerId: activeInningData?.nonStrikerPlayerId || '', 
+                bowlerId: activeInningData?.currentBowlerPlayerId || '', 
+                fielderPlayerId: wicketForm.fielderId || 'none', 
+                isWicket: true, 
+                dismissalType: wicketForm.type || 'bowled', 
+                batsmanOutPlayerId: wicketForm.batterOutId || '', 
+                successorPlayerId: wicketForm.successorId || '',
+                extraType: 'none', 
+                runsScored: wicketForm.runsCompleted || 0, 
+                totalRunsOnDelivery: wicketForm.runsCompleted || 0, 
+                timestamp: Date.now() 
               }, { merge: true });
               await recalculateInningState(currId);
               setIsWicketDialogOpen(false);
-              setAssignmentForm({ 
-                strikerId: wicketForm.batterOutId === activeInningData?.strikerPlayerId ? '' : activeInningData?.strikerPlayerId || '', 
-                nonStrikerId: wicketForm.batterOutId === activeInningData?.nonStrikerPlayerId ? '' : activeInningData?.nonStrikerPlayerId || '', 
-                bowlerId: activeInningData?.currentBowlerPlayerId || '' 
-              });
-              setIsPlayerAssignmentOpen(true);
-              toast({ title: "Wicket Registered" });
-            }} disabled={!wicketForm.batterOutId} className="w-full h-16 bg-destructive text-white font-black uppercase rounded-2xl shadow-xl">Confirm Wicket</Button>
+              
+              if (wicketForm.type !== 'retired') {
+                setAssignmentForm({ 
+                  strikerId: wicketForm.batterOutId === activeInningData?.strikerPlayerId ? '' : activeInningData?.strikerPlayerId || '', 
+                  nonStrikerId: wicketForm.batterOutId === activeInningData?.nonStrikerPlayerId ? '' : activeInningData?.nonStrikerPlayerId || '', 
+                  bowlerId: activeInningData?.currentBowlerPlayerId || '' 
+                });
+                setIsPlayerAssignmentOpen(true);
+              }
+              toast({ title: wicketForm.type === 'retired' ? "Player Retired" : "Wicket Registered" });
+            }} disabled={!wicketForm.batterOutId} className={cn("w-full h-16 text-white font-black uppercase rounded-2xl shadow-xl", wicketForm.type === 'retired' ? "bg-slate-600" : "bg-destructive")}>
+              Confirm {wicketForm.type === 'retired' ? 'Retirement' : 'Wicket'}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
