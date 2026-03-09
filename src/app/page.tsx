@@ -47,15 +47,63 @@ export default function Home() {
   const topPlayers = useMemo(() => {
     if (!players || !allMatches || !rawDeliveries || !isMounted) return [];
     const activeMatchIds = new Set(allMatches.map(m => m.id));
-    const pMatchStats: Record<string, any> = {};
+    
+    // Aggregate match-wise stats for each player
+    // pMatchStats[playerId][matchId] = { runs, wickets, etc. }
+    const pMatchStats: Record<string, Record<string, any>> = {};
+    
     rawDeliveries.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1]; if (!matchId || !activeMatchIds.has(matchId)) return;
-      const pIds = [d.strikerPlayerId, d.bowlerId || d.bowlerPlayerId, d.fielderPlayerId].filter(id => id && id !== 'none');
-      pIds.forEach(pid => { if (!pMatchStats[pid]) pMatchStats[pid] = { id: pid, runs: 0, ballsFaced: 0, wickets: 0, ballsBowled: 0, catches: 0, runsConceded: 0 }; });
-      const s = pMatchStats[d.strikerPlayerId]; if (s) { s.runs += d.runsScored || 0; if (d.extraType !== 'wide') s.ballsFaced++; }
-      const b = pMatchStats[d.bowlerId || d.bowlerPlayerId]; if (b) { b.runsConceded += d.totalRunsOnDelivery || 0; if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsBowled++; if (d.isWicket && d.dismissalType !== 'runout') b.wickets++; }
+      const matchId = d.__fullPath?.split('/')[1]; 
+      if (!matchId || !activeMatchIds.has(matchId)) return;
+      
+      const sId = d.strikerPlayerId;
+      const bId = d.bowlerId || d.bowlerPlayerId;
+      const fId = d.fielderPlayerId;
+      
+      const involved = [sId, bId, fId].filter(id => id && id !== 'none');
+      
+      involved.forEach(pid => {
+        if (!pMatchStats[pid]) pMatchStats[pid] = {};
+        if (!pMatchStats[pid][matchId]) {
+          pMatchStats[pid][matchId] = { 
+            id: pid, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, 
+            wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, 
+            catches: 0, stumpings: 0, runOuts: 0 
+          };
+        }
+      });
+
+      if (sId && pMatchStats[sId]?.[matchId]) {
+        const s = pMatchStats[sId][matchId];
+        s.runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') s.ballsFaced++;
+        if (d.runsScored === 4) s.fours++;
+        if (d.runsScored === 6) s.sixes++;
+      }
+      
+      if (bId && pMatchStats[bId]?.[matchId]) {
+        const b = pMatchStats[bId][matchId];
+        b.runsConceded += (d.totalRunsOnDelivery || 0);
+        if (d.extraType === 'none') b.ballsBowled++;
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wickets++;
+      }
+      
+      if (fId && pMatchStats[fId]?.[matchId]) {
+        const f = pMatchStats[fId][matchId];
+        if (d.dismissalType === 'caught') f.catches++;
+        if (d.dismissalType === 'stumped') f.stumpings++;
+        if (d.dismissalType === 'runout') f.runOuts++;
+      }
     });
-    return players.map(p => ({ ...p, cvp: calculatePlayerCVP(pMatchStats[p.id] || { id: p.id, runs: 0, ballsFaced: 0, wickets: 0, ballsBowled: 0, catches: 0, runsConceded: 0, maidens: 0, fours: 0, sixes: 0, stumpings: 0, runOuts: 0 }) })).sort((a,b) => b.cvp - a.cvp).slice(0, 5);
+
+    return players.map(p => {
+      const matchHistory = pMatchStats[p.id] || {};
+      let totalCvp = 0;
+      Object.values(matchHistory).forEach(ms => {
+        totalCvp += calculatePlayerCVP(ms as any);
+      });
+      return { ...p, cvp: totalCvp };
+    }).sort((a,b) => b.cvp - a.cvp).slice(0, 5);
   }, [players, allMatches, rawDeliveries, isMounted]);
 
   if (!isMounted) return null;

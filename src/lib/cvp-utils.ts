@@ -27,8 +27,16 @@ export interface PlayerMatchStats {
  * when history is deleted.
  */
 export function calculatePlayerCVP(stats: PlayerMatchStats): number {
+  if (!stats) return 0;
+
   // Check if there is any activity. If no balls faced or bowled and no fielding, return 0.
-  const hasActivity = (stats.ballsFaced > 0 || stats.ballsBowled > 0 || stats.catches > 0 || stats.stumpings > 0 || stats.runOuts > 0);
+  const hasActivity = (
+    (stats.ballsFaced || 0) > 0 || 
+    (stats.ballsBowled || 0) > 0 || 
+    (stats.catches || 0) > 0 || 
+    (stats.stumpings || 0) > 0 || 
+    (stats.runOuts || 0) > 0
+  );
   
   if (!hasActivity) return 0;
   
@@ -39,7 +47,7 @@ export function calculatePlayerCVP(stats: PlayerMatchStats): number {
   points += (stats.fours || 0) * 1;
   points += (stats.sixes || 0) * 2;
   
-  if (stats.ballsFaced >= 10) {
+  if ((stats.ballsFaced || 0) >= 10) {
     const sr = (stats.runs / stats.ballsFaced) * 100;
     if (sr > 170) points += 6;
     else if (sr < 50) points -= 2;
@@ -47,12 +55,13 @@ export function calculatePlayerCVP(stats: PlayerMatchStats): number {
 
   // Bowling
   points += (stats.wickets || 0) * 15;
-  if (stats.wickets >= 4) points += 10;
-  else if (stats.wickets >= 2) points += 4;
+  if ((stats.wickets || 0) >= 4) points += 10;
+  else if ((stats.wickets || 0) >= 2) points += 4;
   
   points += (stats.maidens || 0) * 5;
+  
   // Dynamic Format Adjustment: Min 1 over (6 balls) for economy bonus eligibility
-  if (stats.ballsBowled >= 6) {
+  if ((stats.ballsBowled || 0) >= 6) {
     const overs = stats.ballsBowled / 6;
     const econ = stats.runsConceded / (overs || 1);
     if (econ < 5) points += 6;
@@ -64,5 +73,5 @@ export function calculatePlayerCVP(stats: PlayerMatchStats): number {
   // Fielding
   points += ((stats.catches || 0) + (stats.stumpings || 0) + (stats.runOuts || 0)) * 4;
 
-  return points;
+  return isNaN(points) ? 0 : points;
 }

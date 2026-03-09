@@ -314,7 +314,7 @@ export const generateMatchReport = (match: any, allTeams: any[], playerNames: Re
         .main-header h1 { margin: 0; color: #3f51b5; font-size: 22px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; }
         .main-header p { margin: 4px 0; font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; }
 
-        .potm-banner { background: #f59e0b; color: #fff; padding: 8px; text-align: center; font-weight: 900; text-transform: uppercase; font-size: 12px; margin-bottom: 15px; border-radius: 4px; border-top: 4px solid #d97706; }
+        .potm-banner { background: #f59e0b; color: #fff; padding: 10px; text-align: center; font-weight: 900; text-transform: uppercase; font-size: 13px; margin-bottom: 15px; border-radius: 4px; border-top: 4px solid #d97706; }
 
         .summary-grid { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; margin-bottom: 5px; border-bottom: 1px solid #f1f5f9; }
         .team-box { flex: 1; text-align: center; }
