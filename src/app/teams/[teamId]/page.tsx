@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Upload, AlertCircle, Users, UserMinus, ShieldCheck } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Upload, AlertCircle, Users, UserMinus, ShieldCheck, Settings } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -176,8 +176,10 @@ export default function TeamDetailsPage() {
 
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isEditTeamOpen, setIsEditTeamOpen] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [newPlayer, setNewPlayer] = useState({ name: '', role: 'Batsman' });
+  const [teamNameForm, setTeamNameForm] = useState('');
   
   const [editForm, setEditForm] = useState({ 
     name: '', 
@@ -188,6 +190,10 @@ export default function TeamDetailsPage() {
   });
 
   const defaultAvatar = PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl || '';
+
+  useEffect(() => {
+    if (team) setTeamNameForm(team.name);
+  }, [team]);
 
   const resizeImage = (file: File): Promise<string> => {
     return new Promise((resolve) => {
@@ -236,6 +242,13 @@ export default function TeamDetailsPage() {
     setIsAddPlayerOpen(false); setNewPlayer({ name: '', role: 'Batsman' }); toast({ title: "Player Added" });
   };
 
+  const handleUpdateTeam = () => {
+    if (!teamId || !teamNameForm.trim()) return;
+    updateDocumentNonBlocking(doc(db, 'teams', teamId), { name: teamNameForm });
+    setIsEditTeamOpen(false);
+    toast({ title: "Franchise Renamed", description: "All league records updated." });
+  };
+
   const openEditDialog = (player: any) => { 
     setEditingPlayerId(player.id); 
     setEditForm({ 
@@ -270,8 +283,13 @@ export default function TeamDetailsPage() {
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full"><ArrowLeft className="w-5 h-5"/></Button>
         <Avatar className="w-16 h-16 border-4 border-primary rounded-2xl shadow-lg"><AvatarImage src={team.logoUrl} className="object-cover" /><AvatarFallback className="bg-primary text-white font-black text-2xl">{team.name[0]}</AvatarFallback></Avatar>
-        <div className="min-w-0">
-          <h1 className="text-2xl md:text-4xl font-black truncate uppercase tracking-tighter">{team.name}</h1>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl md:text-4xl font-black truncate uppercase tracking-tighter">{team.name}</h1>
+            {user && (
+              <Button variant="ghost" size="icon" onClick={() => setIsEditTeamOpen(true)} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>
+            )}
+          </div>
           <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">Official Franchise Dashboard</p>
         </div>
       </div>
@@ -400,6 +418,19 @@ export default function TeamDetailsPage() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={isEditTeamOpen} onOpenChange={setIsEditTeamOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl">
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Edit Franchise</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Team Name</Label>
+              <Input value={teamNameForm} onChange={(e) => setTeamNameForm(e.target.value)} className="font-bold h-12" />
+            </div>
+          </div>
+          <DialogFooter><Button onClick={handleUpdateTeam} className="w-full h-14 font-black uppercase tracking-widest shadow-xl bg-primary">Save Changes</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl overflow-hidden">

@@ -1,29 +1,61 @@
 
 "use client"
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useDoc, useMemoFirebase, useFirestore, useCollection } from '@/firebase';
+import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNonBlocking } from '@/firebase';
 import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull } from 'lucide-react';
+import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
+import { toast } from '@/hooks/use-toast';
+import { useApp } from '@/context/AppContext';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 export default function PlayerProfilePage() {
   const params = useParams();
   const playerId = params.playerId as string;
   const db = useFirestore();
   const router = useRouter();
+  const { isUmpire } = useApp();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   const [isMounted, setIsMounted] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ 
+    name: '', 
+    role: 'Batsman', 
+    imageUrl: '', 
+    battingStyle: 'Right Handed Bat',
+    isWicketKeeper: false
+  });
+
   useEffect(() => { setIsMounted(true); }, []);
 
   const playerRef = useMemoFirebase(() => isMounted && playerId ? doc(db, 'players', playerId) : null, [db, playerId, isMounted]);
   const { data: player, isLoading: isPlayerLoading } = useDoc(playerRef);
+
+  useEffect(() => {
+    if (player) {
+      setEditForm({
+        name: player.name,
+        role: player.role,
+        imageUrl: player.imageUrl || '',
+        battingStyle: player.battingStyle || 'Right Handed Bat',
+        isWicketKeeper: !!player.isWicketKeeper
+      });
+    }
+  }, [player]);
 
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches } = useCollection(allMatchesQuery);
@@ -165,6 +197,36 @@ export default function PlayerProfilePage() {
     return s;
   }, [matchWiseLog]);
 
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader(); reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image(); img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas'); const MAX_WIDTH = 200; const MAX_HEIGHT = 200;
+          let width = img.width; let height = img.height;
+          if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
+          else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d'); ctx?.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
+        };
+      };
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) { const resized = await resizeImage(file); setEditForm(prev => ({ ...prev, imageUrl: resized })); toast({ title: "Photo Ready" }); }
+  };
+
+  const handleUpdatePlayer = () => {
+    if (!playerId || !editForm.name.trim()) return;
+    updateDocumentNonBlocking(doc(db, 'players', playerId), editForm);
+    setIsEditOpen(false);
+    toast({ title: "Profile Updated", description: "All records refreshed with new identity." });
+  };
+
   if (!isMounted || isPlayerLoading || isHistoryLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
       <Loader2 className="w-10 h-10 text-primary animate-spin" />
@@ -173,6 +235,8 @@ export default function PlayerProfilePage() {
   );
   
   if (!player) return <div className="p-20 text-center font-black uppercase text-slate-400">Player profile missing.</div>;
+
+  const defaultAvatar = PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl || '';
 
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-32 px-4 animate-in fade-in slide-in-from-bottom-4">
@@ -190,8 +254,13 @@ export default function PlayerProfilePage() {
             <AvatarImage src={player.imageUrl} className="object-cover" />
             <AvatarFallback className="text-4xl font-black bg-white/5">{player.name[0]}</AvatarFallback>
           </Avatar>
-          <div className="min-w-0">
-            <h1 className="text-3xl font-black uppercase tracking-tighter truncate leading-tight mb-2">{player.name}</h1>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+              <h1 className="text-3xl font-black uppercase tracking-tighter truncate leading-tight">{player.name}</h1>
+              {isUmpire && (
+                <Button variant="ghost" size="icon" onClick={() => setIsEditOpen(true)} className="h-8 w-8 text-white/40 hover:text-white"><Edit2 className="w-4 h-4" /></Button>
+              )}
+            </div>
             <div className="flex flex-wrap justify-center md:justify-start gap-2">
               <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest border-white/20 text-white h-6 px-3">{player.role}</Badge>
               {player.isWicketKeeper && <Badge className="bg-secondary text-white font-black text-[9px] h-6">WK</Badge>}
@@ -403,6 +472,77 @@ export default function PlayerProfilePage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl overflow-hidden">
+          <DialogHeader className="bg-slate-50 p-6 -mx-6 -mt-6 border-b mb-6">
+            <DialogTitle className="font-black uppercase tracking-widest text-primary flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5" /> Update Registry
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                <Avatar className="w-28 h-28 border-4 border-white shadow-xl rounded-3xl overflow-hidden ring-4 ring-slate-100">
+                  <AvatarImage src={editForm.imageUrl || defaultAvatar} className="object-cover" />
+                  <AvatarFallback className="bg-primary text-white text-4xl font-black">{editForm.name?.[0] || '?'}</AvatarFallback>
+                </Avatar>
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex flex-col items-center justify-center text-white">
+                  <Camera className="w-6 h-6 mb-1" />
+                  <span className="text-[8px] font-black uppercase">Change Photo</span>
+                </div>
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Official Name</Label>
+                <Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="font-bold h-12 shadow-sm" />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Specialist Role</Label>
+                  <Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}>
+                    <SelectTrigger className="font-bold h-12 shadow-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-[200]">
+                      <SelectItem value="Batsman" className="font-bold text-xs uppercase">Batsman</SelectItem>
+                      <SelectItem value="Bowler" className="font-bold text-xs uppercase">Bowler</SelectItem>
+                      <SelectItem value="All-rounder" className="font-bold text-xs uppercase">All-rounder</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Batting Style</Label>
+                  <Select value={editForm.battingStyle} onValueChange={(v) => setEditForm({...editForm, battingStyle: v})}>
+                    <SelectTrigger className="font-bold h-12 shadow-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-[200]">
+                      <SelectItem value="Right Handed Bat" className="font-bold text-xs uppercase">RHB</SelectItem>
+                      <SelectItem value="Left Handed Bat" className="font-bold text-xs uppercase">LHB</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <Checkbox 
+                  id="wicket-keeper" 
+                  checked={editForm.isWicketKeeper}
+                  onCheckedChange={(checked) => setEditForm({...editForm, isWicketKeeper: !!checked})}
+                  className="h-5 w-5"
+                />
+                <Label htmlFor="wicket-keeper" className="text-xs font-black uppercase cursor-pointer">Official Wicket Keeper</Label>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="mt-8 pt-6 border-t -mx-6 px-6">
+            <Button onClick={handleUpdatePlayer} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl bg-primary">Commit Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
