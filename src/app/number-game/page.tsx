@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target, CheckCircle2, ChevronLeft, BarChart3, ListOrdered, Edit2 } from 'lucide-react';
+import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target, CheckCircle2, ChevronLeft, BarChart3, ListOrdered, Edit2, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { generateStreetReport } from '@/lib/report-utils';
@@ -102,6 +102,18 @@ export default function NumberGame() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sessionData));
   }, [gameState, players, strikerId, bowlerId, history, consecutiveDots, ballsInOver, isMounted]);
 
+  const handleDownloadReport = () => {
+    const dateStr = new Date().toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const report = generateStreetReport(players, dateStr);
+    const blob = new Blob([report], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CricMates_StreetPro_Session_${Date.now()}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const addSetupField = () => { if (playerNames.length < 15) setPlayerNames([...playerNames, '']); };
   const removeSetupField = (index: number) => { if (playerNames.length > 3) { const n = [...playerNames]; n.splice(index, 1); setPlayerNames(n); } };
 
@@ -162,21 +174,9 @@ export default function NumberGame() {
     toast({ title: "Match Finalized", description: "Session records updated." });
   };
 
-  const handleDownloadReport = () => {
-    const dateStr = new Date().toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const report = generateStreetReport(players, dateStr);
-    const blob = new Blob([report], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `CricMates_StreetPro_Session_${Date.now()}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const resetGame = (fullClear: boolean = false) => {
     if (fullClear) {
-      if (confirm("ERASE ALL SESSION DATA?")) {
+      if (confirm("PERMANENT ACTION: ERASE ALL SESSION DATA AND RESET TO 0?")) {
         localStorage.removeItem(STORAGE_KEY);
         setGameState('setup');
         setPlayers([]);
@@ -319,20 +319,27 @@ export default function NumberGame() {
   const CasualLeagueTable = () => {
     const sessionRankings = [...players].sort((a,b) => b.session.runs - a.session.runs || b.session.wickets - a.session.wickets);
     return (
-      <Card className="border-none shadow-xl overflow-hidden bg-white">
-        <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
-          <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-amber-500" /><span className="text-[10px] font-black uppercase tracking-[0.2em]">Casual League Table</span></div>
-          <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">Season Standings</Badge>
-        </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Participant</TableHead><TableHead className="text-right text-[9px] font-black uppercase">P</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">W</TableHead><TableHead className="text-right text-[9px] font-black uppercase">4/6</TableHead><TableHead className="text-right text-[9px] font-black uppercase">B.B.</TableHead><TableHead className="text-right text-[9px] font-black uppercase">HS</TableHead></TableRow></TableHeader>
-            <TableBody>{sessionRankings.length > 0 ? sessionRankings.map((p, i) => (
-                <TableRow key={p.id}><TableCell className="font-black text-xs uppercase text-slate-900">{p.name}</TableCell><TableCell className="text-right font-bold text-xs">{p.session.matches}</TableCell><TableCell className="text-right font-black text-primary">{p.session.runs}</TableCell><TableCell className="text-right font-black text-secondary">{p.session.wickets}</TableCell><TableCell className="text-right text-[9px] font-bold text-slate-400">{p.session.fours}/{p.session.sixes}</TableCell><TableCell className="text-right text-[10px] font-black text-emerald-600">{p.session.bestBowling.wkts}/{p.session.bestBowling.runs}</TableCell><TableCell className="text-right text-[10px] font-bold text-slate-400">{p.session.highScore}</TableCell></TableRow>
-              )) : <TableRow><TableCell colSpan={7} className="text-center py-12 text-[10px] font-black uppercase text-slate-300">No session history yet</TableCell></TableRow>}</TableBody>
-          </Table>
-        </div>
-      </Card>
+      <div className="space-y-6">
+        <Card className="border-none shadow-xl overflow-hidden bg-white">
+          <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+            <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-amber-500" /><span className="text-[10px] font-black uppercase tracking-[0.2em]">Casual League Table</span></div>
+            <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">Season Standings</Badge>
+          </div>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Participant</TableHead><TableHead className="text-right text-[9px] font-black uppercase">P</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">W</TableHead><TableHead className="text-right text-[9px] font-black uppercase">4/6</TableHead><TableHead className="text-right text-[9px] font-black uppercase">B.B.</TableHead><TableHead className="text-right text-[9px] font-black uppercase">HS</TableHead></TableRow></TableHeader>
+              <TableBody>{sessionRankings.length > 0 ? sessionRankings.map((p, i) => (
+                  <TableRow key={p.id}><TableCell className="font-black text-xs uppercase text-slate-900">{p.name}</TableCell><TableCell className="text-right font-bold text-xs">{p.session.matches}</TableCell><TableCell className="text-right font-black text-primary">{p.session.runs}</TableCell><TableCell className="text-right font-black text-secondary">{p.session.wickets}</TableCell><TableCell className="text-right text-[9px] font-bold text-slate-400">{p.session.fours}/{p.session.sixes}</TableCell><TableCell className="text-right text-[10px] font-black text-emerald-600">{p.session.bestBowling.wkts}/{p.session.bestBowling.runs}</TableCell><TableCell className="text-right text-[10px] font-bold text-slate-400">{p.session.highScore}</TableCell></TableRow>
+                )) : <TableRow><TableCell colSpan={7} className="text-center py-12 text-[10px] font-black uppercase text-slate-300">No session history yet</TableCell></TableRow>}</TableBody>
+            </Table>
+          </div>
+        </Card>
+        {players.length > 0 && (
+          <Button variant="ghost" onClick={() => resetGame(true)} className="w-full h-12 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-destructive border border-dashed hover:border-destructive/20 rounded-2xl transition-all">
+            <Trash2 className="w-4 h-4 mr-2" /> Reset League Data
+          </Button>
+        )}
+      </div>
     );
   };
 
@@ -348,7 +355,13 @@ export default function NumberGame() {
               <CardContent className="space-y-4">{playerNames.map((name, i) => (<div key={i} className="flex gap-2"><div className="flex-1 relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300">#{i + 1}</span><Input value={name} onChange={(e) => { const n = [...playerNames]; n[i] = e.target.value; setPlayerNames(n); }} placeholder={`Player Name`} className="pl-10 font-bold h-12 shadow-sm" /></div>{playerNames.length > 3 && (<Button variant="ghost" size="icon" onClick={() => removeSetupField(i)} className="h-12 w-12 text-slate-300 hover:text-destructive shrink-0"><Trash2 className="w-4 h-4" /></Button>)}</div>))}
                 <Button variant="outline" onClick={addSetupField} className="w-full border-dashed border-2 h-12 text-[10px] font-black uppercase tracking-widest text-slate-400"><Plus className="w-4 h-4 mr-2" /> Add Participant</Button>
                 <Button onClick={startGame} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl group mt-4">START MATCH <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" /></Button>
-                {players.length > 0 && (<Button variant="ghost" onClick={() => resetGame(true)} className="w-full text-xs font-black uppercase tracking-widest text-slate-400 hover:text-destructive">Clear All Session Records</Button>)}
+                {players.length > 0 && (
+                  <div className="pt-4 border-t">
+                    <Button variant="ghost" onClick={() => resetGame(true)} className="w-full text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-destructive flex items-center justify-center gap-2">
+                      <AlertCircle className="w-3 h-3" /> Clear All Session Records
+                    </Button>
+                  </div>
+                )}
               </CardContent></Card>
           </TabsContent>
           <TabsContent value="league"><CasualLeagueTable /></TabsContent>
@@ -414,7 +427,7 @@ export default function NumberGame() {
                 </div>
               </div>
               <div className="flex gap-1">
-                <Button variant="ghost" size="icon" onClick={() => { setEditBall(b); setIsEditBallOpen(true); }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3"/></Button>
+                <Button variant="ghost" size="icon" onClick={() => { setEditingBall(b); setIsEditBallOpen(true); }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3"/></Button>
                 <Button variant="ghost" size="icon" onClick={() => { if(confirm("Purge record?")) deleteBall(b.id); }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>
               </div>
             </Card>
