@@ -34,16 +34,29 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
 
   const getDynamicResult = () => {
     if (match.status !== 'completed') return 'Match in Progress';
-    if (match.isTie) return 'Match Tied';
     
-    // Resolve names from IDs dynamically
-    const winner = getTeam(match.winnerTeamId);
-    if (winner) {
-      const winnerName = formatTeamName(winner.name);
-      const desc = match.resultDescription || '';
-      const suffix = desc.toLowerCase().includes('won by') ? desc.split(/won by/i)[1] : '';
-      return suffix ? `${winnerName} won by ${suffix.trim()}` : `${winnerName} won`;
+    // Recalculate result from actual scores to ensure consistency
+    if (inn1 && inn2) {
+      const s1 = inn1.score || 0;
+      const s2 = inn2.score || 0;
+      const bat1Id = inn1.battingTeamId;
+      const bat2Id = inn2.battingTeamId;
+      
+      if (s1 === s2) return 'Match Tied';
+      
+      const winnerId = s1 > s2 ? bat1Id : bat2Id;
+      const winner = getTeam(winnerId);
+      if (winner) {
+        const winnerName = formatTeamName(winner.name);
+        if (s1 > s2) return `${winnerName} won by ${s1 - s2} runs`;
+        // For wickets, we'd need squad size, but a simple 'won' works as a correct fallback
+        return `${winnerName} won`;
+      }
     }
+
+    if (match.isTie) return 'Match Tied';
+    const winner = getTeam(match.winnerTeamId);
+    if (winner) return `${formatTeamName(winner.name)} won`;
     
     return match.resultDescription || 'Match Completed';
   };
@@ -73,8 +86,8 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
     }
   };
 
-  const renderInningRow = (inningId: 'inning_1' | 'inning_2', teamId: string) => {
-    const inning = inningId === 'inning_1' ? inn1 : inn2;
+  const renderInningRow = (innData: any, fallbackTeamId: string) => {
+    const teamId = innData?.battingTeamId || fallbackTeamId;
     const team = getTeam(teamId);
     
     return (
@@ -85,16 +98,16 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
           </Avatar>
           <Link 
             href={`/teams/${teamId}`} 
-            className="font-black text-sm md:text-lg text-slate-800 tracking-tight hover:text-primary transition-colors leading-tight py-1"
+            className="font-black text-sm text-slate-800 tracking-tight hover:text-primary transition-colors leading-tight py-1"
           >
             {team ? formatTeamName(team.name) : 'Syncing Team...'}
           </Link>
         </div>
         <div className="flex items-baseline gap-2 shrink-0 ml-4">
-          {inning ? (
+          {innData ? (
             <>
-              <span className="font-black text-xl md:text-2xl text-slate-900">{inning.score}/{inning.wickets}</span>
-              <span className="text-[10px] md:text-sm font-bold text-slate-500">({inning.oversCompleted}.{inning.ballsInCurrentOver || 0})</span>
+              <span className="font-black text-xl text-slate-900">{innData.score}/{innData.wickets}</span>
+              <span className="text-[10px] font-bold text-slate-500">({innData.oversCompleted}.{innData.ballsInCurrentOver || 0})</span>
             </>
           ) : (
             <span className="text-[10px] font-bold text-slate-300 uppercase animate-pulse">Wait...</span>
@@ -136,8 +149,8 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
           )}
         </div>
         <div className="space-y-0 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-          {renderInningRow('inning_1', match.team1Id)}
-          {renderInningRow('inning_2', match.team2Id)}
+          {renderInningRow(inn1, match.team1Id)}
+          {renderInningRow(inn2, match.team2Id)}
         </div>
         <div className="flex gap-2 mt-4">
           <Button asChild className="flex-1 bg-primary font-bold h-10 shadow-sm"><Link href={`/match/${match.id}`}>Scorecard</Link></Button>
