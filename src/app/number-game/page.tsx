@@ -9,8 +9,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target, CheckCircle2, ChevronLeft } from 'lucide-react';
+import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target, CheckCircle2, ChevronLeft, BarChart3, ListOrdered } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { generateStreetReport } from '@/lib/report-utils';
@@ -37,9 +38,15 @@ interface Player {
     maidens: number;
     bestWickets: number;
   };
+  session: {
+    matches: number;
+    runs: number;
+    wickets: number;
+    highScore: number;
+  };
 }
 
-const STORAGE_KEY = 'cricmates_street_pro_session_v2';
+const STORAGE_KEY = 'cricmates_street_pro_session_v3';
 
 export default function NumberGame() {
   const router = useRouter();
@@ -73,7 +80,7 @@ export default function NumberGame() {
         setHistory(d.history);
         setConsecutiveDots(d.consecutiveDots || 0);
         setBallsInOver(d.ballsInOver || 0);
-        if (d.players && d.players.length > 0) {
+        if (d.players && d.players.length > 0 && d.gameState === 'setup') {
           setPlayerNames(d.players.map((p: any) => p.name));
         }
       } catch (e) {
@@ -116,13 +123,18 @@ export default function NumberGame() {
       return;
     }
 
-    const initialPlayers: Player[] = validNames.map((name, i) => ({
-      id: `p-${i}-${Date.now()}`,
-      name,
-      order: i + 1,
-      batting: { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', fielderId: '', highScore: 0 },
-      bowling: { balls: 0, runs: 0, wickets: 0, maidens: 0, bestWickets: 0 }
-    }));
+    const initialPlayers: Player[] = validNames.map((name, i) => {
+      // Check if player already exists in session to preserve stats
+      const existing = players.find(p => p.name.toLowerCase() === name.toLowerCase());
+      return {
+        id: existing?.id || `p-${i}-${Date.now()}`,
+        name,
+        order: i + 1,
+        batting: { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', fielderId: '', highScore: 0 },
+        bowling: { balls: 0, runs: 0, wickets: 0, maidens: 0, bestWickets: 0 },
+        session: existing?.session || { matches: 0, runs: 0, wickets: 0, highScore: 0 }
+      };
+    });
 
     setPlayers(initialPlayers);
     setStrikerId(initialPlayers[0].id);
@@ -133,30 +145,57 @@ export default function NumberGame() {
     setBallsInOver(0);
   };
 
-  const resetGame = () => {
+  const finalizeMatch = () => {
+    // Add current stats to session stats
+    const updatedPlayers = players.map(p => ({
+      ...p,
+      session: {
+        matches: p.session.matches + 1,
+        runs: p.session.runs + p.batting.runs,
+        wickets: p.session.wickets + p.bowling.wickets,
+        highScore: Math.max(p.session.highScore, p.batting.runs)
+      }
+    }));
+    setPlayers(updatedPlayers);
+    setGameState('finished');
+    toast({ title: "Match Finalized", description: "Session records updated." });
+  };
+
+  const resetGame = (fullClear: boolean = false) => {
+    if (fullClear) {
+      if (confirm("ERASE ALL SESSION DATA? This cannot be undone.")) {
+        localStorage.removeItem(STORAGE_KEY);
+        setGameState('setup');
+        setPlayers([]);
+        setHistory([]);
+        setPlayerNames(['', '', '']);
+        setConsecutiveDots(0);
+        setBallsInOver(0);
+        toast({ title: "Session Wiped" });
+      }
+      return;
+    }
+
     const confirmMsg = gameState === 'finished' 
-      ? "Start new match with players sorted by performance?" 
-      : "Reset match? This will clear all persistent scoring data.";
+      ? "Start new match with current players?" 
+      : "Reset current match stats?";
 
     if (confirm(confirmMsg)) {
-      let nextNames = ['', '', ''];
+      let nextNames = playerNames;
       
       if (players.length > 0) {
-        // Sort by runs (desc) for the next setup
-        const sorted = [...players].sort((a, b) => b.batting.runs - a.batting.runs);
+        const sorted = [...players].sort((a, b) => b.session.runs - a.session.runs);
         nextNames = sorted.map(p => p.name);
       }
 
-      localStorage.removeItem(STORAGE_KEY);
       setGameState('setup');
-      setPlayers([]);
       setHistory([]);
       setPlayerNames(nextNames);
       setConsecutiveDots(0);
       setBallsInOver(0);
       
       if (gameState === 'finished') {
-        toast({ title: "Order Updated", description: "Players sorted by runs scored in previous game." });
+        toast({ title: "Ready for Next Game", description: "Lineup sorted by session runs." });
       }
     }
   };
@@ -166,7 +205,6 @@ export default function NumberGame() {
     let nextIndex = index - 1;
     if (nextIndex < 0) nextIndex = players.length - 1;
     
-    // Skip the current striker to prevent self-bowling
     if (players[nextIndex].id === currentStrikerId) {
       nextIndex = nextIndex - 1;
       if (nextIndex < 0) nextIndex = players.length - 1;
@@ -345,10 +383,58 @@ export default function NumberGame() {
     a.href = url;
     a.download = `CricMates_StreetPro_${Date.now()}.html`;
     a.click();
-    toast({ title: "Report Downloaded", description: "The official scorecard is ready." });
+    toast({ title: "Report Downloaded" });
   };
 
   if (!isMounted) return null;
+
+  const CasualLeagueTable = () => {
+    const sessionRankings = [...players].sort((a,b) => b.session.runs - a.session.runs || b.session.wickets - a.session.wickets);
+    
+    return (
+      <Card className="border-none shadow-xl overflow-hidden bg-white">
+        <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-amber-500" />
+            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Casual League Table</span>
+          </div>
+          <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">Season Standings</Badge>
+        </div>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className="bg-slate-50">
+              <TableRow>
+                <TableHead className="text-[9px] font-black uppercase w-8">#</TableHead>
+                <TableHead className="text-[9px] font-black uppercase">Participant</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase">P</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase">R</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase">W</TableHead>
+                <TableHead className="text-right text-[9px] font-black uppercase">HS</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sessionRankings.length > 0 ? sessionRankings.map((p, i) => (
+                <TableRow key={p.id}>
+                  <TableCell className="text-[10px] font-black text-slate-400">{i + 1}</TableCell>
+                  <TableCell className="font-black text-xs uppercase text-slate-900">{p.name}</TableCell>
+                  <TableCell className="text-right font-bold text-xs">{p.session.matches}</TableCell>
+                  <TableCell className="text-right font-black text-primary">{p.session.runs}</TableCell>
+                  <TableCell className="text-right font-black text-secondary">{p.session.wickets}</TableCell>
+                  <TableCell className="text-right text-[10px] font-bold text-slate-400">{p.session.highScore}</TableCell>
+                </TableRow>
+              )) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-12">
+                    <p className="text-[10px] font-black uppercase text-slate-300">No session history yet</p>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
+    );
+  };
 
   if (gameState === 'setup') {
     return (
@@ -360,53 +446,72 @@ export default function NumberGame() {
           <h1 className="text-xl font-black uppercase tracking-widest text-slate-900">Street Session</h1>
         </div>
 
-        <div className="text-center space-y-2">
-          <div className="bg-primary w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg rotate-3">
-            <Hash className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Street Pro Setup</h1>
-          <p className="text-slate-500 text-sm font-medium italic">Persistent Casual Scoring</p>
-        </div>
+        <Tabs defaultValue="registry" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 h-12 bg-slate-100 p-1 rounded-xl mb-6">
+            <TabsTrigger value="registry" className="font-black text-[10px] uppercase">Registry</TabsTrigger>
+            <TabsTrigger value="league" className="font-black text-[10px] uppercase">League Table</TabsTrigger>
+          </TabsList>
 
-        <Card className="border-t-8 border-t-primary shadow-xl">
-          <CardHeader>
-            <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-400">Player Registry (3-15 participants)</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {playerNames.map((name, i) => (
-              <div key={i} className="flex gap-2">
-                <div className="flex-1 relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300">#{i + 1}</span>
-                  <Input 
-                    value={name} 
-                    onChange={(e) => {
-                      const n = [...playerNames];
-                      n[i] = e.target.value;
-                      setPlayerNames(n);
-                    }}
-                    placeholder={`Player Name`}
-                    className="pl-10 font-bold h-12"
-                  />
-                </div>
-                {playerNames.length > 3 && (
-                  <Button variant="ghost" size="icon" onClick={() => removeSetupField(i)} className="h-12 w-12 text-slate-300 hover:text-destructive shrink-0">
-                    <Trash2 className="w-4 h-4" />
+          <TabsContent value="registry" className="space-y-6">
+            <div className="text-center space-y-2">
+              <div className="bg-primary w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg rotate-3">
+                <Hash className="w-8 h-8 text-white" />
+              </div>
+              <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Street Pro Setup</h1>
+              <p className="text-slate-500 text-sm font-medium italic">Persistent Casual Scoring</p>
+            </div>
+
+            <Card className="border-t-8 border-t-primary shadow-xl">
+              <CardHeader>
+                <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-400">Lineup Registry (3-15 players)</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {playerNames.map((name, i) => (
+                  <div key={i} className="flex gap-2">
+                    <div className="flex-1 relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-300">#{i + 1}</span>
+                      <Input 
+                        value={name} 
+                        onChange={(e) => {
+                          const n = [...playerNames];
+                          n[i] = e.target.value;
+                          setPlayerNames(n);
+                        }}
+                        placeholder={`Player Name`}
+                        className="pl-10 font-bold h-12 shadow-sm"
+                      />
+                    </div>
+                    {playerNames.length > 3 && (
+                      <Button variant="ghost" size="icon" onClick={() => removeSetupField(i)} className="h-12 w-12 text-slate-300 hover:text-destructive shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                
+                {playerNames.length < 15 && (
+                  <Button variant="outline" onClick={addSetupField} className="w-full border-dashed border-2 h-12 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <Plus className="w-4 h-4 mr-2" /> Add Participant
                   </Button>
                 )}
-              </div>
-            ))}
-            
-            {playerNames.length < 15 && (
-              <Button variant="outline" onClick={addSetupField} className="w-full border-dashed border-2 h-12 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                <Plus className="w-4 h-4 mr-2" /> Add Participant
-              </Button>
-            )}
 
-            <Button onClick={startGame} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl group mt-4">
-              START GAME <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
-            </Button>
-          </CardContent>
-        </Card>
+                <Button onClick={startGame} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl group mt-4">
+                  START MATCH <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" />
+                </Button>
+                
+                {players.length > 0 && (
+                  <Button variant="ghost" onClick={() => resetGame(true)} className="w-full text-xs font-black uppercase tracking-widest text-slate-400 hover:text-destructive">
+                    Clear Session Records
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="league">
+            <CasualLeagueTable />
+          </TabsContent>
+        </Tabs>
       </div>
     );
   }
@@ -425,45 +530,24 @@ export default function NumberGame() {
         <div className="bg-emerald-500 w-20 h-20 rounded-full flex items-center justify-center mx-auto shadow-xl mb-4">
           <Trophy className="w-10 h-10 text-white" />
         </div>
-        <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-900">Session Complete</h1>
-        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Official Records Validated</p>
+        <h1 className="text-4xl font-black uppercase tracking-tighter text-slate-900">Game Over</h1>
+        <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Session Records Updated</p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-lg mx-auto">
           <Button onClick={handleDownloadReport} className="h-16 font-black uppercase tracking-widest text-lg shadow-xl bg-secondary hover:bg-secondary/90 text-white">
             <Download className="w-6 h-6 mr-2" /> Download Report
           </Button>
-          <Button onClick={resetGame} variant="outline" className="h-16 font-black uppercase tracking-widest text-lg border-2 border-primary text-primary">
-            <RotateCcw className="w-6 h-6 mr-2" /> Start New Match
+          <Button onClick={() => resetGame(false)} variant="outline" className="h-16 font-black uppercase tracking-widest text-lg border-2 border-primary text-primary">
+            <RotateCcw className="w-6 h-6 mr-2" /> Start Next Match
           </Button>
         </div>
 
-        <Card className="max-w-2xl mx-auto border-none shadow-lg mt-8 overflow-hidden">
-          <div className="bg-slate-50 px-4 py-3 border-b text-left">
-            <span className="text-[10px] font-black uppercase text-slate-500">Tournament Leaderboard</span>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-slate-50/50">
-                <TableRow>
-                  <TableHead className="text-[9px] font-black uppercase">Participant</TableHead>
-                  <TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead>
-                  <TableHead className="text-right text-[9px] font-black uppercase">Wkts</TableHead>
-                  <TableHead className="text-right text-[9px] font-black uppercase">B.S.</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[...players].sort((a, b) => b.batting.runs - a.batting.runs).map(p => (
-                  <TableRow key={p.id}>
-                    <TableCell className="text-left font-black text-xs uppercase py-4">{p.name}</TableCell>
-                    <TableCell className="text-right font-black text-primary">{p.batting.runs}</TableCell>
-                    <TableCell className="text-right font-black text-secondary">{p.bowling.wickets}</TableCell>
-                    <TableCell className="text-right font-bold text-slate-400 text-xs">{p.batting.highScore}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+        <div className="mt-12 space-y-6">
+          <h2 className="text-xl font-black uppercase tracking-widest text-slate-900 flex items-center justify-center gap-2">
+            <ListOrdered className="w-5 h-5 text-primary" /> Session Rankings
+          </h2>
+          <CasualLeagueTable />
+        </div>
       </div>
     );
   }
@@ -471,136 +555,144 @@ export default function NumberGame() {
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-24 px-1 md:px-4">
       <div className="flex items-center gap-4 mb-2">
-        <Button variant="ghost" size="icon" onClick={() => { if(confirm("Discard current game?")) setGameState('setup'); }} className="text-slate-400 hover:bg-slate-100 rounded-full">
+        <Button variant="ghost" size="icon" onClick={() => { if(confirm("Discard current game? Session stats will NOT update.")) setGameState('setup'); }} className="text-slate-400 hover:bg-slate-100 rounded-full">
           <ChevronLeft className="w-6 h-6" />
         </Button>
-        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Live Street Pro v2.0</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Live Street Pro v3.0</span>
       </div>
 
-      <Card className={cn("border-none shadow-2xl transition-all overflow-hidden", activeStriker?.batting.out ? "ring-4 ring-destructive" : "ring-4 ring-primary")}>
-        <div className="bg-slate-900 text-white p-6 md:p-8 space-y-6">
-          <div className="flex flex-col md:flex-row justify-between items-start gap-6">
-            <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary flex items-center gap-2">
-                <UserCircle className="w-3 h-3"/> Active Striker
-              </p>
-              <h2 className="text-3xl font-black uppercase tracking-tighter">{activeStriker?.name}</h2>
-              <div className="flex gap-4">
-                <span className="text-xl font-bold">{activeStriker?.batting.runs} <span className="text-xs opacity-50 font-medium">Runs</span></span>
-                <span className="text-xl font-bold">{activeStriker?.batting.balls} <span className="text-xs opacity-50 font-medium">Balls</span></span>
+      <Tabs defaultValue="scoring" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 h-12 bg-slate-100 p-1 rounded-xl mb-6 shadow-sm">
+          <TabsTrigger value="scoring" className="font-black text-[10px] uppercase">Live Scoring</TabsTrigger>
+          <TabsTrigger value="league" className="font-black text-[10px] uppercase">League Standings</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="scoring" className="space-y-6 animate-in fade-in">
+          <Card className={cn("border-none shadow-2xl transition-all overflow-hidden", activeStriker?.batting.out ? "ring-4 ring-destructive" : "ring-4 ring-primary")}>
+            <div className="bg-slate-900 text-white p-6 md:p-8 space-y-6">
+              <div className="flex flex-col md:flex-row justify-between items-start gap-6">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-primary flex items-center gap-2">
+                    <UserCircle className="w-3 h-3"/> Active Striker
+                  </p>
+                  <h2 className="text-3xl font-black uppercase tracking-tighter">{activeStriker?.name}</h2>
+                  <div className="flex gap-4">
+                    <span className="text-xl font-bold">{activeStriker?.batting.runs} <span className="text-xs opacity-50 font-medium uppercase">Runs</span></span>
+                    <span className="text-xl font-bold">{activeStriker?.batting.balls} <span className="text-xs opacity-50 font-medium uppercase">Balls</span></span>
+                  </div>
+                </div>
+                <div className="text-left md:text-right space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary flex items-center md:justify-end gap-2">
+                    <Zap className="w-3 h-3"/> Active Bowler
+                  </p>
+                  <h2 className="text-xl font-black uppercase tracking-tighter text-slate-300">{activeBowler?.name}</h2>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase">Over Progress: {ballsInOver}/6 Legal</p>
+                </div>
               </div>
-            </div>
-            <div className="text-left md:text-right space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary flex items-center md:justify-end gap-2">
-                <Zap className="w-3 h-3"/> Active Bowler
-              </p>
-              <h2 className="text-xl font-black uppercase tracking-tighter text-slate-300">{activeBowler?.name}</h2>
-              <p className="text-xs font-bold text-slate-500 uppercase">Over Progress: {ballsInOver}/6 Legal</p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-2 bg-white/5 p-3 rounded-lg border border-white/10 w-fit">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className={cn("w-4 h-4 rounded-full border-2", i < consecutiveDots ? "bg-red-500 border-red-600 animate-pulse shadow-[0_0_10px_#ef4444]" : "border-slate-700")} />
-            ))}
-            <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-2">3-Dots Warning</span>
-          </div>
-
-          {!activeStriker?.batting.out ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-                {[0, 1, 2, 3, 4, 6].map(r => (
-                  <Button key={r} onClick={() => handleScore(r)} className={cn("h-12 md:h-14 font-black text-lg bg-white/5 border border-white/10 hover:bg-primary transition-all", r >= 4 ? "text-primary border-primary/40" : "text-white")}>
-                    {r === 0 ? "•" : r}
-                  </Button>
+              <div className="flex items-center gap-2 bg-white/5 p-3 rounded-lg border border-white/10 w-fit">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className={cn("w-4 h-4 rounded-full border-2", i < consecutiveDots ? "bg-red-500 border-red-600 animate-pulse shadow-[0_0_10px_#ef4444]" : "border-slate-700")} />
                 ))}
-                <Button variant="destructive" onClick={() => setIsWicketOpen(true)} className="h-12 md:h-14 font-black text-[10px] uppercase shadow-lg">Wicket</Button>
+                <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-2">3-Dots Streak</span>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <Button variant="outline" onClick={() => handleScore(1, 'wide')} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">Wide</Button>
-                <Button variant="outline" onClick={() => setIsNoBallOpen(true)} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">No Ball</Button>
-                <Button variant="outline" onClick={undoLastAction} disabled={history.length === 0} className="h-10 border-white/20 text-white font-black text-[10px] uppercase"><Undo2 className="w-3 h-3 mr-1"/> Undo Ball</Button>
-              </div>
-            </div>
-          ) : (
-            <div className="p-6 bg-destructive/10 border-2 border-dashed border-destructive/30 rounded-xl text-center space-y-4 animate-in zoom-in-95">
-              <p className="text-lg font-black text-destructive uppercase italic">Dismissed: {activeStriker?.batting.dismissal}</p>
-              <div className="max-w-xs mx-auto space-y-2 text-left">
-                <Label className="text-[10px] font-black uppercase text-slate-400">Assign Successor</Label>
-                <Select value="" onValueChange={handleSelectNextBatter}>
-                  <SelectTrigger className="bg-white text-slate-900 font-bold h-12">
-                    <SelectValue placeholder="Pick next batter..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {players.filter(p => !p.batting.out && p.id !== strikerId).map(p => (
-                      <SelectItem key={p.id} value={p.id} className="font-bold">#{p.order} - {p.name}</SelectItem>
+
+              {!activeStriker?.batting.out ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                    {[0, 1, 2, 3, 4, 6].map(r => (
+                      <Button key={r} onClick={() => handleScore(r)} className={cn("h-12 md:h-14 font-black text-lg bg-white/5 border border-white/10 hover:bg-primary transition-all", r >= 4 ? "text-primary border-primary/40" : "text-white")}>
+                        {r === 0 ? "•" : r}
+                      </Button>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                    <Button variant="destructive" onClick={() => setIsWicketOpen(true)} className="h-12 md:h-14 font-black text-[10px] uppercase shadow-lg">Wicket</Button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button variant="outline" onClick={() => handleScore(1, 'wide')} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">Wide</Button>
+                    <Button variant="outline" onClick={() => setIsNoBallOpen(true)} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">No Ball</Button>
+                    <Button variant="outline" onClick={undoLastAction} disabled={history.length === 0} className="h-10 border-white/20 text-white font-black text-[10px] uppercase"><Undo2 className="w-3 h-3 mr-1"/> Undo Ball</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 bg-destructive/10 border-2 border-dashed border-destructive/30 rounded-xl text-center space-y-4 animate-in zoom-in-95">
+                  <p className="text-lg font-black text-destructive uppercase italic">Dismissed: {activeStriker?.batting.dismissal}</p>
+                  <div className="max-w-xs mx-auto space-y-2 text-left">
+                    <Label className="text-[10px] font-black uppercase text-slate-400">Assign Successor</Label>
+                    <Select value="" onValueChange={handleSelectNextBatter}>
+                      <SelectTrigger className="bg-white text-slate-900 font-bold h-12">
+                        <SelectValue placeholder="Pick next batter..." />
+                      </SelectTrigger>
+                      <SelectContent className="z-[200]">
+                        {players.filter(p => !p.batting.out && p.id !== strikerId).map(p => (
+                          <SelectItem key={p.id} value={p.id} className="font-bold">#{p.order} - {p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </Card>
+          </Card>
 
-      <div className="flex gap-2">
-        <Button onClick={() => setIsAddPlayerOpen(true)} variant="secondary" className="flex-1 font-black uppercase text-[10px] h-12 shadow-md">
-          <UserPlus className="w-4 h-4 mr-2" /> Join Mid-Game
-        </Button>
-        <Button onClick={() => setGameState('finished')} variant="default" className="flex-1 font-black uppercase text-[10px] h-12 shadow-md bg-emerald-600 hover:bg-emerald-700">
-          <CheckCircle2 className="w-4 h-4 mr-2" /> Finalize Session
-        </Button>
-        <Button onClick={resetGame} variant="outline" size="icon" className="h-12 w-12 text-slate-400 hover:text-destructive">
-          <Trash2 className="w-4 h-4" />
-        </Button>
-      </div>
-
-      <div className="space-y-6">
-        <Card className="rounded-xl overflow-hidden shadow-sm border bg-white">
-          <div className="bg-slate-50 px-4 py-3 border-b flex justify-between items-center">
-            <span className="text-[10px] font-black uppercase text-slate-500">Live Player Statistics</span>
-            <Badge variant="outline" className="text-[8px] font-black uppercase text-primary border-primary/20">STREET PRO v2.0</Badge>
+          <div className="flex gap-2">
+            <Button onClick={() => setIsAddPlayerOpen(true)} variant="secondary" className="flex-1 font-black uppercase text-[10px] h-12 shadow-md">
+              <UserPlus className="w-4 h-4 mr-2" /> Mid-Game Add
+            </Button>
+            <Button onClick={finalizeMatch} variant="default" className="flex-1 font-black uppercase text-[10px] h-12 shadow-md bg-emerald-600 hover:bg-emerald-700">
+              <CheckCircle2 className="w-4 h-4 mr-2" /> Finalize Match
+            </Button>
           </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-slate-50/50">
-                <TableRow>
-                  <TableHead className="text-[9px] font-black uppercase">Participant</TableHead>
-                  <TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead>
-                  <TableHead className="text-right text-[9px] font-black uppercase">Balls</TableHead>
-                  <TableHead className="text-right text-[9px] font-black uppercase">Wkts</TableHead>
-                  <TableHead className="text-right text-[9px] font-black uppercase">Econ</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {players.map(p => (
-                  <TableRow key={p.id} className={cn(p.id === strikerId ? "bg-primary/5" : "")}>
-                    <TableCell className="py-3">
-                      <p className="font-black text-xs uppercase">{p.name}{p.id === strikerId ? "*" : ""}</p>
-                      <p className={cn("text-[8px] font-bold uppercase italic", p.batting.out ? "text-destructive" : "text-slate-400")}>
-                        {p.batting.out ? `OUT (${p.batting.dismissal})` : 'Active'}
-                      </p>
-                    </TableCell>
-                    <TableCell className="text-right font-black">{p.batting.runs}</TableCell>
-                    <TableCell className="text-right text-xs">{p.batting.balls}</TableCell>
-                    <TableCell className="text-right font-black text-primary">{p.bowling.wickets}</TableCell>
-                    <TableCell className="text-right text-[10px] font-bold text-slate-400">
-                      {p.bowling.balls > 0 ? (p.bowling.runs / (p.bowling.balls / 6)).toFixed(2) : '0.00'}
-                    </TableCell>
+
+          <Card className="rounded-xl overflow-hidden shadow-sm border bg-white">
+            <div className="bg-slate-50 px-4 py-3 border-b flex justify-between items-center">
+              <span className="text-[10px] font-black uppercase text-slate-500">Current Match Statistics</span>
+              <Badge variant="outline" className="text-[8px] font-black uppercase text-primary border-primary/20">LIVE STATS</Badge>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-slate-50/50">
+                  <TableRow>
+                    <TableHead className="text-[9px] font-black uppercase">Participant</TableHead>
+                    <TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead>
+                    <TableHead className="text-right text-[9px] font-black uppercase">Balls</TableHead>
+                    <TableHead className="text-right text-[9px] font-black uppercase">Wkts</TableHead>
+                    <TableHead className="text-right text-[9px] font-black uppercase">ER</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
-      </div>
+                </TableHeader>
+                <TableBody>
+                  {players.map(p => (
+                    <TableRow key={p.id} className={cn(p.id === strikerId ? "bg-primary/5" : "")}>
+                      <TableCell className="py-3">
+                        <p className="font-black text-xs uppercase">{p.name}{p.id === strikerId ? "*" : ""}</p>
+                        <p className={cn("text-[8px] font-bold uppercase italic", p.batting.out ? "text-destructive" : "text-slate-400")}>
+                          {p.batting.out ? `OUT (${p.batting.dismissal})` : 'Active'}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-right font-black">{p.batting.runs}</TableCell>
+                      <TableCell className="text-right text-xs">{p.batting.balls}</TableCell>
+                      <TableCell className="text-right font-black text-primary">{p.bowling.wickets}</TableCell>
+                      <TableCell className="text-right text-[10px] font-bold text-slate-400">
+                        {p.bowling.balls > 0 ? (p.bowling.runs / (p.bowling.balls / 6)).toFixed(2) : '0.00'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="league">
+          <CasualLeagueTable />
+        </TabsContent>
+      </Tabs>
 
       {/* Dialogs */}
       <Dialog open={isNoBallOpen} onOpenChange={setIsNoBallOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-amber-500">
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-amber-500 z-[200]">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-tight text-amber-600">No Ball Results</DialogTitle>
-            <DialogDescription className="font-bold uppercase text-[10px]">Select runs scored on this illegal delivery</DialogDescription>
+            <DialogDescription className="font-bold uppercase text-[10px]">Runs scored on this illegal delivery</DialogDescription>
           </DialogHeader>
           <div className="grid grid-cols-3 gap-2 py-4">
             {[0, 1, 2, 4, 6].map(r => (
@@ -611,10 +703,10 @@ export default function NumberGame() {
       </Dialog>
 
       <Dialog open={isWicketOpen} onOpenChange={setIsWicketOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-destructive">
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-destructive z-[200]">
           <DialogHeader>
             <DialogTitle className="font-black uppercase tracking-tight text-destructive">Register Out</DialogTitle>
-            <DialogDescription className="text-xs">Select dismissal mode for {activeStriker?.name}</DialogDescription>
+            <DialogDescription className="text-xs uppercase font-bold">Select dismissal mode for {activeStriker?.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-1">
@@ -623,25 +715,25 @@ export default function NumberGame() {
                 <SelectTrigger className="font-bold h-12">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[250]">
                   <SelectItem value="caught" className="font-bold">Caught</SelectItem>
                   <SelectItem value="bowled" className="font-bold">Bowled</SelectItem>
                   <SelectItem value="runout" className="font-bold">Run Out</SelectItem>
                   <SelectItem value="stumped" className="font-bold">Stumped</SelectItem>
-                  <SelectItem value="3-Dots Streak" className="font-bold text-destructive">3-Dots Rule</SelectItem>
+                  <SelectItem value="3-Dots Streak" className="font-bold text-destructive">3-Dots Streak</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="destructive" onClick={() => handleWicket(wicketForm.type)} className="w-full h-14 font-black uppercase shadow-xl">Confirm Wicket</Button>
+            <Button variant="destructive" onClick={() => handleWicket(wicketForm.type)} className="w-full h-14 font-black uppercase shadow-xl">Confirm Out</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
-        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-secondary">
-          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Add New Participant</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-secondary z-[200]">
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Add Mid-Game Player</DialogTitle></DialogHeader>
           <div className="py-4"><Input value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} placeholder="Player Full Name" className="font-bold h-12" /></div>
           <DialogFooter><Button onClick={() => {
             if (!newPlayerName.trim()) return;
@@ -650,13 +742,14 @@ export default function NumberGame() {
               name: newPlayerName,
               order: players.length + 1,
               batting: { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', fielderId: '', highScore: 0 },
-              bowling: { balls: 0, runs: 0, wickets: 0, maidens: 0, bestWickets: 0 }
+              bowling: { balls: 0, runs: 0, wickets: 0, maidens: 0, bestWickets: 0 },
+              session: { matches: 0, runs: 0, wickets: 0, highScore: 0 }
             };
             setPlayers([...players, newP]);
             setNewPlayerName('');
             setIsAddPlayerOpen(false);
-            toast({ title: "Player Joined Session" });
-          }} className="w-full h-14 font-black uppercase bg-secondary text-white">Join Game</Button></DialogFooter>
+            toast({ title: "Player Joined League" });
+          }} className="w-full h-14 font-black uppercase bg-secondary text-white shadow-lg">Join Session</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
