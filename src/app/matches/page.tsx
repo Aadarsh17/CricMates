@@ -39,25 +39,25 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
     if (inn1 && inn2) {
       const s1 = inn1.score || 0;
       const s2 = inn2.score || 0;
-      const bat1Id = inn1.battingTeamId;
-      const bat2Id = inn2.battingTeamId;
+      const w2 = inn2.wickets || 0;
+      const bat1Id = inn1.battingTeamId || match.team1Id;
+      const bat2Id = inn2.battingTeamId || (bat1Id === match.team1Id ? match.team2Id : match.team1Id);
       
       if (s1 === s2) return 'Match Tied';
       
-      const winnerId = s1 > s2 ? bat1Id : bat2Id;
-      const winner = getTeam(winnerId);
-      if (winner) {
-        const winnerName = formatTeamName(winner.name);
-        if (s1 > s2) return `${winnerName} won by ${s1 - s2} runs`;
-        // For wickets, we'd need squad size, but a simple 'won' works as a correct fallback
-        return `${winnerName} won`;
+      if (s1 > s2) {
+        const winner = getTeam(bat1Id);
+        return winner ? `${formatTeamName(winner.name)} won by ${s1 - s2} runs` : 'Match Completed';
+      } else {
+        const winner = getTeam(bat2Id);
+        const winningTeamSquad = winner?.id === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
+        const squadSize = winningTeamSquad?.length || 11;
+        const maxWicketsPossible = squadSize - 1;
+        const wicketsLeft = Math.max(0, maxWicketsPossible - w2);
+        return winner ? `${formatTeamName(winner.name)} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}` : 'Match Completed';
       }
     }
 
-    if (match.isTie) return 'Match Tied';
-    const winner = getTeam(match.winnerTeamId);
-    if (winner) return `${formatTeamName(winner.name)} won`;
-    
     return match.resultDescription || 'Match Completed';
   };
 
@@ -117,6 +117,9 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
     );
   };
 
+  const row1TeamId = inn1?.battingTeamId || match.team1Id;
+  const row2TeamId = inn2?.battingTeamId || (row1TeamId === match.team1Id ? match.team2Id : match.team1Id);
+
   return (
     <Card className="border shadow-sm bg-white overflow-hidden group relative border-l-4 border-l-primary rounded-xl">
       <div className="p-5">
@@ -149,8 +152,8 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
           )}
         </div>
         <div className="space-y-0 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-          {renderInningRow(inn1, match.team1Id)}
-          {renderInningRow(inn2, match.team2Id)}
+          {renderInningRow(inn1, row1TeamId)}
+          {renderInningRow(inn2, row2TeamId)}
         </div>
         <div className="flex gap-2 mt-4">
           <Button asChild className="flex-1 bg-primary font-bold h-10 shadow-sm"><Link href={`/match/${match.id}`}>Scorecard</Link></Button>
@@ -177,7 +180,6 @@ export default function MatchHistoryPage() {
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: teams = [] } = useCollection(teamsQuery);
 
-  // Filter matches: Only show matches where both teams exist in the current registry (Removes Ghost Data)
   const filteredMatches = useMemo(() => {
     if (!matches || !teams || teams.length === 0) return matches || [];
     const teamIds = new Set(teams.map(t => t.id));

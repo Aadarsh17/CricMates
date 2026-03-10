@@ -96,8 +96,18 @@ export default function MatchScoreboardPage() {
   const inn1WithLabels = useMemo(() => processDeliveriesWithLabels(inn1Deliveries), [inn1Deliveries]);
   const inn2WithLabels = useMemo(() => processDeliveriesWithLabels(inn2Deliveries), [inn2Deliveries]);
 
-  const stats1 = useMemo(() => getExtendedInningStats(inn1Deliveries || [], match?.team1SquadPlayerIds || []), [inn1Deliveries, match?.team1SquadPlayerIds]);
-  const stats2 = useMemo(() => getExtendedInningStats(inn2Deliveries || [], match?.team2SquadPlayerIds || []), [inn2Deliveries, match?.team2SquadPlayerIds]);
+  // Squad selection must match the team batting in that inning
+  const stats1 = useMemo(() => {
+    const batTeamId = inn1?.battingTeamId || match?.team1Id;
+    const squad = batTeamId === match?.team1Id ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds;
+    return getExtendedInningStats(inn1Deliveries || [], squad || []);
+  }, [inn1Deliveries, inn1?.battingTeamId, match]);
+
+  const stats2 = useMemo(() => {
+    const batTeamId = inn2?.battingTeamId || (match?.team1Id === inn1?.battingTeamId ? match?.team2Id : match?.team1Id);
+    const squad = batTeamId === match?.team1Id ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds;
+    return getExtendedInningStats(inn2Deliveries || [], squad || []);
+  }, [inn2Deliveries, inn2?.battingTeamId, inn1?.battingTeamId, match]);
 
   const getPlayerName = (pid: string) => {
     const p = allPlayers?.find(p => p.id === pid);
@@ -209,7 +219,7 @@ export default function MatchScoreboardPage() {
     const s2 = stats2.total;
     const w2 = stats2.wickets;
     const bat1Id = inn1?.battingTeamId || match?.team1Id;
-    const bat2Id = inn2?.battingTeamId || match?.team2Id;
+    const bat2Id = inn2?.battingTeamId || (bat1Id === match?.team1Id ? match?.team2Id : match?.team1Id);
     
     let result = "Match Completed";
     let winnerId = "";
@@ -222,8 +232,9 @@ export default function MatchScoreboardPage() {
     } else if (s2 > s1) {
       winnerId = bat2Id;
       const winnerName = getTeamName(bat2Id || '');
-      const squadSize = bat2Id === match?.team1Id ? match?.team1SquadPlayerIds?.length : match?.team2SquadPlayerIds?.length;
-      const maxWicketsPossible = (squadSize || 11) - 1;
+      const winningTeamSquad = winnerId === match?.team1Id ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds;
+      const squadSize = winningTeamSquad?.length || 11;
+      const maxWicketsPossible = squadSize - 1;
       const wicketsLeft = Math.max(0, maxWicketsPossible - w2);
       result = `${winnerName} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
     } else {
@@ -365,6 +376,9 @@ export default function MatchScoreboardPage() {
 
   if (!isMounted || isMatchLoading) return <div className="flex flex-col items-center justify-center min-h-screen"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
+  const row1TeamId = inn1?.battingTeamId || match?.team1Id;
+  const row2TeamId = inn2?.battingTeamId || (row1TeamId === match?.team1Id ? match?.team2Id : match?.team1Id);
+
   return (
     <div className="space-y-6 max-w-lg mx-auto pb-32 relative px-1">
       <div className="fixed top-16 left-0 right-0 z-[90] bg-white text-slate-950 shadow-2xl px-6 py-4 border-b-4 border-slate-300">
@@ -372,12 +386,12 @@ export default function MatchScoreboardPage() {
           <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="text-slate-950 hover:bg-slate-100 h-8 w-8 shrink-0"><ChevronLeft className="w-6 h-6" /></Button>
           <div className="space-y-1 flex-1">
             <div className="flex items-center gap-3">
-              <span className="font-black uppercase text-[11px] text-slate-700 max-w-[120px] tracking-tight">{getTeamName(match?.team1Id)}</span>
+              <span className="font-black uppercase text-[11px] text-slate-700 max-w-[120px] tracking-tight">{getTeamName(row1TeamId)}</span>
               <span className="font-black text-2xl leading-none text-slate-950">{stats1.total}/{stats1.wickets}</span>
               <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({stats1.overs})</Badge>
             </div>
             <div className="flex items-center gap-3">
-              <span className="font-black uppercase text-[11px] text-slate-700 max-w-[120px] tracking-tight">{getTeamName(match?.team2Id)}</span>
+              <span className="font-black uppercase text-[11px] text-slate-700 max-w-[120px] tracking-tight">{getTeamName(row2TeamId)}</span>
               <span className="font-black text-2xl leading-none text-slate-950">{stats2.total}/{stats2.wickets}</span>
               <Badge variant="outline" className="text-[11px] font-black border-slate-400 h-6 text-slate-950 bg-slate-100 px-2">({stats2.overs})</Badge>
             </div>
@@ -537,7 +551,10 @@ export default function MatchScoreboardPage() {
           </TabsContent>
 
           <TabsContent value="scorecard" className="space-y-8">
-            {[ {id: 1, stats: stats1, teamId: match?.team1Id, label: '1st Innings'}, {id: 2, stats: stats2, teamId: match?.team2Id, label: '2nd Innings'} ].map(inn => (
+            {[ 
+              {id: 1, stats: stats1, teamId: inn1?.battingTeamId || match?.team1Id, label: '1st Innings'}, 
+              {id: 2, stats: stats2, teamId: inn2?.battingTeamId || (inn1?.battingTeamId === match?.team1Id ? match?.team2Id : match?.team1Id), label: '2nd Innings'} 
+            ].map(inn => (
               <div key={inn.id} className="space-y-6">
                 <div className="flex justify-between items-center px-2">
                   <h2 className="text-lg font-black uppercase text-slate-900">{inn.label} - {getTeamName(inn.teamId || '')}</h2>
@@ -628,8 +645,8 @@ export default function MatchScoreboardPage() {
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
                       <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
                       <Legend verticalAlign="top" align="right" height={36}/>
-                      <Bar name={getTeamName(match?.team1Id || '')} dataKey="team1" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                      <Bar name={getTeamName(match?.team2Id || '')} dataKey="team2" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} />
+                      <Bar name={getTeamName(row1TeamId)} dataKey="team1" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                      <Bar name={getTeamName(row2TeamId)} dataKey="team2" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -644,8 +661,8 @@ export default function MatchScoreboardPage() {
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800 }} />
                       <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)' }} />
                       <Legend verticalAlign="top" align="right" height={36}/>
-                      <Line key="line-t1" name={getTeamName(match?.team1Id || '')} type="monotone" dataKey="team1" stroke="hsl(var(--primary))" strokeWidth={3} dot={(props: any) => props.payload.w1 ? <circle key={`w1-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : null} />
-                      <Line key="line-t2" name={getTeamName(match?.team2Id || '')} type="monotone" dataKey="team2" stroke="hsl(var(--secondary))" strokeWidth={3} dot={(props: any) => props.payload.w2 ? <circle key={`w2-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : null} connectNulls />
+                      <Line key="line-t1" name={getTeamName(row1TeamId)} type="monotone" dataKey="team1" stroke="hsl(var(--primary))" strokeWidth={3} dot={(props: any) => props.payload.w1 ? <circle key={`w1-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : null} />
+                      <Line key="line-t2" name={getTeamName(row2TeamId)} type="monotone" dataKey="team2" stroke="hsl(var(--secondary))" strokeWidth={3} dot={(props: any) => props.payload.w2 ? <circle key={`w2-${props.cx}-${props.cy}`} cx={props.cx} cy={props.cy} r={6} fill="#ef4444" stroke="white" strokeWidth={2} /> : null} connectNulls />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -829,13 +846,13 @@ export default function MatchScoreboardPage() {
 
           <div className="flex justify-between items-center gap-6 mb-10">
             <div className="flex-1 text-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-              <p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(match?.team1Id)}</p>
+              <p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(row1TeamId)}</p>
               <p className="text-4xl font-black text-slate-900">{stats1.total}/{stats1.wickets}</p>
               <p className="text-[10px] font-bold text-primary uppercase mt-1">({stats1.overs} Overs)</p>
             </div>
             <div className="bg-slate-900 text-white font-black h-12 w-12 rounded-full flex items-center justify-center text-sm shadow-xl">VS</div>
             <div className="flex-1 text-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-              <p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(match?.team2Id)}</p>
+              <p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(row2TeamId)}</p>
               <p className="text-4xl font-black text-slate-900">{stats2.total}/{stats2.wickets}</p>
               <p className="text-[10px] font-bold text-secondary uppercase mt-1">({stats2.overs} Overs)</p>
             </div>
