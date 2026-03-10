@@ -72,7 +72,7 @@ export default function NumberGame() {
 
   // Edit Ball State
   const [isEditBallOpen, setIsEditBallOpen] = useState(false);
-  const [editingBall, setEditBall] = useState<any>(null);
+  const [editingBall, setEditingBall] = useState<any>(null);
 
   useEffect(() => {
     setIsMounted(true);
@@ -160,6 +160,18 @@ export default function NumberGame() {
     setPlayers(updatedPlayers);
     setGameState('finished');
     toast({ title: "Match Finalized", description: "Session records updated." });
+  };
+
+  const handleDownloadReport = () => {
+    const dateStr = new Date().toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const report = generateStreetReport(players, dateStr);
+    const blob = new Blob([report], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `CricMates_StreetPro_Session_${Date.now()}.html`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const resetGame = (fullClear: boolean = false) => {
@@ -293,6 +305,15 @@ export default function NumberGame() {
     toast({ title: "Record Purged" });
   };
 
+  const applyBallEdit = () => {
+    if (!editingBall) return;
+    deleteBall(editingBall.id);
+    handleScore(editingBall.runs, editingBall.extra);
+    setIsEditBallOpen(false);
+    setEditingBall(null);
+    toast({ title: "Record Adjusted" });
+  };
+
   if (!isMounted) return null;
 
   const CasualLeagueTable = () => {
@@ -383,11 +404,49 @@ export default function NumberGame() {
         </TabsContent>
         <TabsContent value="history" className="space-y-4">
           <h2 className="text-lg font-black uppercase px-2 flex items-center gap-2"><HistoryIcon className="w-5 h-5 text-primary" /> Official History Logs</h2>
-          <div className="space-y-2">{history.length > 0 ? history.map((b) => (<Card key={b.id} className="p-3 border shadow-sm flex items-center justify-between rounded-xl group hover:border-primary/30 transition-all"><div className="flex items-center gap-4"><div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border shadow-inner", b.isWicket ? "bg-red-500 text-white" : "bg-slate-50")}>{b.isWicket ? "W" : b.runs}</div><div className="min-w-0"><p className="text-[10px] font-black uppercase truncate">{players.find(p => p.id === b.strikerId)?.name} vs {players.find(p => p.id === b.bowlerId)?.name}</p><p className="text-[8px] font-bold text-slate-400 uppercase">{b.isWicket ? b.wicketType : (b.extra !== 'none' ? b.extra : `${b.runs} runs`)}</p></div></div><Button variant="ghost" size="icon" onClick={() => { if(confirm("Purge record?")) deleteBall(b.id); }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button></Card>)) : <div className="py-20 text-center text-[10px] font-black uppercase text-slate-300 border-2 border-dashed rounded-3xl">Awaiting first delivery</div>}</div>
+          <div className="space-y-2">{history.length > 0 ? history.map((b) => (
+            <Card key={b.id} className="p-3 border shadow-sm flex items-center justify-between rounded-xl group hover:border-primary/30 transition-all">
+              <div className="flex items-center gap-4">
+                <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border shadow-inner", b.isWicket ? "bg-red-500 text-white" : "bg-slate-50")}>{b.isWicket ? "W" : b.runs}</div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase truncate">{players.find(p => p.id === b.strikerId)?.name} vs {players.find(p => p.id === b.bowlerId)?.name}</p>
+                  <p className={cn("text-[8px] font-bold uppercase", b.isWicket ? "text-red-500" : "text-slate-400")}>{b.isWicket ? b.wicketType : (b.extra !== 'none' ? b.extra : `${b.runs} runs`)}</p>
+                </div>
+              </div>
+              <div className="flex gap-1">
+                <Button variant="ghost" size="icon" onClick={() => { setEditBall(b); setIsEditBallOpen(true); }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3"/></Button>
+                <Button variant="ghost" size="icon" onClick={() => { if(confirm("Purge record?")) deleteBall(b.id); }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>
+              </div>
+            </Card>
+          )) : <div className="py-20 text-center text-[10px] font-black uppercase text-slate-300 border-2 border-dashed rounded-3xl">Awaiting first delivery</div>}</div>
         </TabsContent>
         <TabsContent value="league"><CasualLeagueTable /></TabsContent>
       </Tabs>
+      
       {/* Dialogs */}
+      <Dialog open={isEditBallOpen} onOpenChange={setIsEditBallOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-primary z-[200]">
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Manual Adjustment</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Runs Scored</Label>
+              <Select value={editingBall?.runs?.toString()} onValueChange={(v) => setEditingBall({...editingBall, runs: parseInt(v)})}>
+                <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
+                <SelectContent className="z-[250]">{[0,1,2,3,4,6].map(r => <SelectItem key={r} value={r.toString()}>{r}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Extra Type</Label>
+              <Select value={editingBall?.extra} onValueChange={(v) => setEditingBall({...editingBall, extra: v})}>
+                <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
+                <SelectContent className="z-[250]"><SelectItem value="none">None</SelectItem><SelectItem value="wide">Wide</SelectItem><SelectItem value="noball">No Ball</SelectItem></SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter><Button onClick={applyBallEdit} className="w-full h-14 font-black uppercase bg-primary text-white shadow-lg">Apply Changes</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isNoBallOpen} onOpenChange={setIsNoBallOpen}><DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-amber-500 z-[200]"><DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-amber-600">No Ball Results</DialogTitle></DialogHeader><div className="grid grid-cols-3 gap-2 py-4">{[0, 1, 2, 4, 6].map(r => (<Button key={`nb-${r}`} onClick={() => handleScore(r, 'noball')} variant="outline" className="h-16 font-black text-xl border-amber-200">{r === 0 ? "•" : r}</Button>))}</div></DialogContent></Dialog>
       <Dialog open={isWicketOpen} onOpenChange={setIsWicketOpen}><DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-destructive z-[200]"><DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-destructive">Register Out</DialogTitle></DialogHeader><div className="space-y-4 py-4"><div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Type</Label><Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent className="z-[250]"><SelectItem value="caught" className="font-bold">Caught</SelectItem><SelectItem value="bowled" className="font-bold">Bowled</SelectItem><SelectItem value="runout" className="font-bold">Run Out</SelectItem><SelectItem value="stumped" className="font-bold">Stumped</SelectItem><SelectItem value="3-Dots Streak" className="font-bold text-destructive">3-Dots Streak</SelectItem></SelectContent></Select></div></div><DialogFooter><Button variant="destructive" onClick={() => handleWicket(wicketForm.type)} className="w-full h-14 font-black uppercase shadow-xl">Confirm Out</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}><DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-secondary z-[200]"><DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Add Mid-Game Player</DialogTitle></DialogHeader><div className="py-4"><Input value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} placeholder="Player Full Name" className="font-bold h-12" /></div><DialogFooter><Button onClick={() => { if (!newPlayerName.trim()) return; const newP: Player = { id: `p-${players.length}-${Date.now()}`, name: newPlayerName, order: players.length + 1, batting: { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', fielderId: '', highScore: 0 }, bowling: { balls: 0, runs: 0, wickets: 0, maidens: 0, bestWickets: 0, bestRuns: 0 }, session: { matches: 0, runs: 0, wickets: 0, fours: 0, sixes: 0, highScore: 0, bestBowling: { wkts: 0, runs: 0 } } }; setPlayers([...players, newP]); setNewPlayerName(''); setIsAddPlayerOpen(false); toast({ title: "Player Joined League" }); }} className="w-full h-14 font-black uppercase bg-secondary text-white shadow-lg">Join Session</Button></DialogFooter></DialogContent></Dialog>
