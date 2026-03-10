@@ -8,11 +8,13 @@ import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Clock, Medal, ChevronLeft, Swords, Target, Zap, TrendingUp, Search, Crown, Shield, Activity, Scale } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Loader2, Clock, Medal, ChevronLeft, Swords, Target, Zap, TrendingUp, Search, Crown, Shield, Activity, Scale, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 export default function InsightsPage() {
   const db = useFirestore();
@@ -22,11 +24,17 @@ export default function InsightsPage() {
   const [p2Id, setP2Id] = useState<string>('');
   const [cap1Id, setCap1Id] = useState<string>('');
   const [cap2Id, setCap2Id] = useState<string>('');
+  const [rivalryMode, setRivalryMode] = useState<'player' | 'team'>('player');
+  const [t1Id, setT1Id] = useState<string>('');
+  const [t2Id, setT2Id] = useState<string>('');
 
   useEffect(() => { setIsMounted(true); }, []);
 
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: players } = useCollection(playersQuery);
+
+  const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
+  const { data: teams } = useCollection(teamsQuery);
 
   const deliveriesQuery = useMemoFirebase(() => {
     if (!isMounted) return null;
@@ -36,6 +44,23 @@ export default function InsightsPage() {
 
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: matches } = useCollection(matchesQuery);
+
+  const teamH2HStats = useMemo(() => {
+    if (!matches || !t1Id || !t2Id) return null;
+    const h2hMatches = matches.filter(m => 
+      m.status === 'completed' && 
+      ((m.team1Id === t1Id && m.team2Id === t2Id) || (m.team1Id === t2Id && m.team2Id === t1Id))
+    );
+
+    const stats = {
+      total: h2hMatches.length,
+      t1Wins: h2hMatches.filter(m => m.winnerTeamId === t1Id).length,
+      t2Wins: h2hMatches.filter(m => m.winnerTeamId === t2Id).length,
+      draws: h2hMatches.filter(m => m.isTie || m.winnerTeamId === 'none').length,
+      recent: h2hMatches.sort((a,b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime()).slice(0, 5)
+    };
+    return stats;
+  }, [matches, t1Id, t2Id]);
 
   const h2hStats = useMemo(() => {
     if (!deliveries || !p1Id || !p2Id) return null;
@@ -122,97 +147,6 @@ export default function InsightsPage() {
     return { cap1: getCapRecord(cap1Id), cap2: getCapRecord(cap2Id), h2h };
   }, [matches, cap1Id, cap2Id, deliveries]);
 
-  const milestones = useMemo(() => {
-    if (!players || !deliveries || !matches) return null;
-    
-    const fast30: any[] = [];
-    const hats: any[] = [];
-    const winKnocks: any[] = [];
-
-    const pInnings: Record<string, Record<string, any>> = {};
-    deliveries.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      const sId = d.strikerPlayerId;
-      if (!pInnings[sId]) pInnings[sId] = {};
-      if (!pInnings[sId][matchId!]) pInnings[sId][matchId!] = { runs: 0, balls: 0, recorded: false };
-      
-      const s = pInnings[sId][matchId!];
-      if (s.recorded) return;
-
-      s.runs += (d.runsScored || 0);
-      if (d.extraType === 'none') s.balls++;
-
-      if (s.runs >= 30) {
-        s.recorded = true;
-        fast30.push({ name: players.find(p => p.id === sId)?.name, balls: s.balls, runs: s.runs, matchId });
-      }
-    });
-
-    const sorted = [...deliveries].sort((a,b) => a.timestamp - b.timestamp);
-    const bBals: Record<string, Record<string, any[]>> = {};
-    sorted.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      const bId = d.bowlerId || d.bowlerPlayerId;
-      if (!bId || bId === 'none') return;
-      if (!bBals[bId]) bBals[bId] = {};
-      if (!bBals[bId][matchId!]) bBals[bId][matchId!] = [];
-      
-      const isWkt = d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '');
-      bBals[bId][matchId!].push(isWkt);
-      
-      const balls = bBals[bId][matchId!];
-      if (balls.length >= 3 && balls.slice(-3).every(v => v === true)) {
-        hats.push({ name: players.find(p => p.id === bId)?.name, matchId });
-      }
-    });
-
-    matches.filter(m => m.status === 'completed' && m.resultDescription?.includes('won')).forEach(m => {
-      const matchDeliveries = deliveries.filter(d => d.__fullPath?.includes(m.id)).sort((a,b) => a.timestamp - b.timestamp);
-      const lastBall = matchDeliveries[matchDeliveries.length - 1];
-      if (!lastBall) return;
-
-      const heroId = lastBall.strikerPlayerId;
-      const heroStats = matchDeliveries.filter(d => d.strikerPlayerId === heroId);
-      const runs = heroStats.reduce((acc, d) => acc + (d.runsScored || 0), 0);
-      const balls = heroStats.filter(d => d.extraType === 'none').length;
-
-      if (runs > 10) {
-        winKnocks.push({ name: players.find(p => p.id === heroId)?.name, runs, balls, matchId: m.id });
-      }
-    });
-
-    const career: Record<string, { runs: number, wkts: number, matches: Set<string> }> = {};
-    players.forEach(p => career[p.id] = { runs: 0, wkts: 0, matches: new Set() });
-
-    deliveries.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      if (!matchId) return;
-      const sId = d.strikerPlayerId;
-      const bId = d.bowlerId || d.bowlerPlayerId;
-
-      if (career[sId]) {
-        career[sId].runs += (d.runsScored || 0);
-        career[sId].matches.add(matchId);
-      }
-      if (bId && career[bId]) {
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) career[bId].wkts++;
-        career[bId].matches.add(matchId);
-      }
-    });
-
-    return { 
-      f30: fast30.sort((a,b) => a.balls - b.balls).slice(0, 5),
-      hats: hats.slice(0, 5),
-      knocks: winKnocks.sort((a,b) => a.balls - b.balls).slice(0, 5),
-      career: Object.entries(career).map(([id, stats]) => ({
-        name: players.find(p => p.id === id)?.name,
-        runs: stats.runs,
-        wkts: stats.wkts,
-        matches: stats.matches.size
-      }))
-    };
-  }, [players, deliveries, matches]);
-
   if (!isMounted || isDeliveriesLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
       <Loader2 className="w-10 h-10 text-primary animate-spin" />
@@ -221,6 +155,7 @@ export default function InsightsPage() {
   );
 
   const getPlayerName = (id: string) => players?.find(p => p.id === id)?.name || 'Unknown';
+  const getTeamName = (id: string) => teams?.find(t => t.id === id)?.name || 'Unknown';
 
   return (
     <div className="max-w-lg mx-auto space-y-12 pb-32 px-4">
@@ -234,14 +169,11 @@ export default function InsightsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="matches" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 h-12 bg-slate-100 p-1 rounded-xl mb-8">
-          <TabsTrigger value="matches" className="font-bold text-[7px] uppercase">Ranks</TabsTrigger>
-          <TabsTrigger value="captaincy" className="font-bold text-[7px] uppercase">Leader</TabsTrigger>
-          <TabsTrigger value="comparison" className="font-bold text-[7px] uppercase">H2H</TabsTrigger>
-          <TabsTrigger value="f30" className="font-bold text-[7px] uppercase">Fast 30</TabsTrigger>
-          <TabsTrigger value="hats" className="font-bold text-[7px] uppercase">Hats</TabsTrigger>
-          <TabsTrigger value="knocks" className="font-bold text-[7px] uppercase">Finisher</TabsTrigger>
+      <Tabs defaultValue="captaincy" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 h-12 bg-slate-100 p-1 rounded-xl mb-8">
+          <TabsTrigger value="captaincy" className="font-bold text-[10px] uppercase">Leader</TabsTrigger>
+          <TabsTrigger value="comparison" className="font-bold text-[10px] uppercase">Rivalry</TabsTrigger>
+          <TabsTrigger value="watchlist" className="font-bold text-[10px] uppercase">Watchlist</TabsTrigger>
         </TabsList>
 
         <TabsContent value="captaincy" className="space-y-8 animate-in fade-in zoom-in-95">
@@ -337,153 +269,184 @@ export default function InsightsPage() {
 
         <TabsContent value="comparison" className="space-y-8 animate-in fade-in zoom-in-95">
           <div className="space-y-6">
-            <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Swords className="w-5 h-5 text-primary" /> Battle History</h2>
+            <div className="flex justify-between items-center px-2">
+              <h2 className="text-xl font-black uppercase flex items-center gap-2"><Swords className="w-5 h-5 text-primary" /> Rivalry Scan</h2>
+              <div className="bg-slate-100 p-1 rounded-lg flex border">
+                <Button variant={rivalryMode === 'player' ? "secondary" : "ghost"} size="sm" onClick={() => setRivalryMode('player')} className="h-7 text-[8px] font-black uppercase">Player</Button>
+                <Button variant={rivalryMode === 'team' ? "secondary" : "ghost"} size="sm" onClick={() => setRivalryMode('team')} className="h-7 text-[8px] font-black uppercase">Team</Button>
+              </div>
+            </div>
             
             <Card className="border-none shadow-xl bg-white p-6 space-y-6 rounded-3xl">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400">Select Player A</Label>
-                  <Select value={p1Id} onValueChange={setP1Id}>
-                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
-                    <SelectContent className="max-h-[250px]">
-                      {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+              {rivalryMode === 'player' ? (
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-slate-400">Select Player A</Label>
+                    <Select value={p1Id} onValueChange={setP1Id}>
+                      <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
+                      <SelectContent className="max-h-[250px]">
+                        {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex justify-center -my-2 relative z-10">
+                    <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-full flex items-center justify-center border-4 border-white shadow-lg">VS</div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-slate-400">Select Player B</Label>
+                    <Select value={p2Id} onValueChange={setP2Id}>
+                      <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
+                      <SelectContent className="max-h-[250px]">
+                        {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="flex justify-center -my-2 relative z-10">
-                  <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-full flex items-center justify-center border-4 border-white shadow-lg">VS</div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-slate-400">Select Franchise A</Label>
+                    <Select value={t1Id} onValueChange={setT1Id}>
+                      <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Team" /></SelectTrigger>
+                      <SelectContent className="max-h-[250px]">
+                        {teams?.map(t => <SelectItem key={t.id} value={t.id} className="font-bold">{t.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex justify-center -my-2 relative z-10">
+                    <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-full flex items-center justify-center border-4 border-white shadow-lg">VS</div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase text-slate-400">Select Franchise B</Label>
+                    <Select value={t2Id} onValueChange={setT2Id}>
+                      <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Team" /></SelectTrigger>
+                      <SelectContent className="max-h-[250px]">
+                        {teams?.map(t => <SelectItem key={t.id} value={t.id} className="font-bold">{t.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400">Select Player B</Label>
-                  <Select value={p2Id} onValueChange={setP2Id}>
-                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
-                    <SelectContent className="max-h-[250px]">
-                      {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
+              )}
             </Card>
 
-            {h2hStats && p1Id && p2Id ? (
+            {rivalryMode === 'player' && h2hStats && p1Id && p2Id ? (
               <div className="space-y-6">
-                <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">SCENARIO ONE</p>
-                  <Card className="border-none shadow-lg bg-slate-900 text-white overflow-hidden rounded-3xl">
-                    <div className="p-4 bg-primary flex justify-between items-center">
-                      <span className="text-[10px] font-black uppercase truncate">{getPlayerName(p1Id)} <span className="opacity-50">vs</span> {getPlayerName(p2Id)}</span>
-                      <Badge className="bg-white text-primary font-black text-[10px] uppercase">BAT VS BOWL</Badge>
+                <Card className="border-none shadow-lg bg-slate-900 text-white overflow-hidden rounded-3xl">
+                  <div className="p-4 bg-primary flex justify-between items-center">
+                    <span className="text-[10px] font-black uppercase truncate">{getPlayerName(p1Id)} vs {getPlayerName(p2Id)}</span>
+                    <Badge className="bg-white text-primary font-black text-[10px] uppercase">H2H IMPACT</Badge>
+                  </div>
+                  <div className="p-6 grid grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                      <p className="text-[8px] font-black uppercase text-slate-500 text-center">{getPlayerName(p1Id)} Batting</p>
+                      <div className="grid grid-cols-2 gap-4 text-center">
+                        <div><p className="text-[8px] font-bold text-slate-400 uppercase">Runs</p><p className="text-xl font-black">{h2hStats.p1BatVsP2Bowl.runs}</p></div>
+                        <div><p className="text-[8px] font-bold text-slate-400 uppercase">Outs</p><p className="text-xl font-black text-red-500">{h2hStats.p1BatVsP2Bowl.wkts}</p></div>
+                      </div>
                     </div>
-                    <div className="p-6 grid grid-cols-3 gap-4 text-center">
-                      <div><p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Runs</p><p className="text-2xl font-black">{h2hStats.p1BatVsP2Bowl.runs}</p></div>
-                      <div><p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Balls</p><p className="text-2xl font-black">{h2hStats.p1BatVsP2Bowl.balls}</p></div>
-                      <div><p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Dismissals</p><p className="text-2xl font-black text-red-500">{h2hStats.p1BatVsP2Bowl.wkts}</p></div>
+                    <div className="space-y-4 border-l border-white/5 pl-8">
+                      <p className="text-[8px] font-black uppercase text-slate-500 text-center">{getPlayerName(p2Id)} Batting</p>
+                      <div className="grid grid-cols-2 gap-4 text-center">
+                        <div><p className="text-[8px] font-bold text-slate-400 uppercase">Runs</p><p className="text-xl font-black">{h2hStats.p2BatVsP1Bowl.runs}</p></div>
+                        <div><p className="text-[8px] font-bold text-slate-400 uppercase">Outs</p><p className="text-xl font-black text-red-500">{h2hStats.p2BatVsP1Bowl.wkts}</p></div>
+                      </div>
                     </div>
-                    <div className="px-6 pb-6 pt-2 flex justify-center gap-4 border-t border-white/5">
-                      <div className="text-[10px] font-black uppercase text-slate-500">SR: <span className="text-white">{h2hStats.p1BatVsP2Bowl.balls > 0 ? ((h2hStats.p1BatVsP2Bowl.runs / h2hStats.p1BatVsP2Bowl.balls) * 100).toFixed(1) : '0.0'}</span></div>
-                      <div className="text-[10px] font-black uppercase text-slate-500">BOUNDARIES: <span className="text-white">{h2hStats.p1BatVsP2Bowl.fours + h2hStats.p1BatVsP2Bowl.sixes}</span></div>
+                  </div>
+                </Card>
+              </div>
+            ) : rivalryMode === 'team' && teamH2HStats && t1Id && t2Id ? (
+              <div className="space-y-6">
+                <Card className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-2xl">
+                  <div className="p-4 bg-primary text-center">
+                    <p className="text-[10px] font-black uppercase tracking-widest">Franchise Head-to-Head</p>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div className="flex justify-between items-center">
+                      <div className="text-center flex-1">
+                        <p className="text-3xl font-black">{teamH2HStats.t1Wins}</p>
+                        <p className="text-[8px] font-black text-slate-400 uppercase">{getTeamName(t1Id)}</p>
+                      </div>
+                      <div className="bg-white/5 p-3 rounded-2xl border border-white/10 text-center min-w-[80px]">
+                        <p className="text-xl font-black">{teamH2HStats.draws}</p>
+                        <p className="text-[8px] font-black text-slate-500 uppercase">Ties/NR</p>
+                      </div>
+                      <div className="text-center flex-1">
+                        <p className="text-3xl font-black">{teamH2HStats.t2Wins}</p>
+                        <p className="text-[8px] font-black text-slate-400 uppercase">{getTeamName(t2Id)}</p>
+                      </div>
                     </div>
-                  </Card>
-                </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-[8px] font-black uppercase tracking-widest text-slate-500">
+                        <span>Dominance Factor</span>
+                        <span>{teamH2HStats.total} Encounters</span>
+                      </div>
+                      <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden flex">
+                        <div className="bg-primary h-full transition-all" style={{ width: `${(teamH2HStats.t1Wins / (teamH2HStats.total || 1)) * 100}%` }} />
+                        <div className="bg-slate-700 h-full transition-all" style={{ width: `${(teamH2HStats.draws / (teamH2HStats.total || 1)) * 100}%` }} />
+                        <div className="bg-secondary h-full transition-all" style={{ width: `${(teamH2HStats.t2Wins / (teamH2HStats.total || 1)) * 100}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </Card>
 
                 <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">SCENARIO TWO</p>
-                  <Card className="border-none shadow-lg bg-slate-900 text-white overflow-hidden rounded-3xl">
-                    <div className="p-4 bg-secondary flex justify-between items-center">
-                      <span className="text-[10px] font-black uppercase truncate">{getPlayerName(p2Id)} <span className="opacity-50">vs</span> {getPlayerName(p1Id)}</span>
-                      <Badge className="bg-white text-secondary font-black text-[10px] uppercase">BAT VS BOWL</Badge>
-                    </div>
-                    <div className="p-6 grid grid-cols-3 gap-4 text-center">
-                      <div><p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Runs</p><p className="text-2xl font-black">{h2hStats.p2BatVsP1Bowl.runs}</p></div>
-                      <div><p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Balls</p><p className="text-2xl font-black">{h2hStats.p2BatVsP1Bowl.balls}</p></div>
-                      <div><p className="text-[8px] font-bold text-slate-400 uppercase mb-1">Dismissals</p><p className="text-2xl font-black text-red-500">{h2hStats.p2BatVsP1Bowl.wkts}</p></div>
-                    </div>
-                    <div className="px-6 pb-6 pt-2 flex justify-center gap-4 border-t border-white/5">
-                      <div className="text-[10px] font-black uppercase text-slate-500">SR: <span className="text-white">{h2hStats.p2BatVsP1Bowl.balls > 0 ? ((h2hStats.p2BatVsP1Bowl.runs / h2hStats.p2BatVsP1Bowl.balls) * 100).toFixed(1) : '0.0'}</span></div>
-                      <div className="text-[10px] font-black uppercase text-slate-500">BOUNDARIES: <span className="text-white">{h2hStats.p2BatVsP1Bowl.fours + h2hStats.p2BatVsP1Bowl.sixes}</span></div>
-                    </div>
-                  </Card>
+                  <h3 className="text-[10px] font-black uppercase text-slate-400 px-2 tracking-widest flex items-center gap-2">Recent H2H Encounters</h3>
+                  <div className="space-y-2">
+                    {teamH2HStats.recent.length > 0 ? teamH2HStats.recent.map(m => (
+                      <Link key={m.id} href={`/match/${m.id}`}>
+                        <Card className="p-4 border-none shadow-sm hover:shadow-md transition-all group flex items-center justify-between rounded-2xl bg-white mb-2">
+                          <div className="flex items-center gap-4">
+                            <div className={cn("w-1 h-8 rounded-full", m.winnerTeamId === t1Id ? "bg-primary" : m.winnerTeamId === t2Id ? "bg-secondary" : "bg-slate-300")} />
+                            <div>
+                              <p className="text-xs font-black uppercase text-slate-900 group-hover:text-primary transition-colors">{m.resultDescription}</p>
+                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{new Date(m.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                            </div>
+                          </div>
+                          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary transition-colors" />
+                        </Card>
+                      </Link>
+                    )) : (
+                      <div className="p-8 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+                        <p className="text-[8px] font-black uppercase text-slate-300">No historical matches recorded for this pair</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
               <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
                 <Search className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select two players to scan rivalry</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select two {rivalryMode}s to scan rivalry</p>
               </div>
             )}
           </div>
         </TabsContent>
 
-        <TabsContent value="matches" className="space-y-8 animate-in fade-in">
-          <div className="space-y-4">
-            <h2 className="text-lg font-black uppercase flex items-center gap-2 px-2"><Medal className="w-5 h-5 text-amber-500" /> Fastest to 50 Runs</h2>
-            <div className="space-y-3">
-              {milestones?.career.filter(p => p.runs >= 50).sort((a,b) => a.matches - b.matches).slice(0, 3).map((m, i) => (
-                <Card key={i} className="border-none shadow-sm bg-white p-4 flex items-center justify-between rounded-2xl">
-                  <div><p className="text-xs font-black uppercase">{m.name}</p><p className="text-[8px] font-bold text-slate-400">Took {m.matches} Matches</p></div>
-                  <Badge className="bg-amber-100 text-amber-700 h-8 px-4 font-black">RANK {i+1}</Badge>
-                </Card>
-              )) || <NoDataMessage />}
+        <TabsContent value="watchlist" className="space-y-8 animate-in fade-in">
+          <div className="space-y-6">
+            <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Activity className="w-5 h-5 text-primary" /> Milestone Watch</h2>
+            <div className="space-y-4">
+              {players?.filter(p => p.runsScored > 0).sort((a,b) => (50 - (a.runsScored % 50)) - (50 - (b.runsScored % 50))).slice(0, 5).map(p => {
+                const runMilestone = Math.ceil((p.runsScored + 1) / 50) * 50;
+                const progress = (p.runsScored % 50 / 50) * 100;
+                return (
+                  <Card key={p.id} className="p-5 border-none shadow-lg rounded-3xl bg-white space-y-4">
+                    <div className="flex justify-between items-center">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black uppercase truncate">{p.name}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Needs {runMilestone - p.runsScored} runs for {runMilestone} Career Runs</p>
+                      </div>
+                      <Badge className="bg-primary/10 text-primary font-black text-[9px] uppercase border-none">{progress.toFixed(0)}% NEAR</Badge>
+                    </div>
+                    <Progress value={progress} className="h-2 bg-slate-100" />
+                  </Card>
+                );
+              })}
             </div>
-          </div>
-          <div className="space-y-4">
-            <h2 className="text-lg font-black uppercase flex items-center gap-2 px-2"><Medal className="w-5 h-5 text-blue-500" /> Fastest to 10 Wickets</h2>
-            <div className="space-y-3">
-              {milestones?.career.filter(p => p.wkts >= 10).sort((a,b) => a.matches - b.matches).slice(0, 3).map((m, i) => (
-                <Card key={i} className="border-none shadow-sm bg-white p-4 flex items-center justify-between rounded-2xl">
-                  <div><p className="text-xs font-black uppercase">{m.name}</p><p className="text-[8px] font-bold text-slate-400">Took {m.matches} Matches</p></div>
-                  <Badge className="bg-blue-100 text-blue-700 h-8 px-4 font-black">RANK {i+1}</Badge>
-                </Card>
-              )) || <NoDataMessage />}
-            </div>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="f30" className="space-y-4">
-          <h2 className="text-lg font-black uppercase px-2">Fewest Balls to 30</h2>
-          <div className="space-y-3">
-            {milestones?.f30.length ? milestones.f30.map((m, i) => (
-              <Card key={i} className="border-none shadow-sm bg-white p-4 flex items-center justify-between rounded-2xl">
-                <div><p className="text-xs font-black uppercase">{m.name}</p><p className="text-[8px] font-bold text-slate-400">Reached {m.runs} Runs</p></div>
-                <Badge className="bg-emerald-100 text-emerald-700 font-black h-8 px-4">{m.balls} BALLS</Badge>
-              </Card>
-            )) : <NoDataMessage />}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="hats" className="space-y-4">
-          <h2 className="text-lg font-black uppercase px-2">Verified Hat-Tricks</h2>
-          <div className="space-y-3">
-            {milestones?.hats.length ? milestones.hats.map((m, i) => (
-              <Card key={i} className="border-none shadow-sm bg-white p-4 flex items-center justify-between rounded-2xl">
-                <div><p className="text-xs font-black uppercase">{m.name}</p><p className="text-[8px] font-bold text-slate-400">3 in 3 Deliveries</p></div>
-                <Badge className="bg-red-100 text-red-700 font-black h-8 px-4 uppercase text-[10px]">Validated</Badge>
-              </Card>
-            )) : <NoDataMessage />}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="knocks" className="space-y-4">
-          <h2 className="text-lg font-black uppercase px-2">Fastest Finishers</h2>
-          <div className="space-y-3">
-            {milestones?.knocks.length ? milestones.knocks.map((m, i) => (
-              <Card key={i} className="border-none shadow-sm bg-white p-4 flex items-center justify-between rounded-2xl">
-                <div><p className="text-xs font-black uppercase">{m.name}</p><p className="text-[8px] font-bold text-slate-400">{m.runs}* winning runs</p></div>
-                <Badge className="bg-indigo-100 text-indigo-700 font-black h-8 px-4">{m.balls} BALLS</Badge>
-              </Card>
-            )) : <NoDataMessage />}
           </div>
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-function NoDataMessage() {
-  return (
-    <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
-      <Clock className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Achievements Recorded Yet</p>
     </div>
   );
 }
