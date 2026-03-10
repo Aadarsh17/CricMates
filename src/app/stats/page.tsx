@@ -52,7 +52,8 @@ export default function StatsPage() {
     };
     const fielding: any = { 
       mostCatches: { val: 0, name: '-' }, 
-      mostRunOuts: { val: 0, name: '-' } 
+      mostRunOuts: { val: 0, name: '-' },
+      mostStumpings: { val: 0, name: '-' }
     };
 
     const pMatchStats: Record<string, Record<string, any>> = {};
@@ -69,7 +70,7 @@ export default function StatsPage() {
       pIds.forEach(pid => {
         if (!pMatchStats[pid]) pMatchStats[pid] = {};
         if (!pMatchStats[pid][matchId]) {
-          pMatchStats[pid][matchId] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, fours: 0, sixes: 0 };
+          pMatchStats[pid][matchId] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, stumpings: 0, fours: 0, sixes: 0 };
         }
       });
 
@@ -88,6 +89,7 @@ export default function StatsPage() {
       if (fId && pMatchStats[fId]?.[matchId]) {
         if (d.dismissalType === 'caught') pMatchStats[fId][matchId].catches++;
         if (d.dismissalType === 'runout') pMatchStats[fId][matchId].runouts++;
+        if (d.dismissalType === 'stumped') pMatchStats[fId][matchId].stumpings++;
       }
     });
 
@@ -110,6 +112,7 @@ export default function StatsPage() {
         
         if (m.catches > fielding.mostCatches.val) fielding.mostCatches = { val: m.catches, name: p.name };
         if (m.runouts > fielding.mostRunOuts.val) fielding.mostRunOuts = { val: m.runouts, name: p.name };
+        if (m.stumpings > fielding.mostStumpings.val) fielding.mostStumpings = { val: m.stumpings, name: p.name };
       });
     });
 
@@ -180,6 +183,7 @@ export default function StatsPage() {
           {[
             { label: 'Most Catches (Match)', val: records?.fielding.mostCatches.val || 0, name: records?.fielding.mostCatches.name || '-' },
             { label: 'Most Run Outs (Match)', val: records?.fielding.mostRunOuts.val || 0, name: records?.fielding.mostRunOuts.name || '-' },
+            { label: 'Most Stumpings (Match)', val: records?.fielding.mostStumpings.val || 0, name: records?.fielding.mostStumpings.name || '-' },
           ].map((r, i) => (
             <Card key={i} className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
               <div className="flex items-center gap-4">
