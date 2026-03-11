@@ -50,7 +50,7 @@ interface Player {
   };
 }
 
-const STORAGE_KEY = 'cricmates_street_pro_session_v4_3';
+const STORAGE_KEY = 'cricmates_street_pro_session_v4_4';
 
 export default function NumberGame() {
   const router = useRouter();
@@ -121,18 +121,20 @@ export default function NumberGame() {
   };
 
   const handleHardReset = () => {
-    if (typeof window !== 'undefined' && window.confirm("PERMANENT ACTION: Are you sure you want to clear ALL records and reset to zero?")) {
-      localStorage.removeItem(STORAGE_KEY);
-      setGameState('setup');
-      setPlayers([]);
-      setHistory([]);
-      setPlayerNames(['', '', '']);
-      setStrikerId('');
-      setBowlerId('');
-      setConsecutiveDots(0);
-      setBallsInOver(0);
-      toast({ title: "Records Purged", description: "Session reset to zero." });
-    }
+    if (typeof window === 'undefined') return;
+    const confirmed = window.confirm("PERMANENT ACTION: This will delete ALL session records, league tables, and player data. Are you sure?");
+    if (!confirmed) return;
+
+    localStorage.removeItem(STORAGE_KEY);
+    setGameState('setup');
+    setPlayers([]);
+    setHistory([]);
+    setPlayerNames(['', '', '']);
+    setStrikerId('');
+    setBowlerId('');
+    setConsecutiveDots(0);
+    setBallsInOver(0);
+    toast({ title: "Records Purged", description: "The session has been reset to zero." });
   };
 
   const addSetupField = () => { if (playerNames.length < 15) setPlayerNames([...playerNames, '']); };
@@ -324,6 +326,22 @@ export default function NumberGame() {
     toast({ title: "Record Corrected" });
   };
 
+  const handleMidGameAdd = () => {
+    if (!newPlayerName.trim()) return;
+    const newP: Player = {
+      id: `p-${players.length}-${Date.now()}`,
+      name: newPlayerName,
+      order: players.length + 1,
+      batting: { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', fielderId: '', highScore: 0 },
+      bowling: { balls: 0, runs: 0, wickets: 0, maidens: 0, bestWickets: 0, bestRuns: 0 },
+      session: { matches: 0, runs: 0, wickets: 0, fours: 0, sixes: 0, highScore: 0, bestBowling: { wkts: 0, runs: 0 } }
+    };
+    setPlayers(prev => [...prev, newP]);
+    setNewPlayerName('');
+    setIsAddPlayerOpen(false);
+    toast({ title: "Player Joined League" });
+  };
+
   const sortedLeague = useMemo(() => {
     return [...players].sort((a,b) => b.session.runs - a.session.runs || b.session.wickets - a.session.wickets);
   }, [players]);
@@ -450,7 +468,7 @@ export default function NumberGame() {
     <div className="max-w-4xl mx-auto space-y-6 pb-24 px-1 md:px-4">
       <div className="flex items-center gap-4 mb-2">
         <Button variant="ghost" size="icon" onClick={() => { if(confirm("Discard match?")) setGameState('setup'); }} className="text-slate-400 hover:bg-slate-100 rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
-        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Live Street Pro v4.3</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Live Street Pro v4.4</span>
       </div>
       
       <Tabs defaultValue="scoring" className="w-full">
@@ -540,14 +558,14 @@ export default function NumberGame() {
           <div className="space-y-4 py-4">
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase text-slate-400">Runs Scored</Label>
-              <Select value={editingBall?.runs?.toString()} onValueChange={(v) => setEditingBall({...editingBall, runs: parseInt(v)})}>
+              <Select value={editingBall?.runs?.toString()} onValueChange={(v) => setEditingBall((prev: any) => ({...prev, runs: parseInt(v)}))}>
                 <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
                 <SelectContent className="z-[250]">{[0,1,2,3,4,6].map(r => <SelectItem key={r} value={r.toString()}>{r}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase text-slate-400">Extra Type</Label>
-              <Select value={editingBall?.extra} onValueChange={(v) => setEditingBall({...editingBall, extra: v})}>
+              <Select value={editingBall?.extra} onValueChange={(v) => setEditingBall((prev: any) => ({...prev, extra: v}))}>
                 <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
                 <SelectContent className="z-[250]"><SelectItem value="none">None</SelectItem><SelectItem value="wide">Wide</SelectItem><SelectItem value="noball">No Ball</SelectItem></SelectContent>
               </Select>
@@ -557,9 +575,50 @@ export default function NumberGame() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isNoBallOpen} onOpenChange={setIsNoBallOpen}><DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-amber-500 z-[200]"><DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-amber-600">No Ball Results</DialogTitle></DialogHeader><div className="grid grid-cols-3 gap-2 py-4">{[0, 1, 2, 4, 6].map(r => (<Button key={`nb-${r}`} onClick={() => handleScore(r, 'noball')} variant="outline" className="h-16 font-black text-xl border-amber-200">{r === 0 ? "•" : r}</Button>))}</div></DialogContent></Dialog>
-      <Dialog open={isWicketOpen} onOpenChange={setIsWicketOpen}><DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-destructive z-[200]"><DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-destructive">Register Out</DialogTitle></DialogHeader><div className="space-y-4 py-4"><div className="space-y-1"><Label className="text-[10px] font-black uppercase text-slate-400">Type</Label><Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent className="z-[250]"><SelectItem value="caught" className="font-bold">Caught</SelectItem><SelectItem value="bowled" className="font-bold">Bowled</SelectItem><SelectItem value="runout" className="font-bold">Run Out</SelectItem><SelectItem value="stumped" className="font-bold">Stumped</SelectItem><SelectItem value="3-Dots Streak" className="font-bold text-destructive">3-Dots Streak</SelectItem></Select></div></div><DialogFooter><Button variant="destructive" onClick={() => handleWicket(wicketForm.type)} className="w-full h-14 font-black uppercase shadow-xl">Confirm Out</Button></DialogFooter></DialogContent></Dialog>
-      <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}><DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-secondary z-[200]"><DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Add Mid-Game Player</DialogTitle></DialogHeader><div className="py-4"><Input value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} placeholder="Player Full Name" className="font-bold h-12" /></div><DialogFooter><Button onClick={() => { if (!newPlayerName.trim()) return; const newP: Player = { id: `p-${players.length}-${Date.now()}`, name: newPlayerName, order: players.length + 1, batting: { runs: 0, balls: 0, fours: 0, sixes: 0, out: false, dismissal: '', fielderId: '', highScore: 0 }, bowling: { balls: 0, runs: 0, wickets: 0, maidens: 0, bestWickets: 0, bestRuns: 0 }, session: { matches: 0, runs: 0, wickets: 0, fours: 0, sixes: 0, highScore: 0, bestBowling: { wkts: 0, runs: 0 } } }; setPlayers([...players, newP]); setNewPlayerName(''); setIsAddPlayerOpen(false); toast({ title: "Player Joined League" }); }} className="w-full h-14 font-black uppercase bg-secondary text-white shadow-lg">Join Session</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={isNoBallOpen} onOpenChange={setIsNoBallOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-amber-500 z-[200]">
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-amber-600">No Ball Results</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-3 gap-2 py-4">
+            {[0, 1, 2, 4, 6].map(r => (
+              <Button key={`nb-${r}`} onClick={() => handleScore(r, 'noball')} variant="outline" className="h-16 font-black text-xl border-amber-200">{r === 0 ? "•" : r}</Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isWicketOpen} onOpenChange={setIsWicketOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-destructive z-[200]">
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-destructive">Register Out</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Type</Label>
+              <Select value={wicketForm.type} onValueChange={(v) => setWicketForm(prev => ({...prev, type: v}))}>
+                <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
+                <SelectContent className="z-[250]">
+                  <SelectItem value="caught" className="font-bold">Caught</SelectItem>
+                  <SelectItem value="bowled" className="font-bold">Bowled</SelectItem>
+                  <SelectItem value="runout" className="font-bold">Run Out</SelectItem>
+                  <SelectItem value="stumped" className="font-bold">Stumped</SelectItem>
+                  <SelectItem value="3-Dots Streak" className="font-bold text-destructive">3-Dots Streak</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter><Button variant="destructive" onClick={() => handleWicket(wicketForm.type)} className="w-full h-14 font-black uppercase shadow-xl">Confirm Out</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-secondary z-[200]">
+          <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Add Mid-Game Player</DialogTitle></DialogHeader>
+          <div className="py-4">
+            <Input value={newPlayerName} onChange={(e) => setNewPlayerName(e.target.value)} placeholder="Player Full Name" className="font-bold h-12" />
+          </div>
+          <DialogFooter>
+            <Button onClick={handleMidGameAdd} disabled={!newPlayerName.trim()} className="w-full h-14 font-black uppercase bg-secondary text-white shadow-lg">Join Session</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
