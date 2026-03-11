@@ -5,11 +5,24 @@ import { useState, useMemo, useEffect } from 'react';
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 import { collection, query, collectionGroup } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Loader2, Clock, Medal, ChevronLeft, Swords, Target, Zap, TrendingUp, Search, Crown, Shield, Activity, Scale, ChevronRight } from 'lucide-react';
+import { 
+  Loader2, 
+  ChevronLeft, 
+  Swords, 
+  Search, 
+  Crown, 
+  Activity, 
+  ChevronRight, 
+  Flame, 
+  Target, 
+  TrendingUp, 
+  Zap, 
+  Award 
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
@@ -92,6 +105,37 @@ export default function InsightsPage() {
 
     return stats;
   }, [deliveries, p1Id, p2Id]);
+
+  const milestoneWatch = useMemo(() => {
+    if (!players || players.length === 0) return [];
+    
+    const RUN_MILESTONES = [25, 50, 100, 150, 200, 300, 400, 500, 750, 1000, 1500, 2000, 2500, 5000];
+    const WKT_MILESTONES = [5, 10, 20, 30, 40, 50, 75, 100, 150, 200];
+
+    const runData = players.filter(p => (p.runsScored || 0) > 0).map(p => {
+      const runs = p.runsScored || 0;
+      const next = RUN_MILESTONES.find(m => m > runs) || (Math.floor(runs / 100) + 1) * 100;
+      const prev = [...RUN_MILESTONES].reverse().find(m => m <= runs) || 0;
+      const diff = next - runs;
+      const range = next - prev;
+      const progress = ((runs - prev) / range) * 100;
+      return { ...p, type: 'runs', next, diff, progress, label: `${diff} runs for ${next} Career Runs` };
+    });
+
+    const wktData = players.filter(p => (p.wicketsTaken || 0) > 0).map(p => {
+      const wkts = p.wicketsTaken || 0;
+      const next = WKT_MILESTONES.find(m => m > wkts) || (Math.floor(wkts / 10) + 1) * 10;
+      const prev = [...WKT_MILESTONES].reverse().find(m => m <= wkts) || 0;
+      const diff = next - wkts;
+      const range = next - prev;
+      const progress = ((wkts - prev) / range) * 100;
+      return { ...p, type: 'wickets', next, diff, progress, label: `${diff} wkts for ${next} Career Wickets` };
+    });
+
+    return [...runData, ...wktData]
+      .sort((a, b) => b.progress - a.progress)
+      .slice(0, 6);
+  }, [players]);
 
   const captainStats = useMemo(() => {
     if (!matches || !cap1Id || !cap2Id || !deliveries) return null;
@@ -425,24 +469,43 @@ export default function InsightsPage() {
 
         <TabsContent value="watchlist" className="space-y-8 animate-in fade-in">
           <div className="space-y-6">
-            <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Activity className="w-5 h-5 text-primary" /> Milestone Watch</h2>
+            <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2">
+              <Activity className="w-5 h-5 text-primary" /> Milestone Watch
+            </h2>
             <div className="space-y-4">
-              {players?.filter(p => p.runsScored > 0).sort((a,b) => (50 - (a.runsScored % 50)) - (50 - (b.runsScored % 50))).slice(0, 5).map(p => {
-                const runMilestone = Math.ceil((p.runsScored + 1) / 50) * 50;
-                const progress = (p.runsScored % 50 / 50) * 100;
-                return (
-                  <Card key={p.id} className="p-5 border-none shadow-lg rounded-3xl bg-white space-y-4">
-                    <div className="flex justify-between items-center">
-                      <div className="min-w-0">
+              {milestoneWatch.length > 0 ? milestoneWatch.map(p => (
+                <Card key={`${p.id}-${p.type}`} className="p-5 border-none shadow-lg rounded-3xl bg-white space-y-4">
+                  <div className="flex justify-between items-start">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
                         <p className="text-sm font-black uppercase truncate">{p.name}</p>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Needs {runMilestone - p.runsScored} runs for {runMilestone} Career Runs</p>
+                        {p.progress > 85 && <Flame className="w-3.5 h-3.5 text-orange-500 fill-orange-500 animate-pulse" />}
                       </div>
-                      <Badge className="bg-primary/10 text-primary font-black text-[9px] uppercase border-none">{progress.toFixed(0)}% NEAR</Badge>
+                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
+                        {p.label}
+                      </p>
                     </div>
-                    <Progress value={progress} className="h-2 bg-slate-100" />
-                  </Card>
-                );
-              })}
+                    <Badge className={cn(
+                      "font-black text-[9px] uppercase border-none h-6 px-3",
+                      p.type === 'runs' ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"
+                    )}>
+                      {p.type === 'runs' ? 'Runs Near' : 'Wkts Near'}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Progress value={p.progress} className="h-2 bg-slate-100" />
+                    <div className="flex justify-between text-[7px] font-black uppercase tracking-tighter text-slate-400">
+                      <span>Progress</span>
+                      <span>{p.progress.toFixed(0)}% Accurate</span>
+                    </div>
+                  </div>
+                </Card>
+              )) : (
+                <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+                  <Target className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Awaiting significant milestones...</p>
+                </div>
+              )}
             </div>
           </div>
         </TabsContent>
