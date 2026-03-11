@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -19,8 +18,6 @@ import {
   ChevronRight, 
   Flame, 
   Target, 
-  TrendingUp, 
-  Zap, 
   Award,
   Shield,
   Hand,
@@ -86,54 +83,6 @@ export default function InsightsPage() {
     });
     return stats;
   }, [deliveries, players]);
-
-  const teamH2HStats = useMemo(() => {
-    if (!matches || !t1Id || !t2Id) return null;
-    const h2hMatches = matches.filter(m => 
-      m.status === 'completed' && 
-      ((m.team1Id === t1Id && m.team2Id === t2Id) || (m.team1Id === t2Id && m.team2Id === t1Id))
-    );
-
-    const stats = {
-      total: h2hMatches.length,
-      t1Wins: h2hMatches.filter(m => m.winnerTeamId === t1Id).length,
-      t2Wins: h2hMatches.filter(m => m.winnerTeamId === t2Id).length,
-      draws: h2hMatches.filter(m => m.isTie || m.winnerTeamId === 'none').length,
-      recent: h2hMatches.sort((a,b) => new Date(b.matchDate).getTime() - new Date(a.matchDate).getTime()).slice(0, 5)
-    };
-    return stats;
-  }, [matches, t1Id, t2Id]);
-
-  const h2hStats = useMemo(() => {
-    if (!deliveries || !p1Id || !p2Id) return null;
-
-    const stats = {
-      p1BatVsP2Bowl: { runs: 0, balls: 0, wkts: 0, fours: 0, sixes: 0 },
-      p2BatVsP1Bowl: { runs: 0, balls: 0, wkts: 0, fours: 0, sixes: 0 }
-    };
-
-    deliveries.forEach(d => {
-      const bId = d.bowlerId || d.bowlerPlayerId;
-      
-      if (d.strikerPlayerId === p1Id && bId === p2Id) {
-        stats.p1BatVsP2Bowl.runs += (d.runsScored || 0);
-        if (d.extraType === 'none') stats.p1BatVsP2Bowl.balls++;
-        if (d.runsScored === 4) stats.p1BatVsP2Bowl.fours++;
-        if (d.runsScored === 6) stats.p1BatVsP2Bowl.sixes++;
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) stats.p1BatVsP2Bowl.wkts++;
-      }
-
-      if (d.strikerPlayerId === p2Id && bId === p1Id) {
-        stats.p2BatVsP1Bowl.runs += (d.runsScored || 0);
-        if (d.extraType === 'none') stats.p2BatVsP1Bowl.balls++;
-        if (d.runsScored === 4) stats.p2BatVsP1Bowl.fours++;
-        if (d.runsScored === 6) stats.p2BatVsP1Bowl.sixes++;
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) stats.p2BatVsP1Bowl.wkts++;
-      }
-    });
-
-    return stats;
-  }, [deliveries, p1Id, p2Id]);
 
   const milestoneWatch = useMemo(() => {
     if (!players || players.length === 0) return { runs: [], wickets: [], catches: [], stumpings: [] };
@@ -289,7 +238,61 @@ export default function InsightsPage() {
           <TabsTrigger value="watchlist" className="font-bold text-[10px] uppercase">Watchlist</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="captaincy" className="space-y-8 animate-in fade-in zoom-in-95">
+        <TabsContent value="watchlist" className="space-y-8 animate-in fade-in">
+          <div className="space-y-6">
+            <div className="flex justify-between items-center px-2">
+              <h2 className="text-xl font-black uppercase flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary" /> Milestone Watch
+              </h2>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setWatchlistSort(watchlistSort === 'progress' ? 'total' : 'progress')}
+                className="h-8 font-black uppercase text-[8px] border-slate-200"
+              >
+                <ArrowUpDown className="w-3 h-3 mr-1" />
+                {watchlistSort === 'progress' ? 'By Next' : 'By Rank'}
+              </Button>
+            </div>
+
+            <Tabs defaultValue="runs" className="w-full">
+              <TabsList className="grid w-full grid-cols-4 h-10 bg-slate-50 p-1 rounded-xl mb-6">
+                <TabsTrigger value="runs" className="font-bold text-[8px] uppercase">Bat</TabsTrigger>
+                <TabsTrigger value="wickets" className="font-bold text-[8px] uppercase">Bowl</TabsTrigger>
+                <TabsTrigger value="catches" className="font-bold text-[8px] uppercase">Field</TabsTrigger>
+                <TabsTrigger value="stumpings" className="font-bold text-[8px] uppercase">Keep</TabsTrigger>
+              </TabsList>
+
+              {[
+                { id: 'runs', icon: Swords, color: 'text-primary' },
+                { id: 'wickets', icon: Target, color: 'text-secondary' },
+                { id: 'catches', icon: Hand, color: 'text-emerald-500' },
+                { id: 'stumpings', icon: Shield, color: 'text-amber-500' }
+              ].map(cat => (
+                <TabsContent key={cat.id} value={cat.id} className="space-y-4">
+                  <div className="flex items-center gap-2 px-2 pb-2 border-b border-dashed">
+                    <cat.icon className={cn("w-4 h-4", cat.color)} />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      Top {cat.id.charAt(0).toUpperCase() + cat.id.slice(1)} Prospects
+                    </span>
+                  </div>
+                  {milestoneWatch[cat.id as keyof typeof milestoneWatch]?.length > 0 ? (
+                    <div className="space-y-4">
+                      {milestoneWatch[cat.id as keyof typeof milestoneWatch].map((p: any) => renderMilestoneCard(p))}
+                    </div>
+                  ) : (
+                    <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+                      <Activity className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Awaiting {cat.id} records...</p>
+                    </div>
+                  )}
+                </TabsContent>
+              ))}
+            </Tabs>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="captaincy" className="space-y-8">
           <div className="space-y-6">
             <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Crown className="w-5 h-5 text-amber-500" /> Captaincy Analysis</h2>
             <Card className="border-none shadow-xl bg-white p-6 space-y-6 rounded-3xl">
@@ -380,236 +383,37 @@ export default function InsightsPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="comparison" className="space-y-8 animate-in fade-in zoom-in-95">
+        <TabsContent value="comparison" className="space-y-8">
           <div className="space-y-6">
-            <div className="flex justify-between items-center px-2">
-              <h2 className="text-xl font-black uppercase flex items-center gap-2"><Swords className="w-5 h-5 text-primary" /> Rivalry Scan</h2>
-              <div className="bg-slate-100 p-1 rounded-lg flex border">
-                <Button variant={rivalryMode === 'player' ? "secondary" : "ghost"} size="sm" onClick={() => setRivalryMode('player')} className="h-7 text-[8px] font-black uppercase">Player</Button>
-                <Button variant={rivalryMode === 'team' ? "secondary" : "ghost"} size="sm" onClick={() => setRivalryMode('team')} className="h-7 text-[8px] font-black uppercase">Team</Button>
-              </div>
-            </div>
-            
+            <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Swords className="w-5 h-5 text-primary" /> Rivalry Scan</h2>
             <Card className="border-none shadow-xl bg-white p-6 space-y-6 rounded-3xl">
-              {rivalryMode === 'player' ? (
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-slate-400">Select Player A</Label>
-                    <Select value={p1Id} onValueChange={setP1Id}>
-                      <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
-                      <SelectContent className="max-h-[250px]">
-                        {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex justify-center -my-2 relative z-10">
-                    <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-full flex items-center justify-center border-4 border-white shadow-lg">VS</div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-slate-400">Select Player B</Label>
-                    <Select value={p2Id} onValueChange={setP2Id}>
-                      <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
-                      <SelectContent className="max-h-[250px]">
-                        {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Select Player A</Label>
+                  <Select value={p1Id} onValueChange={setP1Id}>
+                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
+                    <SelectContent className="max-h-[250px]">
+                      {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-slate-400">Select Franchise A</Label>
-                    <Select value={t1Id} onValueChange={setT1Id}>
-                      <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Team" /></SelectTrigger>
-                      <SelectContent className="max-h-[250px]">
-                        {teams?.map(t => <SelectItem key={t.id} value={t.id} className="font-bold">{t.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex justify-center -my-2 relative z-10">
-                    <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-full flex items-center justify-center border-4 border-white shadow-lg">VS</div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-[10px] font-black uppercase text-slate-400">Select Franchise B</Label>
-                    <Select value={t2Id} onValueChange={setT2Id}>
-                      <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Team" /></SelectTrigger>
-                      <SelectContent className="max-h-[250px]">
-                        {teams?.map(t => <SelectItem key={t.id} value={t.id} className="font-bold">{t.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="flex justify-center -my-2 relative z-10">
+                  <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-full flex items-center justify-center border-4 border-white shadow-lg">VS</div>
                 </div>
-              )}
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Select Player B</Label>
+                  <Select value={p2Id} onValueChange={setP2Id}>
+                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
+                    <SelectContent className="max-h-[250px]">
+                      {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </Card>
-
-            {rivalryMode === 'player' && h2hStats && p1Id && p2Id ? (
-              <div className="space-y-6">
-                <Card className="border-none shadow-lg bg-slate-900 text-white overflow-hidden rounded-3xl">
-                  <div className="p-4 bg-primary flex justify-between items-center">
-                    <span className="text-[10px] font-black uppercase truncate">{getPlayerName(p1Id)} vs {getPlayerName(p2Id)}</span>
-                    <Badge className="bg-white text-primary font-black text-[10px] uppercase">H2H IMPACT</Badge>
-                  </div>
-                  <div className="p-6 grid grid-cols-2 gap-8">
-                    <div className="space-y-4">
-                      <p className="text-[8px] font-black uppercase text-slate-500 text-center">{getPlayerName(p1Id)} Batting</p>
-                      <div className="grid grid-cols-2 gap-4 text-center">
-                        <div><p className="text-[8px] font-bold text-slate-400 uppercase">Runs</p><p className="text-xl font-black">{h2hStats.p1BatVsP2Bowl.runs}</p></div>
-                        <div><p className="text-[8px] font-bold text-slate-400 uppercase">Outs</p><p className="text-xl font-black text-red-500">{h2hStats.p1BatVsP2Bowl.wkts}</p></div>
-                      </div>
-                    </div>
-                    <div className="space-y-4 border-l border-white/5 pl-8">
-                      <p className="text-[8px] font-black uppercase text-slate-500 text-center">{getPlayerName(p2Id)} Batting</p>
-                      <div className="grid grid-cols-2 gap-4 text-center">
-                        <div><p className="text-[8px] font-bold text-slate-400 uppercase">Runs</p><p className="text-xl font-black">{h2hStats.p2BatVsP1Bowl.runs}</p></div>
-                        <div><p className="text-[8px] font-bold text-slate-400 uppercase">Outs</p><p className="text-xl font-black text-red-500">{h2hStats.p2BatVsP1Bowl.wkts}</p></div>
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              </div>
-            ) : rivalryMode === 'team' && teamH2HStats && t1Id && t2Id ? (
-              <div className="space-y-6">
-                <Card className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-2xl">
-                  <div className="p-4 bg-primary text-center">
-                    <p className="text-[10px] font-black uppercase tracking-widest">Franchise Head-to-Head</p>
-                  </div>
-                  <div className="p-6 space-y-6">
-                    <div className="flex justify-between items-center">
-                      <div className="text-center flex-1">
-                        <p className="text-3xl font-black">{teamH2HStats.t1Wins}</p>
-                        <p className="text-[8px] font-black text-slate-400 uppercase">{getTeamName(t1Id)}</p>
-                      </div>
-                      <div className="bg-white/5 p-3 rounded-2xl border border-white/10 text-center min-w-[80px]">
-                        <p className="text-xl font-black">{teamH2HStats.draws}</p>
-                        <p className="text-[8px] font-black text-slate-500 uppercase">Ties/NR</p>
-                      </div>
-                      <div className="text-center flex-1">
-                        <p className="text-3xl font-black">{teamH2HStats.t2Wins}</p>
-                        <p className="text-[8px] font-black text-slate-400 uppercase">{getTeamName(t2Id)}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-[8px] font-black uppercase tracking-widest text-slate-500">
-                        <span>Dominance Factor</span>
-                        <span>{teamH2HStats.total} Encounters</span>
-                      </div>
-                      <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden flex">
-                        <div className="bg-primary h-full transition-all" style={{ width: `${(teamH2HStats.t1Wins / (teamH2HStats.total || 1)) * 100}%` }} />
-                        <div className="bg-slate-700 h-full transition-all" style={{ width: `${(teamH2HStats.draws / (teamH2HStats.total || 1)) * 100}%` }} />
-                        <div className="bg-secondary h-full transition-all" style={{ width: `${(teamH2HStats.t2Wins / (teamH2HStats.total || 1)) * 100}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-
-                <div className="space-y-3">
-                  <h3 className="text-[10px] font-black uppercase text-slate-400 px-2 tracking-widest flex items-center gap-2">Recent H2H Encounters</h3>
-                  <div className="space-y-2">
-                    {teamH2HStats.recent.length > 0 ? teamH2HStats.recent.map(m => (
-                      <Link key={m.id} href={`/match/${m.id}`}>
-                        <Card className="p-4 border-none shadow-sm hover:shadow-md transition-all group flex items-center justify-between rounded-2xl bg-white mb-2">
-                          <div className="flex items-center gap-4">
-                            <div className={cn("w-1 h-8 rounded-full", m.winnerTeamId === t1Id ? "bg-primary" : m.winnerTeamId === t2Id ? "bg-secondary" : "bg-slate-300")} />
-                            <div>
-                              <p className="text-xs font-black uppercase text-slate-900 group-hover:text-primary transition-colors">{m.resultDescription}</p>
-                              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{new Date(m.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
-                            </div>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-primary transition-colors" />
-                        </Card>
-                      </Link>
-                    )) : (
-                      <div className="p-8 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
-                        <p className="text-[8px] font-black uppercase text-slate-300">No historical matches recorded for this pair</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
-                <Search className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select two {rivalryMode}s to scan rivalry</p>
-              </div>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="watchlist" className="space-y-8 animate-in fade-in">
-          <div className="space-y-6">
-            <div className="flex justify-between items-center px-2">
-              <h2 className="text-xl font-black uppercase flex items-center gap-2">
-                <Activity className="w-5 h-5 text-primary" /> Milestone Watch
-              </h2>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => setWatchlistSort(watchlistSort === 'progress' ? 'total' : 'progress')}
-                className="h-8 font-black uppercase text-[8px] border-slate-200"
-              >
-                <ArrowUpDown className="w-3 h-3 mr-1" />
-                {watchlistSort === 'progress' ? 'By Next' : 'By Rank'}
-              </Button>
-            </div>
-
-            <Tabs defaultValue="runs" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 h-10 bg-slate-50 p-1 rounded-xl mb-6">
-                <TabsTrigger value="runs" className="font-bold text-[8px] uppercase">Bat</TabsTrigger>
-                <TabsTrigger value="wickets" className="font-bold text-[8px] uppercase">Bowl</TabsTrigger>
-                <TabsTrigger value="catches" className="font-bold text-[8px] uppercase">Field</TabsTrigger>
-                <TabsTrigger value="stumpings" className="font-bold text-[8px] uppercase">Keep</TabsTrigger>
-              </TabsList>
-
-              {[
-                { id: 'runs', icon: Swords, color: 'text-primary' },
-                { id: 'wickets', icon: Target, color: 'text-secondary' },
-                { id: 'catches', icon: Hand, color: 'text-emerald-500' },
-                { id: 'stumpings', icon: Shield, color: 'text-amber-500' }
-              ].map(cat => (
-                <TabsContent key={cat.id} value={cat.id} className="space-y-4">
-                  <div className="flex items-center gap-2 px-2 pb-2 border-b border-dashed">
-                    <cat.icon className={cn("w-4 h-4", cat.color)} />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                      Top {cat.id.charAt(0).toUpperCase() + cat.id.slice(1)} Prospects
-                    </span>
-                  </div>
-                  {milestoneWatch[cat.id as keyof typeof milestoneWatch]?.length > 0 ? (
-                    <div className="space-y-4">
-                      {milestoneWatch[cat.id as keyof typeof milestoneWatch].map((p: any) => renderMilestoneCard(p))}
-                    </div>
-                  ) : (
-                    <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
-                      <Clock className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Awaiting {cat.id} records...</p>
-                    </div>
-                  )}
-                </TabsContent>
-              ))}
-            </Tabs>
           </div>
         </TabsContent>
       </Tabs>
     </div>
-  );
-}
-
-function Clock({ className, ...props }: any) {
-  return (
-    <svg 
-      {...props} 
-      className={className} 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
-      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-    </svg>
   );
 }

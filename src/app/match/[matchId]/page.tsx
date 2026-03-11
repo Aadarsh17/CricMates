@@ -1,30 +1,28 @@
-
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useDoc, useMemoFirebase, useFirestore, useCollection, updateDocumentNonBlocking, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
+import { useDoc, useMemoFirebase, useFirestore, useCollection, setDocumentNonBlocking, deleteDocumentNonBlocking } from '@/firebase';
 import { doc, collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Shield, Crown, Users } from 'lucide-react';
+import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Crown, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
 import { getExtendedInningStats, generateMatchReport } from '@/lib/report-utils';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, AreaChart, Area } from 'recharts';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, LineChart, Line } from 'recharts';
 import { toPng } from 'html-to-image';
-import { Progress } from '@/components/ui/progress';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -783,20 +781,15 @@ export default function MatchScoreboardPage() {
                         <p className="text-[9px] font-black uppercase text-slate-900 truncate tracking-wider">{getTeamName(match?.team1Id)}</p>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {match?.team1SquadPlayerIds?.map((pid: string) => {
-                          const isC = pid === match.team1CaptainId;
-                          const isVC = pid === match.team1ViceCaptainId;
-                          const isWK = pid === match.team1WicketKeeperId;
-                          return (
-                            <Link key={pid} href={`/players/${pid}`}>
-                              <Badge variant="outline" className="h-7 border-slate-200 hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer">
-                                <span className="text-[9px] font-bold text-slate-600 group-hover:text-primary uppercase">
-                                  {getPlayerName(pid)} {isC && '(C)'} {isVC && '(VC)'} {isWK && '(WK)'}
-                                </span>
-                              </Badge>
-                            </Link>
-                          );
-                        })}
+                        {match?.team1SquadPlayerIds?.map((pid: string) => (
+                          <Link key={pid} href={`/players/${pid}`}>
+                            <Badge variant="outline" className="h-7 border-slate-200 hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer">
+                              <span className="text-[9px] font-bold text-slate-600 group-hover:text-primary uppercase">
+                                {getPlayerName(pid)} {pid === match.team1CaptainId && '(C)'} {pid === match.team1ViceCaptainId && '(VC)'} {pid === match.team1WicketKeeperId && '(WK)'}
+                              </span>
+                            </Badge>
+                          </Link>
+                        ))}
                       </div>
                     </div>
                     <div className="space-y-3">
@@ -805,20 +798,15 @@ export default function MatchScoreboardPage() {
                         <p className="text-[9px] font-black uppercase text-slate-900 truncate tracking-wider">{getTeamName(match?.team2Id)}</p>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {match?.team2SquadPlayerIds?.map((pid: string) => {
-                          const isC = pid === match.team2CaptainId;
-                          const isVC = pid === match.team2ViceCaptainId;
-                          const isWK = pid === match.team2WicketKeeperId;
-                          return (
-                            <Link key={pid} href={`/players/${pid}`}>
-                              <Badge variant="outline" className="h-7 border-slate-200 hover:border-secondary hover:bg-secondary/5 transition-all group cursor-pointer">
-                                <span className="text-[9px] font-bold text-slate-600 group-hover:text-secondary uppercase">
-                                  {getPlayerName(pid)} {isC && '(C)'} {isVC && '(VC)'} {isWK && '(WK)'}
-                                </span>
-                              </Badge>
-                            </Link>
-                          );
-                        })}
+                        {match?.team2SquadPlayerIds?.map((pid: string) => (
+                          <Link key={pid} href={`/players/${pid}`}>
+                            <Badge variant="outline" className="h-7 border-slate-200 hover:border-secondary hover:bg-secondary/5 transition-all group cursor-pointer">
+                              <span className="text-[9px] font-bold text-slate-600 group-hover:text-secondary uppercase">
+                                {getPlayerName(pid)} {pid === match.team2CaptainId && '(C)'} {pid === match.team2ViceCaptainId && '(VC)'} {pid === match.team2WicketKeeperId && '(WK)'}
+                              </span>
+                            </Badge>
+                          </Link>
+                        ))}
                       </div>
                     </div>
                   </div>
@@ -1101,7 +1089,13 @@ export default function MatchScoreboardPage() {
               <Label className="text-[10px] font-black uppercase text-slate-400">Type</Label>
               <Select value={wicketForm.type || 'bowled'} onValueChange={(v) => setWicketForm({...wicketForm, type: v, runsCompleted: 0, fielderId: 'none', successorId: ''})}>
                 <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue /></SelectTrigger>
-                <SelectContent className="z-[200] max-h-[250px]" position="popper"><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="caught">Caught</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumped">Stumped</SelectItem><SelectItem value="retired">Retired</SelectItem></Select>
+                <SelectContent className="z-[200] max-h-[250px]" position="popper">
+                  <SelectItem value="bowled">Bowled</SelectItem>
+                  <SelectItem value="caught">Caught</SelectItem>
+                  <SelectItem value="runout">Run Out</SelectItem>
+                  <SelectItem value="stumped">Stumped</SelectItem>
+                  <SelectItem value="retired">Retired</SelectItem>
+                </SelectContent>
               </Select>
             </div>
             {wicketForm.type === 'retired' && (
