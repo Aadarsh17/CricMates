@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Crown, Users } from 'lucide-react';
+import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Crown, Users, UserPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -41,6 +41,7 @@ export default function MatchScoreboardPage() {
   const [isCorrectionDialogOpen, setIsCorrectionDialogOpen] = useState(false);
   const [isMatchDetailsDialogOpen, setIsMatchDetailsDialogOpen] = useState(false);
   const [isPotmDialogOpen, setIsPotmDialogOpen] = useState(false);
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
   
   const [assignmentForm, setAssignmentForm] = useState({ strikerId: '', nonStrikerId: '', bowlerId: '' });
   const [wicketForm, setWicketForm] = useState({ type: 'bowled', batterOutId: '', extraType: 'none', runsCompleted: 0, fielderId: 'none', successorId: '' });
@@ -49,6 +50,8 @@ export default function MatchScoreboardPage() {
   const [venueForm, setVenueForm] = useState('');
   const [matchNumberForm, setMatchNumberForm] = useState('');
   const [potmId, setPotmId] = useState('');
+  const [quickAddName, setQuickAddName] = useState('');
+  const [quickAddTeamId, setQuickAddTeamId] = useState('');
 
   const [selectedOverFilter, setSelectedOverFilter] = useState<string>('all');
 
@@ -321,6 +324,40 @@ export default function MatchScoreboardPage() {
     await recalculateInningState(correctionForm.targetInning);
     setIsCorrectionDialogOpen(false);
     toast({ title: correctionForm.id ? "Delivery Updated" : "Delivery Inserted" });
+  };
+
+  const handleQuickAddPlayer = async () => {
+    if (!quickAddName.trim() || !quickAddTeamId) return;
+    const pid = doc(collection(db, 'players')).id;
+    const pData = { 
+      id: pid, 
+      name: quickAddName, 
+      teamId: quickAddTeamId, 
+      ownerId: match?.umpireId || 'anonymous',
+      role: 'All-rounder', 
+      battingStyle: 'Right Handed Bat', 
+      isWicketKeeper: false, 
+      isRetired: false, 
+      matchesPlayed: 0, 
+      runsScored: 0, 
+      wicketsTaken: 0, 
+      highestScore: 0, 
+      bestBowlingFigures: '0/0', 
+      careerCVP: 0, 
+      imageUrl: '' 
+    };
+    
+    await setDocumentNonBlocking(doc(db, 'players', pid), pData, { merge: true });
+    
+    const isTeam1 = quickAddTeamId === match?.team1Id;
+    const squadKey = isTeam1 ? 'team1SquadPlayerIds' : 'team2SquadPlayerIds';
+    const updatedSquad = [...(match?.[squadKey] || []), pid];
+    
+    await setDocumentNonBlocking(doc(db, 'matches', matchId), { [squadKey]: updatedSquad }, { merge: true });
+    
+    setQuickAddName('');
+    setIsQuickAddOpen(false);
+    toast({ title: "Player Added to Match" });
   };
 
   const matchCvpMap = useMemo(() => {
@@ -1032,6 +1069,9 @@ export default function MatchScoreboardPage() {
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl z-[151]">
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl">Assign Positions</DialogTitle></DialogHeader>
           <div className="space-y-6 py-4 max-h-[60vh] overflow-y-auto px-1 scrollbar-hide">
+            <Button onClick={() => setIsQuickAddOpen(true)} variant="outline" className="w-full h-12 border-dashed border-2 font-black uppercase text-[10px] text-primary hover:bg-primary/5">
+              <UserPlus className="w-4 h-4 mr-2" /> Add Player Mid-Match
+            </Button>
             <div className="space-y-2">
               <Label className="text-xs font-black uppercase">STRIKER</Label>
               <Select value={assignmentForm.strikerId || ''} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
@@ -1072,6 +1112,26 @@ export default function MatchScoreboardPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isQuickAddOpen} onOpenChange={setIsQuickAddOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl z-[200]">
+          <DialogHeader><DialogTitle className="font-black uppercase text-xl">Quick Mid-Match Add</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Full Name</Label><Input value={quickAddName} onChange={(e) => setQuickAddName(e.target.value)} className="font-bold h-12" placeholder="Enter player name" /></div>
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase">Assign to Team</Label>
+              <Select value={quickAddTeamId} onValueChange={setQuickAddTeamId}>
+                <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select Team" /></SelectTrigger>
+                <SelectContent className="z-[250]">
+                  <SelectItem value={match?.team1Id || ''}>{getTeamName(match?.team1Id)}</SelectItem>
+                  <SelectItem value={match?.team2Id || ''}>{getTeamName(match?.team2Id)}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter><Button onClick={handleQuickAddPlayer} disabled={!quickAddName.trim() || !quickAddTeamId} className="w-full h-14 bg-primary font-black uppercase shadow-xl">Add to Squad</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-destructive shadow-2xl z-[151]">
           <DialogHeader><DialogTitle className="font-black uppercase text-xl text-destructive">{wicketForm.type === 'retired' ? 'Retire Player' : 'Register Out'}</DialogTitle></DialogHeader>
@@ -1079,7 +1139,9 @@ export default function MatchScoreboardPage() {
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase text-slate-400">Batter Out</Label>
               <Select value={wicketForm.batterOutId || ''} onValueChange={(v) => setWicketForm({...wicketForm, batterOutId: v})}>
-                <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-14 font-black border-2 rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent className="z-[200] max-h-[250px]" position="popper">
                   {activeInningData?.strikerPlayerId && <SelectItem value={activeInningData.strikerPlayerId}>{getPlayerName(activeInningData.strikerPlayerId)} (Striker)</SelectItem>}
                   {activeInningData?.nonStrikerPlayerId && <SelectItem value={activeInningData.nonStrikerPlayerId}>{getPlayerName(activeInningData.nonStrikerPlayerId)} (Non-Striker)</SelectItem>}
@@ -1089,7 +1151,9 @@ export default function MatchScoreboardPage() {
             <div className="space-y-1.5">
               <Label className="text-[10px] font-black uppercase text-slate-400">Type</Label>
               <Select value={wicketForm.type || 'bowled'} onValueChange={(v) => setWicketForm({...wicketForm, type: v, runsCompleted: 0, fielderId: 'none', successorId: ''})}>
-                <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-14 font-black border-2 rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent className="z-[200] max-h-[250px]" position="popper">
                   <SelectItem value="bowled">Bowled</SelectItem>
                   <SelectItem value="caught">Caught</SelectItem>
@@ -1103,7 +1167,9 @@ export default function MatchScoreboardPage() {
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase text-slate-400">Successor</Label>
                 <Select value={wicketForm.successorId || ''} onValueChange={(v) => setWicketForm({...wicketForm, successorId: v})}>
-                  <SelectTrigger className="h-14 font-black border-2 rounded-xl border-primary/30"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-14 font-black border-2 rounded-xl border-primary/30">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent className="z-[200] max-h-[250px]" position="popper">
                     {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                   </SelectContent>
@@ -1114,7 +1180,9 @@ export default function MatchScoreboardPage() {
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase text-slate-400">Fielder</Label>
                 <Select value={wicketForm.fielderId || 'none'} onValueChange={(v) => setWicketForm({...wicketForm, fielderId: v})}>
-                  <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-14 font-black border-2 rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent className="z-[200] max-h-[250px]" position="popper">
                     <SelectItem value="none">Direct</SelectItem>
                     {allPlayers?.filter(p => (activeInningData?.battingTeamId === match?.team1Id ? match?.team2SquadPlayerIds : match?.team1SquadPlayerIds)?.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
@@ -1126,7 +1194,9 @@ export default function MatchScoreboardPage() {
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase text-slate-400">Runs Completed</Label>
                 <Select value={(wicketForm.runsCompleted || 0).toString()} onValueChange={(v) => setWicketForm({...wicketForm, runsCompleted: parseInt(v)})}>
-                  <SelectTrigger className="h-14 font-black border-2 rounded-xl"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-14 font-black border-2 rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent className="z-[200] max-h-[250px]" position="popper">{[0, 1, 2, 3].map(r => <SelectItem key={r} value={r.toString()}>{r} Runs</SelectItem>)}</SelectContent>
                 </Select>
               </div>

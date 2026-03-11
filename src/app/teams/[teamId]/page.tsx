@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Users, Scale, Crown, Shield } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Users, Scale, Crown, Shield, ShieldCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -53,7 +53,24 @@ export default function TeamDetailsPage() {
 
   const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
 
-  const activeSquad = useMemo(() => allPlayers?.filter(p => p.teamId === teamId) || [], [allPlayers, teamId]);
+  // Enhanced Squad Discovery: Registered players + Match participants
+  const activeSquad = useMemo(() => {
+    if (!allPlayers || !allMatches || !teamId) return [];
+    
+    // Players officially registered to this team
+    const registeredIds = new Set(allPlayers.filter(p => p.teamId === teamId).map(p => p.id));
+    
+    // Players who appeared in match squads for this team
+    const matchParticipantIds = new Set<string>();
+    allMatches.forEach(m => {
+      if (m.team1Id === teamId) m.team1SquadPlayerIds?.forEach((pid: string) => matchParticipantIds.add(pid));
+      if (m.team2Id === teamId) m.team2SquadPlayerIds?.forEach((pid: string) => matchParticipantIds.add(pid));
+    });
+
+    // Combined unique list
+    const combinedIds = new Set([...Array.from(registeredIds), ...Array.from(matchParticipantIds)]);
+    return allPlayers.filter(p => combinedIds.has(p.id));
+  }, [allPlayers, allMatches, teamId]);
 
   const allDeliveries = useMemo(() => {
     if (!rawDeliveries || !allMatches || allMatches.length === 0) return [];
@@ -378,7 +395,7 @@ export default function TeamDetailsPage() {
                 <Label className="text-[10px] font-black uppercase">Official Captain</Label>
                 <Select value={captainIdForm || 'none'} onValueChange={setCaptainIdForm}>
                   <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign Leader" /></SelectTrigger>
-                  <SelectContent className="z-[200] max-h-[250px]">
+                  <SelectContent className="z-[200] max-h-[250px]" position="popper">
                     <SelectItem value="none" className="font-bold uppercase text-xs">No Captain</SelectItem>
                     {activeSquad.map(p => <SelectItem key={p.id} value={p.id} className="font-bold text-xs">{p.name}</SelectItem>)}
                   </SelectContent>
@@ -388,7 +405,7 @@ export default function TeamDetailsPage() {
                 <Label className="text-[10px] font-black uppercase">Vice-Captain</Label>
                 <Select value={vcIdForm || 'none'} onValueChange={setVcIdForm}>
                   <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign VC" /></SelectTrigger>
-                  <SelectContent className="z-[200] max-h-[250px]">
+                  <SelectContent className="z-[200] max-h-[250px]" position="popper">
                     <SelectItem value="none" className="font-bold uppercase text-xs">No Vice-Captain</SelectItem>
                     {activeSquad.map(p => <SelectItem key={p.id} value={p.id} className="font-bold text-xs">{p.name}</SelectItem>)}
                   </SelectContent>
@@ -398,7 +415,7 @@ export default function TeamDetailsPage() {
                 <Label className="text-[10px] font-black uppercase">Wicket-Keeper</Label>
                 <Select value={wkIdForm || 'none'} onValueChange={setWkIdForm}>
                   <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign WK" /></SelectTrigger>
-                  <SelectContent className="z-[200] max-h-[250px]">
+                  <SelectContent className="z-[200] max-h-[250px]" position="popper">
                     <SelectItem value="none" className="font-bold uppercase text-xs">No Wicket-Keeper</SelectItem>
                     {activeSquad.map(p => <SelectItem key={p.id} value={p.id} className="font-bold text-xs">{p.name}</SelectItem>)}
                   </SelectContent>
@@ -427,14 +444,14 @@ export default function TeamDetailsPage() {
                   <Label className="text-[10px] font-black uppercase">Role</Label>
                   <Select value={editForm.role} onValueChange={(v) => setEditForm({...editForm, role: v})}>
                     <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="Batsman">Batsman</SelectItem><SelectItem value="Bowler">Bowler</SelectItem><SelectItem value="All-rounder">All-rounder</SelectItem></SelectContent>
+                    <SelectContent position="popper"><SelectItem value="Batsman">Batsman</SelectItem><SelectItem value="Bowler">Bowler</SelectItem><SelectItem value="All-rounder">All-rounder</SelectItem></SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-[10px] font-black uppercase">Batting Style</Label>
                   <Select value={editForm.battingStyle} onValueChange={(v) => setEditForm({...editForm, battingStyle: v})}>
                     <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="Right Handed Bat">RHB</SelectItem><SelectItem value="Left Handed Bat">LHB</SelectItem></SelectContent>
+                    <SelectContent position="popper"><SelectItem value="Right Handed Bat">RHB</SelectItem><SelectItem value="Left Handed Bat">LHB</SelectItem></SelectContent>
                   </Select>
                 </div>
               </div>
