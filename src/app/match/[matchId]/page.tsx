@@ -9,7 +9,7 @@ import { doc, collection, query, orderBy, limit, getDocs } from 'firebase/firest
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Unlock, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Shield, Crown, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
@@ -112,10 +112,7 @@ export default function MatchScoreboardPage() {
   const getPlayerName = (pid: string) => {
     const p = allPlayers?.find(p => p.id === pid);
     if (!p) return '---';
-    const isC = pid === match?.team1CaptainId || pid === match?.team2CaptainId;
-    const isVC = pid === match?.team1ViceCaptainId || pid === match?.team2ViceCaptainId;
-    const isWK = pid === match?.team1WicketKeeperId || pid === match?.team2WicketKeeperId;
-    return `${p.name}${isC ? ' (C)' : isVC ? ' (VC)' : ''}${isWK ? ' (WK)' : ''}`;
+    return p.name;
   };
 
   const getTeamName = (tid: string) => {
@@ -164,7 +161,7 @@ export default function MatchScoreboardPage() {
       console.error('Share Image Error:', err);
       toast({ 
         title: "Sharing Error", 
-        description: "Failed to generate HD image. Try again or check your connection.",
+        description: "Failed to generate HD image.",
         variant: "destructive" 
       });
     } finally {
@@ -565,7 +562,10 @@ export default function MatchScoreboardPage() {
                     <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Batter</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">B</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Dots</TableHead><TableHead className="text-right text-[9px] font-black uppercase">4s/6s</TableHead><TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead></TableRow></TableHeader>
                     <TableBody>{inn.stats.batting.map((b: any) => (
                         <TableRow key={b.id}>
-                          <TableCell className="py-3"><p className="font-black text-xs uppercase">{getPlayerName(b.id)}</p><p className="text-[8px] font-bold text-slate-400 uppercase italic">{(b.dismissal || 'not out').replace('Fielder', getPlayerName(b.fielderId))}</p></TableCell>
+                          <TableCell className="py-3">
+                            <p className="font-black text-xs uppercase">{getPlayerName(b.id)}</p>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase italic">{(b.dismissal || 'not out').replace('Fielder', getPlayerName(b.fielderId))}</p>
+                          </TableCell>
                           <TableCell className="text-right font-black">{b.runs}</TableCell>
                           <TableCell className="text-right text-xs font-bold text-slate-500">{b.balls}</TableCell>
                           <TableCell className="text-right text-xs text-slate-400">{b.dots}</TableCell>
@@ -666,7 +666,7 @@ export default function MatchScoreboardPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-              </AreaChart>
+              </Card>
             </div>
           </TabsContent>
 
@@ -783,13 +783,20 @@ export default function MatchScoreboardPage() {
                         <p className="text-[9px] font-black uppercase text-slate-900 truncate tracking-wider">{getTeamName(match?.team1Id)}</p>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {match?.team1SquadPlayerIds?.map((pid: string) => (
-                          <Link key={pid} href={`/players/${pid}`}>
-                            <Badge variant="outline" className="h-7 border-slate-200 hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer">
-                              <span className="text-[9px] font-bold text-slate-600 group-hover:text-primary uppercase">{getPlayerName(pid)}</span>
-                            </Badge>
-                          </Link>
-                        ))}
+                        {match?.team1SquadPlayerIds?.map((pid: string) => {
+                          const isC = pid === match.team1CaptainId;
+                          const isVC = pid === match.team1ViceCaptainId;
+                          const isWK = pid === match.team1WicketKeeperId;
+                          return (
+                            <Link key={pid} href={`/players/${pid}`}>
+                              <Badge variant="outline" className="h-7 border-slate-200 hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer">
+                                <span className="text-[9px] font-bold text-slate-600 group-hover:text-primary uppercase">
+                                  {getPlayerName(pid)} {isC && '(C)'} {isVC && '(VC)'} {isWK && '(WK)'}
+                                </span>
+                              </Badge>
+                            </Link>
+                          );
+                        })}
                       </div>
                     </div>
                     <div className="space-y-3">
@@ -798,13 +805,20 @@ export default function MatchScoreboardPage() {
                         <p className="text-[9px] font-black uppercase text-slate-900 truncate tracking-wider">{getTeamName(match?.team2Id)}</p>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
-                        {match?.team2SquadPlayerIds?.map((pid: string) => (
-                          <Link key={pid} href={`/players/${pid}`}>
-                            <Badge variant="outline" className="h-7 border-slate-200 hover:border-secondary hover:bg-secondary/5 transition-all group cursor-pointer">
-                              <span className="text-[9px] font-bold text-slate-600 group-hover:text-secondary uppercase">{getPlayerName(pid)}</span>
-                            </Badge>
-                          </Link>
-                        ))}
+                        {match?.team2SquadPlayerIds?.map((pid: string) => {
+                          const isC = pid === match.team2CaptainId;
+                          const isVC = pid === match.team2ViceCaptainId;
+                          const isWK = pid === match.team2WicketKeeperId;
+                          return (
+                            <Link key={pid} href={`/players/${pid}`}>
+                              <Badge variant="outline" className="h-7 border-slate-200 hover:border-secondary hover:bg-secondary/5 transition-all group cursor-pointer">
+                                <span className="text-[9px] font-bold text-slate-600 group-hover:text-secondary uppercase">
+                                  {getPlayerName(pid)} {isC && '(C)'} {isVC && '(VC)'} {isWK && '(WK)'}
+                                </span>
+                              </Badge>
+                            </Link>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -816,8 +830,8 @@ export default function MatchScoreboardPage() {
                     Generate HD Share Image
                   </Button>
                   <Button variant="outline" className="w-full h-12 font-black uppercase text-[10px] border-slate-200" onClick={() => {
-                    const playerNamesMap = allPlayers?.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {}) || {};
-                    const report = generateMatchReport(match, allTeams || [], playerNamesMap, inn1, inn2, stats1, stats2);
+                    const namesMap = allPlayers?.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {}) || {};
+                    const report = generateMatchReport(match, allTeams || [], namesMap, inn1, inn2, stats1, stats2);
                     const blob = new Blob([report], { type: 'text/html' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a'); a.href = url; a.download = `CricMates_${match?.id}.html`; a.click();

@@ -5,7 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
 import { collection, query, collectionGroup } from 'firebase/firestore';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -109,7 +109,7 @@ export default function InsightsPage() {
   const milestoneWatch = useMemo(() => {
     if (!players || players.length === 0) return [];
     
-    const RUN_MILESTONES = [25, 50, 100, 150, 200, 300, 400, 500, 750, 1000, 1500, 2000, 2500, 5000];
+    const RUN_MILESTONES = [25, 50, 100, 250, 500, 750, 1000, 1500, 2000, 5000];
     const WKT_MILESTONES = [5, 10, 20, 30, 40, 50, 75, 100, 150, 200];
 
     const runData = players.filter(p => (p.runsScored || 0) > 0).map(p => {
@@ -496,7 +496,7 @@ export default function InsightsPage() {
                     <Progress value={p.progress} className="h-2 bg-slate-100" />
                     <div className="flex justify-between text-[7px] font-black uppercase tracking-tighter text-slate-400">
                       <span>Progress</span>
-                      <span>{p.progress.toFixed(0)}% Accurate</span>
+                      <span>{p.progress.toFixed(0)}% Near</span>
                     </div>
                   </div>
                 </Card>

@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
-import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target, CheckCircle2, ChevronLeft, BarChart3, ListOrdered, Edit2, AlertCircle } from 'lucide-react';
+import { History as HistoryIcon, RotateCcw, Play, Circle, Skull, Hash, UserPlus, Undo2, Download, Trash2, ShieldCheck, Zap, Plus, ArrowRight, UserCircle, Trophy, Target, CheckCircle2, ChevronLeft, ListOrdered, Edit2, AlertCircle } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { generateStreetReport } from '@/lib/report-utils';
@@ -319,7 +319,8 @@ export default function NumberGame() {
 
   const applyBallEdit = () => {
     if (!editingBall) return;
-    deleteBall(editingBall.id);
+    const oldId = editingBall.id;
+    deleteBall(oldId);
     handleScore(editingBall.runs, editingBall.extra);
     setIsEditBallOpen(false);
     setEditingBall(null);
@@ -551,7 +552,6 @@ export default function NumberGame() {
         </TabsContent>
       </Tabs>
       
-      {/* Dialogs */}
       <Dialog open={isEditBallOpen} onOpenChange={setIsEditBallOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-primary z-[200]">
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Manual Adjustment</DialogTitle></DialogHeader>
