@@ -962,12 +962,46 @@ export default function MatchScoreboardPage() {
           <DialogHeader><DialogTitle className="font-black uppercase text-xl text-amber-600">Correction</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto px-1 scrollbar-hide">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Striker</Label><Select value={correctionForm.strikerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, strikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]" position="popper">{allPlayers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Bowler</Label><Select value={correctionForm.bowlerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, bowlerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]" position="popper">{allPlayers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Striker</Label>
+                <Select value={correctionForm.strikerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, strikerId: v})}>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent className="z-[200] max-h-[250px]" position="popper">
+                    {allPlayers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Bowler</Label>
+                <Select value={correctionForm.bowlerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, bowlerId: v})}>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent className="z-[200] max-h-[250px]" position="popper">
+                    {allPlayers?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Bat Runs</Label><Select value={(correctionForm.runs || 0).toString()} onValueChange={(v) => setCorrectionForm({...correctionForm, runs: parseInt(v)})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]" position="popper">{[0,1,2,3,4,6].map(r => <SelectItem key={r} value={r.toString()}>{r}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Extra</Label><Select value={correctionForm.extra || 'none'} onValueChange={(v) => setCorrectionForm({...correctionForm, extra: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]" position="popper"><SelectItem value="none">None</SelectItem><SelectItem value="wide">Wide</SelectItem><SelectItem value="noball">No Ball</SelectItem></SelectContent></Select></div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Bat Runs</Label>
+                <Select value={(correctionForm.runs || 0).toString()} onValueChange={(v) => setCorrectionForm({...correctionForm, runs: parseInt(v)})}>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent className="z-[200] max-h-[250px]" position="popper">
+                    {[0,1,2,3,4,6].map(r => <SelectItem key={r} value={r.toString()}>{r}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Extra</Label>
+                <Select value={correctionForm.extra || 'none'} onValueChange={(v) => setCorrectionForm({...correctionForm, extra: v})}>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger>
+                  <SelectContent className="z-[200] max-h-[250px]" position="popper">
+                    <SelectItem value="none">None</SelectItem>
+                    <SelectItem value="wide">Wide</SelectItem>
+                    <SelectItem value="noball">No Ball</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border">
               <Label className="text-[10px] font-black uppercase flex-1">Wicket/Retire?</Label>
@@ -975,8 +1009,29 @@ export default function MatchScoreboardPage() {
             </div>
             {correctionForm.isWicket && (
               <div className="space-y-3">
-                <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Type</Label><Select value={correctionForm.wicketType || 'bowled'} onValueChange={(v) => setCorrectionForm({...correctionForm, wicketType: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]" position="popper"><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="caught">Caught</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumped">Stumped</SelectItem><SelectItem value="retired">Retired</SelectItem></Select></div>
-                <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Batter Out</Label><Select value={correctionForm.batterOutId || correctionForm.strikerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, batterOutId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]" position="popper"><SelectItem value={correctionForm.strikerId}>Striker</SelectItem><SelectItem value={correctionForm.nonStrikerId}>Non-Striker</SelectItem></SelectContent></Select></div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase">Type</Label>
+                  <Select value={correctionForm.wicketType || 'bowled'} onValueChange={(v) => setCorrectionForm({...correctionForm, wicketType: v})}>
+                    <SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-[200] max-h-[250px]" position="popper">
+                      <SelectItem value="bowled">Bowled</SelectItem>
+                      <SelectItem value="caught">Caught</SelectItem>
+                      <SelectItem value="runout">Run Out</SelectItem>
+                      <SelectItem value="stumped">Stumped</SelectItem>
+                      <SelectItem value="retired">Retired</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] font-black uppercase">Batter Out</Label>
+                  <Select value={correctionForm.batterOutId || correctionForm.strikerId || ''} onValueChange={(v) => setCorrectionForm({...correctionForm, batterOutId: v})}>
+                    <SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-[200] max-h-[250px]" position="popper">
+                      <SelectItem value={correctionForm.strikerId}>Striker</SelectItem>
+                      <SelectItem value={correctionForm.nonStrikerId}>Non-Striker</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             )}
           </div>
