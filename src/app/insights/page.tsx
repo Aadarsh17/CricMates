@@ -21,7 +21,10 @@ import {
   Target, 
   TrendingUp, 
   Zap, 
-  Award 
+  Award,
+  Shield,
+  Hand,
+  ArrowUpDown
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -40,6 +43,9 @@ export default function InsightsPage() {
   const [rivalryMode, setRivalryMode] = useState<'player' | 'team'>('player');
   const [t1Id, setT1Id] = useState<string>('');
   const [t2Id, setT2Id] = useState<string>('');
+  
+  // Watchlist specific state
+  const [watchlistSort, setWatchlistSort] = useState<'progress' | 'total'>('progress');
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -57,6 +63,29 @@ export default function InsightsPage() {
 
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: matches } = useCollection(matchesQuery);
+
+  // Aggregate fielding stats since they aren't in the player entity
+  const playerCareerAggregates = useMemo(() => {
+    if (!deliveries || !players) return {};
+    const stats: Record<string, any> = {};
+    players.forEach(p => {
+      stats[p.id] = { 
+        runs: p.runsScored || 0, 
+        wkts: p.wicketsTaken || 0, 
+        catches: 0, 
+        stumpings: 0 
+      };
+    });
+
+    deliveries.forEach(d => {
+      const fId = d.fielderPlayerId;
+      if (fId && fId !== 'none' && stats[fId]) {
+        if (d.dismissalType === 'caught') stats[fId].catches++;
+        if (d.dismissalType === 'stumped') stats[fId].stumpings++;
+      }
+    });
+    return stats;
+  }, [deliveries, players]);
 
   const teamH2HStats = useMemo(() => {
     if (!matches || !t1Id || !t2Id) return null;
@@ -107,35 +136,48 @@ export default function InsightsPage() {
   }, [deliveries, p1Id, p2Id]);
 
   const milestoneWatch = useMemo(() => {
-    if (!players || players.length === 0) return [];
+    if (!players || players.length === 0) return { runs: [], wickets: [], catches: [], stumpings: [] };
     
     const RUN_MILESTONES = [25, 50, 100, 250, 500, 750, 1000, 1500, 2000, 5000];
     const WKT_MILESTONES = [5, 10, 20, 30, 40, 50, 75, 100, 150, 200];
+    const CATCH_MILESTONES = [5, 10, 15, 25, 40, 50, 75, 100];
+    const STUMP_MILESTONES = [2, 5, 8, 12, 20, 30, 50];
 
-    const runData = players.filter(p => (p.runsScored || 0) > 0).map(p => {
-      const runs = p.runsScored || 0;
-      const next = RUN_MILESTONES.find(m => m > runs) || (Math.floor(runs / 100) + 1) * 100;
-      const prev = [...RUN_MILESTONES].reverse().find(m => m <= runs) || 0;
-      const diff = next - runs;
+    const getProg = (val: number, milestones: number[]) => {
+      const next = milestones.find(m => m > val) || (Math.floor(val / 10) + 1) * 10;
+      const prev = [...milestones].reverse().find(m => m <= val) || 0;
+      const diff = next - val;
       const range = next - prev;
-      const progress = ((runs - prev) / range) * 100;
-      return { ...p, type: 'runs', next, diff, progress, label: `${diff} runs for ${next} Career Runs` };
-    });
+      const progress = range > 0 ? ((val - prev) / range) * 100 : 0;
+      return { next, diff, prev, progress };
+    };
 
-    const wktData = players.filter(p => (p.wicketsTaken || 0) > 0).map(p => {
-      const wkts = p.wicketsTaken || 0;
-      const next = WKT_MILESTONES.find(m => m > wkts) || (Math.floor(wkts / 10) + 1) * 10;
-      const prev = [...WKT_MILESTONES].reverse().find(m => m <= wkts) || 0;
-      const diff = next - wkts;
-      const range = next - prev;
-      const progress = ((wkts - prev) / range) * 100;
-      return { ...p, type: 'wickets', next, diff, progress, label: `${diff} wkts for ${next} Career Wickets` };
-    });
+    const process = (type: string, milestones: number[], key: string) => {
+      return players.map(p => {
+        const val = playerCareerAggregates[p.id]?.[key] || 0;
+        if (val === 0 && (type === 'catches' || type === 'stumpings')) return null;
+        const { next, diff, progress } = getProg(val, milestones);
+        return { 
+          ...p, 
+          type, 
+          current: val, 
+          next, 
+          diff, 
+          progress, 
+          label: `${diff} ${type === 'runs' ? 'runs' : type === 'wickets' ? 'wkts' : type} for ${next} Career ${type.charAt(0).toUpperCase() + type.slice(1)}`
+        };
+      })
+      .filter(Boolean)
+      .sort((a: any, b: any) => watchlistSort === 'progress' ? b.progress - a.progress : b.current - a.current);
+    };
 
-    return [...runData, ...wktData]
-      .sort((a, b) => b.progress - a.progress)
-      .slice(0, 6);
-  }, [players]);
+    return {
+      runs: process('runs', RUN_MILESTONES, 'runs'),
+      wickets: process('wickets', WKT_MILESTONES, 'wkts'),
+      catches: process('catches', CATCH_MILESTONES, 'catches'),
+      stumpings: process('stumpings', STUMP_MILESTONES, 'stumpings')
+    };
+  }, [players, playerCareerAggregates, watchlistSort]);
 
   const captainStats = useMemo(() => {
     if (!matches || !cap1Id || !cap2Id || !deliveries) return null;
@@ -200,6 +242,33 @@ export default function InsightsPage() {
 
   const getPlayerName = (id: string) => players?.find(p => p.id === id)?.name || 'Unknown';
   const getTeamName = (id: string) => teams?.find(t => t.id === id)?.name || 'Unknown';
+
+  const renderMilestoneCard = (p: any) => (
+    <Card key={`${p.id}-${p.type}`} className="p-5 border-none shadow-lg rounded-3xl bg-white space-y-4 hover:shadow-xl transition-all group">
+      <div className="flex justify-between items-start">
+        <Link href={`/players/${p.id}`} className="min-w-0 flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <p className="text-sm font-black uppercase truncate group-hover:text-primary transition-colors">{p.name}</p>
+            {p.progress > 85 && <Flame className="w-3.5 h-3.5 text-orange-500 fill-orange-500 animate-pulse" />}
+          </div>
+          <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
+            {p.label}
+          </p>
+        </Link>
+        <div className="text-right shrink-0">
+          <p className="text-xl font-black text-slate-900 leading-none">{p.current}</p>
+          <p className="text-[7px] font-black text-slate-400 uppercase mt-1">Career</p>
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Progress value={p.progress} className="h-2 bg-slate-100" />
+        <div className="flex justify-between text-[7px] font-black uppercase tracking-tighter text-slate-400">
+          <span>{p.type === 'runs' ? 'Runs' : p.type === 'wickets' ? 'Wickets' : p.type} Milestone</span>
+          <span>{p.progress.toFixed(0)}% Towards {p.next}</span>
+        </div>
+      </div>
+    </Card>
+  );
 
   return (
     <div className="max-w-lg mx-auto space-y-12 pb-32 px-4">
@@ -469,47 +538,78 @@ export default function InsightsPage() {
 
         <TabsContent value="watchlist" className="space-y-8 animate-in fade-in">
           <div className="space-y-6">
-            <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2">
-              <Activity className="w-5 h-5 text-primary" /> Milestone Watch
-            </h2>
-            <div className="space-y-4">
-              {milestoneWatch.length > 0 ? milestoneWatch.map(p => (
-                <Card key={`${p.id}-${p.type}`} className="p-5 border-none shadow-lg rounded-3xl bg-white space-y-4">
-                  <div className="flex justify-between items-start">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="text-sm font-black uppercase truncate">{p.name}</p>
-                        {p.progress > 85 && <Flame className="w-3.5 h-3.5 text-orange-500 fill-orange-500 animate-pulse" />}
-                      </div>
-                      <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
-                        {p.label}
-                      </p>
-                    </div>
-                    <Badge className={cn(
-                      "font-black text-[9px] uppercase border-none h-6 px-3",
-                      p.type === 'runs' ? "bg-primary/10 text-primary" : "bg-secondary/10 text-secondary"
-                    )}>
-                      {p.type === 'runs' ? 'Runs Near' : 'Wkts Near'}
-                    </Badge>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Progress value={p.progress} className="h-2 bg-slate-100" />
-                    <div className="flex justify-between text-[7px] font-black uppercase tracking-tighter text-slate-400">
-                      <span>Progress</span>
-                      <span>{p.progress.toFixed(0)}% Near</span>
-                    </div>
-                  </div>
-                </Card>
-              )) : (
-                <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
-                  <Target className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Awaiting significant milestones...</p>
-                </div>
-              )}
+            <div className="flex justify-between items-center px-2">
+              <h2 className="text-xl font-black uppercase flex items-center gap-2">
+                <Activity className="w-5 h-5 text-primary" /> Milestone Watch
+              </h2>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setWatchlistSort(watchlistSort === 'progress' ? 'total' : 'progress')}
+                className="h-8 font-black uppercase text-[8px] border-slate-200"
+              >
+                <ArrowUpDown className="w-3 h-3 mr-1" />
+                {watchlistSort === 'progress' ? 'By Next' : 'By Rank'}
+              </Button>
             </div>
+
+            <Tabs defaultValue="runs" className="w-full">
+              <TabsList className="grid w-full grid-cols-4 h-10 bg-slate-50 p-1 rounded-xl mb-6">
+                <TabsTrigger value="runs" className="font-bold text-[8px] uppercase">Bat</TabsTrigger>
+                <TabsTrigger value="wickets" className="font-bold text-[8px] uppercase">Bowl</TabsTrigger>
+                <TabsTrigger value="catches" className="font-bold text-[8px] uppercase">Field</TabsTrigger>
+                <TabsTrigger value="stumpings" className="font-bold text-[8px] uppercase">Keep</TabsTrigger>
+              </TabsList>
+
+              {[
+                { id: 'runs', icon: Swords, color: 'text-primary' },
+                { id: 'wickets', icon: Target, color: 'text-secondary' },
+                { id: 'catches', icon: Hand, color: 'text-emerald-500' },
+                { id: 'stumpings', icon: Shield, color: 'text-amber-500' }
+              ].map(cat => (
+                <TabsContent key={cat.id} value={cat.id} className="space-y-4">
+                  <div className="flex items-center gap-2 px-2 pb-2 border-b border-dashed">
+                    <cat.icon className={cn("w-4 h-4", cat.color)} />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
+                      Top {cat.id.charAt(0).toUpperCase() + cat.id.slice(1)} Prospects
+                    </span>
+                  </div>
+                  {milestoneWatch[cat.id as keyof typeof milestoneWatch]?.length > 0 ? (
+                    <div className="space-y-4">
+                      {milestoneWatch[cat.id as keyof typeof milestoneWatch].map((p: any) => renderMilestoneCard(p))}
+                    </div>
+                  ) : (
+                    <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+                      <Clock className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Awaiting {cat.id} records...</p>
+                    </div>
+                  )}
+                </TabsContent>
+              ))}
+            </Tabs>
           </div>
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function Clock({ className, ...props }: any) {
+  return (
+    <svg 
+      {...props} 
+      className={className} 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="24" 
+      height="24" 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      stroke="currentColor" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
   );
 }
