@@ -70,7 +70,6 @@ export default function NumberGame() {
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [newPlayerName, setNewPlayerName] = useState('');
 
-  // Edit Ball State
   const [isEditBallOpen, setIsEditBallOpen] = useState(false);
   const [editingBall, setEditingBall] = useState<any>(null);
 
@@ -103,15 +102,22 @@ export default function NumberGame() {
   }, [gameState, players, strikerId, bowlerId, history, consecutiveDots, ballsInOver, isMounted]);
 
   const handleDownloadReport = () => {
-    const dateStr = new Date().toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const report = generateStreetReport(players, dateStr);
-    const blob = new Blob([report], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `CricMates_StreetPro_Session_${Date.now()}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+    try {
+      const dateStr = new Date().toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const report = generateStreetReport(players, dateStr);
+      const blob = new Blob([report], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `CricMates_StreetPro_Session_${Date.now()}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Session Report Generated" });
+    } catch (e) {
+      toast({ title: "Export Error", variant: "destructive" });
+    }
   };
 
   const addSetupField = () => { if (playerNames.length < 15) setPlayerNames([...playerNames, '']); };
@@ -176,12 +182,14 @@ export default function NumberGame() {
 
   const resetGame = (fullClear: boolean = false) => {
     if (fullClear) {
-      if (confirm("PERMANENT ACTION: ERASE ALL SESSION DATA AND RESET TO 0?")) {
+      if (typeof window !== 'undefined' && window.confirm("PERMANENT ACTION: ERASE ALL SESSION DATA AND RESET TO 0?")) {
         localStorage.removeItem(STORAGE_KEY);
         setGameState('setup');
         setPlayers([]);
         setHistory([]);
         setPlayerNames(['', '', '']);
+        setStrikerId('');
+        setBowlerId('');
         setConsecutiveDots(0);
         setBallsInOver(0);
         toast({ title: "Session Wiped" });
@@ -191,8 +199,10 @@ export default function NumberGame() {
 
     setGameState('setup');
     const sorted = [...players].sort((a, b) => b.session.runs - a.session.runs);
-    setPlayerNames(sorted.length > 0 ? sorted.map(p => p.name) : playerNames);
+    setPlayerNames(sorted.length > 0 ? sorted.map(p => p.name) : ['', '', '']);
     setHistory([]);
+    setStrikerId('');
+    setBowlerId('');
     setConsecutiveDots(0);
     setBallsInOver(0);
     toast({ title: "Lineup Refreshed" });
@@ -314,8 +324,6 @@ export default function NumberGame() {
     toast({ title: "Record Adjusted" });
   };
 
-  if (!isMounted) return null;
-
   const CasualLeagueTable = () => {
     const sessionRankings = [...players].sort((a,b) => b.session.runs - a.session.runs || b.session.wickets - a.session.wickets);
     return (
@@ -342,6 +350,8 @@ export default function NumberGame() {
       </div>
     );
   };
+
+  if (!isMounted) return null;
 
   if (gameState === 'setup') {
     return (
