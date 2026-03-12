@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Users, Scale, Crown, Shield, ShieldCheck, X } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Users, Scale, Crown, Shield, ShieldCheck, X, Zap, Target, Medal } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -133,6 +133,15 @@ export default function TeamDetailsPage() {
     Object.keys(careerTotals).forEach(id => { const matchHistory = pMatchStats[id] || {}; let totalCvp = 0; Object.values(matchHistory).forEach(ms => { totalCvp += calculatePlayerCVP(ms as any); }); careerTotals[id].cvp = totalCvp; });
     return careerTotals;
   }, [allPlayers, allDeliveries]);
+
+  const teamHonors = useMemo(() => {
+    if (!activeSquad || activeSquad.length === 0) return null;
+    const statsArray = activeSquad.map(p => squadStats[p.id] || { runs: 0, wickets: 0, cvp: 0, name: p.name });
+    const topScorer = [...statsArray].sort((a,b) => b.runs - a.runs)[0];
+    const topWkt = [...statsArray].sort((a,b) => b.wickets - a.wickets)[0];
+    const mvp = [...statsArray].sort((a,b) => b.cvp - a.cvp)[0];
+    return { topScorer, topWkt, mvp };
+  }, [activeSquad, squadStats]);
 
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -260,6 +269,44 @@ export default function TeamDetailsPage() {
         ))}
       </div>
 
+      {teamHonors && (
+        <section className="space-y-4">
+          <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Medal className="w-6 h-6 text-amber-500" /> Franchise Honors</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-none shadow-lg bg-white overflow-hidden">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="bg-amber-50 p-3 rounded-2xl"><Zap className="w-6 h-6 text-amber-500" /></div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Leading Scorer</p>
+                  <p className="font-black text-sm uppercase">{teamHonors.topScorer.name}</p>
+                  <p className="text-xs font-bold text-primary">{teamHonors.topScorer.runs} Career Runs</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-lg bg-white overflow-hidden">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="bg-primary/10 p-3 rounded-2xl"><Target className="w-6 h-6 text-primary" /></div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Wicket King</p>
+                  <p className="font-black text-sm uppercase">{teamHonors.topWkt.name}</p>
+                  <p className="text-xs font-bold text-secondary">{teamHonors.topWkt.wickets} Career Wickets</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-none shadow-lg bg-white overflow-hidden">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="bg-secondary/10 p-3 rounded-2xl"><ShieldCheck className="w-6 h-6 text-secondary" /></div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase">Franchise MVP</p>
+                  <p className="font-black text-sm uppercase">{teamHonors.mvp.name}</p>
+                  <p className="text-xs font-bold text-emerald-600">{teamHonors.mvp.cvp.toFixed(1)} CVP Pts</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      )}
+
       <div className="space-y-6">
         <div className="flex justify-between items-center gap-4 px-2">
           <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight flex items-center gap-2"><Users className="w-6 h-6 text-primary" /> Active Squad</h2>
@@ -322,7 +369,7 @@ export default function TeamDetailsPage() {
                   <AvatarImage src={teamForm.logoUrl || defaultTeamLogo} className="object-cover" />
                   <AvatarFallback className="bg-primary text-white text-4xl font-black">{teamForm.name?.[0] || 'T'}</AvatarFallback>
                 </Avatar>
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl flex flex-col items-center justify-center text-white text-center">
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex flex-col items-center justify-center text-white text-center">
                   <Camera className="w-6 h-6 mb-1" />
                   <span className="text-[8px] font-black uppercase">Change Logo</span>
                 </div>

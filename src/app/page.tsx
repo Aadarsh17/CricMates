@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from '@/firebase';
@@ -5,7 +6,7 @@ import { collection, query, where, orderBy, limit, doc, collectionGroup } from '
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trophy, Activity, Users, PlayCircle, Star, Target, Swords, Zap, TrendingUp, ChevronRight } from 'lucide-react';
+import { Trophy, Activity, Users, PlayCircle, Star, Target, Swords, Zap, TrendingUp, ChevronRight, Flame, Medal } from 'lucide-react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useMemo, useState, useEffect } from 'react';
@@ -43,65 +44,75 @@ export default function Home() {
 
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-cricket')?.imageUrl || '';
 
-  const topPlayers = useMemo(() => {
-    if (!players || !allMatches || !rawDeliveries || !isMounted) return [];
+  // Standardized Aggregation for Home View
+  const playerAggregates = useMemo(() => {
+    if (!players || !allMatches || !rawDeliveries || !isMounted) return {};
     const activeMatchIds = new Set(allMatches.map(m => m.id));
+    const stats: Record<string, any> = {};
     
-    const pMatchStats: Record<string, Record<string, any>> = {};
-    
+    players.forEach(p => {
+      stats[p.id] = { id: p.id, name: p.name, runs: 0, wkts: 0, ballsFaced: 0, ballsBowled: 0, fours: 0, sixes: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0, cvp: 0 };
+    });
+
     rawDeliveries.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1]; 
+      const matchId = d.__fullPath?.split('/')[1];
       if (!matchId || !activeMatchIds.has(matchId)) return;
-      
+
       const sId = d.strikerPlayerId;
       const bId = d.bowlerId || d.bowlerPlayerId;
       const fId = d.fielderPlayerId;
-      
-      const involved = [sId, bId, fId].filter(id => id && id !== 'none');
-      
-      involved.forEach(pid => {
-        if (!pMatchStats[pid]) pMatchStats[pid] = {};
-        if (!pMatchStats[pid][matchId]) {
-          pMatchStats[pid][matchId] = { 
-            id: pid, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, 
-            wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, 
-            catches: 0, stumpings: 0, runOuts: 0 
-          };
-        }
-      });
 
-      if (sId && pMatchStats[sId]?.[matchId]) {
-        const s = pMatchStats[sId][matchId];
-        s.runs += (d.runsScored || 0);
-        if (d.extraType !== 'wide') s.ballsFaced++;
-        if (d.runsScored === 4) s.fours++;
-        if (d.runsScored === 6) s.sixes++;
+      if (sId && stats[sId]) {
+        stats[sId].runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') stats[sId].ballsFaced++;
+        if (d.runsScored === 4) stats[sId].fours++;
+        if (d.runsScored === 6) stats[sId].sixes++;
       }
-      
-      if (bId && pMatchStats[bId]?.[matchId]) {
-        const b = pMatchStats[bId][matchId];
-        b.runsConceded += (d.totalRunsOnDelivery || 0);
-        if (d.extraType === 'none') b.ballsBowled++;
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wickets++;
+      if (bId && stats[bId]) {
+        stats[bId].runsConceded += (d.totalRunsOnDelivery || 0);
+        if (d.extraType === 'none') stats[bId].ballsBowled++;
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) stats[bId].wkts++;
       }
-      
-      if (fId && pMatchStats[fId]?.[matchId]) {
-        const f = pMatchStats[fId][matchId];
-        if (d.dismissalType === 'caught') f.catches++;
-        if (d.dismissalType === 'stumped') f.stumpings++;
-        if (d.dismissalType === 'runout') f.runOuts++;
+      if (fId && stats[fId]) {
+        if (d.dismissalType === 'caught') stats[fId].catches++;
+        if (d.dismissalType === 'stumped') stats[fId].stumpings++;
+        if (d.dismissalType === 'runout') stats[fId].runOuts++;
       }
     });
 
-    return players.map(p => {
-      const matchHistory = pMatchStats[p.id] || {};
-      let totalCvp = 0;
-      Object.values(matchHistory).forEach(ms => {
-        totalCvp += calculatePlayerCVP(ms as any);
-      });
-      return { ...p, cvp: totalCvp };
-    }).sort((a,b) => b.cvp - a.cvp).slice(0, 5);
+    Object.keys(stats).forEach(id => {
+      stats[id].cvp = calculatePlayerCVP(stats[id]);
+    });
+
+    return stats;
   }, [players, allMatches, rawDeliveries, isMounted]);
+
+  const topPlayers = useMemo(() => {
+    return Object.values(playerAggregates).sort((a: any, b: any) => b.cvp - a.cvp).slice(0, 5);
+  }, [playerAggregates]);
+
+  const milestoneAlerts = useMemo(() => {
+    if (!playerAggregates) return [];
+    const RUN_MILESTONES = [25, 50, 75, 100, 150, 200, 250, 500, 1000];
+    const WKT_MILESTONES = Array.from({length: 20}, (_, i) => (i + 1) * 5);
+
+    const alerts: any[] = [];
+    Object.values(playerAggregates).forEach((p: any) => {
+      // Batting Near-Hits
+      const nextRun = RUN_MILESTONES.find(m => m > p.runs);
+      if (nextRun) {
+        const diff = nextRun - p.runs;
+        if (diff <= 5 && p.runs > 0) alerts.push({ name: p.name, id: p.id, type: 'runs', val: p.runs, next: nextRun, diff, icon: Zap, color: 'text-amber-500' });
+      }
+      // Bowling Near-Hits
+      const nextWkt = WKT_MILESTONES.find(m => m > p.wkts);
+      if (nextWkt) {
+        const diff = nextWkt - p.wkts;
+        if (diff <= 1 && p.wkts > 0) alerts.push({ name: p.name, id: p.id, type: 'wickets', val: p.wkts, next: nextWkt, diff, icon: Target, color: 'text-primary' });
+      }
+    });
+    return alerts.sort((a,b) => a.diff - b.diff).slice(0, 3);
+  }, [playerAggregates]);
 
   if (!isMounted) return null;
 
@@ -119,6 +130,33 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {milestoneAlerts.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 px-2">
+            <Flame className="w-5 h-5 text-orange-500 animate-bounce" />
+            <h2 className="text-xl font-black uppercase text-slate-900">Milestone Watch</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {milestoneAlerts.map((alert, i) => (
+              <Link key={i} href={`/players/${alert.id}`}>
+                <Card className="border-none shadow-lg bg-white overflow-hidden hover:scale-[1.02] transition-transform">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-slate-50 rounded-lg"><alert.icon className={cn("w-4 h-4", alert.color)} /></div>
+                      <div className="min-w-0">
+                        <p className="font-black text-xs uppercase truncate text-slate-900">{alert.name}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{alert.diff} {alert.type === 'runs' ? 'runs' : 'wicket'} away</p>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="font-black text-[10px]">NEAR {alert.next}</Badge>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 gap-8">
         <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
@@ -162,13 +200,13 @@ export default function Home() {
           <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-2 px-2"><Target className="w-5 h-5 text-primary" /> Top Performers</h2>
           <Card className="shadow-xl border-none rounded-3xl bg-white overflow-hidden">
             <CardContent className="p-2 space-y-1">
-              {topPlayers.map((player, idx) => (
+              {topPlayers.map((player: any, idx) => (
                 <Link key={player.id} href={`/players/${player.id}`} className="flex items-center justify-between p-4 hover:bg-slate-50 transition-all rounded-2xl group">
                   <div className="flex items-center gap-4">
                     <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 text-white text-[10px] font-black">{idx + 1}</div>
                     <div className="min-w-0">
                       <p className="font-black text-xs uppercase tracking-tight truncate group-hover:text-primary transition-colors">{player.name}</p>
-                      <Badge variant="outline" className="text-[8px] font-black uppercase px-1.5 h-4">{player.role}</Badge>
+                      <Badge variant="outline" className="text-[8px] font-black uppercase px-1.5 h-4">Ranked Impact</Badge>
                     </div>
                   </div>
                   <div className="text-right"><p className="text-lg font-black text-slate-900">{player.cvp.toFixed(1)}</p><p className="text-[8px] uppercase font-black text-primary tracking-widest">CVP PTS</p></div>

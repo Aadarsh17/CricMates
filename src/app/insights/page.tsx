@@ -22,7 +22,9 @@ import {
   ArrowUpDown,
   Zap,
   Crosshair,
-  TrendingUp
+  TrendingUp,
+  ShieldCheck,
+  Scale
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -40,6 +42,8 @@ export default function InsightsPage() {
   const [cap2Id, setCap2Id] = useState<string>('');
   const [rival1Id, setRival1Id] = useState<string>('');
   const [rival2Id, setRival2Id] = useState<string>('');
+  const [team1DuelId, setTeam1DuelId] = useState<string>('');
+  const [team2DuelId, setTeam2DuelId] = useState<string>('');
   
   // Watchlist specific state
   const [watchlistSort, setWatchlistSort] = useState<'progress' | 'total'>('progress');
@@ -249,13 +253,50 @@ export default function InsightsPage() {
       }
     });
 
-    // Economy = Total Runs conceded to this batter / (Total Balls to this batter / 6)
     const calcEcon = (r: number, b: number) => b > 0 ? (r / (b / 6)).toFixed(2) : '0.00';
     duel.r1_bat_vs_r2_bowl.econ = parseFloat(calcEcon(duel.r1_bat_vs_r2_bowl.runs, duel.r1_bat_vs_r2_bowl.balls));
     duel.r2_bat_vs_r1_bowl.econ = parseFloat(calcEcon(duel.r2_bat_vs_r1_bowl.runs, duel.r2_bat_vs_r1_bowl.balls));
 
     return duel;
   }, [deliveries, rival1Id, rival2Id]);
+
+  const teamDuelStats = useMemo(() => {
+    if (!matches || !team1DuelId || !team2DuelId) return null;
+    const h2h = { played: 0, t1Won: 0, t2Won: 0, ties: 0, t1Avg: 0, t2Avg: 0, t1Runs: 0, t2Runs: 0 };
+    
+    matches.forEach(m => {
+      if (m.status !== 'completed') return;
+      const isMatch = (m.team1Id === team1DuelId && m.team2Id === team2DuelId) || (m.team1Id === team2DuelId && m.team2Id === team1DuelId);
+      if (!isMatch) return;
+
+      h2h.played++;
+      if (m.isTie) h2h.ties++;
+      else if (m.winnerTeamId === team1DuelId) h2h.t1Won++;
+      else if (m.winnerTeamId === team2DuelId) h2h.t2Won++;
+    });
+
+    if (rawDeliveries) {
+      rawDeliveries.forEach(d => {
+        const mid = d.__fullPath?.split('/')[1];
+        const m = matches.find(match => match.id === mid);
+        if (!m || m.status !== 'completed') return;
+        const isMatch = (m.team1Id === team1DuelId && m.team2Id === team2DuelId) || (m.team1Id === team2DuelId && m.team2Id === team1DuelId);
+        if (!isMatch) return;
+
+        const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
+        const inn1BatId = m.tossWinnerTeamId === m.team1Id ? (m.tossDecision === 'bat' ? m.team1Id : m.team2Id) : (m.tossDecision === 'bat' ? m.team2Id : m.team1Id);
+        const batId = innNum === 1 ? inn1BatId : (inn1BatId === m.team1Id ? m.team2Id : m.team1Id);
+
+        if (batId === team1DuelId) h2h.t1Runs += (d.totalRunsOnDelivery || 0);
+        if (batId === team2DuelId) h2h.t2Runs += (d.totalRunsOnDelivery || 0);
+      });
+    }
+
+    h2h.t1Avg = h2h.played > 0 ? h2h.t1Runs / h2h.played : 0;
+    h2h.t2Avg = h2h.played > 0 ? h2h.t2Runs / h2h.played : 0;
+
+    return h2h;
+  }, [matches, rawDeliveries, team1DuelId, team2DuelId]);
 
   if (!isMounted || isDeliveriesLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -265,6 +306,7 @@ export default function InsightsPage() {
   );
 
   const getPlayerName = (id: string) => players?.find(p => p.id === id)?.name || 'Unknown';
+  const getTeamName = (id: string) => teams?.find(t => t.id === id)?.name || 'Unknown Team';
 
   const renderMilestoneCard = (p: any) => (
     <Card key={`${p.id}-${p.type}`} className="p-5 border-none shadow-lg rounded-3xl bg-white space-y-4 hover:shadow-xl transition-all group">
@@ -306,10 +348,11 @@ export default function InsightsPage() {
       </div>
 
       <Tabs defaultValue="watchlist" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 h-12 bg-slate-100 p-1 rounded-xl mb-8">
-          <TabsTrigger value="watchlist" className="font-bold text-[10px] uppercase">Watchlist</TabsTrigger>
-          <TabsTrigger value="captaincy" className="font-bold text-[10px] uppercase">Leader</TabsTrigger>
-          <TabsTrigger value="comparison" className="font-bold text-[10px] uppercase">Rivalry</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-4 h-12 bg-slate-100 p-1 rounded-xl mb-8">
+          <TabsTrigger value="watchlist" className="font-bold text-[9px] uppercase">Watchlist</TabsTrigger>
+          <TabsTrigger value="captaincy" className="font-bold text-[9px] uppercase">Leader</TabsTrigger>
+          <TabsTrigger value="comparison" className="font-bold text-[9px] uppercase">Rivalry</TabsTrigger>
+          <TabsTrigger value="franchise" className="font-bold text-[9px] uppercase">Franchise</TabsTrigger>
         </TabsList>
 
         <TabsContent value="watchlist" className="space-y-8 animate-in fade-in">
@@ -523,7 +566,6 @@ export default function InsightsPage() {
                         </div>
                       </div>
                       
-                      {/* Secondary Row: 4s, 6s, Dots, Econ */}
                       <div className="grid grid-cols-4 text-center gap-2">
                         <div className="bg-white/5 p-2 rounded-xl border border-white/5">
                           <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">4s</p>
@@ -583,7 +625,6 @@ export default function InsightsPage() {
                         </div>
                       </div>
 
-                      {/* Secondary Row: 4s, 6s, Dots, Econ */}
                       <div className="grid grid-cols-4 text-center gap-2">
                         <div className="bg-white/5 p-2 rounded-xl border border-white/5">
                           <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">4s</p>
@@ -616,6 +657,82 @@ export default function InsightsPage() {
               <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
                 <Swords className="w-10 h-10 text-slate-200 mx-auto mb-2" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select two players to scan their personal rivalry</p>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="franchise" className="space-y-8">
+          <div className="space-y-6">
+            <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><ShieldCheck className="w-5 h-5 text-secondary" /> Franchise Duel</h2>
+            <Card className="border-none shadow-xl bg-white p-6 space-y-6 rounded-3xl">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Team A</Label>
+                  <Select value={team1DuelId} onValueChange={setTeam1DuelId}>
+                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Team" /></SelectTrigger>
+                    <SelectContent>
+                      {teams?.map(t => <SelectItem key={t.id} value={t.id} className="font-bold">{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-center -my-2 relative z-10">
+                  <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-full flex items-center justify-center border-4 border-white shadow-lg">VS</div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Team B</Label>
+                  <Select value={team2DuelId} onValueChange={setTeam2DuelId}>
+                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Team" /></SelectTrigger>
+                    <SelectContent>
+                      {teams?.map(t => <SelectItem key={t.id} value={t.id} className="font-bold">{t.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </Card>
+
+            {teamDuelStats && teamDuelStats.played > 0 ? (
+              <div className="space-y-6">
+                <div className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-2xl">
+                  <div className="p-4 bg-secondary text-center">
+                    <p className="text-[10px] font-black uppercase tracking-widest">Franchise Head-to-Head</p>
+                  </div>
+                  <div className="p-6 grid grid-cols-3 items-center gap-4 text-center">
+                    <div className="space-y-1">
+                      <p className="text-[8px] font-black text-slate-400 uppercase">Wins</p>
+                      <p className="text-3xl font-black text-secondary">{teamDuelStats.t1Won}</p>
+                    </div>
+                    <div className="bg-white/5 p-3 rounded-2xl border border-white/10">
+                      <p className="text-[8px] font-black text-slate-500 uppercase mb-1">Played</p>
+                      <p className="text-xl font-black">{teamDuelStats.played}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[8px] font-black text-slate-400 uppercase">Wins</p>
+                      <p className="text-3xl font-black text-secondary">{teamDuelStats.t2Won}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { name: getTeamName(team1DuelId), avg: teamDuelStats.t1Avg, color: 'border-primary' },
+                    { name: getTeamName(team2DuelId), avg: teamDuelStats.t2Avg, color: 'border-secondary' }
+                  ].map((t, i) => (
+                    <Card key={i} className={cn("border-t-8 shadow-lg p-5 space-y-4 rounded-3xl", t.color)}>
+                      <p className="text-[10px] font-black uppercase text-slate-400 truncate">{t.name}</p>
+                      <div className="space-y-3">
+                        <p className="text-[8px] font-black text-slate-400 uppercase">Avg Match Score</p>
+                        <p className="text-2xl font-black">{t.avg.toFixed(1)}</p>
+                        <Progress value={Math.min(100, (t.avg / 150) * 100)} className="h-1.5" />
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+                <Scale className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select two teams to compare franchise dominance</p>
               </div>
             )}
           </div>
