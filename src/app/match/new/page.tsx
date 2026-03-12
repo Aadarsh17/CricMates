@@ -110,7 +110,7 @@ export default function NewMatchPage() {
     if (!user || !quickRegName.trim()) return;
     const pid = doc(collection(db, 'temp')).id;
     const targetTeamId = quickRegTarget === 'team1' ? setup.team1Id : setup.team2Id;
-    const pData = { id: pid, name: quickRegName, teamId: targetTeamId, ownerId: user.uid, role: 'All-rounder', battingStyle: 'Right Handed Bat', isWicketKeeper: false, isRetired: false, matchesPlayed: 0, runsScored: 0, wicketsTaken: 0, highestScore: 0, bestBowlingFigures: '0/0', careerCVP: 0 };
+    const pData = { id: pid, name: quickRegName, teamId: targetTeamId, ownerId: user.uid, role: 'All-rounder', battingStyle: 'Right Handed Bat', isWicketKeeper: false, isRetired: false, matchesPlayed: 0, runsScored: 0, wicketsTaken: 0, highestScore: 0, bestBowlingFigures: '0/0', careerCVP: 0, imageUrl: '' };
     setDocumentNonBlocking(doc(db, 'players', pid), pData, { merge: true });
     
     if (quickRegTarget === 'team1') setSetup(s => ({ ...s, team1Squad: [...s.team1Squad, pid] }));
@@ -121,7 +121,7 @@ export default function NewMatchPage() {
   };
 
   const handleStartMatch = () => {
-    if (!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId) return;
+    if (!setup.strikerId || !setup.bowlerId) return;
     const mid = doc(collection(db, 'matches')).id;
     const mData = { 
       id: mid, 
@@ -150,7 +150,7 @@ export default function NewMatchPage() {
     const batId = setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Id : setup.team2Id) : (setup.tossDecision === 'bat' ? setup.team2Id : setup.team1Id);
     const bowlId = batId === setup.team1Id ? setup.team2Id : setup.team1Id;
 
-    const iData = { id: 'inning_1', battingTeamId: batId, score: 0, wickets: 0, oversCompleted: 0, ballsInCurrentOver: 0, strikerPlayerId: setup.strikerId, nonStrikerPlayerId: setup.nonStrikerId, currentBowlerPlayerId: setup.bowlerId, isDeclaredFinished: false };
+    const iData = { id: 'inning_1', battingTeamId: batId, score: 0, wickets: 0, oversCompleted: 0, ballsInCurrentOver: 0, strikerPlayerId: setup.strikerId, nonStrikerPlayerId: setup.nonStrikerId || '', currentBowlerPlayerId: setup.bowlerId, isDeclaredFinished: false };
     setDocumentNonBlocking(doc(db, 'matches', mid, 'innings', 'inning_1'), iData, { merge: true });
     
     router.push(`/match/${mid}`);
@@ -306,13 +306,13 @@ export default function NewMatchPage() {
           <CardHeader><CardTitle className="text-xl font-black uppercase">Start Positions</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Striker</Label><Select value={setup.strikerId} onValueChange={(v) => setSetup({...setup, strikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Pick Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad)).includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Non-Striker</Label><Select value={setup.nonStrikerId} onValueChange={(v) => setSetup({...setup, nonStrikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Pick Non-Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad)).includes(p.id) && p.id !== setup.strikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Striker (REQUIRED)</Label><Select value={setup.strikerId} onValueChange={(v) => setSetup({...setup, strikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Pick Striker" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad)).includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Non-Striker (OPTIONAL)</Label><Select value={setup.nonStrikerId || 'none'} onValueChange={(v) => setSetup({...setup, nonStrikerId: v === 'none' ? '' : v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="No Non-Striker" /></SelectTrigger><SelectContent><SelectItem value="none">No Non-Striker (Solo Mode)</SelectItem>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bat' ? setup.team2Squad : setup.team1Squad)).includes(p.id) && p.id !== setup.strikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
-            <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Opening Bowler</Label><Select value={setup.bowlerId} onValueChange={(v) => setSetup({...setup, bowlerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Pick Bowler" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bowl' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bowl' ? setup.team2Squad : setup.team1Squad)).includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+            <div className="space-y-2"><Label className="text-[10px] font-black uppercase">Opening Bowler (REQUIRED)</Label><Select value={setup.bowlerId} onValueChange={(v) => setSetup({...setup, bowlerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Pick Bowler" /></SelectTrigger><SelectContent>{allPlayers?.filter(p => (setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bowl' ? setup.team1Squad : setup.team2Squad) : (setup.tossDecision === 'bowl' ? setup.team2Squad : setup.team1Squad)).includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             <div className="flex gap-3">
               <Button variant="outline" className="flex-1 h-16 font-black uppercase border-2" onClick={() => setStep(3)}>Back</Button>
-              <Button className="flex-[2] h-16 text-lg font-black uppercase bg-secondary hover:bg-secondary/90 shadow-2xl" onClick={handleStartMatch} disabled={!setup.strikerId || !setup.nonStrikerId || !setup.bowlerId}>START MATCH</Button>
+              <Button className="flex-[2] h-16 text-lg font-black uppercase bg-secondary hover:bg-secondary/90 shadow-2xl" onClick={handleStartMatch} disabled={!setup.strikerId || !setup.bowlerId}>START MATCH</Button>
             </div>
           </CardContent>
         </Card>
