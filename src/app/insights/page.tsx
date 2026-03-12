@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -22,7 +21,6 @@ import {
   ArrowUpDown,
   Zap,
   Crosshair,
-  User,
   TrendingUp
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -105,8 +103,8 @@ export default function InsightsPage() {
   const milestoneWatch = useMemo(() => {
     if (!players || players.length === 0) return { runs: [], wickets: [], catches: [], stumpings: [], runouts: [] };
     
-    // Professional Tiered Milestone Increments
-    const RUN_MILESTONES = [25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000, 5000];
+    // Professional Tiered Milestone Increments as per user request
+    const RUN_MILESTONES = [25, 50, 75, 100, 150, 200, 250, 500, 750, 1000];
     const WKT_MILESTONES = Array.from({length: 20}, (_, i) => (i + 1) * 5); // 5, 10, 15, 20... 100
     const CATCH_MILESTONES = Array.from({length: 20}, (_, i) => (i + 1) * 5);
     const STUMP_MILESTONES = [2, 5, 10, 15, 20, 25, 30, 40, 50];
@@ -124,7 +122,6 @@ export default function InsightsPage() {
     const process = (type: string, milestones: number[], key: string) => {
       return players.map(p => {
         const val = playerCareerAggregates[p.id]?.[key] || 0;
-        // Don't show players with 0 stats in achievement lists unless they are close to the very first one
         if (val === 0 && milestones[0] > 5) return null; 
         
         const { next, diff, progress } = getProg(val, milestones);
@@ -217,8 +214,8 @@ export default function InsightsPage() {
     if (!deliveries || !rival1Id || !rival2Id) return null;
 
     const duel = {
-      r1_bat_vs_r2_bowl: { runs: 0, balls: 0, wkts: 0 },
-      r2_bat_vs_r1_bowl: { runs: 0, balls: 0, wkts: 0 }
+      r1_bat_vs_r2_bowl: { runs: 0, balls: 0, wkts: 0, fours: 0, sixes: 0, dots: 0 },
+      r2_bat_vs_r1_bowl: { runs: 0, balls: 0, wkts: 0, fours: 0, sixes: 0, dots: 0 }
     };
 
     deliveries.forEach(d => {
@@ -228,6 +225,9 @@ export default function InsightsPage() {
       if (sId === rival1Id && bId === rival2Id) {
         duel.r1_bat_vs_r2_bowl.runs += (d.runsScored || 0);
         if (d.extraType !== 'wide') duel.r1_bat_vs_r2_bowl.balls++;
+        if (d.runsScored === 4) duel.r1_bat_vs_r2_bowl.fours++;
+        if (d.runsScored === 6) duel.r1_bat_vs_r2_bowl.sixes++;
+        if (d.runsScored === 0 && d.extraType === 'none') duel.r1_bat_vs_r2_bowl.dots++;
         if (d.isWicket && d.batsmanOutPlayerId === rival1Id && !['runout', 'retired'].includes(d.dismissalType || '')) {
           duel.r1_bat_vs_r2_bowl.wkts++;
         }
@@ -236,6 +236,9 @@ export default function InsightsPage() {
       if (sId === rival2Id && bId === rival1Id) {
         duel.r2_bat_vs_r1_bowl.runs += (d.runsScored || 0);
         if (d.extraType !== 'wide') duel.r2_bat_vs_r1_bowl.balls++;
+        if (d.runsScored === 4) duel.r2_bat_vs_r1_bowl.fours++;
+        if (d.runsScored === 6) duel.r2_bat_vs_r1_bowl.sixes++;
+        if (d.runsScored === 0 && d.extraType === 'none') duel.r2_bat_vs_r1_bowl.dots++;
         if (d.isWicket && d.batsmanOutPlayerId === rival2Id && !['runout', 'retired'].includes(d.dismissalType || '')) {
           duel.r2_bat_vs_r1_bowl.wkts++;
         }
@@ -510,6 +513,23 @@ export default function InsightsPage() {
                           <p className="text-2xl font-black text-rose-500">{rivalryStats.r1_bat_vs_r2_bowl.wkts}</p>
                         </div>
                       </div>
+                      
+                      {/* Secondary Row: 4s, 6s, Dots */}
+                      <div className="grid grid-cols-3 text-center gap-2">
+                        <div className="bg-white/5 p-2 rounded-xl border border-white/5">
+                          <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">4s</p>
+                          <p className="text-xs font-black text-blue-400">{rivalryStats.r1_bat_vs_r2_bowl.fours}</p>
+                        </div>
+                        <div className="bg-white/5 p-2 rounded-xl border border-white/5">
+                          <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">6s</p>
+                          <p className="text-xs font-black text-primary">{rivalryStats.r1_bat_vs_r2_bowl.sixes}</p>
+                        </div>
+                        <div className="bg-white/5 p-2 rounded-xl border border-white/5">
+                          <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">Dots</p>
+                          <p className="text-xs font-black text-slate-400">{rivalryStats.r1_bat_vs_r2_bowl.dots}</p>
+                        </div>
+                      </div>
+
                       <div className="flex justify-center">
                         <Badge variant="outline" className="text-[8px] font-black text-slate-400 border-white/10">
                           S.R. {rivalryStats.r1_bat_vs_r2_bowl.balls > 0 ? ((rivalryStats.r1_bat_vs_r2_bowl.runs / rivalryStats.r1_bat_vs_r2_bowl.balls) * 100).toFixed(1) : '0.0'}
@@ -549,6 +569,23 @@ export default function InsightsPage() {
                           <p className="text-2xl font-black text-rose-500">{rivalryStats.r2_bat_vs_r1_bowl.wkts}</p>
                         </div>
                       </div>
+
+                      {/* Secondary Row: 4s, 6s, Dots */}
+                      <div className="grid grid-cols-3 text-center gap-2">
+                        <div className="bg-white/5 p-2 rounded-xl border border-white/5">
+                          <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">4s</p>
+                          <p className="text-xs font-black text-blue-400">{rivalryStats.r2_bat_vs_r1_bowl.fours}</p>
+                        </div>
+                        <div className="bg-white/5 p-2 rounded-xl border border-white/5">
+                          <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">6s</p>
+                          <p className="text-xs font-black text-primary">{rivalryStats.r2_bat_vs_r1_bowl.sixes}</p>
+                        </div>
+                        <div className="bg-white/5 p-2 rounded-xl border border-white/5">
+                          <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">Dots</p>
+                          <p className="text-xs font-black text-slate-400">{rivalryStats.r2_bat_vs_r1_bowl.dots}</p>
+                        </div>
+                      </div>
+
                       <div className="flex justify-center">
                         <Badge variant="outline" className="text-[8px] font-black text-slate-400 border-white/10">
                           S.R. {rivalryStats.r2_bat_vs_r1_bowl.balls > 0 ? ((rivalryStats.r2_bat_vs_r1_bowl.runs / rivalryStats.r2_bat_vs_r1_bowl.balls) * 100).toFixed(1) : '0.0'}
