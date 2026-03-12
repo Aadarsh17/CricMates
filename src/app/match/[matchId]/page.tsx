@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Crown, Users, UserPlus } from 'lucide-react';
+import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Crown, Users, UserPlus, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -197,7 +197,6 @@ export default function MatchScoreboardPage() {
         const runs = d.runsScored || 0;
         const isLegal = d.extraType === 'none' && !isRetirement;
         
-        // Only swap if non-striker exists
         if (nsId && !isDeclared && runs % 2 !== 0) [sId, nsId] = [nsId, sId];
         if (nsId && legal % 6 === 0 && isLegal) [sId, nsId] = [nsId, sId];
         
@@ -214,7 +213,7 @@ export default function MatchScoreboardPage() {
       score, wickets: wkts, oversCompleted: Math.floor(legal / 6), ballsInCurrentOver: legal % 6,
       strikerPlayerId: sId || '',
       nonStrikerPlayerId: nsId || '',
-      isDeclaredFinished: false // Reset flag on any recalculation to allow umpire to re-declare or continue
+      isDeclaredFinished: false 
     };
     if (legal % 6 === 0 && legal > 0) updates.currentBowlerPlayerId = '';
 
@@ -264,7 +263,7 @@ export default function MatchScoreboardPage() {
 
   const handleRecordBall = async (runs: number, extra: any = 'none', isDeclared: boolean = false) => {
     if (!match || !activeInningData || !isUmpire || !activeInningData.currentBowlerPlayerId) {
-      toast({ title: "Officiating Error", description: "Assign bowler before recording balls.", variant: "destructive" });
+      toast({ title: "Assignment Required", description: "Please assign a bowler first.", variant: "destructive" });
       return;
     }
     const currentInningId = `inning_${match.currentInningNumber}`;
@@ -290,7 +289,6 @@ export default function MatchScoreboardPage() {
 
     let nextS = activeInningData.strikerPlayerId, nextNS = activeInningData.nonStrikerPlayerId;
     
-    // Swap only if partner exists
     if (nextNS) {
       if (!isDeclared && runs % 2 !== 0) [nextS, nextNS] = [nextNS, nextS];
       if (newTotalLegal % 6 === 0 && isLegal) [nextS, nextNS] = [nextNS, nextS];
@@ -338,7 +336,7 @@ export default function MatchScoreboardPage() {
     await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', correctionForm.targetInning, 'deliveryRecords', deliveryId), dData, { merge: true });
     await recalculateInningState(correctionForm.targetInning);
     setIsCorrectionDialogOpen(false);
-    toast({ title: correctionForm.id ? "Delivery Updated" : "Delivery Inserted" });
+    toast({ title: correctionForm.id ? "Log Corrected" : "Action Injected" });
   };
 
   const handleQuickAddPlayer = async () => {
@@ -372,7 +370,17 @@ export default function MatchScoreboardPage() {
     
     setQuickAddName('');
     setIsQuickAddOpen(false);
-    toast({ title: "Player Added to Match" });
+    toast({ title: "Player Drafted" });
+  };
+
+  const handleUndo = async () => {
+    const currId = `inning_${match?.currentInningNumber}`;
+    const snap = await getDocs(query(collection(db, 'matches', matchId, 'innings', currId, 'deliveryRecords'), orderBy('timestamp', 'desc'), limit(1)));
+    if(!snap.empty) { 
+      await deleteDocumentNonBlocking(snap.docs[0].ref); 
+      await recalculateInningState(currId); 
+      toast({ title: "Action Purged (Undo)" }); 
+    }
   };
 
   const matchCvpMap = useMemo(() => {
@@ -474,19 +482,20 @@ export default function MatchScoreboardPage() {
                           <Button variant="outline" className="flex-1 h-12 border-primary/20 text-primary font-black uppercase text-[9px] bg-white/5"><ShieldCheck className="w-4 h-4 mr-2" /> Match Actions</Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent className="w-56 rounded-xl" align="end">
+                          <DropdownMenuItem className="font-bold py-3" onClick={handleUndo}><Undo2 className="w-4 h-4 mr-2 text-rose-500" /> Undo Action</DropdownMenuItem>
                           <DropdownMenuItem className="font-bold py-3" onClick={async () => {
                             await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { isDeclaredFinished: true }, { merge: true });
                             toast({ title: "Innings Declared Finished" });
                           }}><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" /> Finish Innings</DropdownMenuItem>
                           <DropdownMenuItem className="font-bold py-3" onClick={() => setIsPotmDialogOpen(true)}><UserCheck className="w-4 h-4 mr-2 text-amber-500" /> Declare POTM</DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="font-bold py-3" onClick={async () => { await setDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 1 }, { merge: true }); toast({ title: "Scoring Inning 1" }); }}><Rewind className="w-4 h-4 mr-2 text-amber-500" /> Score Inning 1</DropdownMenuItem>
-                          <DropdownMenuItem className="font-bold py-3" onClick={async () => { await setDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 }, { merge: true }); toast({ title: "Score Inning 2" }); }}><Rewind className="w-4 h-4 mr-2 text-primary" /> Score Inning 2</DropdownMenuItem>
+                          <DropdownMenuItem className="font-bold py-3" onClick={async () => { await setDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 1 }, { merge: true }); toast({ title: "Scoring Inning 1" }); }}><Rewind className="w-4 h-4 mr-2 text-amber-500" /> Switch to Inning 1</DropdownMenuItem>
+                          <DropdownMenuItem className="font-bold py-3" onClick={async () => { await setDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 }, { merge: true }); toast({ title: "Score Inning 2" }); }}><Rewind className="w-4 h-4 mr-2 text-primary" /> Switch to Inning 2</DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="font-bold py-3" onClick={handleFinalizeMatch}><ShieldCheck className="w-4 h-4 mr-2 text-emerald-500" /> Finalize Match</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
-                      <Button variant="outline" onClick={() => setIsPlayerAssignmentOpen(true)} className="flex-1 h-12 border-secondary/20 text-secondary font-black uppercase text-[9px] bg-white/5"><Settings2 className="w-4 h-4 mr-2" /> Assign</Button>
+                      <Button variant="outline" onClick={() => setIsPlayerAssignmentOpen(true)} className="flex-1 h-12 border-secondary/20 text-secondary font-black uppercase text-[9px] bg-white/5"><Settings2 className="w-4 h-4 mr-2" /> Assign Positions</Button>
                     </div>
                     {match?.status === 'live' && !activeInningData?.isDeclaredFinished && (
                       <>
@@ -501,11 +510,7 @@ export default function MatchScoreboardPage() {
                         <div className="grid grid-cols-3 gap-3">
                           <Button variant="outline" onClick={() => handleRecordBall(0, 'wide')} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px] bg-white/5">Wide</Button>
                           <Button variant="outline" onClick={() => setIsNoBallDialogOpen(true)} className="h-12 border-amber-500/30 text-amber-500 uppercase font-black text-[9px] bg-white/5">No Ball</Button>
-                          <Button variant="outline" onClick={async () => { 
-                            const currId = `inning_${match?.currentInningNumber}`;
-                            const snap = await getDocs(query(collection(db, 'matches', matchId, 'innings', currId, 'deliveryRecords'), orderBy('timestamp', 'desc'), limit(1)));
-                            if(!snap.empty) { await deleteDocumentNonBlocking(snap.docs[0].ref); await recalculateInningState(currId); toast({ title: "Undone" }); }
-                          }} className="h-12 border-white/10 text-slate-400 uppercase font-black text-[9px] bg-white/5">Undo</Button>
+                          <Button variant="outline" onClick={handleUndo} className="h-12 border-white/10 text-slate-400 uppercase font-black text-[9px] bg-white/5">Undo</Button>
                         </div>
                       </>
                     )}
@@ -956,7 +961,6 @@ export default function MatchScoreboardPage() {
         </div>
       </div>
 
-      {/* Dialogs */}
       <Dialog open={isMatchDetailsDialogOpen} onOpenChange={setIsMatchDetailsDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl z-[151]">
           <DialogHeader><DialogTitle className="font-black uppercase text-xl">Edit Match Details</DialogTitle></DialogHeader>
@@ -1095,10 +1099,10 @@ export default function MatchScoreboardPage() {
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl">Assign Positions</DialogTitle></DialogHeader>
           <div className="space-y-6 py-4 max-h-[60vh] overflow-y-auto px-1 scrollbar-hide">
             <Button onClick={() => setIsQuickAddOpen(true)} variant="outline" className="w-full h-12 border-dashed border-2 font-black uppercase text-[10px] text-primary hover:bg-primary/5">
-              <UserPlus className="w-4 h-4 mr-2" /> Add Player Mid-Match
+              <UserPlus className="w-4 h-4 mr-2" /> Quick Add Mid-Match
             </Button>
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase">STRIKER (REQUIRED)</Label>
+              <Label className="text-xs font-black uppercase">STRIKER (Pavilion List filtered)</Label>
               <Select value={assignmentForm.strikerId || ''} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
                 <SelectTrigger className="h-14 font-black"><SelectValue placeholder="Pick Striker" /></SelectTrigger>
                 <SelectContent className="z-[200] max-h-[250px]" position="popper">
@@ -1112,9 +1116,9 @@ export default function MatchScoreboardPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase">NON-STRIKER (OPTIONAL)</Label>
+              <Label className="text-xs font-black uppercase">NON-STRIKER (Pavilion List filtered)</Label>
               <Select value={assignmentForm.nonStrikerId || 'none'} onValueChange={(v) => setAssignmentForm({...assignmentForm, nonStrikerId: v === 'none' ? '' : v})}>
-                <SelectTrigger className="h-14 font-black"><SelectValue placeholder="No Non-Striker" /></SelectTrigger>
+                <SelectTrigger className="h-14 font-black"><SelectValue placeholder="Solo Mode (No Partner)" /></SelectTrigger>
                 <SelectContent className="z-[200] max-h-[250px]" position="popper">
                   <SelectItem value="none">No Non-Striker (Solo Mode)</SelectItem>
                   {allPlayers?.filter(p => {
@@ -1127,7 +1131,7 @@ export default function MatchScoreboardPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-black uppercase">BOWLER (REQUIRED)</Label>
+              <Label className="text-xs font-black uppercase">ACTIVE BOWLER</Label>
               <Select value={assignmentForm.bowlerId || ''} onValueChange={(v) => setAssignmentForm({...assignmentForm, bowlerId: v})}>
                 <SelectTrigger className="h-14 font-black"><SelectValue placeholder="Pick Bowler" /></SelectTrigger>
                 <SelectContent className="z-[200] max-h-[250px]" position="popper">
@@ -1138,12 +1142,12 @@ export default function MatchScoreboardPage() {
             <Button onClick={async () => { 
               const updates: any = {};
               if (assignmentForm.strikerId) updates.strikerPlayerId = assignmentForm.strikerId;
-              updates.nonStrikerPlayerId = assignmentForm.nonStrikerId || ''; // Can be explicitly cleared
+              updates.nonStrikerPlayerId = assignmentForm.nonStrikerId || ''; 
               if (assignmentForm.bowlerId) updates.currentBowlerPlayerId = assignmentForm.bowlerId;
               await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), updates, { merge: true });
               setIsPlayerAssignmentOpen(false);
-              toast({ title: "Assignments Updated" });
-            }} disabled={!assignmentForm.strikerId || !assignmentForm.bowlerId} className="w-full h-16 bg-primary font-black uppercase rounded-2xl shadow-xl">Confirm</Button>
+              toast({ title: "Lineup Updated" });
+            }} disabled={!assignmentForm.strikerId || !assignmentForm.bowlerId} className="w-full h-16 bg-primary font-black uppercase rounded-2xl shadow-xl">Apply Selection</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -1226,7 +1230,7 @@ export default function MatchScoreboardPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="z-[200] max-h-[250px]" position="popper">
-                    <SelectItem value="none">Direct</SelectItem>
+                    <SelectItem value="none">Direct (No Fielder)</SelectItem>
                     {allPlayers?.filter(p => (activeInningData?.battingTeamId === match?.team1Id ? match?.team2SquadPlayerIds : match?.team1SquadPlayerIds)?.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -1251,15 +1255,15 @@ export default function MatchScoreboardPage() {
               }, { merge: true });
               await recalculateInningState(currId);
               setIsWicketDialogOpen(false);
-              toast({ title: wicketForm.type === 'retired' ? "Retired" : "Out" });
-            }} disabled={!wicketForm.batterOutId || (wicketForm.type === 'retired' && !wicketForm.successorId && activeInningData?.nonStrikerPlayerId)} className={cn("w-full h-16 text-white font-black uppercase rounded-2xl shadow-xl", wicketForm.type === 'retired' ? "bg-slate-600" : "bg-destructive")}>Confirm</Button>
+              toast({ title: wicketForm.type === 'retired' ? "Player Retired" : "OUT Recorded" });
+            }} disabled={!wicketForm.batterOutId || (wicketForm.type === 'retired' && !wicketForm.successorId && activeInningData?.nonStrikerPlayerId)} className={cn("w-full h-16 text-white font-black uppercase rounded-2xl shadow-xl", wicketForm.type === 'retired' ? "bg-slate-600" : "bg-destructive")}>Confirm Out</Button>
           </div>
         </DialogContent>
       </Dialog>
 
       <Dialog open={isNoBallDialogOpen} onOpenChange={setIsNoBallDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[151]">
-          <DialogHeader><DialogTitle className="font-black uppercase text-xl text-amber-600">No Ball</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-black uppercase text-xl text-amber-600">No Ball Protocol</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-3 py-4">
             {[0, 1, 2, 3, 4, 5, 6].map(r => <Button key={r} onClick={() => handleRecordBall(r, 'noball')} variant="outline" className="h-16 font-black text-2xl border-amber-200">{r === 0 ? '•' : r}</Button>)}
           </div>
