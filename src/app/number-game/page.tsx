@@ -210,9 +210,9 @@ export default function NumberGame() {
     toast({ title: "Scoreboard Reset", description: "Lineup ready for next match." });
   };
 
-  const handleScore = (runs: number, extra: 'none' | 'wide' | 'noball' = 'none') => {
+  const handleScore = (runs: number, extra: 'none' | 'wide' | 'noball' = 'none', isDeclared: boolean = false) => {
     const ballId = Date.now();
-    const ballRecord = { id: ballId, strikerId, bowlerId, runs, extra, isWicket: false, prevDots: consecutiveDots, prevBalls: ballsInOver };
+    const ballRecord = { id: ballId, strikerId, bowlerId, runs, extra, isDeclared, isWicket: false, prevDots: consecutiveDots, prevBalls: ballsInOver };
     setHistory([ballRecord, ...history]);
 
     setPlayers(prev => prev.map(p => {
@@ -321,7 +321,7 @@ export default function NumberGame() {
     if (!editingBall) return;
     const oldId = editingBall.id;
     deleteBall(oldId);
-    handleScore(editingBall.runs, editingBall.extra);
+    handleScore(editingBall.runs, editingBall.extra, editingBall.isDeclared);
     setIsEditBallOpen(false);
     setEditingBall(null);
     toast({ title: "Record Corrected" });
@@ -489,7 +489,11 @@ export default function NumberGame() {
               <div className="flex items-center gap-2 bg-white/5 p-3 rounded-lg border border-white/10 w-fit">{[...Array(3)].map((_, i) => (<div key={i} className={cn("w-4 h-4 rounded-full border-2", i < consecutiveDots ? "bg-red-500 border-red-600 animate-pulse shadow-[0_0_10px_#ef4444]" : "border-slate-700")} />))}<span className="text-[9px] font-black uppercase text-slate-400 tracking-widest ml-2">3-Dots Streak</span></div>
               {!activeStriker?.batting.out ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">{[0, 1, 2, 3, 4, 6].map(r => (<Button key={r} onClick={() => handleScore(r)} className={cn("h-12 md:h-14 font-black text-lg bg-white/5 border border-white/10 hover:bg-primary transition-all", r >= 4 ? "text-primary border-primary/40" : "text-white")}>{r === 0 ? "•" : r}</Button>))}<Button variant="destructive" onClick={() => setIsWicketOpen(true)} className="h-12 md:h-14 font-black text-[10px] uppercase shadow-lg">Wicket</Button></div>
+                  <div className="grid grid-cols-5 gap-2">
+                    {[0, 1, 2, 3, 4, 5, 6].map(r => (<Button key={r} onClick={() => handleScore(r)} className={cn("h-12 md:h-14 font-black text-lg bg-white/5 border border-white/10 hover:bg-primary transition-all", r >= 4 ? "text-primary border-primary/40" : "text-white")}>{r === 0 ? "•" : r}</Button>))}
+                    <Button onClick={() => handleScore(1, 'none', true)} className="h-12 md:h-14 font-black text-lg bg-white/5 border border-white/10 hover:bg-primary transition-all">1D</Button>
+                    <Button variant="destructive" onClick={() => setIsWicketOpen(true)} className="h-12 md:h-14 font-black text-[10px] uppercase shadow-lg col-span-2">Wicket</Button>
+                  </div>
                   <div className="grid grid-cols-3 gap-2"><Button variant="outline" onClick={() => handleScore(1, 'wide')} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">Wide</Button><Button variant="outline" onClick={() => setIsNoBallOpen(true)} className="h-10 border-amber-500/40 text-amber-500 font-black text-[10px] uppercase bg-amber-500/5">No Ball</Button><Button variant="outline" onClick={() => { if(history.length > 0) deleteBall(history[0].id); }} className="h-10 border-white/20 text-white font-black text-[10px] uppercase"><Undo2 className="w-3 h-3 mr-1"/> Undo</Button></div>
                 </div>
               ) : (
@@ -506,10 +510,10 @@ export default function NumberGame() {
           <div className="space-y-2">{history.length > 0 ? history.map((b) => (
             <Card key={b.id} className="p-3 border shadow-sm flex items-center justify-between rounded-xl group hover:border-primary/30 transition-all">
               <div className="flex items-center gap-4">
-                <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border shadow-inner", b.isWicket ? "bg-red-500 text-white" : "bg-slate-50")}>{b.isWicket ? "W" : b.runs}</div>
+                <div className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black text-sm border shadow-inner", b.isWicket ? "bg-red-500 text-white" : "bg-slate-50")}>{b.isWicket ? "W" : (b.isDeclared ? "1D" : b.runs)}</div>
                 <div className="min-w-0">
                   <p className="text-[10px] font-black uppercase truncate">{players.find(p => p.id === b.strikerId)?.name} vs {players.find(p => p.id === b.bowlerId)?.name}</p>
-                  <p className={cn("text-[8px] font-bold uppercase", b.isWicket ? "text-red-500" : "text-slate-400")}>{b.isWicket ? b.wicketType : (b.extra !== 'none' ? b.extra : `${b.runs} runs`)}</p>
+                  <p className={cn("text-[8px] font-bold uppercase", b.isWicket ? "text-red-500" : "text-slate-400")}>{b.isWicket ? b.wicketType : (b.extra !== 'none' ? b.extra : `${b.runs} runs${b.isDeclared ? ' (Declared)' : ''}`)}</p>
                 </div>
               </div>
               <div className="flex gap-1">
@@ -520,7 +524,7 @@ export default function NumberGame() {
           )) : <div className="py-20 text-center text-[10px] font-black uppercase text-slate-300 border-2 border-dashed rounded-3xl">Awaiting first delivery</div>}</div>
         </TabsContent>
         
-        <TabsContent value="league">
+        <TabsContent value="league" className="space-y-4">
           <Card className="border-none shadow-xl overflow-hidden bg-white">
             <div className="bg-slate-900 text-white p-4 flex justify-between items-center">
               <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-amber-500" /><span className="text-[10px] font-black uppercase tracking-[0.2em]">Casual League Table</span></div>
@@ -560,7 +564,7 @@ export default function NumberGame() {
               <Label className="text-[10px] font-black uppercase text-slate-400">Runs Scored</Label>
               <Select value={editingBall?.runs?.toString()} onValueChange={(v) => setEditingBall((prev: any) => ({...prev, runs: parseInt(v)}))}>
                 <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
-                <SelectContent className="z-[250]">{[0,1,2,3,4,6].map(r => <SelectItem key={r} value={r.toString()}>{r}</SelectItem>)}</SelectContent>
+                <SelectContent className="z-[250]">{[0,1,2,3,4,5,6].map(r => <SelectItem key={r} value={r.toString()}>{r}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
@@ -569,6 +573,10 @@ export default function NumberGame() {
                 <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
                 <SelectContent className="z-[250]"><SelectItem value="none">None</SelectItem><SelectItem value="wide">Wide</SelectItem><SelectItem value="noball">No Ball</SelectItem></SelectContent>
               </Select>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border">
+              <Label className="text-[10px] font-black uppercase flex-1">Declared Run?</Label>
+              <Button variant={editingBall?.isDeclared ? "secondary" : "outline"} size="sm" onClick={() => setEditingBall((prev: any) => ({...prev, isDeclared: !prev.isDeclared}))} className="font-black h-8 uppercase text-[10px]">{editingBall?.isDeclared ? "YES" : "NO"}</Button>
             </div>
           </div>
           <DialogFooter><Button onClick={applyBallEdit} className="w-full h-14 font-black uppercase bg-primary text-white shadow-lg">Apply Changes</Button></DialogFooter>
@@ -579,7 +587,7 @@ export default function NumberGame() {
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-amber-500 z-[200]">
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-amber-600">No Ball Results</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-2 py-4">
-            {[0, 1, 2, 4, 6].map(r => (
+            {[0, 1, 2, 3, 4, 5, 6].map(r => (
               <Button key={`nb-${r}`} onClick={() => handleScore(r, 'noball')} variant="outline" className="h-16 font-black text-xl border-amber-200">{r === 0 ? "•" : r}</Button>
             ))}
           </div>

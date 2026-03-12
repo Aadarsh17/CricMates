@@ -45,7 +45,7 @@ export default function MatchScoreboardPage() {
   
   const [assignmentForm, setAssignmentForm] = useState({ strikerId: '', nonStrikerId: '', bowlerId: '' });
   const [wicketForm, setWicketForm] = useState({ type: 'bowled', batterOutId: '', extraType: 'none', runsCompleted: 0, fielderId: 'none', successorId: '' });
-  const [correctionForm, setCorrectionForm] = useState<any>({ id: '', strikerId: '', nonStrikerId: '', bowlerId: '', runs: 0, extra: 'none', isWicket: false, wicketType: 'bowled', timestamp: 0, targetInning: '' });
+  const [correctionForm, setCorrectionForm] = useState<any>({ id: '', strikerId: '', nonStrikerId: '', bowlerId: '', runs: 0, extra: 'none', isWicket: false, wicketType: 'bowled', timestamp: 0, targetInning: '', isDeclared: false });
   const [matchDateForm, setMatchDateForm] = useState('');
   const [venueForm, setVenueForm] = useState('');
   const [matchNumberForm, setMatchNumberForm] = useState('');
@@ -182,6 +182,7 @@ export default function MatchScoreboardPage() {
     deliveriesList.forEach((d, idx) => {
       score += (d.totalRunsOnDelivery || 0);
       const isRetirement = d.dismissalType === 'retired';
+      const isDeclared = d.isDeclared || false;
       if (d.isWicket && !isRetirement) wkts++;
       if (d.extraType === 'none' && !isRetirement) legal++;
 
@@ -191,7 +192,7 @@ export default function MatchScoreboardPage() {
         const runs = d.runsScored || 0;
         const isLegal = d.extraType === 'none' && !isRetirement;
         
-        if (runs % 2 !== 0) [sId, nsId] = [nsId, sId];
+        if (!isDeclared && runs % 2 !== 0) [sId, nsId] = [nsId, sId];
         if (legal % 6 === 0 && isLegal) [sId, nsId] = [nsId, sId];
         
         if (d.isWicket) {
@@ -254,7 +255,7 @@ export default function MatchScoreboardPage() {
     }
   };
 
-  const handleRecordBall = async (runs: number, extra: any = 'none') => {
+  const handleRecordBall = async (runs: number, extra: any = 'none', isDeclared: boolean = false) => {
     if (!match || !activeInningData || !isUmpire || !activeInningData.currentBowlerPlayerId) {
       toast({ title: "Officiating Error", description: "Assign bowler before recording balls.", variant: "destructive" });
       return;
@@ -272,6 +273,7 @@ export default function MatchScoreboardPage() {
       bowlerId: activeInningData.currentBowlerPlayerId || '', 
       runsScored: runs, 
       extraType: extra, 
+      isDeclared: isDeclared,
       totalRunsOnDelivery: runs + (extra !== 'none' ? 1 : 0), 
       isWicket: false, 
       timestamp: Date.now() 
@@ -280,7 +282,7 @@ export default function MatchScoreboardPage() {
     await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', deliveryId), dData, { merge: true });
 
     let nextS = activeInningData.strikerPlayerId, nextNS = activeInningData.nonStrikerPlayerId;
-    if (runs % 2 !== 0) [nextS, nextNS] = [nextNS, nextS];
+    if (!isDeclared && runs % 2 !== 0) [nextS, nextNS] = [nextNS, nextS];
     if (newTotalLegal % 6 === 0 && isLegal) [nextS, nextNS] = [nextNS, nextS];
 
     const updates: any = { 
@@ -305,6 +307,7 @@ export default function MatchScoreboardPage() {
     const runs = Number(correctionForm.runs) || 0;
     const extra = correctionForm.extra || 'none';
     const isWicket = !!correctionForm.isWicket;
+    const isDeclared = !!correctionForm.isDeclared;
 
     const dData: any = {
       id: deliveryId,
@@ -313,6 +316,7 @@ export default function MatchScoreboardPage() {
       bowlerId: correctionForm.bowlerId || '',
       runsScored: runs,
       extraType: extra,
+      isDeclared: isDeclared,
       totalRunsOnDelivery: runs + (extra !== 'none' ? 1 : 0),
       isWicket: isWicket,
       dismissalType: isWicket ? (correctionForm.wicketType || 'bowled') : '',
@@ -475,10 +479,11 @@ export default function MatchScoreboardPage() {
                     </div>
                     {match?.status === 'live' && !activeInningData?.isDeclaredFinished && (
                       <>
-                        <div className="grid grid-cols-4 gap-2">
-                          {[0, 1, 2, 3, 4, 6].map(r => (
-                            <Button key={r} disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(r)} className={cn("h-14 font-black text-2xl rounded-2xl", r >= 4 ? "bg-primary text-white" : "bg-white/5 text-white")}>{r || '•'}</Button>
+                        <div className="grid grid-cols-5 gap-2">
+                          {[0, 1, 2, 3, 4, 5, 6].map(r => (
+                            <Button key={r} disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(r)} className={cn("h-14 font-black text-2xl rounded-2xl", r >= 4 ? "bg-primary text-white" : "bg-white/5 text-white")}>{r === 0 ? '•' : r}</Button>
                           ))}
+                          <Button disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(1, 'none', true)} className="h-14 font-black text-2xl rounded-2xl bg-white/5 text-white">1D</Button>
                           <Button onClick={() => setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { strikerPlayerId: activeInningData?.nonStrikerPlayerId || '', nonStrikerPlayerId: activeInningData?.strikerPlayerId || '' }, { merge: true })} className="bg-secondary text-white h-14 font-black rounded-2xl"><ArrowLeftRight className="w-5 h-5"/></Button>
                           <Button variant="outline" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || '', fielderId: 'none', successorId: ''}); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px] bg-white/5">Wicket</Button>
                         </div>
@@ -562,7 +567,7 @@ export default function MatchScoreboardPage() {
                       <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-lg flex items-center justify-center shrink-0">OV {overIdx}</div>
                       <div className="flex flex-wrap gap-1.5 overflow-x-auto scrollbar-hide py-1">
                         {deliveries.map(d => {
-                          let label = (d.totalRunsOnDelivery || 0).toString();
+                          let label = d.isDeclared ? '1D' : (d.totalRunsOnDelivery || 0).toString();
                           let color = "bg-slate-100 text-slate-600";
                           if (d.isWicket) { label = d.dismissalType === 'retired' ? 'RET' : (d.dismissalType === 'runout' && d.runsScored > 0 ? `${d.runsScored}+W` : 'W'); color = d.dismissalType === 'retired' ? 'bg-slate-200' : 'bg-red-500 text-white'; }
                           else if (d.extraType === 'wide') { label = `${d.totalRunsOnDelivery}wd`; color = "bg-amber-100 text-amber-700"; }
@@ -754,7 +759,8 @@ export default function MatchScoreboardPage() {
                                       extra: 'none', 
                                       isWicket: false, 
                                       timestamp: newTs, 
-                                      targetInning: tab.innKey 
+                                      targetInning: tab.innKey,
+                                      isDeclared: false
                                     });
                                     setIsCorrectionDialogOpen(true);
                                   }} className="h-6 w-6 rounded-full bg-slate-50 text-slate-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-all p-0"><PlusCircle className="w-4 h-4" /></Button>
@@ -764,12 +770,12 @@ export default function MatchScoreboardPage() {
                                 <div className="flex items-center gap-4">
                                   <div className="flex flex-col items-center justify-center min-w-[40px] border-r pr-3"><span className="text-[10px] font-black text-slate-400">BALL</span><span className="text-xs font-black text-slate-900">{d.ballLabel}</span></div>
                                   <div className={cn("w-10 h-10 rounded-full flex flex-col items-center justify-center font-black text-[10px] border shadow-sm shrink-0 px-1 text-center", d.isWicket ? (d.dismissalType === 'retired' ? "bg-slate-200 text-slate-600 border-slate-300" : "bg-red-500 text-white border-red-600") : d.runsScored === 6 ? "bg-primary text-white" : d.runsScored === 4 ? "bg-blue-500 text-white" : d.extraType !== 'none' ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-slate-50")}>
-                                    {d.isWicket ? (d.dismissalType === 'retired' ? "RET" : (d.dismissalType === 'runout' && d.runsScored > 0 ? `${d.runsScored}+W` : "W")) : (d.extraType === 'noball' ? (d.runsScored === 0 ? "NB" : `${d.runsScored}+NB`) : (d.totalRunsOnDelivery || 0))}
+                                    {d.isWicket ? (d.dismissalType === 'retired' ? "RET" : (d.dismissalType === 'runout' && d.runsScored > 0 ? `${d.runsScored}+W` : "W")) : (d.extraType === 'noball' ? (d.runsScored === 0 ? "NB" : `${d.runsScored}+NB`) : (d.isDeclared ? "1D" : (d.totalRunsOnDelivery || 0)))}
                                     {d.extraType === 'wide' && <span className="text-[6px] -mt-1">WD</span>}
                                   </div>
                                   <div className="min-w-0">
                                     <p className="text-[10px] font-black text-slate-900 truncate max-w-[120px] uppercase">{getPlayerName(d.strikerPlayerId)} vs {getPlayerName(d.bowlerId)}</p>
-                                    <p className={cn("text-[8px] font-bold uppercase", d.isWicket ? (d.dismissalType === 'retired' ? "text-slate-500" : "text-red-500") : "text-slate-400")}>{d.isWicket ? d.dismissalType : `${d.runsScored || 0} runs`}</p>
+                                    <p className={cn("text-[8px] font-bold uppercase", d.isWicket ? (d.dismissalType === 'retired' ? "text-slate-500" : "text-red-500") : "text-slate-400")}>{d.isWicket ? d.dismissalType : `${d.runsScored || 0} runs${d.isDeclared ? ' (Declared)' : ''}`}</p>
                                   </div>
                                 </div>
                                 {isUmpire && <div className="flex gap-1 shrink-0"><Button variant="ghost" size="icon" onClick={() => { 
@@ -780,7 +786,8 @@ export default function MatchScoreboardPage() {
                                     bowlerId: d.bowlerId || d.bowlerPlayerId, 
                                     extra: d.extraType || 'none', 
                                     runs: d.runsScored || 0, 
-                                    targetInning: tab.innKey 
+                                    targetInning: tab.innKey,
+                                    isDeclared: !!d.isDeclared
                                   }); 
                                   setIsCorrectionDialogOpen(true); 
                                 }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3" /></Button><Button variant="ghost" size="icon" onClick={async () => { if(confirm("Delete delivery?")) { await deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); await recalculateInningState(tab.innKey); toast({ title: "Action Purged" }); } }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button></div>}
@@ -1013,7 +1020,7 @@ export default function MatchScoreboardPage() {
                 <Select value={(correctionForm.runs || 0).toString()} onValueChange={(v) => setCorrectionForm({...correctionForm, runs: parseInt(v)})}>
                   <SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger>
                   <SelectContent className="z-[200] max-h-[250px]" position="popper">
-                    {[0,1,2,3,4,6].map(r => <SelectItem key={r} value={r.toString()}>{r}</SelectItem>)}
+                    {[0,1,2,3,4,5,6].map(r => <SelectItem key={r} value={r.toString()}>{r}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -1029,9 +1036,15 @@ export default function MatchScoreboardPage() {
                 </Select>
               </div>
             </div>
-            <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border">
-              <Label className="text-[10px] font-black uppercase flex-1">Wicket/Retire?</Label>
-              <Button variant={correctionForm.isWicket ? "destructive" : "outline"} size="sm" onClick={() => setCorrectionForm({...correctionForm, isWicket: !correctionForm.isWicket})} className="font-black h-8 uppercase text-[10px]">{correctionForm.isWicket ? "YES" : "NO"}</Button>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border">
+                <Label className="text-[10px] font-black uppercase flex-1">Declared?</Label>
+                <Button variant={correctionForm.isDeclared ? "secondary" : "outline"} size="sm" onClick={() => setCorrectionForm({...correctionForm, isDeclared: !correctionForm.isDeclared})} className="font-black h-8 uppercase text-[10px]">{correctionForm.isDeclared ? "YES" : "NO"}</Button>
+              </div>
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border">
+                <Label className="text-[10px] font-black uppercase flex-1">Wicket?</Label>
+                <Button variant={correctionForm.isWicket ? "destructive" : "outline"} size="sm" onClick={() => setCorrectionForm({...correctionForm, isWicket: !correctionForm.isWicket})} className="font-black h-8 uppercase text-[10px]">{correctionForm.isWicket ? "YES" : "NO"}</Button>
+              </div>
             </div>
             {correctionForm.isWicket && (
               <div className="space-y-3">
@@ -1219,7 +1232,7 @@ export default function MatchScoreboardPage() {
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[151]">
           <DialogHeader><DialogTitle className="font-black uppercase text-xl text-amber-600">No Ball</DialogTitle></DialogHeader>
           <div className="grid grid-cols-3 gap-3 py-4">
-            {[0, 1, 2, 3, 4, 6].map(r => <Button key={r} onClick={() => handleRecordBall(r, 'noball')} variant="outline" className="h-16 font-black text-2xl border-amber-200">{r || '•'}</Button>)}
+            {[0, 1, 2, 3, 4, 5, 6].map(r => <Button key={r} onClick={() => handleRecordBall(r, 'noball')} variant="outline" className="h-16 font-black text-2xl border-amber-200">{r === 0 ? '•' : r}</Button>)}
           </div>
         </DialogContent>
       </Dialog>
