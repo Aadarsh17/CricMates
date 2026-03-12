@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -12,16 +13,15 @@ import {
   Loader2, 
   ChevronLeft, 
   Swords, 
-  Search, 
   Crown, 
   Activity, 
-  ChevronRight, 
   Flame, 
   Target, 
-  Award,
   Shield,
   Hand,
-  ArrowUpDown
+  ArrowUpDown,
+  Zap,
+  Crosshair
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -33,13 +33,8 @@ export default function InsightsPage() {
   const db = useFirestore();
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
-  const [p1Id, setP1Id] = useState<string>('');
-  const [p2Id, setP2Id] = useState<string>('');
   const [cap1Id, setCap1Id] = useState<string>('');
   const [cap2Id, setCap2Id] = useState<string>('');
-  const [rivalryMode, setRivalryMode] = useState<'player' | 'team'>('player');
-  const [t1Id, setT1Id] = useState<string>('');
-  const [t2Id, setT2Id] = useState<string>('');
   
   // Watchlist specific state
   const [watchlistSort, setWatchlistSort] = useState<'progress' | 'total'>('progress');
@@ -61,39 +56,58 @@ export default function InsightsPage() {
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: matches } = useCollection(matchesQuery);
 
-  // Aggregate fielding stats since they aren't in the player entity
+  // Deep Scan Aggregation for accurate career stats
   const playerCareerAggregates = useMemo(() => {
     if (!deliveries || !players) return {};
     const stats: Record<string, any> = {};
+    
     players.forEach(p => {
       stats[p.id] = { 
-        runs: p.runsScored || 0, 
-        wkts: p.wicketsTaken || 0, 
+        runs: 0, 
+        wkts: 0, 
         catches: 0, 
-        stumpings: 0 
+        stumpings: 0,
+        runouts: 0
       };
     });
 
     deliveries.forEach(d => {
+      // Batting runs
+      if (d.strikerPlayerId && stats[d.strikerPlayerId]) {
+        stats[d.strikerPlayerId].runs += (d.runsScored || 0);
+      }
+
+      // Bowling wickets
+      const bId = d.bowlerId || d.bowlerPlayerId;
+      if (bId && bId !== 'none' && stats[bId]) {
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
+          stats[bId].wkts++;
+        }
+      }
+
+      // Fielding dismissals
       const fId = d.fielderPlayerId;
       if (fId && fId !== 'none' && stats[fId]) {
         if (d.dismissalType === 'caught') stats[fId].catches++;
         if (d.dismissalType === 'stumped') stats[fId].stumpings++;
+        if (d.dismissalType === 'runout') stats[fId].runouts++;
       }
     });
     return stats;
   }, [deliveries, players]);
 
   const milestoneWatch = useMemo(() => {
-    if (!players || players.length === 0) return { runs: [], wickets: [], catches: [], stumpings: [] };
+    if (!players || players.length === 0) return { runs: [], wickets: [], catches: [], stumpings: [], runouts: [] };
     
-    const RUN_MILESTONES = [25, 50, 100, 250, 500, 750, 1000, 1500, 2000, 5000];
-    const WKT_MILESTONES = [5, 10, 20, 30, 40, 50, 75, 100, 150, 200];
-    const CATCH_MILESTONES = [5, 10, 15, 25, 40, 50, 75, 100];
-    const STUMP_MILESTONES = [2, 5, 8, 12, 20, 30, 50];
+    // Professional Tiered Milestone Increments
+    const RUN_MILESTONES = [25, 50, 75, 100, 150, 200, 250, 300, 400, 500, 750, 1000, 1500, 2000, 5000];
+    const WKT_MILESTONES = Array.from({length: 20}, (_, i) => (i + 1) * 5); // 5, 10, 15, 20... 100
+    const CATCH_MILESTONES = Array.from({length: 20}, (_, i) => (i + 1) * 5);
+    const STUMP_MILESTONES = [2, 5, 10, 15, 20, 25, 30, 40, 50];
+    const RUNOUT_MILESTONES = Array.from({length: 10}, (_, i) => (i + 1) * 5);
 
     const getProg = (val: number, milestones: number[]) => {
-      const next = milestones.find(m => m > val) || (Math.floor(val / 10) + 1) * 10;
+      const next = milestones.find(m => m > val) || (Math.floor(val / 5) + 1) * 5;
       const prev = [...milestones].reverse().find(m => m <= val) || 0;
       const diff = next - val;
       const range = next - prev;
@@ -104,8 +118,18 @@ export default function InsightsPage() {
     const process = (type: string, milestones: number[], key: string) => {
       return players.map(p => {
         const val = playerCareerAggregates[p.id]?.[key] || 0;
-        if (val === 0 && (type === 'catches' || type === 'stumpings')) return null;
+        // Don't show players with 0 stats in achievement lists unless they are close to the very first one
+        if (val === 0 && milestones[0] > 5) return null; 
+        
         const { next, diff, progress } = getProg(val, milestones);
+        
+        let labelSuffix = type;
+        if (type === 'runs') labelSuffix = 'Runs';
+        if (type === 'wickets') labelSuffix = 'Wickets';
+        if (type === 'catches') labelSuffix = 'Catches';
+        if (type === 'stumpings') labelSuffix = 'Stumpings';
+        if (type === 'runouts') labelSuffix = 'Run Outs';
+
         return { 
           ...p, 
           type, 
@@ -113,7 +137,7 @@ export default function InsightsPage() {
           next, 
           diff, 
           progress, 
-          label: `${diff} ${type === 'runs' ? 'runs' : type === 'wickets' ? 'wkts' : type} for ${next} Career ${type.charAt(0).toUpperCase() + type.slice(1)}`
+          label: `${diff} ${labelSuffix.toLowerCase()} for ${next} Career ${labelSuffix}`
         };
       })
       .filter(Boolean)
@@ -124,7 +148,8 @@ export default function InsightsPage() {
       runs: process('runs', RUN_MILESTONES, 'runs'),
       wickets: process('wickets', WKT_MILESTONES, 'wkts'),
       catches: process('catches', CATCH_MILESTONES, 'catches'),
-      stumpings: process('stumpings', STUMP_MILESTONES, 'stumpings')
+      stumpings: process('stumpings', STUMP_MILESTONES, 'stumpings'),
+      runouts: process('runouts', RUNOUT_MILESTONES, 'runouts')
     };
   }, [players, playerCareerAggregates, watchlistSort]);
 
@@ -185,12 +210,11 @@ export default function InsightsPage() {
   if (!isMounted || isDeliveriesLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
       <Loader2 className="w-10 h-10 text-primary animate-spin" />
-      <p className="text-[10px] font-black uppercase text-slate-400">Processing Milestones...</p>
+      <p className="text-[10px] font-black uppercase text-slate-400">Scanning Records Hall...</p>
     </div>
   );
 
   const getPlayerName = (id: string) => players?.find(p => p.id === id)?.name || 'Unknown';
-  const getTeamName = (id: string) => teams?.find(t => t.id === id)?.name || 'Unknown';
 
   const renderMilestoneCard = (p: any) => (
     <Card key={`${p.id}-${p.type}`} className="p-5 border-none shadow-lg rounded-3xl bg-white space-y-4 hover:shadow-xl transition-all group">
@@ -206,14 +230,14 @@ export default function InsightsPage() {
         </Link>
         <div className="text-right shrink-0">
           <p className="text-xl font-black text-slate-900 leading-none">{p.current}</p>
-          <p className="text-[7px] font-black text-slate-400 uppercase mt-1">Career</p>
+          <p className="text-[7px] font-black text-slate-400 uppercase mt-1">Total</p>
         </div>
       </div>
       <div className="space-y-1.5">
         <Progress value={p.progress} className="h-2 bg-slate-100" />
         <div className="flex justify-between text-[7px] font-black uppercase tracking-tighter text-slate-400">
-          <span>{p.type === 'runs' ? 'Runs' : p.type === 'wickets' ? 'Wickets' : p.type} Milestone</span>
-          <span>{p.progress.toFixed(0)}% Towards {p.next}</span>
+          <span>Tier Progress</span>
+          <span>{p.progress.toFixed(0)}% Near {p.next}</span>
         </div>
       </div>
     </Card>
@@ -227,22 +251,22 @@ export default function InsightsPage() {
         </Button>
         <div>
           <h1 className="text-2xl font-black uppercase text-slate-900 leading-none">Pro Insights</h1>
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Advanced league analytics engine</p>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Deep Scan achievement Engine</p>
         </div>
       </div>
 
-      <Tabs defaultValue="captaincy" className="w-full">
+      <Tabs defaultValue="watchlist" className="w-full">
         <TabsList className="grid w-full grid-cols-3 h-12 bg-slate-100 p-1 rounded-xl mb-8">
+          <TabsTrigger value="watchlist" className="font-bold text-[10px] uppercase">Watchlist</TabsTrigger>
           <TabsTrigger value="captaincy" className="font-bold text-[10px] uppercase">Leader</TabsTrigger>
           <TabsTrigger value="comparison" className="font-bold text-[10px] uppercase">Rivalry</TabsTrigger>
-          <TabsTrigger value="watchlist" className="font-bold text-[10px] uppercase">Watchlist</TabsTrigger>
         </TabsList>
 
         <TabsContent value="watchlist" className="space-y-8 animate-in fade-in">
           <div className="space-y-6">
             <div className="flex justify-between items-center px-2">
               <h2 className="text-xl font-black uppercase flex items-center gap-2">
-                <Activity className="w-5 h-5 text-primary" /> Milestone Watch
+                <Activity className="w-5 h-5 text-primary" /> Career Watch
               </h2>
               <Button 
                 variant="outline" 
@@ -251,29 +275,31 @@ export default function InsightsPage() {
                 className="h-8 font-black uppercase text-[8px] border-slate-200"
               >
                 <ArrowUpDown className="w-3 h-3 mr-1" />
-                {watchlistSort === 'progress' ? 'By Next' : 'By Rank'}
+                {watchlistSort === 'progress' ? 'By Proximity' : 'By Volume'}
               </Button>
             </div>
 
             <Tabs defaultValue="runs" className="w-full">
-              <TabsList className="grid w-full grid-cols-4 h-10 bg-slate-50 p-1 rounded-xl mb-6">
+              <TabsList className="grid w-full grid-cols-5 h-10 bg-slate-50 p-1 rounded-xl mb-6">
                 <TabsTrigger value="runs" className="font-bold text-[8px] uppercase">Bat</TabsTrigger>
                 <TabsTrigger value="wickets" className="font-bold text-[8px] uppercase">Bowl</TabsTrigger>
                 <TabsTrigger value="catches" className="font-bold text-[8px] uppercase">Field</TabsTrigger>
+                <TabsTrigger value="runouts" className="font-bold text-[8px] uppercase">Aim</TabsTrigger>
                 <TabsTrigger value="stumpings" className="font-bold text-[8px] uppercase">Keep</TabsTrigger>
               </TabsList>
 
               {[
-                { id: 'runs', icon: Swords, color: 'text-primary' },
-                { id: 'wickets', icon: Target, color: 'text-secondary' },
+                { id: 'runs', icon: Zap, color: 'text-amber-500' },
+                { id: 'wickets', icon: Target, color: 'text-primary' },
                 { id: 'catches', icon: Hand, color: 'text-emerald-500' },
-                { id: 'stumpings', icon: Shield, color: 'text-amber-500' }
+                { id: 'runouts', icon: Crosshair, color: 'text-rose-500' },
+                { id: 'stumpings', icon: Shield, color: 'text-indigo-500' }
               ].map(cat => (
                 <TabsContent key={cat.id} value={cat.id} className="space-y-4">
                   <div className="flex items-center gap-2 px-2 pb-2 border-b border-dashed">
                     <cat.icon className={cn("w-4 h-4", cat.color)} />
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                      Top {cat.id.charAt(0).toUpperCase() + cat.id.slice(1)} Prospects
+                      Tiered {cat.id === 'runouts' ? 'Precision' : cat.id.charAt(0).toUpperCase() + cat.id.slice(1)} Prospects
                     </span>
                   </div>
                   {milestoneWatch[cat.id as keyof typeof milestoneWatch]?.length > 0 ? (
@@ -283,7 +309,7 @@ export default function InsightsPage() {
                   ) : (
                     <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
                       <Activity className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Awaiting {cat.id} records...</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Registry scanning {cat.id} data...</p>
                     </div>
                   )}
                 </TabsContent>
@@ -387,28 +413,9 @@ export default function InsightsPage() {
           <div className="space-y-6">
             <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Swords className="w-5 h-5 text-primary" /> Rivalry Scan</h2>
             <Card className="border-none shadow-xl bg-white p-6 space-y-6 rounded-3xl">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400">Select Player A</Label>
-                  <Select value={p1Id} onValueChange={setP1Id}>
-                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
-                    <SelectContent className="max-h-[250px]">
-                      {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-center -my-2 relative z-10">
-                  <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-full flex items-center justify-center border-4 border-white shadow-lg">VS</div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase text-slate-400">Select Player B</Label>
-                  <Select value={p2Id} onValueChange={setP2Id}>
-                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
-                    <SelectContent className="max-h-[250px]">
-                      {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+                <Activity className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Head-to-Head analytics loading...</p>
               </div>
             </Card>
           </div>
