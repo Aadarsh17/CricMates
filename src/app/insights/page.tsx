@@ -61,7 +61,7 @@ export default function InsightsPage() {
   }, [db, isMounted]);
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
-  // Cross-reference filter to remove orphaned "ghost" data from deleted matches
+  // CRITICAL: Cross-reference filter to remove orphaned "ghost" data from deleted matches
   const activeMatchIds = useMemo(() => new Set(matches?.map(m => m.id) || []), [matches]);
   
   const deliveries = useMemo(() => {
@@ -249,6 +249,7 @@ export default function InsightsPage() {
       }
     });
 
+    // Economy = Total Runs conceded to this batter / (Total Balls to this batter / 6)
     const calcEcon = (r: number, b: number) => b > 0 ? (r / (b / 6)).toFixed(2) : '0.00';
     duel.r1_bat_vs_r2_bowl.econ = parseFloat(calcEcon(duel.r1_bat_vs_r2_bowl.runs, duel.r1_bat_vs_r2_bowl.balls));
     duel.r2_bat_vs_r1_bowl.econ = parseFloat(calcEcon(duel.r2_bat_vs_r1_bowl.runs, duel.r2_bat_vs_r1_bowl.balls));
