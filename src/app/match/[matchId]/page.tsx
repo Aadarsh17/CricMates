@@ -130,6 +130,10 @@ export default function MatchScoreboardPage() {
 
   const currentDeliveriesWithLabels = match?.currentInningNumber === 1 ? inn1WithLabels : inn2WithLabels;
 
+  const currentStats = useMemo(() => {
+    return match?.currentInningNumber === 1 ? stats1 : stats2;
+  }, [match?.currentInningNumber, stats1, stats2]);
+
   const groupedByOver = useMemo(() => {
     if (!currentDeliveriesWithLabels) return [];
     const groups: Record<number, any[]> = {};
@@ -209,7 +213,8 @@ export default function MatchScoreboardPage() {
     const updates: any = { 
       score, wickets: wkts, oversCompleted: Math.floor(legal / 6), ballsInCurrentOver: legal % 6,
       strikerPlayerId: sId || '',
-      nonStrikerPlayerId: nsId || ''
+      nonStrikerPlayerId: nsId || '',
+      isDeclaredFinished: false // Reset flag on any recalculation to allow umpire to re-declare or continue
     };
     if (legal % 6 === 0 && legal > 0) updates.currentBowlerPlayerId = '';
 
@@ -1097,7 +1102,12 @@ export default function MatchScoreboardPage() {
               <Select value={assignmentForm.strikerId || ''} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
                 <SelectTrigger className="h-14 font-black"><SelectValue placeholder="Pick Striker" /></SelectTrigger>
                 <SelectContent className="z-[200] max-h-[250px]" position="popper">
-                  {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.nonStrikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  {allPlayers?.filter(p => {
+                    const squad = match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds;
+                    const isAvailable = squad?.includes(p.id) && p.id !== assignmentForm.nonStrikerId;
+                    const isAlreadyOut = currentStats.batting.find(b => b.id === p.id)?.out;
+                    return isAvailable && !isAlreadyOut;
+                  }).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -1107,7 +1117,12 @@ export default function MatchScoreboardPage() {
                 <SelectTrigger className="h-14 font-black"><SelectValue placeholder="No Non-Striker" /></SelectTrigger>
                 <SelectContent className="z-[200] max-h-[250px]" position="popper">
                   <SelectItem value="none">No Non-Striker (Solo Mode)</SelectItem>
-                  {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== assignmentForm.strikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  {allPlayers?.filter(p => {
+                    const squad = match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds;
+                    const isAvailable = squad?.includes(p.id) && p.id !== assignmentForm.strikerId;
+                    const isAlreadyOut = currentStats.batting.find(b => b.id === p.id)?.out;
+                    return isAvailable && !isAlreadyOut;
+                  }).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -1193,7 +1208,12 @@ export default function MatchScoreboardPage() {
                   </SelectTrigger>
                   <SelectContent className="z-[200] max-h-[250px]" position="popper">
                     <SelectItem value="none">No Successor (End Inning)</SelectItem>
-                    {allPlayers?.filter(p => (match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)?.includes(p.id) && p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    {allPlayers?.filter(p => {
+                      const squad = match?.team1Id === activeInningData?.battingTeamId ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds;
+                      const isAvailable = squad?.includes(p.id) && p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId;
+                      const isAlreadyOut = currentStats.batting.find(b => b.id === p.id)?.out;
+                      return isAvailable && !isAlreadyOut;
+                    }).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
