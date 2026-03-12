@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -51,16 +52,27 @@ export default function InsightsPage() {
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: teams } = useCollection(teamsQuery);
 
+  const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
+  const { data: matches } = useCollection(matchesQuery);
+
   const deliveriesQuery = useMemoFirebase(() => {
     if (!isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'));
   }, [db, isMounted]);
-  const { data: deliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
+  const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
-  const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
-  const { data: matches } = useCollection(matchesQuery);
+  // Cross-reference filter to remove orphaned "ghost" data from deleted matches
+  const activeMatchIds = useMemo(() => new Set(matches?.map(m => m.id) || []), [matches]);
+  
+  const deliveries = useMemo(() => {
+    if (!rawDeliveries || !activeMatchIds.size) return [];
+    return rawDeliveries.filter(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      return matchId && activeMatchIds.has(matchId);
+    });
+  }, [rawDeliveries, activeMatchIds]);
 
-  // Deep Scan Aggregation for accurate career stats
+  // Deep Scan Aggregation for accurate career stats (Ghost-free)
   const playerCareerAggregates = useMemo(() => {
     if (!deliveries || !players) return {};
     const stats: Record<string, any> = {};
@@ -103,9 +115,8 @@ export default function InsightsPage() {
   const milestoneWatch = useMemo(() => {
     if (!players || players.length === 0) return { runs: [], wickets: [], catches: [], stumpings: [], runouts: [] };
     
-    // Professional Tiered Milestone Increments as per user request
     const RUN_MILESTONES = [25, 50, 75, 100, 150, 200, 250, 500, 750, 1000];
-    const WKT_MILESTONES = Array.from({length: 20}, (_, i) => (i + 1) * 5); // 5, 10, 15, 20... 100
+    const WKT_MILESTONES = Array.from({length: 20}, (_, i) => (i + 1) * 5); 
     const CATCH_MILESTONES = Array.from({length: 20}, (_, i) => (i + 1) * 5);
     const STUMP_MILESTONES = [2, 5, 10, 15, 20, 25, 30, 40, 50];
     const RUNOUT_MILESTONES = Array.from({length: 10}, (_, i) => (i + 1) * 5);
@@ -175,13 +186,6 @@ export default function InsightsPage() {
       });
 
       deliveries.forEach(d => {
-        const mid = d.__fullPath?.split('/')[1];
-        const match = matches.find(m => m.id === mid);
-        if (!match) return;
-        const isC1 = match.team1CaptainId === cid;
-        const isC2 = match.team2CaptainId === cid;
-        if (!isC1 && !isC2) return;
-
         if (d.strikerPlayerId === cid) rec.runs += (d.runsScored || 0);
         const bId = d.bowlerId || d.bowlerPlayerId;
         if (bId === cid) {
@@ -214,8 +218,8 @@ export default function InsightsPage() {
     if (!deliveries || !rival1Id || !rival2Id) return null;
 
     const duel = {
-      r1_bat_vs_r2_bowl: { runs: 0, balls: 0, wkts: 0, fours: 0, sixes: 0, dots: 0 },
-      r2_bat_vs_r1_bowl: { runs: 0, balls: 0, wkts: 0, fours: 0, sixes: 0, dots: 0 }
+      r1_bat_vs_r2_bowl: { runs: 0, balls: 0, wkts: 0, fours: 0, sixes: 0, dots: 0, econ: 0 },
+      r2_bat_vs_r1_bowl: { runs: 0, balls: 0, wkts: 0, fours: 0, sixes: 0, dots: 0, econ: 0 }
     };
 
     deliveries.forEach(d => {
@@ -223,7 +227,7 @@ export default function InsightsPage() {
       const sId = d.strikerPlayerId;
 
       if (sId === rival1Id && bId === rival2Id) {
-        duel.r1_bat_vs_r2_bowl.runs += (d.runsScored || 0);
+        duel.r1_bat_vs_r2_bowl.runs += (d.totalRunsOnDelivery || 0);
         if (d.extraType !== 'wide') duel.r1_bat_vs_r2_bowl.balls++;
         if (d.runsScored === 4) duel.r1_bat_vs_r2_bowl.fours++;
         if (d.runsScored === 6) duel.r1_bat_vs_r2_bowl.sixes++;
@@ -234,7 +238,7 @@ export default function InsightsPage() {
       }
 
       if (sId === rival2Id && bId === rival1Id) {
-        duel.r2_bat_vs_r1_bowl.runs += (d.runsScored || 0);
+        duel.r2_bat_vs_r1_bowl.runs += (d.totalRunsOnDelivery || 0);
         if (d.extraType !== 'wide') duel.r2_bat_vs_r1_bowl.balls++;
         if (d.runsScored === 4) duel.r2_bat_vs_r1_bowl.fours++;
         if (d.runsScored === 6) duel.r2_bat_vs_r1_bowl.sixes++;
@@ -244,6 +248,10 @@ export default function InsightsPage() {
         }
       }
     });
+
+    const calcEcon = (r: number, b: number) => b > 0 ? (r / (b / 6)).toFixed(2) : '0.00';
+    duel.r1_bat_vs_r2_bowl.econ = parseFloat(calcEcon(duel.r1_bat_vs_r2_bowl.runs, duel.r1_bat_vs_r2_bowl.balls));
+    duel.r2_bat_vs_r1_bowl.econ = parseFloat(calcEcon(duel.r2_bat_vs_r1_bowl.runs, duel.r2_bat_vs_r1_bowl.balls));
 
     return duel;
   }, [deliveries, rival1Id, rival2Id]);
@@ -514,8 +522,8 @@ export default function InsightsPage() {
                         </div>
                       </div>
                       
-                      {/* Secondary Row: 4s, 6s, Dots */}
-                      <div className="grid grid-cols-3 text-center gap-2">
+                      {/* Secondary Row: 4s, 6s, Dots, Econ */}
+                      <div className="grid grid-cols-4 text-center gap-2">
                         <div className="bg-white/5 p-2 rounded-xl border border-white/5">
                           <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">4s</p>
                           <p className="text-xs font-black text-blue-400">{rivalryStats.r1_bat_vs_r2_bowl.fours}</p>
@@ -527,6 +535,10 @@ export default function InsightsPage() {
                         <div className="bg-white/5 p-2 rounded-xl border border-white/5">
                           <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">Dots</p>
                           <p className="text-xs font-black text-slate-400">{rivalryStats.r1_bat_vs_r2_bowl.dots}</p>
+                        </div>
+                        <div className="bg-white/10 p-2 rounded-xl border border-primary/20">
+                          <p className="text-[6px] font-black text-primary uppercase mb-0.5">Econ</p>
+                          <p className="text-xs font-black text-white">{rivalryStats.r1_bat_vs_r2_bowl.econ}</p>
                         </div>
                       </div>
 
@@ -570,8 +582,8 @@ export default function InsightsPage() {
                         </div>
                       </div>
 
-                      {/* Secondary Row: 4s, 6s, Dots */}
-                      <div className="grid grid-cols-3 text-center gap-2">
+                      {/* Secondary Row: 4s, 6s, Dots, Econ */}
+                      <div className="grid grid-cols-4 text-center gap-2">
                         <div className="bg-white/5 p-2 rounded-xl border border-white/5">
                           <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">4s</p>
                           <p className="text-xs font-black text-blue-400">{rivalryStats.r2_bat_vs_r1_bowl.fours}</p>
@@ -583,6 +595,10 @@ export default function InsightsPage() {
                         <div className="bg-white/5 p-2 rounded-xl border border-white/5">
                           <p className="text-[6px] font-black text-slate-500 uppercase mb-0.5">Dots</p>
                           <p className="text-xs font-black text-slate-400">{rivalryStats.r2_bat_vs_r1_bowl.dots}</p>
+                        </div>
+                        <div className="bg-white/10 p-2 rounded-xl border border-primary/20">
+                          <p className="text-[6px] font-black text-primary uppercase mb-0.5">Econ</p>
+                          <p className="text-xs font-black text-white">{rivalryStats.r2_bat_vs_r1_bowl.econ}</p>
                         </div>
                       </div>
 
