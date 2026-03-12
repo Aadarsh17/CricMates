@@ -21,7 +21,9 @@ import {
   Hand,
   ArrowUpDown,
   Zap,
-  Crosshair
+  Crosshair,
+  User,
+  TrendingUp
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -33,8 +35,12 @@ export default function InsightsPage() {
   const db = useFirestore();
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
+  
+  // Selection States
   const [cap1Id, setCap1Id] = useState<string>('');
   const [cap2Id, setCap2Id] = useState<string>('');
+  const [rival1Id, setRival1Id] = useState<string>('');
+  const [rival2Id, setRival2Id] = useState<string>('');
   
   // Watchlist specific state
   const [watchlistSort, setWatchlistSort] = useState<'progress' | 'total'>('progress');
@@ -206,6 +212,38 @@ export default function InsightsPage() {
 
     return { cap1: getCapRecord(cap1Id), cap2: getCapRecord(cap2Id), h2h };
   }, [matches, cap1Id, cap2Id, deliveries]);
+
+  const rivalryStats = useMemo(() => {
+    if (!deliveries || !rival1Id || !rival2Id) return null;
+
+    const duel = {
+      r1_bat_vs_r2_bowl: { runs: 0, balls: 0, wkts: 0 },
+      r2_bat_vs_r1_bowl: { runs: 0, balls: 0, wkts: 0 }
+    };
+
+    deliveries.forEach(d => {
+      const bId = d.bowlerId || d.bowlerPlayerId;
+      const sId = d.strikerPlayerId;
+
+      if (sId === rival1Id && bId === rival2Id) {
+        duel.r1_bat_vs_r2_bowl.runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') duel.r1_bat_vs_r2_bowl.balls++;
+        if (d.isWicket && d.batsmanOutPlayerId === rival1Id && !['runout', 'retired'].includes(d.dismissalType || '')) {
+          duel.r1_bat_vs_r2_bowl.wkts++;
+        }
+      }
+
+      if (sId === rival2Id && bId === rival1Id) {
+        duel.r2_bat_vs_r1_bowl.runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') duel.r2_bat_vs_r1_bowl.balls++;
+        if (d.isWicket && d.batsmanOutPlayerId === rival2Id && !['runout', 'retired'].includes(d.dismissalType || '')) {
+          duel.r2_bat_vs_r1_bowl.wkts++;
+        }
+      }
+    });
+
+    return duel;
+  }, [deliveries, rival1Id, rival2Id]);
 
   if (!isMounted || isDeliveriesLoading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4">
@@ -413,11 +451,119 @@ export default function InsightsPage() {
           <div className="space-y-6">
             <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Swords className="w-5 h-5 text-primary" /> Rivalry Scan</h2>
             <Card className="border-none shadow-xl bg-white p-6 space-y-6 rounded-3xl">
-              <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
-                <Activity className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Head-to-Head analytics loading...</p>
+              <div className="grid grid-cols-1 gap-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Player 1</Label>
+                  <Select value={rival1Id} onValueChange={setRival1Id}>
+                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
+                    <SelectContent className="max-h-[250px]">
+                      {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-center -my-2 relative z-10">
+                  <div className="bg-slate-900 text-white text-[10px] font-black h-8 w-8 rounded-full flex items-center justify-center border-4 border-white shadow-lg">VS</div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase text-slate-400">Player 2</Label>
+                  <Select value={rival2Id} onValueChange={setRival2Id}>
+                    <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Choose Player" /></SelectTrigger>
+                    <SelectContent className="max-h-[250px]">
+                      {players?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </Card>
+
+            {rivalryStats ? (
+              <div className="space-y-6 animate-in zoom-in-95">
+                <div className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-2xl">
+                  <div className="p-4 bg-[#009688] text-center">
+                    <p className="text-[10px] font-black uppercase tracking-widest">Head-to-Head Duel</p>
+                  </div>
+                  
+                  <div className="p-6 space-y-8">
+                    {/* Rival 1 Batting vs Rival 2 Bowling */}
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-end border-b border-white/10 pb-2">
+                        <div className="min-w-0">
+                          <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Batter</p>
+                          <p className="font-black text-xs uppercase truncate text-[#009688]">{getPlayerName(rival1Id)}</p>
+                        </div>
+                        <div className="text-right min-w-0">
+                          <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Bowler</p>
+                          <p className="font-black text-xs uppercase truncate text-primary">{getPlayerName(rival2Id)}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 text-center gap-2">
+                        <div className="bg-white/5 p-3 rounded-2xl">
+                          <p className="text-[7px] font-black text-slate-500 uppercase mb-1">Runs</p>
+                          <p className="text-2xl font-black">{rivalryStats.r1_bat_vs_r2_bowl.runs}</p>
+                        </div>
+                        <div className="bg-white/5 p-3 rounded-2xl">
+                          <p className="text-[7px] font-black text-slate-500 uppercase mb-1">Balls</p>
+                          <p className="text-2xl font-black">{rivalryStats.r1_bat_vs_r2_bowl.balls}</p>
+                        </div>
+                        <div className="bg-rose-500/20 border border-rose-500/30 p-3 rounded-2xl">
+                          <p className="text-[7px] font-black text-rose-400 uppercase mb-1">Outs</p>
+                          <p className="text-2xl font-black text-rose-500">{rivalryStats.r1_bat_vs_r2_bowl.wkts}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-center">
+                        <Badge variant="outline" className="text-[8px] font-black text-slate-400 border-white/10">
+                          S.R. {rivalryStats.r1_bat_vs_r2_bowl.balls > 0 ? ((rivalryStats.r1_bat_vs_r2_bowl.runs / rivalryStats.r1_bat_vs_r2_bowl.balls) * 100).toFixed(1) : '0.0'}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      <div className="h-px bg-white/5 flex-1"></div>
+                      <TrendingUp className="w-4 h-4 text-white/20" />
+                      <div className="h-px bg-white/5 flex-1"></div>
+                    </div>
+
+                    {/* Rival 2 Batting vs Rival 1 Bowling */}
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-end border-b border-white/10 pb-2">
+                        <div className="min-w-0">
+                          <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Batter</p>
+                          <p className="font-black text-xs uppercase truncate text-[#009688]">{getPlayerName(rival2Id)}</p>
+                        </div>
+                        <div className="text-right min-w-0">
+                          <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Bowler</p>
+                          <p className="font-black text-xs uppercase truncate text-primary">{getPlayerName(rival1Id)}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 text-center gap-2">
+                        <div className="bg-white/5 p-3 rounded-2xl">
+                          <p className="text-[7px] font-black text-slate-500 uppercase mb-1">Runs</p>
+                          <p className="text-2xl font-black">{rivalryStats.r2_bat_vs_r1_bowl.runs}</p>
+                        </div>
+                        <div className="bg-white/5 p-3 rounded-2xl">
+                          <p className="text-[7px] font-black text-slate-500 uppercase mb-1">Balls</p>
+                          <p className="text-2xl font-black">{rivalryStats.r2_bat_vs_r1_bowl.balls}</p>
+                        </div>
+                        <div className="bg-rose-500/20 border border-rose-500/30 p-3 rounded-2xl">
+                          <p className="text-[7px] font-black text-rose-400 uppercase mb-1">Outs</p>
+                          <p className="text-2xl font-black text-rose-500">{rivalryStats.r2_bat_vs_r1_bowl.wkts}</p>
+                        </div>
+                      </div>
+                      <div className="flex justify-center">
+                        <Badge variant="outline" className="text-[8px] font-black text-slate-400 border-white/10">
+                          S.R. {rivalryStats.r2_bat_vs_r1_bowl.balls > 0 ? ((rivalryStats.r2_bat_vs_r1_bowl.runs / rivalryStats.r2_bat_vs_r1_bowl.balls) * 100).toFixed(1) : '0.0'}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 text-center border-2 border-dashed rounded-3xl bg-slate-50/50">
+                <Swords className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Select two players to scan their personal rivalry</p>
+              </div>
+            )}
           </div>
         </TabsContent>
       </Tabs>
