@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
@@ -91,7 +92,7 @@ export default function RankingsPage() {
     const pMatchStats: Record<string, Record<string, any>> = {};
 
     players.forEach(p => {
-      stats[p.id] = { id: p.id, name: p.name, runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, outs: 0, potm: 0, cvp: 0 };
+      stats[p.id] = { id: p.id, name: p.name, runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runOuts: 0, outs: 0, potm: 0, cvp: 0 };
     });
     
     matches.forEach(m => { if (m.potmPlayerId && stats[m.potmPlayerId]) stats[m.potmPlayerId].potm++; });
@@ -155,7 +156,7 @@ export default function RankingsPage() {
         const mField = pMatchStats[fielderId][matchId];
         if (d.dismissalType === 'caught') { f.catches++; mField.catches++; }
         if (d.dismissalType === 'stumped') mField.stumpings++;
-        if (d.dismissalType === 'runout') { f.runouts++; mField.runOuts++; }
+        if (d.dismissalType === 'runout') { f.runOuts++; mField.runOuts++; }
       }
     });
 
@@ -182,7 +183,7 @@ export default function RankingsPage() {
       else if (cat === 'sr') sorted.sort((a,b) => b.sr - a.sr);
       else if (cat === 'er') sorted.sort((a,b) => a.er - b.er);
       else if (cat === 'catches') sorted.sort((a,b) => b.catches - a.catches);
-      else if (cat === 'runouts') sorted.sort((a,b) => b.runouts - a.runouts);
+      else if (cat === 'runOuts') sorted.sort((a,b) => b.runOuts - a.runOuts);
       else if (cat === 'potm') sorted.sort((a,b) => b.potm - a.potm);
       return sorted;
     };
@@ -195,7 +196,7 @@ export default function RankingsPage() {
       sr: getRanked('sr'), 
       er: getRanked('er'), 
       catches: getRanked('catches'), 
-      runouts: getRanked('runouts'), 
+      runOuts: getRanked('runOuts'), 
       potm: getRanked('potm') 
     };
   }, [players, rawDeliveries, matches, isMounted]);
@@ -213,7 +214,7 @@ export default function RankingsPage() {
           )}
         </TabsContent>
         <TabsContent value="leaderboards" className="space-y-6">
-          <div className="flex flex-col md:flex-row gap-4 justify-between items-center"><h2 className="text-lg font-black uppercase flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Player Rankings</h2><Select value={activeCategory} onValueChange={setActiveCategory}><SelectTrigger className="w-full md:w-[200px] h-12 font-black uppercase text-[10px]"><SelectValue placeholder="Category" /></SelectTrigger><SelectContent className="z-[200]">{[ {id:'runs', label:'Runs'}, {id:'wickets', label:'Wickets'}, {id:'cvp', label:'Impact (CVP)'}, {id:'avg', label:'Average'}, {id:'sr', label:'Strike Rate'}, {id:'er', label:'Economy'}, {id:'catches', label:'Catches'}, {id:'runouts', label:'Run Outs'}, {id:'potm', label:'POTM'} ].map(c => <SelectItem key={c.id} value={c.id} className="font-black uppercase text-[10px]">{c.label}</SelectItem>)}</SelectContent></Select></div>
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-center"><h2 className="text-lg font-black uppercase flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Player Rankings</h2><Select value={activeCategory} onValueChange={setActiveCategory}><SelectTrigger className="w-full md:w-[200px] h-12 font-black uppercase text-[10px]"><SelectValue placeholder="Category" /></SelectTrigger><SelectContent className="z-[200]">{[ {id:'runs', label:'Runs'}, {id:'wickets', label:'Wickets'}, {id:'cvp', label:'Impact (CVP)'}, {id:'avg', label:'Average'}, {id:'sr', label:'Strike Rate'}, {id:'er', label:'Economy'}, {id:'catches', label:'Catches'}, {id:'runOuts', label:'Run Outs'}, {id:'potm', label:'POTM'} ].map(c => <SelectItem key={c.id} value={c.id} className="font-black uppercase text-[10px]">{c.label}</SelectItem>)}</SelectContent></Select></div>
           {(!playerLeaderboards[activeCategory] || playerLeaderboards[activeCategory].length === 0) ? <NoDataMessage /> : (
             <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white"><Table><TableHeader className="bg-slate-50"><TableRow><TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead><TableHead className="text-[10px] font-black uppercase">Player</TableHead><TableHead className="text-right text-[10px] font-black uppercase bg-primary/5">Score</TableHead></TableRow></TableHeader><TableBody>{playerLeaderboards[activeCategory].map((p: any, idx: number) => (
               <TableRow key={p.id}>

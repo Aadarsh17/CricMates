@@ -83,7 +83,7 @@ export default function InsightsPage() {
         wkts: 0, 
         catches: 0, 
         stumpings: 0,
-        runouts: 0
+        runOuts: 0
       };
     });
 
@@ -106,14 +106,14 @@ export default function InsightsPage() {
       if (fId && fId !== 'none' && stats[fId]) {
         if (d.dismissalType === 'caught') stats[fId].catches++;
         if (d.dismissalType === 'stumped') stats[fId].stumpings++;
-        if (d.dismissalType === 'runout') stats[fId].runouts++;
+        if (d.dismissalType === 'runout') stats[fId].runOuts++;
       }
     });
     return stats;
   }, [deliveries, players]);
 
   const milestoneWatch = useMemo(() => {
-    if (!players || players.length === 0) return { runs: [], wickets: [], catches: [], stumpings: [], runouts: [] };
+    if (!players || players.length === 0) return { runs: [], wickets: [], catches: [], stumpings: [], runOuts: [] };
     
     const RUN_MILESTONES = [25, 50, 75, 100, 150, 200, 250, 500, 750, 1000];
     const WKT_MILESTONES = Array.from({length: 20}, (_, i) => (i + 1) * 5); 
@@ -142,7 +142,7 @@ export default function InsightsPage() {
         if (type === 'wickets') labelSuffix = 'Wickets';
         if (type === 'catches') labelSuffix = 'Catches';
         if (type === 'stumpings') labelSuffix = 'Stumpings';
-        if (type === 'runouts') labelSuffix = 'Run Outs';
+        if (type === 'runOuts') labelSuffix = 'Run Outs';
 
         return { 
           ...p, 
@@ -163,7 +163,7 @@ export default function InsightsPage() {
       wickets: process('wickets', WKT_MILESTONES, 'wkts'),
       catches: process('catches', CATCH_MILESTONES, 'catches'),
       stumpings: process('stumpings', STUMP_MILESTONES, 'stumpings'),
-      runouts: process('runouts', RUNOUT_MILESTONES, 'runouts')
+      runOuts: process('runOuts', RUNOUT_MILESTONES, 'runOuts')
     };
   }, [players, playerCareerAggregates, watchlistSort]);
 
@@ -334,7 +334,7 @@ export default function InsightsPage() {
                 <TabsTrigger value="runs" className="font-bold text-[8px] uppercase">Bat</TabsTrigger>
                 <TabsTrigger value="wickets" className="font-bold text-[8px] uppercase">Bowl</TabsTrigger>
                 <TabsTrigger value="catches" className="font-bold text-[8px] uppercase">Field</TabsTrigger>
-                <TabsTrigger value="runouts" className="font-bold text-[8px] uppercase">Aim</TabsTrigger>
+                <TabsTrigger value="runOuts" className="font-bold text-[8px] uppercase">Aim</TabsTrigger>
                 <TabsTrigger value="stumpings" className="font-bold text-[8px] uppercase">Keep</TabsTrigger>
               </TabsList>
 
@@ -342,14 +342,14 @@ export default function InsightsPage() {
                 { id: 'runs', icon: Zap, color: 'text-amber-500' },
                 { id: 'wickets', icon: Target, color: 'text-primary' },
                 { id: 'catches', icon: Hand, color: 'text-emerald-500' },
-                { id: 'runouts', icon: Crosshair, color: 'text-rose-500' },
+                { id: 'runOuts', icon: Crosshair, color: 'text-rose-500' },
                 { id: 'stumpings', icon: Shield, color: 'text-indigo-500' }
               ].map(cat => (
                 <TabsContent key={cat.id} value={cat.id} className="space-y-4">
                   <div className="flex items-center gap-2 px-2 pb-2 border-b border-dashed">
                     <cat.icon className={cn("w-4 h-4", cat.color)} />
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">
-                      Tiered {cat.id === 'runouts' ? 'Precision' : cat.id.charAt(0).toUpperCase() + cat.id.slice(1)} Prospects
+                      Tiered {cat.id === 'runOuts' ? 'Precision' : cat.id.charAt(0).toUpperCase() + cat.id.slice(1)} Prospects
                     </span>
                   </div>
                   {milestoneWatch[cat.id as keyof typeof milestoneWatch]?.length > 0 ? (

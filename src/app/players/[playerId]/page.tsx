@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -143,7 +144,7 @@ export default function PlayerProfilePage() {
         ducks: { regular: 0, golden: 0, diamond: 0 }
       },
       bowling: { innings: 0, overs: 0, balls: 0, runs: 0, wkts: 0, dots: 0, best: { wkts: 0, runs: 0 }, econ: 0, sr: 0, avg: 0, mil: { oneW: 0, twoW: 0, threeW: 0, fourW: 0, fiveW: 0 } },
-      fielding: { catches: 0, stumpings: 0, runouts: 0 }
+      fielding: { catches: 0, stumpings: 0, runOuts: 0 }
     };
 
     let firstBowl = true;
@@ -206,7 +207,7 @@ export default function PlayerProfilePage() {
 
       s.fielding.catches += log.fielding.catches;
       s.fielding.stumpings += log.fielding.stumpings;
-      s.fielding.runouts += log.fielding.runouts;
+      s.fielding.runOuts += log.fielding.runOuts;
     });
 
     s.batting.avg = s.batting.outs > 0 ? s.batting.runs / s.batting.outs : (s.batting.innings > 0 ? s.batting.runs : 0);
@@ -389,7 +390,7 @@ export default function PlayerProfilePage() {
                 </div>
                 <div className="bg-emerald-50 p-4 rounded-2xl border border-emerald-100">
                   <p className="text-[8px] font-black text-emerald-600 uppercase mb-1">Run Outs</p>
-                  <p className="text-2xl font-black text-emerald-700">{careerStats.fielding.runouts}</p>
+                  <p className="text-2xl font-black text-emerald-700">{careerStats.fielding.runOuts}</p>
                 </div>
               </div>
             </div>
