@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore, useUser, useDoc } from '@/firebase';
@@ -48,8 +47,6 @@ export default function Home() {
     if (!players || !allMatches || !rawDeliveries || !isMounted) return [];
     const activeMatchIds = new Set(allMatches.map(m => m.id));
     
-    // Aggregate match-wise stats for each player
-    // pMatchStats[playerId][matchId] = { runs, wickets, etc. }
     const pMatchStats: Record<string, Record<string, any>> = {};
     
     rawDeliveries.forEach(d => {

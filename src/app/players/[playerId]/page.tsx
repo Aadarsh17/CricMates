@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -68,22 +67,28 @@ export default function PlayerProfilePage() {
   const matchWiseLog = useMemo(() => {
     if (!isMounted || !player || !allDeliveries || !allMatches) return [];
     const logs: Record<string, any> = {};
+    
     allDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       if (!matchId || !activeMatchIds.has(matchId)) return;
+      
       if (!logs[matchId]) {
-        const m = allMatches.find(match => match.id === matchId); if (!m) return;
+        const m = allMatches.find(match => match.id === matchId); 
+        if (!m) return;
         logs[matchId] = { 
           matchId, 
           date: m.matchDate || '', 
           batting: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0, out: false, dots: 0 }, 
-          bowling: { wickets: 0, runsConceded: 0, ballsBowled: 0, dots: 0 }, 
+          bowling: { wickets: 0, runsConceded: 0, ballsBowled: 0, dots: 0, maidens: 0 }, 
           fielding: { catches: 0, stumpings: 0, runOuts: 0 } 
         };
       }
+      
       const log = logs[matchId];
+      
+      // Batting Scan
       if (d.strikerPlayerId === playerId) { 
-        log.batting.runs += d.runsScored || 0; 
+        log.batting.runs += (d.runsScored || 0); 
         if (d.runsScored === 4) log.batting.fours++;
         if (d.runsScored === 6) log.batting.sixes++;
         if (d.extraType !== 'wide') {
@@ -92,23 +97,40 @@ export default function PlayerProfilePage() {
         }
       }
       if (d.isWicket && d.batsmanOutPlayerId === playerId) log.batting.out = true;
-      if ((d.bowlerId || d.bowlerPlayerId) === playerId) { 
-        log.bowling.runsConceded += d.totalRunsOnDelivery || 0; 
+      
+      // Bowling Scan
+      const bId = d.bowlerId || d.bowlerPlayerId;
+      if (bId === playerId) { 
+        log.bowling.runsConceded += (d.totalRunsOnDelivery || 0); 
         if (d.extraType === 'none') {
           log.bowling.ballsBowled++; 
           if (d.totalRunsOnDelivery === 0) log.bowling.dots++;
         }
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) log.bowling.wickets++; 
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
+          log.bowling.wickets++; 
+        }
       }
+      
+      // Fielding Scan
       if (d.fielderPlayerId === playerId) {
         if (d.dismissalType === 'caught') log.fielding.catches++;
         if (d.dismissalType === 'stumped') log.fielding.stumpings++;
         if (d.dismissalType === 'runout') log.fielding.runOuts++;
       }
     });
+
     return Object.values(logs).map((log: any) => ({ 
       ...log, 
-      totalCVP: calculatePlayerCVP({ ...log.batting, ...log.bowling, ...log.fielding, id: player.id, name: player.name, maidens: 0, ballsBowled: log.bowling.ballsBowled, runsConceded: log.bowling.runsConceded }) 
+      totalCVP: calculatePlayerCVP({ 
+        ...log.batting, 
+        ...log.bowling, 
+        ...log.fielding, 
+        id: player.id, 
+        name: player.name, 
+        maidens: log.bowling.maidens, 
+        ballsBowled: log.bowling.ballsBowled, 
+        runsConceded: log.bowling.runsConceded 
+      }) 
     })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allDeliveries, allMatches, player, isMounted, playerId, activeMatchIds]);
 
@@ -130,7 +152,7 @@ export default function PlayerProfilePage() {
       s.matches++;
       s.cvp += log.totalCVP;
 
-      if (log.batting.ballsFaced > 0 || (log.batting.out && log.batting.runs === 0)) {
+      if (log.batting.ballsFaced > 0 || log.batting.out) {
         s.batting.innings++;
         s.batting.runs += log.batting.runs;
         s.batting.balls += log.batting.ballsFaced;
@@ -184,7 +206,7 @@ export default function PlayerProfilePage() {
 
       s.fielding.catches += log.fielding.catches;
       s.fielding.stumpings += log.fielding.stumpings;
-      s.fielding.runouts += log.fielding.runOuts;
+      s.fielding.runouts += log.fielding.runouts;
     });
 
     s.batting.avg = s.batting.outs > 0 ? s.batting.runs / s.batting.outs : (s.batting.innings > 0 ? s.batting.runs : 0);
@@ -224,7 +246,7 @@ export default function PlayerProfilePage() {
     if (!playerId || !editForm.name.trim()) return;
     updateDocumentNonBlocking(doc(db, 'players', playerId), editForm);
     setIsEditOpen(false);
-    toast({ title: "Profile Updated", description: "All records refreshed with new identity." });
+    toast({ title: "Profile Updated" });
   };
 
   if (!isMounted || isPlayerLoading || isHistoryLoading) return (
@@ -326,23 +348,6 @@ export default function PlayerProfilePage() {
                   ))}
                 </div>
               </div>
-              <div className="mt-6 pt-6 border-t">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Ducks History</p>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-slate-50 p-3 rounded-xl text-center border group hover:border-red-200 transition-colors">
-                    <p className="text-lg font-black text-slate-900">{careerStats.batting.ducks.regular}</p>
-                    <p className="text-[8px] font-black text-slate-400 uppercase">Regular</p>
-                  </div>
-                  <div className="bg-amber-50 p-3 rounded-xl text-center border border-amber-100">
-                    <p className="text-lg font-black text-amber-700">{careerStats.batting.ducks.golden}</p>
-                    <p className="text-[8px] font-black text-amber-600 uppercase">Golden</p>
-                  </div>
-                  <div className="bg-blue-50 p-3 rounded-xl text-center border border-blue-100">
-                    <p className="text-lg font-black text-blue-700">{careerStats.batting.ducks.diamond}</p>
-                    <p className="text-[8px] font-black text-blue-600 uppercase">Diamond</p>
-                  </div>
-                </div>
-              </div>
             </div>
           </Card>
 
@@ -363,23 +368,6 @@ export default function PlayerProfilePage() {
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">ER</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.econ.toFixed(2)}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.avg.toFixed(2)}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">SR</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.sr.toFixed(1)}</p></div>
-              </div>
-              <div className="mt-6 pt-6 border-t">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Best Performance: {careerStats.bowling.best.wkts}/{careerStats.bowling.best.runs}</p>
-                <div className="grid grid-cols-5 gap-2">
-                  {[
-                    { label: '1W', val: careerStats.bowling.mil.oneW },
-                    { label: '2W', val: careerStats.bowling.mil.twoW },
-                    { label: '3W', val: careerStats.bowling.mil.threeW },
-                    { label: '4W', val: careerStats.bowling.mil.fourW },
-                    { label: '5W', val: careerStats.bowling.mil.fiveW },
-                  ].map(m => (
-                    <div key={m.label} className="bg-slate-50 p-2 rounded-xl text-center border">
-                      <p className="text-sm font-black text-secondary">{m.val}</p>
-                      <p className="text-[8px] font-black text-slate-400 uppercase">{m.label}</p>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           </Card>

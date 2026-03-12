@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
@@ -56,24 +55,6 @@ export default function RankingsPage() {
         const loserId = winnerId === m.team1Id ? m.team2Id : m.team1Id;
         standings[winnerId].won++; standings[winnerId].points += 2;
         if (standings[loserId]) standings[loserId].lost++;
-      } else {
-        const res = m.resultDescription?.toLowerCase() || '';
-        const t1 = teams.find(t => t.id === m.team1Id);
-        const t2 = teams.find(t => t.id === m.team2Id);
-        
-        if (res.includes('tied') || res.includes('drawn')) {
-          standings[m.team1Id].tied++; standings[m.team2Id].tied++;
-          standings[m.team1Id].points += 1; standings[m.team2Id].points += 1;
-        } else if (t1 && res.includes(t1.name.toLowerCase())) {
-          standings[m.team1Id].won++; standings[m.team1Id].points += 2;
-          standings[m.team2Id].lost++;
-        } else if (t2 && res.includes(t2.name.toLowerCase())) {
-          standings[m.team2Id].won++; standings[m.team2Id].points += 2;
-          standings[m.team1Id].lost++;
-        } else {
-          standings[m.team1Id].nr++; standings[m.team2Id].nr++; 
-          standings[m.team1Id].points++; standings[m.team2Id].points++; 
-        }
       }
     });
 
@@ -109,7 +90,6 @@ export default function RankingsPage() {
     const stats: Record<string, any> = {};
     const pMatchStats: Record<string, Record<string, any>> = {};
 
-    // Initialize stats for ALL players in the registry to ensure no one is missing
     players.forEach(p => {
       stats[p.id] = { id: p.id, name: p.name, runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runouts: 0, outs: 0, potm: 0, cvp: 0 };
     });
@@ -120,44 +100,59 @@ export default function RankingsPage() {
       const matchId = d.__fullPath?.split('/')[1];
       if (!matchId || !validMatchIds.has(matchId)) return;
 
-      const pIds = [d.strikerPlayerId, d.bowlerId || d.bowlerPlayerId, d.fielderPlayerId].filter(id => id && id !== 'none');
+      const strikerId = d.strikerPlayerId;
+      const bowlerId = d.bowlerId || d.bowlerPlayerId;
+      const fielderId = d.fielderPlayerId;
+
+      const pIds = [strikerId, bowlerId, fielderId].filter(id => id && id !== 'none');
       pIds.forEach(pid => {
         if (!stats[pid]) return;
         if (!pMatchStats[pid]) pMatchStats[pid] = {};
         if (!pMatchStats[pid][matchId]) {
-          pMatchStats[pid][matchId] = { id: pid, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+          pMatchStats[pid][matchId] = { 
+            id: pid, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, 
+            wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, 
+            catches: 0, stumpings: 0, runOuts: 0 
+          };
         }
       });
 
-      const s = stats[d.strikerPlayerId]; 
-      if (s) { 
-        s.runs += d.runsScored || 0; 
-        if (d.extraType !== 'wide') s.balls++; 
-        const mBat = pMatchStats[d.strikerPlayerId][matchId];
-        mBat.runs += d.runsScored || 0;
-        if (d.extraType !== 'wide') mBat.ballsFaced++;
+      // Batting Leaderboard
+      if (strikerId && stats[strikerId]) {
+        const s = stats[strikerId];
+        const mBat = pMatchStats[strikerId][matchId];
+        s.runs += (d.runsScored || 0);
+        mBat.runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') {
+          s.balls++;
+          mBat.ballsFaced++;
+        }
         if (d.runsScored === 4) mBat.fours++;
         if (d.runsScored === 6) mBat.sixes++;
       }
 
       if (d.isWicket && stats[d.batsmanOutPlayerId]) stats[d.batsmanOutPlayerId].outs++;
 
-      const bId = d.bowlerId || d.bowlerPlayerId; 
-      const b = stats[bId];
-      if (b) { 
-        b.runsCon += d.totalRunsOnDelivery; 
-        if (d.extraType === 'none') b.ballsB++; 
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++; 
-        
-        const mBowl = pMatchStats[bId][matchId];
+      // Bowling Leaderboard
+      if (bowlerId && stats[bowlerId]) {
+        const b = stats[bowlerId];
+        const mBowl = pMatchStats[bowlerId][matchId];
+        b.runsCon += d.totalRunsOnDelivery;
         mBowl.runsConceded += d.totalRunsOnDelivery;
-        if (d.extraType === 'none') mBowl.ballsBowled++;
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) mBowl.wickets++;
+        if (d.extraType === 'none') {
+          b.ballsB++;
+          mBowl.ballsBowled++;
+        }
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
+          b.wkts++;
+          mBowl.wickets++;
+        }
       }
 
-      const f = stats[d.fielderPlayerId]; 
-      if (f) { 
-        const mField = pMatchStats[d.fielderPlayerId][matchId];
+      // Fielding Leaderboard
+      if (fielderId && stats[fielderId]) {
+        const f = stats[fielderId];
+        const mField = pMatchStats[fielderId][matchId];
         if (d.dismissalType === 'caught') { f.catches++; mField.catches++; }
         if (d.dismissalType === 'stumped') mField.stumpings++;
         if (d.dismissalType === 'runout') { f.runouts++; mField.runOuts++; }
@@ -185,7 +180,7 @@ export default function RankingsPage() {
       else if (cat === 'cvp') sorted.sort((a,b) => b.cvp - a.cvp);
       else if (cat === 'avg') sorted.sort((a,b) => b.avg - a.avg);
       else if (cat === 'sr') sorted.sort((a,b) => b.sr - a.sr);
-      else if (cat === 'er') sorted.sort((a,b) => a.er - b.er); // Economy: lower is better
+      else if (cat === 'er') sorted.sort((a,b) => a.er - b.er);
       else if (cat === 'catches') sorted.sort((a,b) => b.catches - a.catches);
       else if (cat === 'runouts') sorted.sort((a,b) => b.runouts - a.runouts);
       else if (cat === 'potm') sorted.sort((a,b) => b.potm - a.potm);
