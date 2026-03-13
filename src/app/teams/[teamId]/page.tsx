@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useRouter } from 'navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { doc, collection, query, orderBy, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
@@ -397,7 +397,7 @@ export default function TeamDetailsPage() {
       <Tabs defaultValue="current" className="w-full">
         <TabsList className="grid w-full grid-cols-2 h-12 bg-slate-100 p-1 rounded-xl mb-8">
           <TabsTrigger value="current" className="font-black text-[10px] uppercase">Active Squad</TabsTrigger>
-          <TabsTrigger value="history" className="font-black text-[10px] uppercase">Legacy Representatives</TabsTrigger>
+          <TabsTrigger value="history" className="font-black text-[10px] uppercase">Legacy Participants</TabsTrigger>
         </TabsList>
 
         <TabsContent value="current" className="space-y-6">
