@@ -6,7 +6,7 @@ import { collection, query, where, orderBy, limit, doc, collectionGroup } from '
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trophy, Activity, Users, PlayCircle, Star, Target, Swords, Zap, TrendingUp, ChevronRight, Flame, Medal } from 'lucide-react';
+import { Trophy, Activity, Users, PlayCircle, Star, Target, Swords, Zap, TrendingUp, ChevronRight, Flame, Medal, Calendar, Crown } from 'lucide-react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useMemo, useState, useEffect } from 'react';
@@ -45,20 +45,27 @@ export default function Home() {
 
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-cricket')?.imageUrl || '';
 
-  // Standardized Aggregation for Home View with Ghost-Filter
-  const playerAggregates = useMemo(() => {
-    if (!players || !allMatches || !rawDeliveries || !isMounted) return {};
+  // Advanced Aggregation Engine with Data Integrity
+  const leagueData = useMemo(() => {
+    if (!players || !allMatches || !rawDeliveries || !isMounted) return { stats: {}, orangeCapId: '', purpleCapId: '', mvpId: '' };
     const activeMatchIds = new Set(allMatches.map(m => m.id));
     const stats: Record<string, any> = {};
     const pMatchStats: Record<string, Record<string, any>> = {};
     
+    // Date for MVP of the Week (Last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
     players.forEach(p => {
-      stats[p.id] = { id: p.id, name: p.name, runs: 0, wkts: 0, ballsFaced: 0, ballsBowled: 0, fours: 0, sixes: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0, cvp: 0 };
+      stats[p.id] = { id: p.id, name: p.name, runs: 0, wkts: 0, cvp: 0, cvpWeekly: 0 };
     });
 
     rawDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       if (!matchId || !activeMatchIds.has(matchId)) return;
+
+      const match = allMatches.find(m => m.id === matchId);
+      const isWeekly = match?.matchDate && new Date(match.matchDate) >= sevenDaysAgo;
 
       const sId = d.strikerPlayerId;
       const bId = d.bowlerId || d.bowlerPlayerId;
@@ -74,69 +81,46 @@ export default function Home() {
 
       if (sId && stats[sId]) {
         stats[sId].runs += (d.runsScored || 0);
-        if (d.extraType !== 'wide') stats[sId].ballsFaced++;
-        if (d.runsScored === 4) stats[sId].fours++;
-        if (d.runsScored === 6) stats[sId].sixes++;
-        
         const mS = pMatchStats[sId][matchId];
         mS.runs += (d.runsScored || 0);
         if (d.extraType !== 'wide') mS.ballsFaced++;
-        if (d.runsScored === 4) mS.fours++;
-        if (d.runsScored === 6) mS.sixes++;
       }
       if (bId && stats[bId]) {
-        stats[bId].runsConceded += (d.totalRunsOnDelivery || 0);
-        if (d.extraType === 'none') stats[bId].ballsBowled++;
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) stats[bId].wkts++;
-
-        const mB = pMatchStats[bId][matchId];
-        mB.runsConceded += (d.totalRunsOnDelivery || 0);
-        if (d.extraType === 'none') mB.ballsBowled++;
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) mB.wickets++;
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
+          stats[bId].wkts++;
+          pMatchStats[bId][matchId].wickets++;
+        }
+        pMatchStats[bId][matchId].runsConceded += (d.totalRunsOnDelivery || 0);
+        if (d.extraType === 'none') pMatchStats[bId][matchId].ballsBowled++;
       }
       if (fId && stats[fId]) {
         const mF = pMatchStats[fId][matchId];
-        if (d.dismissalType === 'caught') { stats[fId].catches++; mF.catches++; }
-        if (d.dismissalType === 'stumped') { stats[fId].stumpings++; mF.stumpings++; }
-        if (d.dismissalType === 'runout') { stats[fId].runOuts++; mF.runOuts++; }
+        if (d.dismissalType === 'caught') mF.catches++;
+        if (d.dismissalType === 'stumped') mF.stumpings++;
+        if (d.dismissalType === 'runout') mF.runOuts++;
       }
     });
 
     Object.keys(stats).forEach(id => {
-      let totalCvp = 0;
-      Object.values(pMatchStats[id] || {}).forEach(mS => {
-        totalCvp += calculatePlayerCVP(mS as any);
+      Object.entries(pMatchStats[id] || {}).forEach(([mId, mS]) => {
+        const match = allMatches.find(m => m.id === mId);
+        const isWeekly = match?.matchDate && new Date(match.matchDate) >= sevenDaysAgo;
+        const matchCvp = calculatePlayerCVP(mS as any);
+        stats[id].cvp += matchCvp;
+        if (isWeekly) stats[id].cvpWeekly += matchCvp;
       });
-      stats[id].cvp = totalCvp;
     });
 
-    return stats;
+    const orangeCapId = Object.values(stats).sort((a: any, b: any) => b.runs - a.runs)[0]?.id;
+    const purpleCapId = Object.values(stats).sort((a: any, b: any) => b.wkts - a.wkts)[0]?.id;
+    const mvpId = Object.values(stats).sort((a: any, b: any) => b.cvpWeekly - a.cvpWeekly)[0]?.id;
+
+    return { stats, orangeCapId, purpleCapId, mvpId };
   }, [players, allMatches, rawDeliveries, isMounted]);
 
   const topPlayers = useMemo(() => {
-    return Object.values(playerAggregates).sort((a: any, b: any) => b.cvp - a.cvp).slice(0, 5);
-  }, [playerAggregates]);
-
-  const milestoneAlerts = useMemo(() => {
-    if (!playerAggregates) return [];
-    const RUN_MILESTONES = [25, 50, 75, 100, 150, 200, 250, 500, 1000];
-    const WKT_MILESTONES = Array.from({length: 20}, (_, i) => (i + 1) * 5);
-
-    const alerts: any[] = [];
-    Object.values(playerAggregates).forEach((p: any) => {
-      const nextRun = RUN_MILESTONES.find(m => m > p.runs);
-      if (nextRun) {
-        const diff = nextRun - p.runs;
-        if (diff <= 5 && p.runs > 0) alerts.push({ name: p.name, id: p.id, type: 'runs', val: p.runs, next: nextRun, diff, icon: Zap, color: 'text-amber-500' });
-      }
-      const nextWkt = WKT_MILESTONES.find(m => m > p.wkts);
-      if (nextWkt) {
-        const diff = nextWkt - p.wkts;
-        if (diff <= 1 && p.wkts > 0) alerts.push({ name: p.name, id: p.id, type: 'wickets', val: p.wkts, next: nextWkt, diff, icon: Target, color: 'text-primary' });
-      }
-    });
-    return alerts.sort((a,b) => a.diff - b.diff).slice(0, 3);
-  }, [playerAggregates]);
+    return Object.values(leagueData.stats).sort((a: any, b: any) => b.cvp - a.cvp).slice(0, 5);
+  }, [leagueData]);
 
   if (!isMounted) return null;
 
@@ -155,32 +139,47 @@ export default function Home() {
         </div>
       </section>
 
-      {milestoneAlerts.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 px-2">
-            <Flame className="w-5 h-5 text-orange-500 animate-bounce" />
-            <h2 className="text-xl font-black uppercase text-slate-900">Milestone Watch</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {milestoneAlerts.map((alert, i) => (
-              <Link key={i} href={`/players/${alert.id}`}>
-                <Card className="border-none shadow-lg bg-white overflow-hidden hover:scale-[1.02] transition-transform">
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 bg-slate-50 rounded-lg"><alert.icon className={cn("w-4 h-4", alert.color)} /></div>
-                      <div className="min-w-0">
-                        <p className="font-black text-xs uppercase truncate text-slate-900">{alert.name}</p>
-                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{alert.diff} {alert.type === 'runs' ? 'runs' : 'wicket'} away</p>
-                      </div>
-                    </div>
-                    <Badge variant="secondary" className="font-black text-[10px]">NEAR {alert.next}</Badge>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+      {/* MVP & Caps Spotlight */}
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* MVP of the Week */}
+        <Card className="border-none shadow-xl bg-slate-900 text-white overflow-hidden relative group">
+          <div className="absolute -right-4 -top-4 opacity-10 group-hover:rotate-12 transition-transform"><Calendar className="w-24 h-24" /></div>
+          <CardContent className="p-6 space-y-4 relative z-10">
+            <div className="flex items-center gap-2"><Crown className="w-4 h-4 text-amber-500" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">MVP of the Week</span></div>
+            <div className="min-w-0">
+              <p className="text-2xl font-black uppercase tracking-tighter truncate">{leagueData.mvpId ? leagueData.stats[leagueData.mvpId].name : 'Calculating...'}</p>
+              <p className="text-[9px] font-bold text-amber-500 uppercase mt-1">Highest impact in last 7 days</p>
+            </div>
+            <Button variant="outline" size="sm" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[9px] h-10" asChild>
+              <Link href={`/players/${leagueData.mvpId}`}>View Profile</Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Orange Cap */}
+        <Card className="border-none shadow-xl bg-orange-500 text-white overflow-hidden relative group">
+          <div className="absolute -right-4 -top-4 opacity-20"><Zap className="w-24 h-24 text-white" /></div>
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-orange-100">Orange Cap Leader</span></div>
+            <div>
+              <p className="text-2xl font-black uppercase tracking-tighter truncate">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].name : '---'}</p>
+              <p className="text-xl font-black text-white/80">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].runs : 0} <span className="text-[10px] uppercase">Runs</span></p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Purple Cap */}
+        <Card className="border-none shadow-xl bg-indigo-600 text-white overflow-hidden relative group">
+          <div className="absolute -right-4 -top-4 opacity-20"><Target className="w-24 h-24 text-white" /></div>
+          <CardContent className="p-6 space-y-4">
+            <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Purple Cap Leader</span></div>
+            <div>
+              <p className="text-2xl font-black uppercase tracking-tighter truncate">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].name : '---'}</p>
+              <p className="text-xl font-black text-white/80">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].wkts : 0} <span className="text-[10px] uppercase">Wickets</span></p>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
       <div className="grid grid-cols-1 gap-8">
         <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
@@ -230,7 +229,10 @@ export default function Home() {
                     <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 text-white text-[10px] font-black">{idx + 1}</div>
                     <div className="min-w-0">
                       <p className="font-black text-xs uppercase tracking-tight truncate group-hover:text-primary transition-colors">{player.name}</p>
-                      <Badge variant="outline" className="text-[8px] font-black uppercase px-1.5 h-4">Ranked Impact</Badge>
+                      <div className="flex gap-1">
+                        {player.id === leagueData.orangeCapId && <Badge className="bg-orange-500 text-white text-[6px] h-3 px-1 uppercase">Orange Cap</Badge>}
+                        {player.id === leagueData.purpleCapId && <Badge className="bg-indigo-600 text-white text-[6px] h-3 px-1 uppercase">Purple Cap</Badge>}
+                      </div>
                     </div>
                   </div>
                   <div className="text-right"><p className="text-lg font-black text-slate-900">{player.cvp.toFixed(1)}</p><p className="text-[8px] uppercase font-black text-primary tracking-widest">CVP PTS</p></div>

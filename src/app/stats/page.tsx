@@ -6,9 +6,10 @@ import { collection, query, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Loader2, Zap, Trophy, Target, Shield, Hand, ChevronLeft, Calendar } from 'lucide-react';
+import { Loader2, Zap, Trophy, Target, Shield, Hand, ChevronLeft, Calendar, Swords, Users } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 export default function StatsPage() {
   const db = useFirestore();
@@ -31,7 +32,6 @@ export default function StatsPage() {
   const records = useMemo(() => {
     if (!players || !rawDeliveries || !matches || matches.length === 0) return null;
     
-    // Filter out deliveries from deleted matches
     const activeMatchIds = new Set(matches.map(m => m.id));
     const validDeliveries = rawDeliveries.filter(d => {
       const matchId = d.__fullPath?.split('/')[1];
@@ -57,7 +57,20 @@ export default function StatsPage() {
     };
 
     const pMatchStats: Record<string, Record<string, any>> = {};
+    const globalPartnerships: any[] = [];
     
+    // Process each match for partnerships
+    matches.forEach(m => {
+      if (m.status !== 'completed') return;
+      const mDeliveries = validDeliveries.filter(d => d.__fullPath?.split('/')[1] === m.id);
+      // Inning 1
+      const inn1D = mDeliveries.filter(d => d.__fullPath?.includes('inning_1'));
+      processPartnerships(inn1D, globalPartnerships, m.id);
+      // Inning 2
+      const inn2D = mDeliveries.filter(d => d.__fullPath?.includes('inning_2'));
+      processPartnerships(inn2D, globalPartnerships, m.id);
+    });
+
     validDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       const sId = d.strikerPlayerId; 
@@ -83,7 +96,7 @@ export default function StatsPage() {
       if (bId && pMatchStats[bId]?.[matchId]) {
         const b = pMatchStats[bId][matchId];
         b.runsCon += (d.totalRunsOnDelivery || 0);
-        if (d.extraType !== 'wide' && d.extraType !== 'noball') b.ballsB++;
+        if (d.extraType === 'none' && d.dismissalType !== 'retired') b.ballsB++;
         if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wickets++;
       }
       if (fId && pMatchStats[fId]?.[matchId]) {
@@ -118,8 +131,36 @@ export default function StatsPage() {
 
     if (bowling.bestFigures.runs === 999) bowling.bestFigures = { wkts: 0, runs: 0, name: '-' };
 
-    return { batting, bowling, fielding };
+    const topPartnerships = globalPartnerships.sort((a,b) => b.runs - a.runs).slice(0, 5);
+
+    return { batting, bowling, fielding, topPartnerships };
   }, [players, rawDeliveries, matches]);
+
+  function processPartnerships(deliveries: any[], list: any[], matchId: string) {
+    if (deliveries.length === 0) return;
+    deliveries.sort((a,b) => a.timestamp - b.timestamp);
+    let curP: any = { runs: 0, balls: 0, batters: new Set<string>() };
+    
+    deliveries.forEach(d => {
+      curP.runs += (d.totalRunsOnDelivery || 0);
+      if (d.extraType === 'none') curP.balls++;
+      if (d.strikerPlayerId) curP.batters.add(d.strikerPlayerId);
+      if (d.nonStrikerPlayerId) curP.batters.add(d.nonStrikerPlayerId);
+
+      if (d.isWicket) {
+        if (curP.batters.size >= 2) {
+          list.push({ runs: curP.runs, balls: curP.balls, batters: Array.from(curP.batters), matchId });
+        }
+        curP = { runs: 0, balls: 0, batters: new Set<string>() };
+      }
+    });
+    // Add unbroken last partnership
+    if (curP.batters.size >= 2 && (curP.runs > 0 || curP.balls > 0)) {
+      list.push({ runs: curP.runs, balls: curP.balls, batters: Array.from(curP.batters), matchId, isUnbroken: true });
+    }
+  }
+
+  const getPlayerName = (id: string) => players?.find(p => p.id === id)?.name || 'Unknown';
 
   if (!isMounted || isDeliveriesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
 
@@ -151,6 +192,32 @@ export default function StatsPage() {
             </Card>
           ))}
         </div>
+      </section>
+
+      <section className="space-y-6">
+        <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-slate-900 pl-4">
+          <Swords className="w-5 h-5 text-slate-900" /> Elite Partnerships
+        </h2>
+        <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-white">
+          <Table>
+            <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Pair</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {records?.topPartnerships.map((p, i) => (
+                <TableRow key={i}>
+                  <TableCell className="py-3">
+                    <p className="font-black text-[10px] uppercase truncate max-w-[180px]">
+                      {getPlayerName(p.batters[0])} & {getPlayerName(p.batters[1])}
+                    </p>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase italic">
+                      {p.balls} Balls {p.isUnbroken && '• Unbroken'}
+                    </p>
+                  </TableCell>
+                  <TableCell className="text-right font-black text-slate-900">{p.runs}</TableCell>
+                </TableRow>
+              )) || <TableRow><TableCell colSpan={2} className="text-center py-8 text-[9px] font-black uppercase text-slate-300">No major stands recorded</TableCell></TableRow>}
+            </TableBody>
+          </Table>
+        </Card>
       </section>
 
       <section className="space-y-6">
