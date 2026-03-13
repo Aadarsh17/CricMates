@@ -8,7 +8,30 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck, Trophy, X, Hash, Crosshair, Crown, Star, History } from 'lucide-react';
+import { 
+  ChevronLeft, 
+  Loader2, 
+  Calendar, 
+  Activity, 
+  Zap, 
+  Medal, 
+  TrendingUp, 
+  Swords, 
+  Shield, 
+  Target, 
+  Hand, 
+  Skull, 
+  Edit2, 
+  Camera, 
+  ShieldCheck, 
+  Trophy, 
+  X, 
+  Hash, 
+  Crosshair, 
+  Crown, 
+  Star, 
+  History 
+} from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -32,6 +55,8 @@ export default function PlayerProfilePage() {
   const [isMounted, setIsMounted] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', role: 'Batsman', imageUrl: '', battingStyle: 'Right Handed Bat', isWicketKeeper: false });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setIsMounted(true); }, []);
 
@@ -130,15 +155,15 @@ export default function PlayerProfilePage() {
 
     return Object.values(logs).map((log: any) => ({ 
       ...log, 
-      totalCVP: calculatePlayerCVP({ ...log.batting, ...log.bowling, ...log.fielding, id: player.id, name: player.name, maidens: log.bowling.maidens, ballsBowled: log.bowling.ballsBowled, runsConceded: log.bowling.runsConceded }) 
+      totalCVP: calculatePlayerCVP({ ...log.batting, ...log.bowling, ...log.fielding, id: player!.id, name: player!.name, maidens: log.bowling.maidens, ballsBowled: log.bowling.ballsBowled, runsConceded: log.bowling.runsConceded }) 
     })).sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [rawDeliveries, allMatches, player, isMounted, playerId, activeMatchIds]);
 
   const careerStats = useMemo(() => {
     const s = { 
       matches: 0, cvp: 0,
-      batting: { innings: 0, runs: 0, balls: 0, fours: 0, sixes: 0, outs: 0, high: 0, milestones: { hundreds: 0, fifties: 0, thirties: 0, twenties: 0, tens: 0 }, ducks: { regular: 0, golden: 0, diamond: 0 }, dots: 0 },
-      bowling: { innings: 0, wkts: 0, hauls: { w1: 0, w2: 0, w3: 0, w4: 0, w5: 0 }, milestones: { fiveW: 0, threeW: 0 }, dots: 0 },
+      batting: { innings: 0, runs: 0, balls: 0, fours: 0, sixes: 0, outs: 0, high: 0, milestones: { hundreds: 0, fifties: 0, forties: 0, thirties: 0, twenties: 0, tens: 0 }, ducks: { regular: 0, golden: 0, diamond: 0 }, dots: 0 },
+      bowling: { innings: 0, wkts: 0, balls: 0, runsCon: 0, hauls: { w1: 0, w2: 0, w3: 0, w4: 0, w5: 0 }, milestones: { fiveW: 0, threeW: 0 }, dots: 0 },
       fielding: { catches: 0, stumpings: 0, runOuts: 0 },
       badges: { finisher: 0, sixMachine: 0, hattricks: 0 }
     };
@@ -156,8 +181,11 @@ export default function PlayerProfilePage() {
           }
         }
         if (log.batting.runs > s.batting.high) s.batting.high = log.batting.runs;
+        
+        // Accurate milestones (exclusive)
         if (log.batting.runs >= 100) s.batting.milestones.hundreds++;
         else if (log.batting.runs >= 50) s.batting.milestones.fifties++;
+        else if (log.batting.runs >= 40) s.batting.milestones.forties++;
         else if (log.batting.runs >= 30) s.batting.milestones.thirties++;
         else if (log.batting.runs >= 20) s.batting.milestones.twenties++;
         else if (log.batting.runs >= 10) s.batting.milestones.tens++;
@@ -167,6 +195,8 @@ export default function PlayerProfilePage() {
       }
       if (log.bowling.ballsBowled > 0) {
         s.bowling.innings++; s.bowling.wkts += log.bowling.wickets; s.bowling.dots += log.bowling.dots;
+        s.bowling.balls += log.bowling.ballsBowled;
+        s.bowling.runsCon += log.bowling.runsConceded;
         if (log.bowling.wickets === 1) s.bowling.hauls.w1++;
         else if (log.bowling.wickets === 2) s.bowling.hauls.w2++;
         else if (log.bowling.wickets === 3) { s.bowling.hauls.w3++; s.bowling.milestones.threeW++; }
@@ -234,8 +264,8 @@ export default function PlayerProfilePage() {
         <div className="absolute top-0 right-0 p-4 opacity-10"><Zap className="w-32 h-32" /></div>
         <div className="flex flex-col md:flex-row items-center gap-6 relative z-10 text-center md:text-left">
           <Avatar className="w-28 h-28 border-4 border-white/10 rounded-3xl overflow-hidden shrink-0">
-            <AvatarImage src={player?.imageUrl || ''} className="object-cover" />
-            <AvatarFallback className="text-4xl font-black bg-white/5">{player?.name?.[0] || '?'}</AvatarFallback>
+            <AvatarImage src={player.imageUrl || ''} className="object-cover" />
+            <AvatarFallback className="text-4xl font-black bg-white/5">{player.name?.[0] || '?'}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
@@ -291,15 +321,15 @@ export default function PlayerProfilePage() {
               <div className="flex items-center gap-2"><Swords className="w-4 h-4 text-primary" /><span className="text-[10px] font-black uppercase tracking-widest">Batting Analysis</span></div>
               <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.batting.innings} Innings</Badge>
             </div>
-            <div className="p-6">
+            <CardContent className="p-6">
               <div className="grid grid-cols-3 md:grid-cols-5 gap-4 text-center">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-xl font-black text-slate-900">{careerStats.batting.runs}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-xl font-black text-slate-900">{careerStats.batting.balls}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">SR</p><p className="text-xl font-black text-primary">{careerStats.batting.balls > 0 ? ((careerStats.batting.runs / careerStats.batting.balls) * 100).toFixed(1) : '0.0'}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">4s/6s</p><p className="text-xl font-black text-slate-900">{careerStats.batting.fours}/{careerStats.batting.sixes}</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">High</p><p className="text-xl font-black text-slate-900">{careerStats.batting.high}</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Dots</p><p className="text-xl font-black text-slate-900">{careerStats.batting.dots}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.batting.outs > 0 ? (careerStats.batting.runs / careerStats.batting.outs).toFixed(1) : careerStats.batting.runs}</p></div>
               </div>
-            </div>
+            </CardContent>
           </Card>
 
           <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden">
@@ -307,46 +337,60 @@ export default function PlayerProfilePage() {
               <div className="flex items-center gap-2"><Target className="w-4 h-4 text-secondary" /><span className="text-[10px] font-black uppercase tracking-widest">Bowling Analysis</span></div>
               <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.bowling.innings} Innings</Badge>
             </div>
-            <div className="p-6">
-              <div className="grid grid-cols-3 md:grid-cols-4 gap-4 text-center">
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Wickets</p><p className="text-xl font-black text-secondary">{careerStats.bowling.wkts}</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Dots</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.dots}</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Econ</p><p className="text-xl font-black text-slate-900">{(careerStats.bowling.wkts > 0) ? '---' : '0.00'}</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Strikes</p><Badge variant="secondary" className="h-6 font-black text-xs">League Pro</Badge></div>
+            <CardContent className="p-6">
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-2 text-center">
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Wkts</p><p className="text-xl font-black text-secondary">{careerStats.bowling.wkts}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-lg font-black text-slate-900">{careerStats.bowling.balls}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Dots</p><p className="text-lg font-black text-slate-900">{careerStats.bowling.dots}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Econ</p><p className="text-lg font-black text-slate-900">{careerStats.bowling.balls > 0 ? (careerStats.bowling.runsCon / (careerStats.bowling.balls / 6)).toFixed(2) : '0.00'}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-lg font-black text-slate-900">{careerStats.bowling.wkts > 0 ? (careerStats.bowling.runsCon / careerStats.bowling.wkts).toFixed(1) : '---'}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">SR</p><p className="text-lg font-black text-slate-900">{careerStats.bowling.wkts > 0 ? (careerStats.bowling.balls / careerStats.bowling.wkts).toFixed(1) : '---'}</p></div>
               </div>
-            </div>
+            </CardContent>
           </Card>
 
           <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden">
             <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
               <div className="flex items-center gap-2"><Hand className="w-4 h-4 text-emerald-500" /><span className="text-[10px] font-black uppercase tracking-widest">Fielding Analysis</span></div>
             </div>
-            <div className="p-6">
+            <CardContent className="p-6">
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Catches</p><p className="text-xl font-black text-slate-900">{careerStats.fielding.catches}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Stumpings</p><p className="text-xl font-black text-slate-900">{careerStats.fielding.stumpings}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Run Outs</p><p className="text-xl font-black text-slate-900">{careerStats.fielding.runOuts}</p></div>
               </div>
-            </div>
+            </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="milestones" className="space-y-6">
           <Card className="border-none shadow-xl rounded-3xl bg-white p-6 space-y-6">
             <div>
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 border-b pb-2">Batting Landmarks</h3>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 border-b pb-2">Batting Landmarks (Innings)</h3>
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div className="bg-slate-50 p-3 rounded-xl">
                   <p className="text-[10px] font-black text-primary">100s</p>
-                  <p className="text-lg font-black">{careerStats.batting.milestones.hundreds}</p>
+                  <p className="text-xl font-black">{careerStats.batting.milestones.hundreds}</p>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl">
                   <p className="text-[10px] font-black text-primary">50s</p>
-                  <p className="text-lg font-black">{careerStats.batting.milestones.fifties}</p>
+                  <p className="text-xl font-black">{careerStats.batting.milestones.fifties}</p>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl">
-                  <p className="text-[10px] font-black text-primary">25s</p>
-                  <p className="text-lg font-black">{careerStats.batting.milestones.thirties + careerStats.batting.milestones.twenties}</p>
+                  <p className="text-[10px] font-black text-primary">40s</p>
+                  <p className="text-xl font-black">{careerStats.batting.milestones.forties}</p>
+                </div>
+                <div className="bg-slate-50 p-3 rounded-xl">
+                  <p className="text-[10px] font-black text-primary">30s</p>
+                  <p className="text-xl font-black">{careerStats.batting.milestones.thirties}</p>
+                </div>
+                <div className="bg-slate-50 p-3 rounded-xl">
+                  <p className="text-[10px] font-black text-primary">20s</p>
+                  <p className="text-xl font-black">{careerStats.batting.milestones.twenties}</p>
+                </div>
+                <div className="bg-slate-50 p-3 rounded-xl">
+                  <p className="text-[10px] font-black text-primary">10s</p>
+                  <p className="text-xl font-black">{careerStats.batting.milestones.tens}</p>
                 </div>
               </div>
             </div>
@@ -453,13 +497,13 @@ export default function PlayerProfilePage() {
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Player Profile</DialogTitle></DialogHeader>
           <div className="space-y-6 py-4">
             <div className="flex flex-col items-center gap-4">
-              <div className="relative group cursor-pointer" onClick={() => (document.getElementById('player-p-edit') as HTMLInputElement).click()}>
+              <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                 <Avatar className="w-28 h-28 border-4 border-white shadow-xl rounded-3xl overflow-hidden ring-4 ring-slate-100">
                   <AvatarImage src={editForm.imageUrl || PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl} className="object-cover" />
                   <AvatarFallback className="bg-primary text-white text-4xl font-black">{editForm.name?.[0] || '?'}</AvatarFallback>
                 </Avatar>
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex flex-col items-center justify-center text-white"><Camera className="w-6 h-6 mb-1"/><span className="text-[8px] font-black uppercase">Change Photo</span></div>
-                <input type="file" id="player-p-edit" onChange={handleFileChange} className="hidden" accept="image/*" />
+                <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
               </div>
             </div>
             <div className="space-y-4">
