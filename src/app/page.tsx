@@ -15,6 +15,14 @@ import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { cn } from '@/lib/utils';
 
+// Professional Custom Cap Icon
+const CapIcon = ({ className }: { className?: string }) => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" className={cn("inline-block", className)}>
+    <path d="M21 18H3c-.55 0-1-.45-1-1s.45-1 1-1h1c0-4.97 4.03-9 9-9s9 4.03 9 9h1c.55 0 1 .45 1 1s-.45 1-1 1zM12 9c-3.87 0-7 3.13-7 7h14c0-3.87-3.13-7-7-7z"/>
+    <circle cx="12" cy="7" r="1.5" />
+  </svg>
+);
+
 export default function Home() {
   const db = useFirestore();
   const { isUmpire } = useApp();
@@ -180,7 +188,7 @@ export default function Home() {
         </Card>
 
         <Card className="border-none shadow-2xl bg-orange-500 text-white overflow-hidden relative group">
-          <div className="absolute -right-4 -top-4 opacity-20"><Zap className="w-24 h-24 text-white" /></div>
+          <div className="absolute -right-4 -top-4 opacity-20"><CapIcon className="w-24 h-24 text-white" /></div>
           <CardContent className="p-6 space-y-6">
             <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-orange-100">Orange Cap Holder</span></div>
             <div className="flex items-center justify-between gap-4">
@@ -202,9 +210,9 @@ export default function Home() {
         </Card>
 
         <Card className="border-none shadow-2xl bg-indigo-600 text-white overflow-hidden relative group">
-          <div className="absolute -right-4 -top-4 opacity-20"><Target className="w-24 h-24 text-white" /></div>
+          <div className="absolute -right-4 -top-4 opacity-20"><CapIcon className="w-24 h-24 text-white" /></div>
           <CardContent className="p-6 space-y-6">
-            <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Purple Cap Holder</span></div>
+            <div className="flex items-center gap-2"><Target className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Purple Cap Holder</span></div>
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <p className="text-2xl font-black uppercase tracking-tighter truncate leading-tight">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].name : '---'}</p>
@@ -300,9 +308,17 @@ export default function Home() {
                       <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 text-white text-[10px] font-black">{idx + 1}</div>
                       <div className="min-w-0">
                         <p className="font-black text-xs uppercase tracking-tight truncate group-hover:text-primary transition-colors">{player.name}</p>
-                        <div className="flex gap-1">
-                          {player.id === leagueData.orangeCapId && <Badge className="bg-orange-500 text-white text-[6px] h-3 px-1 uppercase">Orange Cap</Badge>}
-                          {player.id === leagueData.purpleCapId && <Badge className="bg-indigo-600 text-white text-[6px] h-3 px-1 uppercase">Purple Cap</Badge>}
+                        <div className="flex gap-1 mt-0.5">
+                          {player.id === leagueData.orangeCapId && (
+                            <Badge className="bg-orange-500 text-white text-[7px] h-4 px-1.5 uppercase font-black flex items-center gap-1 shadow-sm">
+                              <CapIcon className="w-2.5 h-2.5" /> Orange Cap
+                            </Badge>
+                          )}
+                          {player.id === leagueData.purpleCapId && (
+                            <Badge className="bg-indigo-600 text-white text-[7px] h-4 px-1.5 uppercase font-black flex items-center gap-1 shadow-sm">
+                              <CapIcon className="w-2.5 h-2.5" /> Purple Cap
+                            </Badge>
+                          )}
                         </div>
                       </div>
                     </div>
