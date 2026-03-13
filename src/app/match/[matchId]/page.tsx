@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Crown, Users, UserPlus, Undo2, RotateCcw, AlertTriangle, RefreshCw, AlertCircle } from 'lucide-react';
+import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Crown, Users, UserPlus, Undo2, RotateCcw, AlertTriangle, RefreshCw, AlertCircle, PlayCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -110,9 +110,6 @@ export default function MatchScoreboardPage() {
     const deliveriesSnap = await getDocs(query(deliveriesRef, orderBy('timestamp', 'asc')));
     const deliveries = deliveriesSnap.docs.map(d => d.data());
 
-    // Fallback: If no balls, we reset to starting positions.
-    // In a real pro app, we'd store openers in the Inning document.
-    // For now, we assume the first ball recorded the initial openers.
     if (deliveries.length === 0) {
       await updateDocumentNonBlocking(inningRef, {
         score: 0,
@@ -135,7 +132,6 @@ export default function MatchScoreboardPage() {
       if (d.isWicket && d.dismissalType !== 'retired') wkts++;
       if (d.extraType === 'none' && d.dismissalType !== 'retired') legalCount++;
 
-      // Update strike based on this ball
       currentS = d.strikerPlayerId;
       currentNS = d.nonStrikerPlayerId;
       currentB = d.bowlerId;
@@ -145,16 +141,14 @@ export default function MatchScoreboardPage() {
         if (outId === currentS) currentS = d.successorPlayerId || '';
         else if (outId === currentNS) currentNS = d.successorPlayerId || '';
       } else {
-        // Strike rotation on runs
         if (currentNS && !d.isDeclared && (d.runsScored || 0) % 2 !== 0) {
           [currentS, currentNS] = [currentNS, currentS];
         }
       }
 
-      // Over rotation (if not the last ball being processed, or we want the state *after* this ball)
       if (currentNS && legalCount % 6 === 0 && d.extraType === 'none') {
         [currentS, currentNS] = [currentNS, currentS];
-        currentB = ''; // Over finished, bowler clears
+        currentB = ''; 
       }
     });
 
@@ -229,6 +223,32 @@ export default function MatchScoreboardPage() {
     }
   };
 
+  const handleStartSecondInnings = async () => {
+    if (!match || match.currentInningNumber !== 1) return;
+    const bat1Id = inn1?.battingTeamId || match.team1Id;
+    const bat2Id = bat1Id === match.team1Id ? match.team2Id : match.team1Id;
+
+    const iData = { 
+      id: 'inning_2', 
+      battingTeamId: bat2Id, 
+      score: 0, 
+      wickets: 0, 
+      oversCompleted: 0, 
+      ballsInCurrentOver: 0, 
+      strikerPlayerId: '', 
+      nonStrikerPlayerId: '', 
+      currentBowlerPlayerId: '', 
+      isDeclaredFinished: false 
+    };
+    
+    await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', 'inning_2'), iData);
+    await updateDocumentNonBlocking(doc(db, 'matches', matchId), { currentInningNumber: 2 });
+    
+    setAssignmentForm({ strikerId: '', nonStrikerId: '', bowlerId: '' });
+    setIsPlayerAssignmentOpen(true);
+    toast({ title: "2nd Innings Initialized", description: "Select the opening pair." });
+  };
+
   const handleRepairMatchData = async () => {
     if (!repairTargetId || !replacementPlayerId) return;
     setIsRepairing(true);
@@ -286,9 +306,10 @@ export default function MatchScoreboardPage() {
 
   if (!isMounted || isMatchLoading) return <div className="flex flex-col items-center justify-center min-h-screen"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
+  const showInningTransition = match?.currentInningNumber === 1 && activeInningData?.isDeclaredFinished;
+
   return (
     <div className="space-y-6 max-w-lg mx-auto pb-32 relative px-1">
-      {/* Dynamic Floating Scoreboard */}
       <div className="fixed top-16 left-0 right-0 z-[90] bg-white text-slate-950 shadow-2xl px-6 py-4 border-b-4 border-slate-300">
         <div className="max-w-lg mx-auto flex items-center justify-between gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="h-8 w-8 shrink-0"><ChevronLeft className="w-6 h-6" /></Button>
@@ -321,6 +342,9 @@ export default function MatchScoreboardPage() {
                       <DropdownMenuTrigger asChild><Button variant="outline" className="flex-1 h-12 border-primary/20 text-primary font-black uppercase text-[9px] bg-white/5"><ShieldCheck className="w-4 h-4 mr-2" /> Match Actions</Button></DropdownMenuTrigger>
                       <DropdownMenuContent className="w-56 rounded-xl" align="end">
                         <DropdownMenuItem className="font-bold py-3" onClick={handleUndo}><Undo2 className="w-4 h-4 mr-2 text-rose-500" /> Undo Ball</DropdownMenuItem>
+                        {showInningTransition && (
+                          <DropdownMenuItem className="font-bold py-3 text-primary bg-primary/5" onClick={handleStartSecondInnings}><PlayCircle className="w-4 h-4 mr-2" /> Start 2nd Innings</DropdownMenuItem>
+                        )}
                         <DropdownMenuItem className="font-bold py-3" onClick={() => setIsPotmDialogOpen(true)}><UserCheck className="w-4 h-4 mr-2 text-amber-500" /> Declare POTM</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem className="font-bold py-3" onClick={handleFinalizeMatch}><ShieldCheck className="w-4 h-4 mr-2 text-emerald-500" /> Finalize Match</DropdownMenuItem>
@@ -328,13 +352,21 @@ export default function MatchScoreboardPage() {
                     </DropdownMenu>
                     <Button variant="outline" onClick={() => setIsPlayerAssignmentOpen(true)} className="flex-1 h-12 border-secondary/20 text-secondary font-black uppercase text-[9px] bg-white/5"><Settings2 className="w-4 h-4 mr-2" /> Assign Ends</Button>
                   </div>
-                  {match?.status === 'live' && !activeInningData?.isDeclaredFinished && (
-                    <div className="grid grid-cols-5 gap-2">
-                      {[0, 1, 2, 3, 4, 5, 6].map(r => (<Button key={r} disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(r)} className={cn("h-14 font-black text-2xl rounded-2xl", r >= 4 ? "bg-primary text-white" : "bg-white/5 text-white")}>{r === 0 ? '•' : r}</Button>))}
-                      <Button disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(1, 'none', true)} className="h-14 font-black text-2xl rounded-2xl bg-white/5 text-white">1D</Button>
-                      <Button disabled={!activeInningData?.nonStrikerPlayerId} onClick={() => setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { strikerPlayerId: activeInningData?.nonStrikerPlayerId || '', nonStrikerPlayerId: activeInningData?.strikerPlayerId || '' }, { merge: true })} className="bg-secondary text-white h-14 font-black rounded-2xl"><ArrowLeftRight className="w-5 h-5"/></Button>
-                      <Button variant="outline" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || '', fielderId: 'none', successorId: ''}); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px] bg-white/5">Wicket</Button>
+
+                  {showInningTransition ? (
+                    <div className="bg-primary/10 p-6 rounded-2xl border-2 border-dashed border-primary/30 text-center space-y-4">
+                      <p className="text-white font-black uppercase text-sm tracking-widest">1st Innings Completed</p>
+                      <Button onClick={handleStartSecondInnings} className="w-full h-14 bg-primary font-black text-lg shadow-xl uppercase">Start 2nd Innings</Button>
                     </div>
+                  ) : (
+                    match?.status === 'live' && !activeInningData?.isDeclaredFinished && (
+                      <div className="grid grid-cols-5 gap-2">
+                        {[0, 1, 2, 3, 4, 5, 6].map(r => (<Button key={r} disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(r)} className={cn("h-14 font-black text-2xl rounded-2xl", r >= 4 ? "bg-primary text-white" : "bg-white/5 text-white")}>{r === 0 ? '•' : r}</Button>))}
+                        <Button disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(1, 'none', true)} className="h-14 font-black text-2xl rounded-2xl bg-white/5 text-white">1D</Button>
+                        <Button disabled={!activeInningData?.nonStrikerPlayerId} onClick={() => setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { strikerPlayerId: activeInningData?.nonStrikerPlayerId || '', nonStrikerPlayerId: activeInningData?.strikerPlayerId || '' }, { merge: true })} className="bg-secondary text-white h-14 font-black rounded-2xl"><ArrowLeftRight className="w-5 h-5"/></Button>
+                        <Button variant="outline" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || '', fielderId: 'none', successorId: ''}); setIsWicketDialogOpen(true); }} className="h-14 border-red-500/30 text-red-500 font-black rounded-2xl uppercase text-[10px] bg-white/5">Wicket</Button>
+                      </div>
+                    )
                   )}
                 </CardContent>
               </Card>
@@ -390,7 +422,6 @@ export default function MatchScoreboardPage() {
         </Tabs>
       </div>
 
-      {/* Wicket Dialog - SLOT SPECIFIC */}
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-destructive shadow-2xl z-[200]">
           <DialogHeader><DialogTitle className="font-black uppercase text-xl text-destructive">Wicket Event</DialogTitle></DialogHeader>
@@ -426,7 +457,6 @@ export default function MatchScoreboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Position Assignment Dialog */}
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl z-[200]">
           <DialogHeader><DialogTitle className="font-black uppercase text-xl">Official Assignment</DialogTitle></DialogHeader>
@@ -487,7 +517,6 @@ export default function MatchScoreboardPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Repair Scorecard Dialog */}
       <Dialog open={isRepairOpen} onOpenChange={setIsRepairOpen}><DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[200]"><DialogHeader><DialogTitle className="font-black uppercase text-xl text-amber-600 flex items-center gap-2"><AlertTriangle className="w-6 h-6" /> Repair Scorecard</DialogTitle></DialogHeader><div className="space-y-6 py-4"><div className="bg-amber-50 p-4 rounded-2xl border border-amber-100"><p className="text-[10px] font-black uppercase text-amber-600 mb-1">Target Unknown ID</p><code className="text-xs font-bold break-all">{repairTargetId}</code></div><div className="space-y-2"><Label className="text-xs font-black uppercase">Assign To Profile</Label><Select value={replacementPlayerId} onValueChange={setReplacementPlayerId}><SelectTrigger className="h-14 font-bold"><SelectValue placeholder="Pick replacement player" /></SelectTrigger><SelectContent className="z-[250] max-h-[250px]">{allPlayers?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}</SelectContent></Select></div></div><DialogFooter><Button onClick={handleRepairMatchData} disabled={!replacementPlayerId || isRepairing} className="w-full h-14 bg-amber-600 font-black uppercase shadow-xl">{isRepairing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <RefreshCw className="w-5 h-5 mr-2" />} Re-map All Entries</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );
