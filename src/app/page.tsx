@@ -6,7 +6,7 @@ import { collection, query, where, orderBy, limit, doc, collectionGroup } from '
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Trophy, Activity, Users, PlayCircle, Star, Target, Swords, Zap, TrendingUp, ChevronRight, Flame, Medal, Calendar, Crown } from 'lucide-react';
+import { Trophy, Activity, Users, PlayCircle, Star, Target, Swords, Zap, TrendingUp, ChevronRight, Flame, Medal, Calendar, Crown, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useMemo, useState, useEffect } from 'react';
@@ -47,7 +47,7 @@ export default function Home() {
 
   // Advanced Aggregation Engine with Data Integrity
   const leagueData = useMemo(() => {
-    if (!players || !allMatches || !rawDeliveries || !isMounted) return { stats: {}, orangeCapId: '', purpleCapId: '', mvpId: '' };
+    if (!players || !allMatches || !rawDeliveries || !isMounted) return { stats: {}, orangeCapId: '', purpleCapId: '', mvpId: '', alerts: [] };
     const activeMatchIds = new Set(allMatches.map(m => m.id));
     const stats: Record<string, any> = {};
     const pMatchStats: Record<string, Record<string, any>> = {};
@@ -115,7 +115,14 @@ export default function Home() {
     const purpleCapId = Object.values(stats).sort((a: any, b: any) => b.wkts - a.wkts)[0]?.id;
     const mvpId = Object.values(stats).sort((a: any, b: any) => b.cvpWeekly - a.cvpWeekly)[0]?.id;
 
-    return { stats, orangeCapId, purpleCapId, mvpId };
+    // Milestone Alerts (simplified)
+    const alerts: any[] = [];
+    Object.values(stats).forEach((p: any) => {
+      if (p.runs > 0 && p.runs % 50 >= 45) alerts.push({ name: p.name, type: 'runs', current: p.runs, target: Math.ceil(p.runs / 50) * 50, diff: 50 - (p.runs % 50), icon: Zap, color: 'text-orange-500' });
+      if (p.wkts > 0 && p.wkts % 10 >= 8) alerts.push({ name: p.name, type: 'wickets', current: p.wkts, target: Math.ceil(p.wkts / 10) * 10, diff: 10 - (p.wkts % 10), icon: Target, color: 'text-indigo-500' });
+    });
+
+    return { stats, orangeCapId, purpleCapId, mvpId, alerts: alerts.slice(0, 3) };
   }, [players, allMatches, rawDeliveries, isMounted]);
 
   const topPlayers = useMemo(() => {
@@ -141,7 +148,6 @@ export default function Home() {
 
       {/* MVP & Caps Spotlight */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* MVP of the Week */}
         <Card className="border-none shadow-xl bg-slate-900 text-white overflow-hidden relative group">
           <div className="absolute -right-4 -top-4 opacity-10 group-hover:rotate-12 transition-transform"><Calendar className="w-24 h-24" /></div>
           <CardContent className="p-6 space-y-4 relative z-10">
@@ -156,11 +162,10 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {/* Orange Cap */}
         <Card className="border-none shadow-xl bg-orange-500 text-white overflow-hidden relative group">
           <div className="absolute -right-4 -top-4 opacity-20"><Zap className="w-24 h-24 text-white" /></div>
           <CardContent className="p-6 space-y-4">
-            <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-orange-100">Orange Cap Leader</span></div>
+            <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-orange-100">Orange Cap Holder</span></div>
             <div>
               <p className="text-2xl font-black uppercase tracking-tighter truncate">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].name : '---'}</p>
               <p className="text-xl font-black text-white/80">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].runs : 0} <span className="text-[10px] uppercase">Runs</span></p>
@@ -168,11 +173,10 @@ export default function Home() {
           </CardContent>
         </Card>
 
-        {/* Purple Cap */}
         <Card className="border-none shadow-xl bg-indigo-600 text-white overflow-hidden relative group">
           <div className="absolute -right-4 -top-4 opacity-20"><Target className="w-24 h-24 text-white" /></div>
           <CardContent className="p-6 space-y-4">
-            <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Purple Cap Leader</span></div>
+            <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Purple Cap Holder</span></div>
             <div>
               <p className="text-2xl font-black uppercase tracking-tighter truncate">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].name : '---'}</p>
               <p className="text-xl font-black text-white/80">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].wkts : 0} <span className="text-[10px] uppercase">Wickets</span></p>
@@ -181,82 +185,111 @@ export default function Home() {
         </Card>
       </section>
 
-      <div className="grid grid-cols-1 gap-8">
-        <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
-          <CardHeader className="bg-slate-50 border-b py-4 px-6 flex flex-row items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Activity className="text-destructive w-5 h-5 animate-pulse" />
-              <CardTitle className="font-black uppercase text-[10px] tracking-widest text-slate-500">Live Broadcast</CardTitle>
-            </div>
-            {liveMatch && <Badge variant="destructive" className="animate-pulse text-[8px] font-black px-2 py-0.5">LIVE</Badge>}
-          </CardHeader>
-          <CardContent className="p-6">
-            {liveMatch ? (
-              <Link href={`/match/${liveMatch.id}`}>
-                <div className="bg-slate-900 rounded-2xl p-8 text-white relative overflow-hidden group shadow-2xl">
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform"><Swords className="w-24 h-24" /></div>
-                  <div className="flex justify-between items-center relative z-10 gap-4 mb-8">
-                    <p className="font-black text-xl uppercase tracking-tighter leading-tight truncate max-w-[140px] flex-1">
-                      {getTeamName(liveMatch.team1Id)}
-                    </p>
-                    <div className="bg-white/10 h-12 w-12 rounded-full flex items-center justify-center font-black text-sm border border-white/20 shadow-inner shrink-0">VS</div>
-                    <p className="font-black text-xl uppercase tracking-tighter leading-tight text-right truncate max-w-[140px] flex-1">
-                      {getTeamName(liveMatch.team2Id)}
-                    </p>
-                  </div>
-                  <div className="mt-6 flex justify-center relative z-10">
-                    <Button variant="secondary" className="h-12 px-8 font-black uppercase text-xs tracking-widest rounded-xl bg-[#009688] hover:bg-[#00796b] text-white shadow-xl group">
-                      Enter Scoreboard <ChevronRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </Button>
-                  </div>
-                </div>
-              </Link>
-            ) : (
-              <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-slate-50/50 flex flex-col items-center">
-                <PlayCircle className="w-10 h-10 text-slate-200 mb-2" /><p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No Active Matches</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="space-y-8">
+          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+            <CardHeader className="bg-slate-50 border-b py-4 px-6 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="text-destructive w-5 h-5 animate-pulse" />
+                <CardTitle className="font-black uppercase text-[10px] tracking-widest text-slate-500">Live Center</CardTitle>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <section className="space-y-4">
-          <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-2 px-2"><Target className="w-5 h-5 text-primary" /> Top Performers</h2>
-          <Card className="shadow-xl border-none rounded-3xl bg-white overflow-hidden">
-            <CardContent className="p-2 space-y-1">
-              {topPlayers.map((player: any, idx) => (
-                <Link key={player.id} href={`/players/${player.id}`} className="flex items-center justify-between p-4 hover:bg-slate-50 transition-all rounded-2xl group">
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 text-white text-[10px] font-black">{idx + 1}</div>
-                    <div className="min-w-0">
-                      <p className="font-black text-xs uppercase tracking-tight truncate group-hover:text-primary transition-colors">{player.name}</p>
-                      <div className="flex gap-1">
-                        {player.id === leagueData.orangeCapId && <Badge className="bg-orange-500 text-white text-[6px] h-3 px-1 uppercase">Orange Cap</Badge>}
-                        {player.id === leagueData.purpleCapId && <Badge className="bg-indigo-600 text-white text-[6px] h-3 px-1 uppercase">Purple Cap</Badge>}
-                      </div>
+              {liveMatch && <Badge variant="destructive" className="animate-pulse text-[8px] font-black px-2 py-0.5">LIVE</Badge>}
+            </CardHeader>
+            <CardContent className="p-6">
+              {liveMatch ? (
+                <Link href={`/match/${liveMatch.id}`}>
+                  <div className="bg-slate-900 rounded-2xl p-8 text-white relative overflow-hidden group shadow-2xl">
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform"><Swords className="w-24 h-24" /></div>
+                    <div className="flex justify-between items-center relative z-10 gap-4 mb-8">
+                      <p className="font-black text-xl uppercase tracking-tighter leading-tight truncate max-w-[140px] flex-1">
+                        {getTeamName(liveMatch.team1Id)}
+                      </p>
+                      <div className="bg-white/10 h-12 w-12 rounded-full flex items-center justify-center font-black text-sm border border-white/20 shadow-inner shrink-0">VS</div>
+                      <p className="font-black text-xl uppercase tracking-tighter leading-tight text-right truncate max-w-[140px] flex-1">
+                        {getTeamName(liveMatch.team2Id)}
+                      </p>
+                    </div>
+                    <div className="mt-6 flex justify-center relative z-10">
+                      <Button variant="secondary" className="h-12 px-8 font-black uppercase text-xs tracking-widest rounded-xl bg-[#009688] hover:bg-[#00796b] text-white shadow-xl group">
+                        Enter Scoreboard <ChevronRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="text-right"><p className="text-lg font-black text-slate-900">{player.cvp.toFixed(1)}</p><p className="text-[8px] uppercase font-black text-primary tracking-widest">CVP PTS</p></div>
                 </Link>
-              ))}
+              ) : (
+                <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-slate-50/50 flex flex-col items-center">
+                  <PlayCircle className="w-10 h-10 text-slate-200 mb-2" /><p className="text-slate-400 text-[10px] font-black uppercase tracking-widest">No Active Matches</p>
+                </div>
+              )}
             </CardContent>
           </Card>
-        </section>
 
-        <section className="grid grid-cols-2 gap-4">
-          {[
-            { title: 'Teams', icon: Users, href: '/teams', color: 'bg-blue-600' },
-            { title: 'Analytics', icon: Zap, href: '/stats', color: 'bg-amber-600' },
-            { title: 'Street Pro', icon: PlayCircle, href: '/number-game', color: 'bg-rose-600' },
-            { title: 'Insights', icon: TrendingUp, href: '/insights', color: 'bg-indigo-600' },
-          ].map((item) => (
-            <Link href={item.href} key={item.title}>
-              <Card className="hover:shadow-lg transition-all border-none bg-white rounded-2xl p-6 flex flex-col items-center text-center space-y-3">
-                <div className={`${item.color}/10 p-4 rounded-xl shadow-inner`}><item.icon className={`w-6 h-6 ${item.color.replace('bg-', 'text-')}`} /></div>
-                <h3 className="font-black text-[10px] uppercase tracking-widest text-slate-900">{item.title}</h3>
-              </Card>
-            </Link>
-          ))}
-        </section>
+          <section className="space-y-4">
+            <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-2 px-2"><Medal className="w-5 h-5 text-primary" /> Milestone Watch</h2>
+            <div className="space-y-3">
+              {leagueData.alerts.length > 0 ? leagueData.alerts.map((alert: any, idx: number) => (
+                <Card key={idx} className="border-none shadow-sm bg-white overflow-hidden hover:translate-x-1 transition-transform cursor-pointer">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-slate-50 rounded-lg"><alert.icon className={cn("w-4 h-4", alert.color)} /></div>
+                      <div className="min-w-0">
+                        <p className="font-black text-xs uppercase truncate text-slate-900">{alert.name}</p>
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{alert.diff} {alert.type === 'runs' ? 'runs' : 'wicket'} away from {alert.target}</p>
+                      </div>
+                    </div>
+                    <Badge variant="secondary" className="h-6 font-black text-[10px] bg-slate-50">{alert.current}/{alert.target}</Badge>
+                  </CardContent>
+                </Card>
+              )) : (
+                <div className="text-center py-8 border-2 border-dashed rounded-2xl bg-slate-50/50">
+                  <Clock className="w-6 h-6 text-slate-200 mx-auto mb-2" />
+                  <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">No Close Milestones</p>
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+
+        <div className="space-y-8">
+          <section className="space-y-4">
+            <h2 className="text-xl font-black uppercase tracking-tight text-slate-900 flex items-center gap-2 px-2"><Target className="w-5 h-5 text-primary" /> Top Performers</h2>
+            <Card className="shadow-xl border-none rounded-3xl bg-white overflow-hidden">
+              <CardContent className="p-2 space-y-1">
+                {topPlayers.map((player: any, idx) => (
+                  <Link key={player.id} href={`/players/${player.id}`} className="flex items-center justify-between p-4 hover:bg-slate-50 transition-all rounded-2xl group">
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-900 text-white text-[10px] font-black">{idx + 1}</div>
+                      <div className="min-w-0">
+                        <p className="font-black text-xs uppercase tracking-tight truncate group-hover:text-primary transition-colors">{player.name}</p>
+                        <div className="flex gap-1">
+                          {player.id === leagueData.orangeCapId && <Badge className="bg-orange-500 text-white text-[6px] h-3 px-1 uppercase">Orange Cap</Badge>}
+                          {player.id === leagueData.purpleCapId && <Badge className="bg-indigo-600 text-white text-[6px] h-3 px-1 uppercase">Purple Cap</Badge>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right"><p className="text-lg font-black text-slate-900">{player.cvp.toFixed(1)}</p><p className="text-[8px] uppercase font-black text-primary tracking-widest">CVP PTS</p></div>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          </section>
+
+          <section className="grid grid-cols-2 gap-4">
+            {[
+              { title: 'Teams', icon: Users, href: '/teams', color: 'bg-blue-600' },
+              { title: 'Analytics', icon: Zap, href: '/stats', color: 'bg-amber-600' },
+              { title: 'Street Pro', icon: PlayCircle, href: '/number-game', color: 'bg-rose-600' },
+              { title: 'Insights', icon: TrendingUp, href: '/insights', color: 'bg-indigo-600' },
+            ].map((item) => (
+              <Link href={item.href} key={item.title}>
+                <Card className="hover:shadow-lg transition-all border-none bg-white rounded-2xl p-6 flex flex-col items-center text-center space-y-3">
+                  <div className={`${item.color}/10 p-4 rounded-xl shadow-inner`}><item.icon className={`w-6 h-6 ${item.color.replace('bg-', 'text-')}`} /></div>
+                  <h3 className="font-black text-[10px] uppercase tracking-widest text-slate-900">{item.title}</h3>
+                </Card>
+              </Link>
+            ))}
+          </section>
+        </div>
       </div>
     </div>
   );
