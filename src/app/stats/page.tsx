@@ -97,6 +97,7 @@ export default function StatsPage() {
     const pMatchStats: Record<string, Record<string, any>> = {};
     const careerAgg: Record<string, any> = {};
     const globalPartnerships: any[] = [];
+    const teamInningTotals: Record<string, Record<string, number>> = {}; // tid -> { match_inn: runs }
     
     players.forEach(p => {
       careerAgg[p.id] = { catches: 0, runOuts: 0, stumpings: 0, dotsB: 0, extras: 0, runsCon: 0, ballsB: 0 };
@@ -104,46 +105,42 @@ export default function StatsPage() {
 
     const getTeamName = (id: string) => teams?.find(t => t.id === id)?.name ? formatTeamName(teams.find(t => t.id === id)!.name) : 'Unknown';
 
-    matches.forEach(m => {
-      if (m.status !== 'completed') return;
-      const mD = validDeliveries.filter(d => d.__fullPath?.split('/')[1] === m.id);
-      
-      // Calculate Team Scores
-      const s1 = mD.filter(d => d.__fullPath?.includes('inning_1')).reduce((a, b) => a + (b.totalRunsOnDelivery || 0), 0);
-      const s2 = mD.filter(d => d.__fullPath?.includes('inning_2')).reduce((a, b) => a + (b.totalRunsOnDelivery || 0), 0);
-
-      const inn1BatId = m.tossWinnerTeamId === m.team1Id ? (m.tossDecision === 'bat' ? m.team1Id : m.team2Id) : (m.tossDecision === 'bat' ? m.team2Id : m.team1Id);
-      const inn2BatId = inn1BatId === m.team1Id ? m.team2Id : m.team1Id;
-
-      if (s1 > teamRecords.highestTotal.val) teamRecords.highestTotal = { val: s1, name: getTeamName(inn1BatId) };
-      if (s1 > 0 && s1 < teamRecords.lowestTotal.val) teamRecords.lowestTotal = { val: s1, name: getTeamName(inn1BatId) };
-      if (s2 > teamRecords.highestTotal.val) teamRecords.highestTotal = { val: s2, name: getTeamName(inn2BatId) };
-      if (s2 > 0 && s2 < teamRecords.lowestTotal.val) teamRecords.lowestTotal = { val: s2, name: getTeamName(inn2BatId) };
-
-      ['inning_1', 'inning_2'].forEach(inn => processPartnerships(mD.filter(d => d.__fullPath?.includes(inn)), globalPartnerships, m.id));
-    });
-
+    // Single pass for all delivery-based stats
     validDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
+      if (!matchId) return;
+      const match = matches.find(m => m.id === matchId);
+      if (!match) return;
+
+      const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
       const sId = d.strikerPlayerId; 
       const bId = d.bowlerId || d.bowlerPlayerId; 
       const fId = d.fielderPlayerId;
 
+      // Team Aggregation
+      const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
+      const batId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
+      
+      const key = `${matchId}_${innNum}`;
+      if (!teamInningTotals[batId]) teamInningTotals[batId] = {};
+      teamInningTotals[batId][key] = (teamInningTotals[batId][key] || 0) + (d.totalRunsOnDelivery || 0);
+
+      // Player Aggregation
       [sId, bId, fId].filter(id => id && id !== 'none' && careerAgg[id]).forEach(pid => {
         if (!pMatchStats[pid]) pMatchStats[pid] = {};
-        if (!pMatchStats[pid][matchId!]) pMatchStats[pid][matchId!] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, fours: 0, sixes: 0, dotsB: 0, extras: 0 };
+        if (!pMatchStats[pid][matchId]) pMatchStats[pid][matchId] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, fours: 0, sixes: 0, dotsB: 0, extras: 0 };
       });
 
-      if (sId && pMatchStats[sId]?.[matchId!]) { 
-        const s = pMatchStats[sId][matchId!]; 
+      if (sId && pMatchStats[sId]?.[matchId]) { 
+        const s = pMatchStats[sId][matchId]; 
         s.runs += (d.runsScored || 0); 
         if (d.extraType !== 'wide') s.balls++;
         if (d.runsScored === 4) s.fours++; 
         if (d.runsScored === 6) s.sixes++; 
       }
 
-      if (bId && pMatchStats[bId]?.[matchId!]) { 
-        const b = pMatchStats[bId][matchId!]; 
+      if (bId && pMatchStats[bId]?.[matchId]) { 
+        const b = pMatchStats[bId][matchId]; 
         const c = careerAgg[bId];
         const runsOnD = (d.totalRunsOnDelivery || 0);
         b.runsCon += runsOnD; c.runsCon += runsOnD;
@@ -163,6 +160,22 @@ export default function StatsPage() {
       }
     });
 
+    // Partnerships calculation (separate loop needed for sequencing)
+    matches.forEach(m => {
+      if (m.status !== 'completed') return;
+      const mD = validDeliveries.filter(d => d.__fullPath?.split('/')[1] === m.id);
+      ['inning_1', 'inning_2'].forEach(inn => processPartnerships(mD.filter(d => d.__fullPath?.includes(inn)), globalPartnerships, m.id));
+    });
+
+    // Team Records
+    Object.entries(teamInningTotals).forEach(([tid, matches]) => {
+      Object.values(matches).forEach(score => {
+        if (score > teamRecords.highestTotal.val) teamRecords.highestTotal = { val: score, name: getTeamName(tid) };
+        if (score > 0 && score < teamRecords.lowestTotal.val) teamRecords.lowestTotal = { val: score, name: getTeamName(tid) };
+      });
+    });
+
+    // Final Player Stats Pass
     players.forEach(p => {
       Object.entries(pMatchStats[p.id] || {}).forEach(([mId, m]: [string, any]) => {
         if (m.runs > batting.highestScore.val) batting.highestScore = { val: m.runs, name: p.name, matchId: mId };
@@ -176,9 +189,8 @@ export default function StatsPage() {
         }
       });
 
-      // Career Records
       const c = careerAgg[p.id];
-      if (c.ballsB >= 12) { // Min 2 overs total in career for Best Economy
+      if (c.ballsB >= 12) { 
         const econ = c.runsCon / (c.ballsB / 6);
         if (econ < bowling.bestEcon.val) bowling.bestEcon = { val: econ, name: p.name };
       }
