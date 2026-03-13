@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -9,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Crown, Users, UserPlus, Undo2, RotateCcw, AlertTriangle, RefreshCw } from 'lucide-react';
+import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Crown, Users, UserPlus, Undo2, RotateCcw, AlertTriangle, RefreshCw, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -20,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, Legend, LineChart, Line } from 'recharts';
 import { toPng } from 'html-to-image';
@@ -44,6 +46,7 @@ export default function MatchScoreboardPage() {
   const [isRepairOpen, setIsRepairOpen] = useState(false);
   
   const [assignmentForm, setAssignmentForm] = useState({ strikerId: '', nonStrikerId: '', bowlerId: '' });
+  const [isInjuryOverride, setIsInjuryOverride] = useState(false);
   const [wicketForm, setWicketForm] = useState({ type: 'bowled', batterOutId: '', extraType: 'none', runsCompleted: 0, fielderId: 'none', successorId: '' });
   const [correctionForm, setCorrectionForm] = useState<any>({ id: '', strikerId: '', nonStrikerId: '', bowlerId: '', runs: 0, extra: 'none', isWicket: false, wicketType: 'bowled', timestamp: 0, targetInning: '', isDeclared: false });
   const [matchDateForm, setMatchDateForm] = useState('');
@@ -131,6 +134,18 @@ export default function MatchScoreboardPage() {
     if (!match) return null;
     return match.currentInningNumber === 1 ? inn1 : (match.currentInningNumber === 2 ? inn2 : null);
   }, [match?.currentInningNumber, inn1, inn2]);
+
+  useEffect(() => {
+    if (activeInningData) {
+      setAssignmentForm({
+        strikerId: activeInningData.strikerPlayerId || '',
+        nonStrikerId: activeInningData.nonStrikerPlayerId || '',
+        bowlerId: activeInningData.currentBowlerPlayerId || ''
+      });
+      // Reset injury override when a new over starts or when opening assignment dialog
+      setIsInjuryOverride(false);
+    }
+  }, [activeInningData, isPlayerAssignmentOpen]);
 
   const currentDeliveriesWithLabels = match?.currentInningNumber === 1 ? inn1WithLabels : inn2WithLabels;
 
@@ -235,6 +250,19 @@ export default function MatchScoreboardPage() {
     setIsNoBallDialogOpen(false);
   };
 
+  const handleSavePositions = async () => {
+    if (!match || !activeInningData) return;
+    const currentInningId = `inning_${match.currentInningNumber}`;
+    const updates = {
+      strikerPlayerId: assignmentForm.strikerId,
+      nonStrikerPlayerId: assignmentForm.nonStrikerId || '',
+      currentBowlerPlayerId: assignmentForm.bowlerId
+    };
+    await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId), updates, { merge: true });
+    setIsPlayerAssignmentOpen(false);
+    toast({ title: "Positions Synchronized" });
+  };
+
   const matchCvpMap = useMemo(() => {
     if (!isMounted || !allPlayers || (!inn1Deliveries && !inn2Deliveries)) return {};
     const squads = [...(match?.team1SquadPlayerIds || []), ...(match?.team2SquadPlayerIds || [])];
@@ -253,7 +281,21 @@ export default function MatchScoreboardPage() {
     return map;
   }, [inn1Deliveries, inn2Deliveries, match, allPlayers, isMounted]);
 
+  const isBowlerLocked = useMemo(() => {
+    if (!activeInningData) return false;
+    // Lock if balls have been bowled in this over AND a bowler is already assigned
+    return !isInjuryOverride && (activeInningData.ballsInCurrentOver || 0) > 0 && !!activeInningData.currentBowlerPlayerId;
+  }, [activeInningData, isInjuryOverride]);
+
   if (!isMounted || isMatchLoading) return <div className="flex flex-col items-center justify-center min-h-screen"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
+
+  const currentBattingSquad = match?.currentInningNumber === 1 
+    ? (inn1?.battingTeamId === match?.team1Id ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds)
+    : (inn2?.battingTeamId === match?.team1Id ? match?.team1SquadPlayerIds : match?.team2SquadPlayerIds);
+
+  const currentBowlingSquad = match?.currentInningNumber === 1
+    ? (inn1?.battingTeamId === match?.team1Id ? match?.team2SquadPlayerIds : match?.team1SquadPlayerIds)
+    : (inn2?.battingTeamId === match?.team1Id ? match?.team2SquadPlayerIds : match?.team1SquadPlayerIds);
 
   return (
     <div className="space-y-6 max-w-lg mx-auto pb-32 relative px-1">
@@ -360,6 +402,67 @@ export default function MatchScoreboardPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Position Assignment Dialog */}
+      <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl z-[200]">
+          <DialogHeader><DialogTitle className="font-black uppercase text-xl">Official Assignment</DialogTitle></DialogHeader>
+          <div className="space-y-6 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label>
+                <Select value={assignmentForm.strikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Striker" /></SelectTrigger>
+                  <SelectContent className="z-[250]">{allPlayers?.filter(p => currentBattingSquad?.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label>
+                <Select value={assignmentForm.nonStrikerId || 'none'} onValueChange={(v) => setAssignmentForm({...assignmentForm, nonStrikerId: v === 'none' ? '' : v})}>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Non-Striker" /></SelectTrigger>
+                  <SelectContent className="z-[250]"><SelectItem value="none">No Non-Striker</SelectItem>{allPlayers?.filter(p => currentBattingSquad?.includes(p.id) && p.id !== assignmentForm.strikerId).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-4 border-t">
+              <div className="flex justify-between items-center">
+                <Label className="text-[10px] font-black uppercase text-slate-400">Current Bowler</Label>
+                {isBowlerLocked && (
+                  <Badge variant="outline" className="text-[8px] font-black text-amber-600 border-amber-200">LOCKED (Over in Progress)</Badge>
+                )}
+              </div>
+              <Select 
+                value={assignmentForm.bowlerId} 
+                onValueChange={(v) => setAssignmentForm({...assignmentForm, bowlerId: v})}
+                disabled={isBowlerLocked}
+              >
+                <SelectTrigger className={cn("h-14 font-black text-lg", isBowlerLocked && "opacity-50 grayscale")}>
+                  <SelectValue placeholder="Assign Bowler" />
+                </SelectTrigger>
+                <SelectContent className="z-[250]">{allPlayers?.filter(p => currentBowlingSquad?.includes(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+              </Select>
+              
+              {isBowlerLocked ? (
+                <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
+                  <Switch 
+                    id="injury-override" 
+                    checked={isInjuryOverride} 
+                    onCheckedChange={setIsInjuryOverride} 
+                  />
+                  <Label htmlFor="injury-override" className="text-[10px] font-black uppercase text-amber-700 leading-none">Force Change (Injury/Emergency)</Label>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-1">
+                  <AlertCircle className="w-3 h-3 text-slate-400" />
+                  <p className="text-[9px] font-bold text-slate-400 uppercase italic">Bowler must complete 6 legal deliveries before being changed.</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter><Button onClick={handleSavePositions} className="w-full h-14 bg-primary font-black uppercase shadow-xl">Apply Assignments</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isRepairOpen} onOpenChange={setIsRepairOpen}><DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[200]"><DialogHeader><DialogTitle className="font-black uppercase text-xl text-amber-600 flex items-center gap-2"><AlertTriangle className="w-6 h-6" /> Repair Scorecard</DialogTitle></DialogHeader><div className="space-y-6 py-4"><div className="bg-amber-50 p-4 rounded-2xl border border-amber-100"><p className="text-[10px] font-black uppercase text-amber-600 mb-1">Target Unknown ID</p><code className="text-xs font-bold break-all">{repairTargetId}</code></div><div className="space-y-2"><Label className="text-xs font-black uppercase">Assign To Profile</Label><Select value={replacementPlayerId} onValueChange={setReplacementPlayerId}><SelectTrigger className="h-14 font-bold"><SelectValue placeholder="Pick replacement player" /></SelectTrigger><SelectContent className="z-[250] max-h-[250px]">{allPlayers?.map(p => <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>)}</SelectContent></Select></div></div><DialogFooter><Button onClick={handleRepairMatchData} disabled={!replacementPlayerId || isRepairing} className="w-full h-14 bg-amber-600 font-black uppercase shadow-xl">{isRepairing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <RefreshCw className="w-5 h-5 mr-2" />} Re-map All Entries</Button></DialogFooter></DialogContent></Dialog>
     </div>
