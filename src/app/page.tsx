@@ -64,9 +64,6 @@ export default function Home() {
       const matchId = d.__fullPath?.split('/')[1];
       if (!matchId || !activeMatchIds.has(matchId)) return;
 
-      const match = allMatches.find(m => m.id === matchId);
-      const isWeekly = match?.matchDate && new Date(match.matchDate) >= sevenDaysAgo;
-
       const sId = d.strikerPlayerId;
       const bId = d.bowlerId || d.bowlerPlayerId;
       const fId = d.fielderPlayerId;
@@ -84,14 +81,17 @@ export default function Home() {
         const mS = pMatchStats[sId][matchId];
         mS.runs += (d.runsScored || 0);
         if (d.extraType !== 'wide') mS.ballsFaced++;
+        if (d.runsScored === 4) mS.fours++;
+        if (d.runsScored === 6) mS.sixes++;
       }
       if (bId && stats[bId]) {
+        const mB = pMatchStats[bId][matchId];
         if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
           stats[bId].wkts++;
-          pMatchStats[bId][matchId].wickets++;
+          mB.wickets++;
         }
-        pMatchStats[bId][matchId].runsConceded += (d.totalRunsOnDelivery || 0);
-        if (d.extraType === 'none') pMatchStats[bId][matchId].ballsBowled++;
+        mB.runsConceded += (d.totalRunsOnDelivery || 0);
+        if (d.extraType === 'none') mB.ballsBowled++;
       }
       if (fId && stats[fId]) {
         const mF = pMatchStats[fId][matchId];
@@ -111,11 +111,15 @@ export default function Home() {
       });
     });
 
-    const orangeCapId = Object.values(stats).sort((a: any, b: any) => b.runs - a.runs)[0]?.id;
-    const purpleCapId = Object.values(stats).sort((a: any, b: any) => b.wkts - a.wkts)[0]?.id;
-    const mvpId = Object.values(stats).sort((a: any, b: any) => b.cvpWeekly - a.cvpWeekly)[0]?.id;
+    const sortedByRuns = Object.values(stats).sort((a: any, b: any) => b.runs - a.runs);
+    const sortedByWkts = Object.values(stats).sort((a: any, b: any) => b.wkts - a.wkts);
+    const sortedByWeeklyCvp = Object.values(stats).sort((a: any, b: any) => b.cvpWeekly - a.cvpWeekly);
 
-    // Milestone Alerts (simplified)
+    const orangeCapId = sortedByRuns[0]?.runs > 0 ? sortedByRuns[0].id : '';
+    const purpleCapId = sortedByWkts[0]?.wkts > 0 ? sortedByWkts[0].id : '';
+    const mvpId = sortedByWeeklyCvp[0]?.cvpWeekly > 0 ? sortedByWeeklyCvp[0].id : '';
+
+    // Milestone Alerts
     const alerts: any[] = [];
     Object.values(stats).forEach((p: any) => {
       if (p.runs > 0 && p.runs % 50 >= 45) alerts.push({ name: p.name, type: 'runs', current: p.runs, target: Math.ceil(p.runs / 50) * 50, diff: 50 - (p.runs % 50), icon: Zap, color: 'text-orange-500' });
@@ -157,7 +161,7 @@ export default function Home() {
               <p className="text-[9px] font-bold text-amber-500 uppercase mt-1">Highest impact in last 7 days</p>
             </div>
             <Button variant="outline" size="sm" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[9px] h-10" asChild>
-              <Link href={`/players/${leagueData.mvpId}`}>View Profile</Link>
+              {leagueData.mvpId ? <Link href={`/players/${leagueData.mvpId}`}>View Profile</Link> : <span>Syncing...</span>}
             </Button>
           </CardContent>
         </Card>
@@ -170,6 +174,9 @@ export default function Home() {
               <p className="text-2xl font-black uppercase tracking-tighter truncate">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].name : '---'}</p>
               <p className="text-xl font-black text-white/80">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].runs : 0} <span className="text-[10px] uppercase">Runs</span></p>
             </div>
+            <Button variant="outline" size="sm" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[9px] h-10" asChild>
+              {leagueData.orangeCapId ? <Link href={`/players/${leagueData.orangeCapId}`}>View Profile</Link> : <span>Syncing...</span>}
+            </Button>
           </CardContent>
         </Card>
 
@@ -181,6 +188,9 @@ export default function Home() {
               <p className="text-2xl font-black uppercase tracking-tighter truncate">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].name : '---'}</p>
               <p className="text-xl font-black text-white/80">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].wkts : 0} <span className="text-[10px] uppercase">Wickets</span></p>
             </div>
+            <Button variant="outline" size="sm" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[9px] h-10" asChild>
+              {leagueData.purpleCapId ? <Link href={`/players/${leagueData.purpleCapId}`}>View Profile</Link> : <span>Syncing...</span>}
+            </Button>
           </CardContent>
         </Card>
       </section>
