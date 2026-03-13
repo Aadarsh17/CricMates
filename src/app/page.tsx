@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Trophy, Activity, Users, PlayCircle, Star, Target, Swords, Zap, TrendingUp, ChevronRight, Flame, Medal, Calendar, Crown, Clock } from 'lucide-react';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
 import { useMemo, useState, useEffect } from 'react';
@@ -133,6 +134,10 @@ export default function Home() {
     return Object.values(leagueData.stats).sort((a: any, b: any) => b.cvp - a.cvp).slice(0, 5);
   }, [leagueData]);
 
+  const mvpPlayer = useMemo(() => players?.find(p => p.id === leagueData.mvpId), [players, leagueData.mvpId]);
+  const orangePlayer = useMemo(() => players?.find(p => p.id === leagueData.orangeCapId), [players, leagueData.orangeCapId]);
+  const purplePlayer = useMemo(() => players?.find(p => p.id === leagueData.purpleCapId), [players, leagueData.purpleCapId]);
+
   if (!isMounted) return null;
 
   return (
@@ -156,9 +161,17 @@ export default function Home() {
           <div className="absolute -right-4 -top-4 opacity-10 group-hover:rotate-12 transition-transform"><Calendar className="w-24 h-24" /></div>
           <CardContent className="p-6 space-y-4 relative z-10">
             <div className="flex items-center gap-2"><Crown className="w-4 h-4 text-amber-500" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">MVP of the Week</span></div>
-            <div className="min-w-0">
-              <p className="text-2xl font-black uppercase tracking-tighter truncate">{leagueData.mvpId ? leagueData.stats[leagueData.mvpId].name : 'Calculating...'}</p>
-              <p className="text-[9px] font-bold text-amber-500 uppercase mt-1">Highest impact in last 7 days</p>
+            <div className="flex justify-between items-start gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="text-2xl font-black uppercase tracking-tighter truncate leading-tight">{leagueData.mvpId ? leagueData.stats[leagueData.mvpId].name : 'Calculating...'}</p>
+                <p className="text-[9px] font-bold text-amber-500 uppercase mt-1">Highest impact in last 7 days</p>
+              </div>
+              {mvpPlayer && (
+                <Avatar className="w-14 h-14 border-2 border-white/20 rounded-xl shadow-lg shrink-0 overflow-hidden">
+                  <AvatarImage src={mvpPlayer.imageUrl} className="object-cover" />
+                  <AvatarFallback className="bg-white/10 text-white font-black text-xl">{mvpPlayer.name[0]}</AvatarFallback>
+                </Avatar>
+              )}
             </div>
             <Button variant="outline" size="sm" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[9px] h-10" asChild>
               {leagueData.mvpId ? <Link href={`/players/${leagueData.mvpId}`}>View Profile</Link> : <span>Syncing...</span>}
@@ -170,9 +183,17 @@ export default function Home() {
           <div className="absolute -right-4 -top-4 opacity-20"><Zap className="w-24 h-24 text-white" /></div>
           <CardContent className="p-6 space-y-4">
             <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-orange-100">Orange Cap Holder</span></div>
-            <div>
-              <p className="text-2xl font-black uppercase tracking-tighter truncate">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].name : '---'}</p>
-              <p className="text-xl font-black text-white/80">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].runs : 0} <span className="text-[10px] uppercase">Runs</span></p>
+            <div className="flex justify-between items-start gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="text-2xl font-black uppercase tracking-tighter truncate leading-tight">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].name : '---'}</p>
+                <p className="text-xl font-black text-white/80">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].runs : 0} <span className="text-[10px] uppercase">Runs</span></p>
+              </div>
+              {orangePlayer && (
+                <Avatar className="w-14 h-14 border-2 border-white/20 rounded-xl shadow-lg shrink-0 overflow-hidden">
+                  <AvatarImage src={orangePlayer.imageUrl} className="object-cover" />
+                  <AvatarFallback className="bg-white/10 text-white font-black text-xl">{orangePlayer.name[0]}</AvatarFallback>
+                </Avatar>
+              )}
             </div>
             <Button variant="outline" size="sm" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[9px] h-10" asChild>
               {leagueData.orangeCapId ? <Link href={`/players/${leagueData.orangeCapId}`}>View Profile</Link> : <span>Syncing...</span>}
@@ -184,9 +205,17 @@ export default function Home() {
           <div className="absolute -right-4 -top-4 opacity-20"><Target className="w-24 h-24 text-white" /></div>
           <CardContent className="p-6 space-y-4">
             <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Purple Cap Holder</span></div>
-            <div>
-              <p className="text-2xl font-black uppercase tracking-tighter truncate">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].name : '---'}</p>
-              <p className="text-xl font-black text-white/80">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].wkts : 0} <span className="text-[10px] uppercase">Wickets</span></p>
+            <div className="flex justify-between items-start gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="text-2xl font-black uppercase tracking-tighter truncate leading-tight">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].name : '---'}</p>
+                <p className="text-xl font-black text-white/80">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].wkts : 0} <span className="text-[10px] uppercase">Wickets</span></p>
+              </div>
+              {purplePlayer && (
+                <Avatar className="w-14 h-14 border-2 border-white/20 rounded-xl shadow-lg shrink-0 overflow-hidden">
+                  <AvatarImage src={purplePlayer.imageUrl} className="object-cover" />
+                  <AvatarFallback className="bg-white/10 text-white font-black text-xl">{purplePlayer.name[0]}</AvatarFallback>
+                </Avatar>
+              )}
             </div>
             <Button variant="outline" size="sm" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[9px] h-10" asChild>
               {leagueData.purpleCapId ? <Link href={`/players/${leagueData.purpleCapId}`}>View Profile</Link> : <span>Syncing...</span>}
