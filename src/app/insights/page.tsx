@@ -75,12 +75,33 @@ export default function InsightsPage() {
   const playerCareerAggregates = useMemo(() => {
     if (!deliveries || !players) return {};
     const stats: Record<string, any> = {};
-    players.forEach(p => { stats[p.id] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, stumpings: 0, runOuts: 0, outs: 0 }; });
+    players.forEach(p => { 
+      stats[p.id] = { 
+        runs: 0, 
+        balls: 0, 
+        wkts: 0, 
+        runsCon: 0, 
+        ballsB: 0, 
+        catches: 0, 
+        stumpings: 0, 
+        runOuts: 0, 
+        outs: 0,
+        fours: 0,
+        sixes: 0,
+        battingDots: 0
+      }; 
+    });
     
     deliveries.forEach(d => {
       if (d.strikerPlayerId && stats[d.strikerPlayerId]) {
-        stats[d.strikerPlayerId].runs += (d.runsScored || 0);
-        if (d.extraType !== 'wide') stats[d.strikerPlayerId].balls++;
+        const s = stats[d.strikerPlayerId];
+        s.runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') {
+          s.balls++;
+          if (d.runsScored === 0) s.battingDots++;
+        }
+        if (d.runsScored === 4) s.fours++;
+        if (d.runsScored === 6) s.sixes++;
       }
       if (d.isWicket && stats[d.batsmanOutPlayerId]) stats[d.batsmanOutPlayerId].outs++;
 
@@ -185,7 +206,7 @@ export default function InsightsPage() {
 
   if (!isMounted || isDeliveriesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
 
-  const getPData = (id: string) => playerCareerAggregates[id] || { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0 };
+  const getPData = (id: string) => playerCareerAggregates[id] || { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, fours: 0, sixes: 0, battingDots: 0 };
   const getTData = (id: string) => teamAggregates[id] || { played: 0, won: 0, tied: 0, lost: 0, forR: 0, forB: 0, agR: 0, agB: 0 };
   const getCData = (id: string) => captainStats[id] || { played: 0, won: 0 };
 
@@ -245,6 +266,10 @@ export default function InsightsPage() {
               <div className="space-y-4 pt-4 border-t">
                 {[
                   { label: 'Total Runs', v1: getPData(rival1Id).runs, v2: getPData(rival2Id).runs, format: (v: number) => v },
+                  { label: 'Balls Faced', v1: getPData(rival1Id).balls, v2: getPData(rival2Id).balls, format: (v: number) => v },
+                  { label: 'Dot Balls', v1: getPData(rival1Id).battingDots, v2: getPData(rival2Id).battingDots, format: (v: number) => v },
+                  { label: 'Fours (4s)', v1: getPData(rival1Id).fours, v2: getPData(rival2Id).fours, format: (v: number) => v },
+                  { label: 'Sixes (6s)', v1: getPData(rival1Id).sixes, v2: getPData(rival2Id).sixes, format: (v: number) => v },
                   { label: 'Strike Rate', v1: getPData(rival1Id).balls > 0 ? (getPData(rival1Id).runs/getPData(rival1Id).balls)*100 : 0, v2: getPData(rival2Id).balls > 0 ? (getPData(rival2Id).runs/getPData(rival2Id).balls)*100 : 0, format: (v: number) => v.toFixed(1) },
                   { label: 'Wickets', v1: getPData(rival1Id).wkts, v2: getPData(rival2Id).wkts, format: (v: number) => v },
                   { label: 'Economy', v1: getPData(rival1Id).ballsB > 0 ? (getPData(rival1Id).runsCon/(getPData(rival1Id).ballsB/6)) : 99, v2: getPData(rival2Id).ballsB > 0 ? (getPData(rival2Id).runsCon/(getPData(rival2Id).ballsB/6)) : 99, reverse: true, format: (v: number) => v === 99 ? '---' : v.toFixed(2) }
