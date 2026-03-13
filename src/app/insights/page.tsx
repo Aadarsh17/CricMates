@@ -124,7 +124,11 @@ export default function InsightsPage() {
   const teamAggregates = useMemo(() => {
     if (!matches || !teams) return {};
     const stats: Record<string, any> = {};
-    teams.forEach(t => stats[t.id] = { played: 0, won: 0, lost: 0, tied: 0, forR: 0, forB: 0, agR: 0, agB: 0 });
+    teams.forEach(t => stats[t.id] = { 
+      played: 0, won: 0, lost: 0, tied: 0, 
+      forR: 0, forB: 0, agR: 0, agB: 0,
+      fours: 0, sixes: 0, highest: 0, lowest: 0
+    });
 
     matches.forEach(m => {
       if (m.status !== 'completed' || !stats[m.team1Id] || !stats[m.team2Id]) return;
@@ -133,6 +137,8 @@ export default function InsightsPage() {
       else if (m.winnerTeamId === m.team1Id) { stats[m.team1Id].won++; stats[m.team2Id].lost++; }
       else if (m.winnerTeamId === m.team2Id) { stats[m.team2Id].won++; stats[m.team1Id].lost++; }
     });
+
+    const inningScores: Record<string, Record<string, number>> = {}; // teamId -> { match_inn: score }
 
     deliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
@@ -143,8 +149,27 @@ export default function InsightsPage() {
       const batId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
       const bowlId = batId === match.team1Id ? match.team2Id : match.team1Id;
       
-      if (stats[batId]) { stats[batId].forR += d.totalRunsOnDelivery; if (d.extraType === 'none') stats[batId].forB++; }
+      if (stats[batId]) { 
+        stats[batId].forR += d.totalRunsOnDelivery; 
+        if (d.extraType === 'none') stats[batId].forB++;
+        if (d.runsScored === 4) stats[batId].fours++;
+        if (d.runsScored === 6) stats[batId].sixes++;
+
+        // Track per-inning scores for high/low calculation
+        const scoreKey = `${matchId}_${innNum}`;
+        if (!inningScores[batId]) inningScores[batId] = {};
+        inningScores[batId][scoreKey] = (inningScores[batId][scoreKey] || 0) + d.totalRunsOnDelivery;
+      }
       if (stats[bowlId]) { stats[bowlId].agR += d.totalRunsOnDelivery; if (d.extraType === 'none') stats[bowlId].agB++; }
+    });
+
+    // Finalize high/low
+    Object.keys(stats).forEach(tid => {
+      const scores = Object.values(inningScores[tid] || {});
+      if (scores.length > 0) {
+        stats[tid].highest = Math.max(...scores);
+        stats[tid].lowest = Math.min(...scores);
+      }
     });
 
     return stats;
@@ -207,7 +232,7 @@ export default function InsightsPage() {
   if (!isMounted || isDeliveriesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
 
   const getPData = (id: string) => playerCareerAggregates[id] || { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, fours: 0, sixes: 0, battingDots: 0 };
-  const getTData = (id: string) => teamAggregates[id] || { played: 0, won: 0, tied: 0, lost: 0, forR: 0, forB: 0, agR: 0, agB: 0 };
+  const getTData = (id: string) => teamAggregates[id] || { played: 0, won: 0, tied: 0, lost: 0, forR: 0, forB: 0, agR: 0, agB: 0, fours: 0, sixes: 0, highest: 0, lowest: 0 };
   const getCData = (id: string) => captainStats[id] || { played: 0, won: 0 };
 
   return (
@@ -280,8 +305,8 @@ export default function InsightsPage() {
                     <div key={i} className="space-y-1.5">
                       <div className="flex justify-between text-[10px] font-black uppercase text-slate-400"><span>{row.format(row.v1)}</span><span>{row.label}</span><span>{row.format(row.v2)}</span></div>
                       <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-slate-50">
-                        <div className={cn("h-full transition-all", isV1Better ? "bg-primary" : "bg-slate-200")} style={{ flex: row.v1 || 1 }} />
-                        <div className={cn("h-full transition-all", isV2Better ? "bg-secondary" : "bg-slate-200")} style={{ flex: row.v2 || 1 }} />
+                        <div className={cn("h-full transition-all", isV1Better ? "bg-primary" : "bg-slate-200")} style={{ flex: (row.v1 || 1) }} />
+                        <div className={cn("h-full transition-all", isV2Better ? "bg-secondary" : "bg-slate-200")} style={{ flex: (row.v2 || 1) }} />
                       </div>
                     </div>
                   );
@@ -308,15 +333,19 @@ export default function InsightsPage() {
               <div className="space-y-6 pt-4 border-t">
                 {[
                   { label: 'Win Rate (%)', v1: getTData(team1DuelId).played > 0 ? (getTData(team1DuelId).won/getTData(team1DuelId).played)*100 : 0, v2: getTData(team2DuelId).played > 0 ? (getTData(team2DuelId).won/getTData(team2DuelId).played)*100 : 0 },
-                  { label: 'Inning Avg', v1: getTData(team1DuelId).forB > 0 ? (getTData(team1DuelId).forR / (getTData(team1DuelId).forB/6)) : 0, v2: getTData(team2DuelId).forB > 0 ? (getTData(team2DuelId).forR / (getTData(team2DuelId).forB/6)) : 0 }
+                  { label: 'Inning Avg', v1: getTData(team1DuelId).forB > 0 ? (getTData(team1DuelId).forR / (getTData(team1DuelId).forB/6)) : 0, v2: getTData(team2DuelId).forB > 0 ? (getTData(team2DuelId).forR / (getTData(team2DuelId).forB/6)) : 0 },
+                  { label: 'Total 4s', v1: getTData(team1DuelId).fours, v2: getTData(team2DuelId).fours },
+                  { label: 'Total 6s', v1: getTData(team1DuelId).sixes, v2: getTData(team2DuelId).sixes },
+                  { label: 'Highest Total', v1: getTData(team1DuelId).highest, v2: getTData(team2DuelId).highest },
+                  { label: 'Lowest Total', v1: getTData(team1DuelId).lowest, v2: getTData(team2DuelId).lowest, reverse: true }
                 ].map((row, i) => (
                   <div key={i} className="flex items-center gap-4">
-                    <div className={cn("flex-1 p-3 rounded-2xl border text-center", row.v1 > row.v2 ? "bg-primary/5 border-primary/20" : "bg-slate-50")}>
-                      <p className="text-xl font-black">{row.v1.toFixed(1)}</p>
+                    <div className={cn("flex-1 p-3 rounded-2xl border text-center", (row.reverse ? row.v1 < row.v2 : row.v1 > row.v2) ? "bg-primary/5 border-primary/20" : "bg-slate-50")}>
+                      <p className="text-xl font-black">{row.v1.toFixed(row.label.includes('Rate') || row.label.includes('Avg') ? 1 : 0)}</p>
                     </div>
                     <p className="text-[9px] font-black uppercase text-slate-400 w-20 text-center">{row.label}</p>
-                    <div className={cn("flex-1 p-3 rounded-2xl border text-center", row.v2 > row.v1 ? "bg-secondary/5 border-secondary/20" : "bg-slate-50")}>
-                      <p className="text-xl font-black">{row.v2.toFixed(1)}</p>
+                    <div className={cn("flex-1 p-3 rounded-2xl border text-center", (row.reverse ? row.v2 < row.v1 : row.v2 > row.v1) ? "bg-secondary/5 border-secondary/20" : "bg-slate-50")}>
+                      <p className="text-xl font-black">{row.v2.toFixed(row.label.includes('Rate') || row.label.includes('Avg') ? 1 : 0)}</p>
                     </div>
                   </div>
                 ))}
