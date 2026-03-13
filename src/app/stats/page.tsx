@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useCollection, useMemoFirebase, useFirestore } from '@/firebase';
@@ -31,137 +30,65 @@ export default function StatsPage() {
 
   const records = useMemo(() => {
     if (!players || !rawDeliveries || !matches || matches.length === 0) return null;
-    
     const activeMatchIds = new Set(matches.map(m => m.id));
-    const validDeliveries = rawDeliveries.filter(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      return matchId && activeMatchIds.has(matchId);
-    });
-
+    const validDeliveries = rawDeliveries.filter(d => { const matchId = d.__fullPath?.split('/')[1]; return matchId && activeMatchIds.has(matchId); });
     if (validDeliveries.length === 0) return null;
 
-    const batting: any = { 
-      highestScore: { val: 0, name: '-' }, 
-      most6s: { val: 0, name: '-' }, 
-      most4s: { val: 0, name: '-' }
-    };
-    const bowling: any = { 
-      bestFigures: { wkts: 0, runs: 999, name: '-' }, 
-      mostWkts: { val: 0, name: '-' }, 
-      bestEcon: { val: 99, name: '-' } 
-    };
-    const fielding: any = { 
-      mostCatches: { val: 0, name: '-' }, 
-      mostRunOuts: { val: 0, name: '-' },
-      mostStumpings: { val: 0, name: '-' }
-    };
-
+    const batting: any = { highestScore: { val: 0, name: '-' }, most6s: { val: 0, name: '-' }, most4s: { val: 0, name: '-' } };
+    const bowling: any = { bestFigures: { wkts: 0, runs: 999, name: '-' }, mostWkts: { val: 0, name: '-' }, bestEcon: { val: 99, name: '-' } };
+    const fielding: any = { mostCatches: { val: 0, name: '-' }, mostRunOuts: { val: 0, name: '-' }, mostStumpings: { val: 0, name: '-' } };
     const pMatchStats: Record<string, Record<string, any>> = {};
     const globalPartnerships: any[] = [];
     
-    // Process each match for partnerships
     matches.forEach(m => {
       if (m.status !== 'completed') return;
-      const mDeliveries = validDeliveries.filter(d => d.__fullPath?.split('/')[1] === m.id);
-      // Inning 1
-      const inn1D = mDeliveries.filter(d => d.__fullPath?.includes('inning_1'));
-      processPartnerships(inn1D, globalPartnerships, m.id);
-      // Inning 2
-      const inn2D = mDeliveries.filter(d => d.__fullPath?.includes('inning_2'));
-      processPartnerships(inn2D, globalPartnerships, m.id);
+      const mD = validDeliveries.filter(d => d.__fullPath?.split('/')[1] === m.id);
+      ['inning_1', 'inning_2'].forEach(inn => processPartnerships(mD.filter(d => d.__fullPath?.includes(inn)), globalPartnerships, m.id));
     });
 
     validDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
-      const sId = d.strikerPlayerId; 
-      const bId = d.bowlerId || d.bowlerPlayerId; 
-      const fId = d.fielderPlayerId;
-      
-      if (!matchId) return;
-
-      const pIds = [sId, bId, fId].filter(id => id && id !== 'none');
-      pIds.forEach(pid => {
+      const sId = d.strikerPlayerId; const bId = d.bowlerId || d.bowlerPlayerId; const fId = d.fielderPlayerId;
+      [sId, bId, fId].filter(id => id && id !== 'none').forEach(pid => {
         if (!pMatchStats[pid]) pMatchStats[pid] = {};
-        if (!pMatchStats[pid][matchId]) {
-          pMatchStats[pid][matchId] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runOuts: 0, stumpings: 0, fours: 0, sixes: 0 };
-        }
+        if (!pMatchStats[pid][matchId!]) pMatchStats[pid][matchId!] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runOuts: 0, stumpings: 0, fours: 0, sixes: 0 };
       });
-
-      if (sId && pMatchStats[sId]?.[matchId]) {
-        const s = pMatchStats[sId][matchId];
-        s.runs += (d.runsScored || 0);
-        if (d.runsScored === 4) s.fours++;
-        if (d.runsScored === 6) s.sixes++;
-      }
-      if (bId && pMatchStats[bId]?.[matchId]) {
-        const b = pMatchStats[bId][matchId];
-        b.runsCon += (d.totalRunsOnDelivery || 0);
-        if (d.extraType === 'none' && d.dismissalType !== 'retired') b.ballsB++;
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wickets++;
-      }
-      if (fId && pMatchStats[fId]?.[matchId]) {
-        if (d.dismissalType === 'caught') pMatchStats[fId][matchId].catches++;
-        if (d.dismissalType === 'runout') pMatchStats[fId][matchId].runOuts++;
-        if (d.dismissalType === 'stumped') pMatchStats[fId][matchId].stumpings++;
-      }
+      if (sId && pMatchStats[sId]?.[matchId!]) { const s = pMatchStats[sId][matchId!]; s.runs += (d.runsScored || 0); if (d.runsScored === 4) s.fours++; if (d.runsScored === 6) s.sixes++; }
+      if (bId && pMatchStats[bId]?.[matchId!]) { const b = pMatchStats[bId][matchId!]; b.runsCon += (d.totalRunsOnDelivery || 0); if (d.extraType === 'none') b.ballsB++; if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wickets++; }
+      if (fId && pMatchStats[fId]?.[matchId!]) { const f = pMatchStats[fId][matchId!]; if (d.dismissalType === 'caught') f.catches++; if (d.dismissalType === 'runout') f.runOuts++; if (d.dismissalType === 'stumped') f.stumpings++; }
     });
 
     players.forEach(p => {
-      const history = pMatchStats[p.id] || {};
-      Object.values(history).forEach((m: any) => {
+      Object.values(pMatchStats[p.id] || {}).forEach((m: any) => {
         if (m.runs > batting.highestScore.val) batting.highestScore = { val: m.runs, name: p.name };
         if (m.sixes > batting.most6s.val) batting.most6s = { val: m.sixes, name: p.name };
         if (m.fours > batting.most4s.val) batting.most4s = { val: m.fours, name: p.name };
-        
         if (m.wkts > bowling.mostWkts.val) bowling.mostWkts = { val: m.wkts, name: p.name };
-        if (m.wkts > bowling.bestFigures.wkts || (m.wkts === bowling.bestFigures.wkts && m.runsCon < bowling.bestFigures.runs && m.ballsB > 0)) {
-          bowling.bestFigures = { wkts: m.wkts, runs: m.runsCon, name: p.name };
-        }
-        
-        if (m.ballsB >= 12) {
-          const econ = m.runsCon / (m.ballsB / 6);
-          if (econ < bowling.bestEcon.val) bowling.bestEcon = { val: econ, name: p.name };
-        }
-        
+        if (m.wkts > bowling.bestFigures.wkts || (m.wkts === bowling.bestFigures.wkts && m.runsCon < bowling.bestFigures.runs && m.ballsB > 0)) bowling.bestFigures = { wkts: m.wkts, runs: m.runsCon, name: p.name };
+        if (m.ballsB >= 12) { const econ = m.runsCon / (m.ballsB / 6); if (econ < bowling.bestEcon.val) bowling.bestEcon = { val: econ, name: p.name }; }
         if (m.catches > fielding.mostCatches.val) fielding.mostCatches = { val: m.catches, name: p.name };
         if (m.runOuts > fielding.mostRunOuts.val) fielding.mostRunOuts = { val: m.runOuts, name: p.name };
         if (m.stumpings > fielding.mostStumpings.val) fielding.mostStumpings = { val: m.stumpings, name: p.name };
       });
     });
 
-    if (bowling.bestFigures.runs === 999) bowling.bestFigures = { wkts: 0, runs: 0, name: '-' };
-
-    const topPartnerships = globalPartnerships.sort((a,b) => b.runs - a.runs).slice(0, 5);
-
-    return { batting, bowling, fielding, topPartnerships };
+    return { batting, bowling, fielding, topPartnerships: globalPartnerships.sort((a,b) => b.runs - a.runs).slice(0, 5) };
   }, [players, rawDeliveries, matches]);
 
   function processPartnerships(deliveries: any[], list: any[], matchId: string) {
     if (deliveries.length === 0) return;
     deliveries.sort((a,b) => a.timestamp - b.timestamp);
     let curP: any = { runs: 0, balls: 0, contributions: {} as Record<string, number> };
-    
     deliveries.forEach(d => {
-      const sId = d.strikerPlayerId;
-      if (!sId) return;
-
-      curP.runs += (d.totalRunsOnDelivery || 0);
-      if (d.extraType === 'none') curP.balls++;
-      
-      if (!curP.contributions[sId]) curP.contributions[sId] = 0;
-      curP.contributions[sId] += (d.runsScored || 0);
-
+      const sId = d.strikerPlayerId; if (!sId) return;
+      curP.runs += (d.totalRunsOnDelivery || 0); if (d.extraType === 'none') curP.balls++;
+      if (!curP.contributions[sId]) curP.contributions[sId] = 0; curP.contributions[sId] += (d.runsScored || 0);
       if (d.isWicket) {
-        if (Object.keys(curP.contributions).length >= 2) {
-          list.push({ runs: curP.runs, balls: curP.balls, contributions: { ...curP.contributions }, batters: Object.keys(curP.contributions), matchId });
-        }
+        if (Object.keys(curP.contributions).length >= 2) list.push({ runs: curP.runs, balls: curP.balls, contributions: { ...curP.contributions }, batters: Object.keys(curP.contributions), matchId });
         curP = { runs: 0, balls: 0, contributions: {} };
       }
     });
-    // Add unbroken last partnership
-    if (Object.keys(curP.contributions).length >= 2 && (curP.runs > 0 || curP.balls > 0)) {
-      list.push({ runs: curP.runs, balls: curP.balls, contributions: { ...curP.contributions }, batters: Object.keys(curP.contributions), matchId, isUnbroken: true });
-    }
+    if (Object.keys(curP.contributions).length >= 2 && (curP.runs > 0 || curP.balls > 0)) list.push({ runs: curP.runs, balls: curP.balls, contributions: { ...curP.contributions }, batters: Object.keys(curP.contributions), matchId, isUnbroken: true });
   }
 
   const getPlayerName = (id: string) => players?.find(p => p.id === id)?.name || 'Unknown';
@@ -170,38 +97,9 @@ export default function StatsPage() {
 
   return (
     <div className="max-w-lg mx-auto space-y-10 pb-32 px-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full">
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
-        <h1 className="text-2xl font-black uppercase tracking-widest text-slate-900 leading-none">Records Hall</h1>
-      </div>
-
+      <div className="flex items-center gap-4"><Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button><h1 className="text-2xl font-black uppercase tracking-widest text-slate-900 leading-none">Records Hall</h1></div>
       <section className="space-y-6">
-        <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-primary pl-4">
-          <Zap className="w-5 h-5 text-primary" /> Batting Peaks
-        </h2>
-        <div className="grid grid-cols-1 gap-3">
-          {[
-            { label: 'Highest Match Score', val: records?.batting.highestScore.val || 0, name: records?.batting.highestScore.name || '-', icon: Trophy },
-            { label: 'Most Sixes (Match)', val: records?.batting.most6s.val || 0, name: records?.batting.most6s.name || '-', icon: Zap },
-            { label: 'Most Fours (Match)', val: records?.batting.most4s.val || 0, name: records?.batting.most4s.name || '-', icon: Zap },
-          ].map((r, i) => (
-            <Card key={i} className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-2 bg-primary/5 rounded-lg"><r.icon className="w-4 h-4 text-primary" /></div>
-                <div><p className="text-[10px] font-black uppercase text-slate-400">{r.label}</p><p className="font-black text-slate-900 uppercase text-xs">{r.name}</p></div>
-              </div>
-              <Badge className="text-lg font-black bg-primary/10 text-primary border-none rounded-lg h-10 px-4">{r.val}</Badge>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-6">
-        <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-slate-900 pl-4">
-          <Swords className="w-5 h-5 text-slate-900" /> Elite Partnerships
-        </h2>
+        <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-slate-900 pl-4"><Swords className="w-5 h-5 text-slate-900" /> Elite Partnerships</h2>
         <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-white">
           <Table>
             <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Pair & Contributions</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead></TableRow></TableHeader>
@@ -209,12 +107,8 @@ export default function StatsPage() {
               {records?.topPartnerships.map((p, i) => (
                 <TableRow key={i}>
                   <TableCell className="py-3">
-                    <p className="font-black text-[10px] uppercase truncate max-w-[220px] text-primary">
-                      {p.batters.map((id: string) => `${getPlayerName(id)} (${p.contributions[id] || 0})`).join(' & ')}
-                    </p>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase italic mt-1">
-                      {p.balls} Balls {p.isUnbroken && '• Unbroken stand'}
-                    </p>
+                    <p className="font-black text-[10px] uppercase truncate max-w-[220px] text-primary">{p.batters.map((id: string) => `${getPlayerName(id)} (${p.contributions[id] || 0})`).join(' & ')}</p>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase italic mt-1">{p.balls} Balls {p.isUnbroken && '• Unbroken stand'}</p>
                   </TableCell>
                   <TableCell className="text-right font-black text-slate-900 text-lg">{p.runs}</TableCell>
                 </TableRow>
@@ -222,49 +116,6 @@ export default function StatsPage() {
             </TableBody>
           </Table>
         </Card>
-      </section>
-
-      <section className="space-y-6">
-        <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-secondary pl-4">
-          <Target className="w-5 h-5 text-secondary" /> Bowling Peaks
-        </h2>
-        <div className="grid grid-cols-1 gap-3">
-          <Card className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-secondary/5 rounded-xl"><Shield className="w-4 h-4 text-secondary" /></div>
-              <div><p className="text-[10px] font-black uppercase text-slate-400">Best Figures</p><p className="font-black text-slate-900 uppercase text-xs">{records?.bowling.bestFigures.name || '-'}</p></div>
-            </div>
-            <Badge className="text-lg font-black bg-secondary/10 text-secondary border-none h-10 px-4">{records?.bowling.bestFigures.wkts || 0}/{records?.bowling.bestFigures.runs || 0}</Badge>
-          </Card>
-          <Card className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-secondary/5 rounded-xl"><Shield className="w-4 h-4 text-secondary" /></div>
-              <div><p className="text-[10px] font-black uppercase text-slate-400">Best Economy (Min 2 Ov)</p><p className="font-black text-slate-900 uppercase text-xs">{records?.bowling.bestEcon.name || '-'}</p></div>
-            </div>
-            <Badge className="text-lg font-black bg-secondary/10 text-secondary border-none h-10 px-4">{(records?.bowling.bestEcon.val === 99 || !records) ? '0.00' : records.bowling.bestEcon.val.toFixed(2)}</Badge>
-          </Card>
-        </div>
-      </section>
-
-      <section className="space-y-6">
-        <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2 border-l-4 border-emerald-500 pl-4">
-          <Hand className="w-5 h-5 text-emerald-500" /> Fielding Peaks
-        </h2>
-        <div className="grid grid-cols-1 gap-3">
-          {[
-            { label: 'Most Catches (Match)', val: records?.fielding.mostCatches.val || 0, name: records?.fielding.mostCatches.name || '-' },
-            { label: 'Most Run Outs (Match)', val: records?.fielding.mostRunOuts.val || 0, name: records?.fielding.mostRunOuts.name || '-' },
-            { label: 'Most Stumpings (Match)', val: records?.fielding.mostStumpings.val || 0, name: records?.fielding.mostStumpings.name || '-' },
-          ].map((r, i) => (
-            <Card key={i} className="border-none shadow-sm bg-white p-4 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="p-2 bg-emerald-50 rounded-lg"><Hand className="w-4 h-4 text-emerald-500" /></div>
-                <div><p className="text-[10px] font-black uppercase text-slate-400">{r.label}</p><p className="font-black text-slate-900 uppercase text-xs">{r.name}</p></div>
-              </div>
-              <Badge className="text-lg font-black bg-emerald-50 text-emerald-700 border-none h-10 px-4">{r.val}</Badge>
-            </Card>
-          ))}
-        </div>
       </section>
     </div>
   );

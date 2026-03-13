@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -143,6 +142,16 @@ export default function InsightsPage() {
     return stats;
   }, [deliveries, players]);
 
+  const leaderIds = useMemo(() => {
+    const ids = new Set<string>();
+    teams?.forEach(t => { if (t.captainId) ids.add(t.captainId); });
+    matches?.forEach(m => {
+      if (m.team1CaptainId) ids.add(m.team1CaptainId);
+      if (m.team2CaptainId) ids.add(m.team2CaptainId);
+    });
+    return ids;
+  }, [teams, matches]);
+
   const teamAggregates = useMemo(() => {
     if (!matches || !teams) return {};
     const stats: Record<string, any> = {};
@@ -160,7 +169,7 @@ export default function InsightsPage() {
       else if (m.winnerTeamId === m.team2Id) { stats[m.team2Id].won++; stats[m.team1Id].lost++; }
     });
 
-    const inningScores: Record<string, Record<string, number>> = {}; // teamId -> { match_inn: score }
+    const inningScores: Record<string, Record<string, number>> = {};
 
     deliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
@@ -176,8 +185,6 @@ export default function InsightsPage() {
         if (d.extraType === 'none') stats[batId].forB++;
         if (d.runsScored === 4) stats[batId].fours++;
         if (d.runsScored === 6) stats[batId].sixes++;
-
-        // Track per-inning scores for high/low calculation
         const scoreKey = `${matchId}_${innNum}`;
         if (!inningScores[batId]) inningScores[batId] = {};
         inningScores[batId][scoreKey] = (inningScores[batId][scoreKey] || 0) + d.totalRunsOnDelivery;
@@ -185,13 +192,9 @@ export default function InsightsPage() {
       if (stats[bowlId]) { stats[bowlId].agR += d.totalRunsOnDelivery; if (d.extraType === 'none') stats[bowlId].agB++; }
     });
 
-    // Finalize high/low
     Object.keys(stats).forEach(tid => {
       const scores = Object.values(inningScores[tid] || {});
-      if (scores.length > 0) {
-        stats[tid].highest = Math.max(...scores);
-        stats[tid].lowest = Math.min(...scores);
-      }
+      if (scores.length > 0) { stats[tid].highest = Math.max(...scores); stats[tid].lowest = Math.min(...scores); }
     });
 
     return stats;
@@ -211,18 +214,6 @@ export default function InsightsPage() {
     });
     return stats;
   }, [matches, players]);
-
-  const leaderIds = useMemo(() => {
-    const ids = new Set<string>();
-    // Official captains from teams
-    teams?.forEach(t => { if (t.captainId) ids.add(t.captainId); });
-    // Any player who was designated captain in a match
-    matches?.forEach(m => {
-      if (m.team1CaptainId) ids.add(m.team1CaptainId);
-      if (m.team2CaptainId) ids.add(m.team2CaptainId);
-    });
-    return ids;
-  }, [teams, matches]);
 
   const milestoneWatch = useMemo(() => {
     if (!players || players.length === 0) return { runs: [], wkts: [], catches: [], runOuts: [], stumpings: [] };
@@ -272,7 +263,6 @@ export default function InsightsPage() {
       venues[v].totalRuns += (s1 + s2);
       venues[v].innings += (s1 > 0 ? 1 : 0) + (s2 > 0 ? 1 : 0);
       venues[v].highest = Math.max(venues[v].highest, s1, s2);
-      
       const bat1TeamId = m.tossWinnerTeamId === m.team1Id ? (m.tossDecision === 'bat' ? m.team1Id : m.team2Id) : (m.tossDecision === 'bat' ? m.team2Id : m.team1Id);
       if (!m.isTie && m.winnerTeamId) {
         if (m.winnerTeamId === bat1TeamId) venues[v].bat1Won++;
@@ -293,10 +283,7 @@ export default function InsightsPage() {
       {data.slice(0, 10).map((p: any) => (
         <Card key={p.id} className="p-5 border-none shadow-lg rounded-3xl bg-white space-y-4">
           <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm font-black uppercase group-hover:text-primary">{p.name}</p>
-              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{p.label}</p>
-            </div>
+            <div><p className="text-sm font-black uppercase group-hover:text-primary">{p.name}</p><p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{p.label}</p></div>
             <div className="text-right"><p className="text-xl font-black text-slate-900 leading-none">{p.current}</p><p className="text-[7px] font-black text-slate-400 uppercase mt-1">Total</p></div>
           </div>
           <div className="space-y-1.5"><Progress value={p.progress} className="h-2 bg-slate-100" /></div>
@@ -328,22 +315,14 @@ export default function InsightsPage() {
               {watchlistSort === 'progress' ? 'By Proximity' : 'By Volume'}
             </Button>
           </div>
-
           <Tabs defaultValue="batting" className="w-full">
             <TabsList className="grid w-full grid-cols-3 h-10 bg-slate-50 p-1 rounded-lg mb-6 border">
               <TabsTrigger value="batting" className="font-bold text-[8px] uppercase">Batting</TabsTrigger>
               <TabsTrigger value="bowling" className="font-bold text-[8px] uppercase">Bowling</TabsTrigger>
               <TabsTrigger value="fielding" className="font-bold text-[8px] uppercase">Fielding</TabsTrigger>
             </TabsList>
-
-            <TabsContent value="batting">
-              {renderMilestoneList(milestoneWatch.runs)}
-            </TabsContent>
-
-            <TabsContent value="bowling">
-              {renderMilestoneList(milestoneWatch.wkts)}
-            </TabsContent>
-
+            <TabsContent value="batting">{renderMilestoneList(milestoneWatch.runs)}</TabsContent>
+            <TabsContent value="bowling">{renderMilestoneList(milestoneWatch.wkts)}</TabsContent>
             <TabsContent value="fielding">
               <Tabs defaultValue="caught" className="w-full">
                 <TabsList className="grid w-full grid-cols-3 h-8 bg-white p-1 rounded-md mb-4 border border-dashed">
@@ -351,15 +330,9 @@ export default function InsightsPage() {
                   <TabsTrigger value="runout" className="text-[7px] font-black uppercase">Run Out</TabsTrigger>
                   <TabsTrigger value="stumping" className="text-[7px] font-black uppercase">Stumping</TabsTrigger>
                 </TabsList>
-                <TabsContent value="caught">
-                  {renderMilestoneList(milestoneWatch.catches)}
-                </TabsContent>
-                <TabsContent value="runout">
-                  {renderMilestoneList(milestoneWatch.runOuts)}
-                </TabsContent>
-                <TabsContent value="stumping">
-                  {renderMilestoneList(milestoneWatch.stumpings)}
-                </TabsContent>
+                <TabsContent value="caught">{renderMilestoneList(milestoneWatch.catches)}</TabsContent>
+                <TabsContent value="runout">{renderMilestoneList(milestoneWatch.runOuts)}</TabsContent>
+                <TabsContent value="stumping">{renderMilestoneList(milestoneWatch.stumpings)}</TabsContent>
               </Tabs>
             </TabsContent>
           </Tabs>
@@ -369,14 +342,8 @@ export default function InsightsPage() {
           <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><ArrowUpDown className="w-5 h-5 text-primary" /> Player Duel</h2>
           <Card className="p-6 border-none shadow-xl rounded-3xl bg-white space-y-6">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase">Player A</Label>
-                <Select value={rival1Id} onValueChange={setRival1Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase">Player B</Label>
-                <Select value={rival2Id} onValueChange={setRival2Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
-              </div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Player A</Label><Select value={rival1Id} onValueChange={setRival1Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Player B</Label><Select value={rival2Id} onValueChange={setRival2Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
             {rival1Id && rival2Id ? (
               <div className="space-y-4 pt-4 border-t">
@@ -411,14 +378,8 @@ export default function InsightsPage() {
           <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Scale className="w-5 h-5 text-secondary" /> Franchise Duel</h2>
           <Card className="p-6 border-none shadow-xl rounded-3xl bg-white space-y-6">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase">Team A</Label>
-                <Select value={team1DuelId} onValueChange={setTeam1DuelId}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{formatTeamName(t.name)}</SelectItem>)}</SelectContent></Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase">Team B</Label>
-                <Select value={team2DuelId} onValueChange={setTeam2DuelId}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{formatTeamName(t.name)}</SelectItem>)}</SelectContent></Select>
-              </div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Team A</Label><Select value={team1DuelId} onValueChange={setTeam1DuelId}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{formatTeamName(t.name)}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Team B</Label><Select value={team2DuelId} onValueChange={setTeam2DuelId}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{formatTeamName(t.name)}</SelectItem>)}</SelectContent></Select></div>
             </div>
             {team1DuelId && team2DuelId ? (
               <div className="space-y-6 pt-4 border-t">
@@ -449,28 +410,8 @@ export default function InsightsPage() {
           <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Crown className="w-5 h-5 text-amber-500" /> Leader Duel</h2>
           <Card className="p-6 border-none shadow-xl rounded-3xl bg-white space-y-6">
             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase">Captain A</Label>
-                <Select value={cap1Id} onValueChange={setCap1Id}>
-                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    {players?.filter(p => leaderIds.has(p.id)).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase">Captain B</Label>
-                <Select value={cap2Id} onValueChange={setCap2Id}>
-                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger>
-                  <SelectContent>
-                    {players?.filter(p => leaderIds.has(p.id)).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Captain A</Label><Select value={cap1Id} onValueChange={setCap1Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.filter(p => leaderIds.has(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Captain B</Label><Select value={cap2Id} onValueChange={setCap2Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.filter(p => leaderIds.has(p.id)).map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
             {cap1Id && cap2Id ? (
               <div className="space-y-4 pt-4 border-t">
@@ -503,21 +444,12 @@ export default function InsightsPage() {
               <Card key={i} className="p-6 border-none shadow-xl rounded-3xl bg-white space-y-6 overflow-hidden relative">
                 <div className="absolute top-0 right-0 p-4 opacity-5"><MapPin className="w-24 h-24" /></div>
                 <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-lg font-black uppercase tracking-tight text-slate-900">{g.name}</h3>
-                    <Badge variant="secondary" className="text-[8px] font-black uppercase tracking-widest">{g.played} Match Official</Badge>
-                  </div>
+                  <div><h3 className="text-lg font-black uppercase tracking-tight text-slate-900">{g.name}</h3><Badge variant="secondary" className="text-[8px] font-black uppercase tracking-widest">{g.played} Match Official</Badge></div>
                   <div className="text-right"><p className="text-2xl font-black text-primary">{(g.totalRuns / (g.innings || 1)).toFixed(0)}</p><p className="text-[8px] font-black text-slate-400 uppercase">Avg Inning</p></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 p-4 rounded-2xl border text-center">
-                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Batting First Win %</p>
-                    <p className="text-xl font-black text-secondary">{g.played > 0 ? ((g.bat1Won / g.played) * 100).toFixed(1) : 0}%</p>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl border text-center">
-                    <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Record Total</p>
-                    <p className="text-xl font-black text-slate-900">{g.highest}</p>
-                  </div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border text-center"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Batting First Win %</p><p className="text-xl font-black text-secondary">{g.played > 0 ? ((g.bat1Won / g.played) * 100).toFixed(1) : 0}%</p></div>
+                  <div className="bg-slate-50 p-4 rounded-2xl border text-center"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Record Total</p><p className="text-xl font-black text-slate-900">{g.highest}</p></div>
                 </div>
               </Card>
             ))}
