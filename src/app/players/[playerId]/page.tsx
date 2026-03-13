@@ -8,7 +8,7 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck, Trophy, X } from 'lucide-react';
+import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck, Trophy, X, Hash } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -70,25 +70,34 @@ export default function PlayerProfilePage() {
     if (!isMounted || !player || !allDeliveries || !allMatches) return [];
     const logs: Record<string, any> = {};
     
-    allDeliveries.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      if (!matchId || !activeMatchIds.has(matchId)) return;
-      
-      if (!logs[matchId]) {
-        const m = allMatches.find(match => match.id === matchId); 
-        if (!m) return;
-        logs[matchId] = { 
-          matchId, 
-          date: m.matchDate || '', 
+    // First, identify all matches where player was in the squad
+    allMatches.forEach(m => {
+      const isInSquad = (m.team1SquadPlayerIds || []).includes(playerId) || (m.team2SquadPlayerIds || []).includes(playerId);
+      if (isInSquad && activeMatchIds.has(m.id)) {
+        logs[m.id] = {
+          matchId: m.id,
+          matchName: m.matchNumber || 'Match',
+          status: m.status || 'unknown',
+          date: m.matchDate || '',
           batting: { runs: 0, ballsFaced: 0, fours: 0, sixes: 0, out: false, dots: 0 }, 
           bowling: { wickets: 0, runsConceded: 0, ballsBowled: 0, dots: 0, maidens: 0 }, 
-          fielding: { catches: 0, stumpings: 0, runOuts: 0 } 
+          fielding: { catches: 0, stumpings: 0, runOuts: 0 },
+          hasParticipated: false
         };
       }
+    });
+
+    allDeliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      if (!matchId || !logs[matchId]) return;
       
       const log = logs[matchId];
       
       // Batting Scan
+      if (d.strikerPlayerId === playerId || d.nonStrikerPlayerId === playerId) {
+        log.hasParticipated = true;
+      }
+
       if (d.strikerPlayerId === playerId) { 
         log.batting.runs += (d.runsScored || 0); 
         if (d.runsScored === 4) log.batting.fours++;
@@ -98,11 +107,14 @@ export default function PlayerProfilePage() {
           if (d.runsScored === 0) log.batting.dots++;
         }
       }
-      if (d.isWicket && d.batsmanOutPlayerId === playerId) log.batting.out = true;
+      if (d.isWicket && d.batsmanOutPlayerId === playerId && d.dismissalType !== 'retired') {
+        log.batting.out = true;
+      }
       
       // Bowling Scan
       const bId = d.bowlerId || d.bowlerPlayerId;
       if (bId === playerId) { 
+        log.hasParticipated = true;
         log.bowling.runsConceded += (d.totalRunsOnDelivery || 0); 
         if (d.extraType === 'none') {
           log.bowling.ballsBowled++; 
@@ -115,6 +127,7 @@ export default function PlayerProfilePage() {
       
       // Fielding Scan
       if (d.fielderPlayerId === playerId) {
+        log.hasParticipated = true;
         if (d.dismissalType === 'caught') log.fielding.catches++;
         if (d.dismissalType === 'stumped') log.fielding.stumpings++;
         if (d.dismissalType === 'runout') log.fielding.runOuts++;
@@ -223,8 +236,16 @@ export default function PlayerProfilePage() {
     return s;
   }, [matchWiseLog]);
 
-  const resizeImage = (file: File): Promise<string> => {
-    return new Promise((resolve) => {
+  const handleUpdatePlayer = () => {
+    if (!playerId || !editForm.name.trim()) return;
+    updateDocumentNonBlocking(doc(db, 'players', playerId), editForm);
+    setIsEditOpen(false);
+    toast({ title: "Profile Updated" });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
       const reader = new FileReader(); reader.readAsDataURL(file);
       reader.onload = (event) => {
         const img = new Image(); img.src = event.target?.result as string;
@@ -235,22 +256,11 @@ export default function PlayerProfilePage() {
           else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
           canvas.width = width; canvas.height = height;
           const ctx = canvas.getContext('2d'); ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.8));
+          setEditForm(prev => ({ ...prev, imageUrl: canvas.toDataURL('image/jpeg', 0.8) }));
+          toast({ title: "Photo Ready" });
         };
       };
-    });
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) { const resized = await resizeImage(file); setEditForm(prev => ({ ...prev, imageUrl: resized })); toast({ title: "Photo Ready" }); }
-  };
-
-  const handleUpdatePlayer = () => {
-    if (!playerId || !editForm.name.trim()) return;
-    updateDocumentNonBlocking(doc(db, 'players', playerId), editForm);
-    setIsEditOpen(false);
-    toast({ title: "Profile Updated" });
+    }
   };
 
   if (!isMounted || isPlayerLoading || isHistoryLoading) return (
@@ -333,10 +343,6 @@ export default function PlayerProfilePage() {
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.batting.avg.toFixed(2)}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">S.R.</p><p className="text-xl font-black text-slate-900">{careerStats.batting.sr.toFixed(1)}</p></div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-2 gap-4 text-center mt-6 pt-6 border-t">
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Highest</p><p className="text-xl font-black text-slate-900">{careerStats.batting.high}</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Dots</p><p className="text-xl font-black text-slate-900">{careerStats.batting.dots}</p></div>
-              </div>
               
               <div className="mt-6 pt-6 border-t">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Score Milestones</p>
@@ -397,30 +403,18 @@ export default function PlayerProfilePage() {
               </div>
 
               <div className="mt-6 pt-6 border-t">
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Wicket Milestones</p>
-                <div className="grid grid-cols-5 gap-2 mb-6">
-                  {[
-                    { label: '1W', val: careerStats.bowling.mil.oneW },
-                    { label: '2W', val: careerStats.bowling.mil.twoW },
-                    { label: '3W', val: careerStats.bowling.mil.threeW },
-                    { label: '4W', val: careerStats.bowling.mil.fourW },
-                    { label: '5W', val: careerStats.bowling.mil.fiveW },
-                  ].map(m => (
-                    <div key={m.label} className="bg-slate-50 p-2 rounded-xl text-center border">
-                      <p className="text-sm font-black text-slate-900">{m.val}</p>
-                      <p className="text-[8px] font-black text-slate-400 uppercase">{m.label}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex flex-wrap justify-center gap-2">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Wicket Landmarks</p>
+                <div className="flex flex-wrap justify-center gap-3">
                   {[10, 20, 30, 40, 50, 100].map(landmark => {
                     const hasReached = careerStats.bowling.wkts >= landmark;
-                    if (!hasReached) return null;
                     return (
-                      <Badge key={landmark} className="bg-secondary text-white font-black py-1.5 px-3 flex items-center gap-1.5 shadow-md">
-                        <Trophy className="w-3 h-3" /> {landmark}Ws
-                      </Badge>
+                      <div key={landmark} className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all",
+                        hasReached ? "bg-secondary/10 border-secondary text-secondary shadow-sm" : "bg-slate-50 border-slate-100 text-slate-300"
+                      )}>
+                        <Trophy className={cn("w-4 h-4", hasReached ? "fill-secondary" : "")} />
+                        <span className="text-xs font-black uppercase tracking-widest">{landmark}Ws</span>
+                      </div>
                     );
                   })}
                 </div>
@@ -455,7 +449,7 @@ export default function PlayerProfilePage() {
         <TabsContent value="form" className="space-y-4">
           <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2"><Activity className="w-5 h-5 text-primary" /> Recent Form</h2>
           <div className="space-y-3">
-            {matchWiseLog.slice(0, 5).map((log, idx) => (
+            {matchWiseLog.filter(log => log.hasParticipated).slice(0, 5).map((log, idx) => (
               <Card key={idx} className="border-none shadow-sm rounded-2xl bg-white overflow-hidden">
                 <div className="p-4 flex items-center justify-between">
                   <div className="flex items-center gap-4">
@@ -466,7 +460,7 @@ export default function PlayerProfilePage() {
                       </span>
                     </div>
                     <div>
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Performance</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{log.matchName}</p>
                       <div className="flex items-baseline gap-2">
                         <span className="text-xl font-black text-slate-900">{log.batting.runs} <span className="text-[8px] text-slate-400">R</span></span>
                         <span className="text-sm font-black text-secondary">{log.bowling.wickets} <span className="text-[8px] text-slate-400">W</span></span>
@@ -489,7 +483,7 @@ export default function PlayerProfilePage() {
               <Table>
                 <TableHeader className="bg-slate-50">
                   <TableRow>
-                    <TableHead className="text-[10px] font-black uppercase">Date</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Match Detail</TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase">R</TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase">W</TableHead>
                     <TableHead className="text-right text-[10px] font-black uppercase">CVP</TableHead>
@@ -498,8 +492,17 @@ export default function PlayerProfilePage() {
                 <TableBody>
                   {matchWiseLog.map((log, idx) => (
                     <TableRow key={idx}>
-                      <TableCell className="text-[10px] font-bold text-slate-500 uppercase truncate">
-                        {new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                      <TableCell className="py-3">
+                        <p className="text-[10px] font-black uppercase text-slate-900">{log.matchName}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[8px] font-bold text-slate-400 uppercase">
+                            {new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                          <Badge variant="outline" className={cn("h-3 text-[6px] px-1 font-black", log.status === 'live' ? "text-red-500 border-red-200" : "text-slate-400 border-slate-200")}>
+                            {log.status.toUpperCase()}
+                          </Badge>
+                          {!log.hasParticipated && <span className="text-[6px] font-black text-slate-300 uppercase tracking-tighter">(Squad Member)</span>}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right font-black text-xs">{log.batting.runs}</TableCell>
                       <TableCell className="text-right font-black text-xs text-secondary">{log.bowling.wickets}</TableCell>
@@ -511,7 +514,7 @@ export default function PlayerProfilePage() {
             </Card>
           ) : (
             <div className="text-center py-12 border-2 border-dashed rounded-2xl bg-slate-50/50">
-              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No match records</p>
+              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No match records found</p>
             </div>
           )}
         </TabsContent>

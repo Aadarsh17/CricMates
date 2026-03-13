@@ -12,6 +12,7 @@ import { useApp } from '@/context/AppContext';
 import { useMemo, useState, useEffect } from 'react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { cn } from '@/lib/utils';
 
 export default function Home() {
   const db = useFirestore();
