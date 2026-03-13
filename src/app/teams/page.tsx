@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { LayoutGrid, List, Plus, Trash2, History, ChevronDown, ChevronUp, Loader2, ChevronLeft, Crown, Shield, Camera, X } from 'lucide-react';
+import { LayoutGrid, List, Plus, Trash2, History as HistoryIcon, ChevronDown, ChevronUp, Loader2, ChevronLeft, Crown, Shield, Camera, X } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -100,7 +100,7 @@ export default function TeamsPage() {
           : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
         
         const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
-        const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+        const bowlingTeamId = battingTeamId === teamId ? (battingTeamId === match.team1Id ? match.team2Id : match.team1Id) : teamId;
 
         if (totals[battingTeamId]) { 
           totals[battingTeamId].forR += (d.totalRunsOnDelivery || 0); 
@@ -231,7 +231,7 @@ export default function TeamsPage() {
                     <div className="relative group cursor-pointer" onClick={() => logoInputRef.current?.click()}>
                       <Avatar className="w-28 h-28 border-4 border-white shadow-xl rounded-2xl overflow-hidden ring-4 ring-slate-100">
                         <AvatarImage src={newTeam.logoUrl || defaultTeamLogo} className="object-cover" />
-                        <AvatarFallback className="bg-primary text-white text-4xl font-black">?</AvatarFallback>
+                        <AvatarFallback className="bg-primary text-white text-4 font-black">?</AvatarFallback>
                       </Avatar>
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl flex flex-col items-center justify-center text-white text-center">
                         <Camera className="w-6 h-6 mb-1" />
@@ -305,7 +305,7 @@ export default function TeamsPage() {
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" className="w-full flex items-center justify-between px-3 py-2 h-auto hover:bg-slate-100">
                         <div className="flex items-center gap-2">
-                          <History className="w-3 h-3 text-slate-400" /><span className="text-[9px] font-black text-slate-500 uppercase">Recent Form</span>
+                          <HistoryIcon className="w-3 h-3 text-slate-400" /><span className="text-[9px] font-black text-slate-500 uppercase">Recent Form</span>
                         </div>
                         {isHistoryOpen ? <ChevronUp className="w-3 h-3 text-slate-400" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
                       </Button>

@@ -263,8 +263,8 @@ export default function PlayerProfilePage() {
         <div className="absolute top-0 right-0 p-4 opacity-10"><Zap className="w-32 h-32" /></div>
         <div className="flex flex-col md:flex-row items-center gap-6 relative z-10 text-center md:text-left">
           <Avatar className="w-28 h-28 border-4 border-white/10 rounded-3xl overflow-hidden shrink-0">
-            <AvatarImage src={player.imageUrl || ''} className="object-cover" />
-            <AvatarFallback className="text-4xl font-black bg-white/5">{player.name?.[0] || '?'}</AvatarFallback>
+            <AvatarImage src={player?.imageUrl || ''} className="object-cover" />
+            <AvatarFallback className="text-4xl font-black bg-white/5">{player?.name?.[0] || '?'}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-center md:justify-start gap-2 mb-2">

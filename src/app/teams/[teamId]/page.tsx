@@ -4,12 +4,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useMemoFirebase, useFirestore, useUser } from '@/firebase';
-import { collection, query, doc, orderBy, collectionGroup } from 'firebase/firestore';
+import { doc, collection, query, orderBy, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, Loader2, Edit2, Camera, Users, Scale, ShieldCheck, X, Zap, Target, Medal, Clock, History, UserMinus, RotateCcw } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, Loader2, Edit2, Camera, Users, Scale, ShieldCheck, X, Zap, Target, Medal, Clock, History as HistoryIcon, UserMinus, RotateCcw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -249,7 +249,33 @@ export default function TeamDetailsPage() {
     toast({ title: "Record Purged" });
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, target: 'player' | 'team') => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = (event) => { const img = new Image(); img.src = event.target?.result as string; img.onload = () => { const canvas = document.createElement('canvas'); const size = 200; let width = img.width; let height = img.height; if (width > height) { if (width > size) { height *= size / width; width = size; } } else { if (height > size) { width *= size / height; height = size; } } canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d'); ctx?.drawImage(img, 0, 0, width, height); const dataUrl = canvas.toDataURL('image/jpeg', 0.8); if (target === 'player') setEditForm(prev => ({ ...prev, imageUrl: dataUrl })); else setTeamForm(prev => ({ ...prev, logoUrl: dataUrl })); toast({ title: "Photo Ready" }); }; }; } };
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, target: 'player' | 'team') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const size = 200;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) { if (width > size) { height *= size / width; width = size; } }
+          else { if (height > size) { width *= size / height; height = size; } }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          if (target === 'player') setEditForm(prev => ({ ...prev, imageUrl: dataUrl }));
+          else setTeamForm(prev => ({ ...prev, logoUrl: dataUrl }));
+          toast({ title: "Photo Ready" });
+        };
+      };
+    }
+  };
 
   if (!isMounted || isTeamLoading || isDeliveriesLoading || isMatchesLoading || isAllPlayersLoading) return (<div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4"><Loader2 className="w-10 h-10 text-primary animate-spin" /><p className="text-[10px] font-black uppercase text-slate-400">Syncing Team Center...</p></div>);
 
@@ -272,7 +298,7 @@ export default function TeamDetailsPage() {
           { label: 'Wins', value: standingsForThisTeam.won, icon: Trophy, color: 'text-secondary' }, 
           { label: 'Losses', value: standingsForThisTeam.lost, icon: Activity, color: 'text-destructive' }, 
           { label: 'NR/Ties', value: standingsForThisTeam.drawn, icon: Scale, color: 'text-amber-500' }, 
-          { label: 'NRR', value: (standingsForThisTeam.nrr || 0).toFixed(3), icon: History, color: 'text-primary' }, 
+          { label: 'NRR', value: (standingsForThisTeam.nrr || 0).toFixed(3), icon: HistoryIcon, color: 'text-primary' }, 
           { label: 'Played', value: standingsForThisTeam.played, icon: Users, color: 'text-slate-600' } 
         ].map((stat, i) => (
           <Card key={i} className="shadow-xl border-none overflow-hidden hover:scale-[1.02] transition-transform">
@@ -421,6 +447,7 @@ function PlayerStatCard({ player, stats, team, user, onEdit, onRelease, onDelete
   const isWK = player.id === team?.wicketKeeperId;
   const defaultAvatar = PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl || '';
   const s = stats || { runs: 0, wickets: 0, cvp: 0, matches: 0, batInn: 0, bowlInn: 0 };
+  
   return (
     <Card className={cn("border-l-8 shadow-lg hover:translate-y-[-2px] transition-all group rounded-2xl bg-white overflow-hidden", isLegacy ? "border-l-slate-200" : (isCaptain ? "border-l-amber-500" : isVC ? "border-l-slate-600" : "border-l-primary"))}>
       <CardContent className="p-5">
@@ -431,7 +458,14 @@ function PlayerStatCard({ player, stats, team, user, onEdit, onRelease, onDelete
                 <AvatarImage src={player.imageUrl || defaultAvatar} className="object-cover" />
                 <AvatarFallback className="font-black text-slate-400 bg-slate-50">{player.name[0]}</AvatarFallback>
               </Avatar>
-              {!isLegacy && user && (<button onClick={onEdit} className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-lg border shadow-sm text-primary hover:scale-110 transition-transform z-10"><Edit2 className="w-3 h-3" /></button>)}
+              {!isLegacy && user && (
+                <button 
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit?.(); }} 
+                  className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-lg border shadow-sm text-primary hover:scale-110 transition-transform z-10"
+                >
+                  <Edit2 className="w-3 h-3" />
+                </button>
+              )}
             </div>
             <Link href={`/players/${player.id}`} className="min-w-0">
               <p className={cn("font-black text-sm truncate max-w-[140px] uppercase tracking-tight transition-colors", isLegacy ? "text-slate-400" : "text-slate-900 group-hover:text-primary")}>{player.name} {!isLegacy && isCaptain && '(C)'} {!isLegacy && isVC && '(VC)'}</p>
@@ -442,13 +476,13 @@ function PlayerStatCard({ player, stats, team, user, onEdit, onRelease, onDelete
             <div className="flex flex-col gap-1">
               {!isLegacy ? (
                 <>
-                  <Button variant="ghost" size="icon" onClick={onRelease} title="Move to Legacy" className="h-8 w-8 text-slate-300 hover:text-amber-500"><UserMinus className="w-4 h-4"/></Button>
-                  <Button variant="ghost" size="icon" onClick={onDelete} title="Permanently Delete Player" className="h-8 w-8 text-slate-200 hover:text-rose-600 transition-colors"><Trash2 className="w-4 h-4"/></Button>
+                  <Button variant="ghost" size="icon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRelease?.(); }} title="Move to Legacy" className="h-8 w-8 text-slate-300 hover:text-amber-500"><UserMinus className="w-4 h-4"/></Button>
+                  <Button variant="ghost" size="icon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete?.(); }} title="Permanently Delete Player" className="h-8 w-8 text-slate-200 hover:text-rose-600 transition-colors"><Trash2 className="w-4 h-4"/></Button>
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" size="icon" onClick={onReinstate} title="Reinstate to Squad" className="h-8 w-8 text-slate-300 hover:text-primary"><UserPlus className="w-4 h-4"/></Button>
-                  <Button variant="ghost" size="icon" onClick={onDelete} title="Permanently Delete Player" className="h-8 w-8 text-slate-200 hover:text-rose-600 transition-colors"><Trash2 className="w-4 h-4"/></Button>
+                  <Button variant="ghost" size="icon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReinstate?.(); }} title="Reinstate to Squad" className="h-8 w-8 text-slate-300 hover:text-primary"><UserPlus className="w-4 h-4"/></Button>
+                  <Button variant="ghost" size="icon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete?.(); }} title="Permanently Delete Player" className="h-8 w-8 text-slate-200 hover:text-rose-600 transition-colors"><Trash2 className="w-4 h-4"/></Button>
                 </>
               )}
             </div>
