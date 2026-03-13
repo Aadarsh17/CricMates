@@ -22,12 +22,14 @@ import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useApp } from '@/context/AppContext';
 
 export default function TeamDetailsPage() {
   const params = useParams();
   const teamId = params.teamId as string;
   const db = useFirestore();
   const { user } = useUser();
+  const { isUmpire } = useApp();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const teamLogoInputRef = useRef<HTMLInputElement>(null);
@@ -69,7 +71,7 @@ export default function TeamDetailsPage() {
         m.team2SquadPlayerIds?.forEach((pid: string) => { if (!registeredIds.has(pid)) legacyIds.add(pid); });
       }
     });
-    const legacy = allPlayers.filter(p => legacyIds.has(p.id));
+    const legacy = allPlayers.filter(p => legacyIds.has(p.id) && p.teamId !== teamId);
     return { active: registered, legacy };
   }, [allPlayers, allMatches, teamId, activeMatchIds]);
 
@@ -287,7 +289,7 @@ export default function TeamDetailsPage() {
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl md:text-4xl font-black truncate uppercase tracking-tighter">{team ? formatTeamName(team.name) : 'Team'}</h1>
-            {user && <Button variant="ghost" size="icon" onClick={() => setIsEditTeamOpen(true)} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>}
+            {isUmpire && <Button variant="ghost" size="icon" onClick={() => setIsEditTeamOpen(true)} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>}
           </div>
           <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">Franchise Dashboard</p>
         </div>
@@ -351,7 +353,7 @@ export default function TeamDetailsPage() {
         <TabsContent value="current" className="space-y-6">
           <div className="flex justify-between items-center gap-4 px-2">
             <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight flex items-center gap-2"><Users className="w-6 h-6 text-primary" /> Registered Players</h2>
-            {user && (
+            {isUmpire && (
               <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
                 <DialogTrigger asChild><Button className="bg-primary hover:bg-primary/90 font-black uppercase text-[10px] h-10 px-6"><UserPlus className="mr-2 h-4 w-4"/> Register Player</Button></DialogTrigger>
                 <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl">
@@ -367,7 +369,16 @@ export default function TeamDetailsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {squadData.active.length > 0 ? squadData.active.map(player => (
-              <PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} team={team} user={user} onEdit={() => openEditDialog(player)} onRelease={() => handleReleasePlayer(player)} onDelete={() => handleDeletePlayer(player)} />
+              <PlayerStatCard 
+                key={player.id} 
+                player={player} 
+                stats={squadStats[player.id]} 
+                team={team} 
+                isUmpire={isUmpire} 
+                onEdit={() => openEditDialog(player)} 
+                onRelease={() => handleReleasePlayer(player)} 
+                onDelete={() => handleDeletePlayer(player)} 
+              />
             )) : (<div className="col-span-full py-12 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center text-center"><Users className="w-10 h-10 text-slate-200 mb-2" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Players Registered</p></div>)}
           </div>
         </TabsContent>
@@ -379,7 +390,15 @@ export default function TeamDetailsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {squadData.legacy.length > 0 ? squadData.legacy.map(player => (
-              <PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} isLegacy user={user} onReinstate={() => handleReinstatePlayer(player)} onDelete={() => handleDeletePlayer(player)} />
+              <PlayerStatCard 
+                key={player.id} 
+                player={player} 
+                stats={squadStats[player.id]} 
+                isLegacy 
+                isUmpire={isUmpire} 
+                onReinstate={() => handleReinstatePlayer(player)} 
+                onDelete={() => handleDeletePlayer(player)} 
+              />
             )) : (<div className="col-span-full py-12 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center text-center"><Clock className="w-10 h-10 text-slate-200 mb-2" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Legacy Data Found</p></div>)}
           </div>
         </TabsContent>
@@ -441,7 +460,7 @@ export default function TeamDetailsPage() {
   );
 }
 
-function PlayerStatCard({ player, stats, team, user, onEdit, onRelease, onDelete, onReinstate, isLegacy }: { player: any, stats: any, team?: any, user?: any, onEdit?: () => void, onRelease?: () => void, onDelete?: () => void, onReinstate?: () => void, isLegacy?: boolean }) {
+function PlayerStatCard({ player, stats, team, isUmpire, onEdit, onRelease, onDelete, onReinstate, isLegacy }: { player: any, stats: any, team?: any, isUmpire?: boolean, onEdit?: () => void, onRelease?: () => void, onDelete?: () => void, onReinstate?: () => void, isLegacy?: boolean }) {
   const isCaptain = player.id === team?.captainId;
   const isVC = player.id === team?.viceCaptainId;
   const isWK = player.id === team?.wicketKeeperId;
@@ -458,7 +477,7 @@ function PlayerStatCard({ player, stats, team, user, onEdit, onRelease, onDelete
                 <AvatarImage src={player.imageUrl || defaultAvatar} className="object-cover" />
                 <AvatarFallback className="font-black text-slate-400 bg-slate-50">{player.name[0]}</AvatarFallback>
               </Avatar>
-              {!isLegacy && user && (
+              {!isLegacy && isUmpire && (
                 <button 
                   onClick={(e) => { e.preventDefault(); e.stopPropagation(); onEdit?.(); }} 
                   className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-lg border shadow-sm text-primary hover:scale-110 transition-transform z-10"
@@ -472,17 +491,49 @@ function PlayerStatCard({ player, stats, team, user, onEdit, onRelease, onDelete
               <div className="flex gap-1 items-center mt-1"><Badge variant="secondary" className={cn("text-[8px] font-black uppercase px-2 h-5 border-none", isLegacy ? "bg-slate-100 text-slate-400" : "bg-primary/10 text-primary")}>{player.role}</Badge>{!isLegacy && isWK && <Badge className="bg-secondary text-white text-[7px] font-black h-5 px-1.5">WK</Badge>}{isLegacy && <Badge variant="outline" className="text-[7px] font-black uppercase h-5 text-slate-300 border-slate-200">Ex-Player</Badge>}</div>
             </Link>
           </div>
-          {user && (
+          {isUmpire && (
             <div className="flex flex-col gap-1">
               {!isLegacy ? (
                 <>
-                  <Button variant="ghost" size="icon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRelease?.(); }} title="Move to Legacy" className="h-8 w-8 text-slate-300 hover:text-amber-500"><UserMinus className="w-4 h-4"/></Button>
-                  <Button variant="ghost" size="icon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete?.(); }} title="Permanently Delete Player" className="h-8 w-8 text-slate-200 hover:text-rose-600 transition-colors"><Trash2 className="w-4 h-4"/></Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRelease?.(); }} 
+                    title="Move to Legacy" 
+                    className="h-8 w-8 text-slate-300 hover:text-amber-500"
+                  >
+                    <UserMinus className="w-4 h-4"/>
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete?.(); }} 
+                    title="Permanently Delete Player" 
+                    className="h-8 w-8 text-slate-200 hover:text-rose-600 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4"/>
+                  </Button>
                 </>
               ) : (
                 <>
-                  <Button variant="ghost" size="icon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReinstate?.(); }} title="Reinstate to Squad" className="h-8 w-8 text-slate-300 hover:text-primary"><UserPlus className="w-4 h-4"/></Button>
-                  <Button variant="ghost" size="icon" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete?.(); }} title="Permanently Delete Player" className="h-8 w-8 text-slate-200 hover:text-rose-600 transition-colors"><Trash2 className="w-4 h-4"/></Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onReinstate?.(); }} 
+                    title="Reinstate to Squad" 
+                    className="h-8 w-8 text-slate-300 hover:text-primary"
+                  >
+                    <UserPlus className="w-4 h-4"/>
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete?.(); }} 
+                    title="Permanently Delete Player" 
+                    className="h-8 w-8 text-slate-200 hover:text-rose-600 transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4"/>
+                  </Button>
                 </>
               )}
             </div>
