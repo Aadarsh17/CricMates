@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter } from 'navigation';
 import { useCollection, useDoc, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { doc, collection, query, orderBy, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
@@ -462,7 +462,7 @@ export default function TeamDetailsPage() {
               <div className="relative group cursor-pointer" onClick={() => teamLogoInputRef.current?.click()}>
                 <Avatar className="w-28 h-28 border-4 border-white shadow-xl rounded-2xl overflow-hidden ring-4 ring-slate-100">
                   <AvatarImage src={teamForm.logoUrl || defaultTeamLogo} className="object-cover" />
-                  <AvatarFallback className="bg-primary text-white text-4xl font-black">{teamForm.name?.[0] || 'T'}</AvatarFallback>
+                  <AvatarFallback className="bg-primary text-white font-black text-4xl font-black">{teamForm.name?.[0] || 'T'}</AvatarFallback>
                 </Avatar>
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex flex-col items-center justify-center text-white text-center">
                   <Camera className="w-6 h-6 mb-1" />
@@ -515,8 +515,11 @@ function PlayerStatCard({ player, stats, team, isUmpire, onEdit, onRelease, onDe
   const isVC = player.id === team?.viceCaptainId;
   const isWK = player.id === team?.wicketKeeperId;
   const defaultAvatar = PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl || '';
-  const s = stats || { runs: 0, wickets: 0, cvp: 0, matches: 0, batInn: 0, bowlInn: 0 };
+  const s = stats || { runs: 0, wickets: 0, cvp: 0, matches: 0, batInn: 0, bowlInn: 0, ballsFaced: 0, ballsBowled: 0, runsConceded: 0 };
   
+  const strikeRate = s.ballsFaced > 0 ? ((s.runs / s.ballsFaced) * 100).toFixed(1) : '0.0';
+  const economy = s.ballsBowled > 0 ? (s.runsConceded / (s.ballsBowled / 6)).toFixed(2) : '0.00';
+
   return (
     <Card className={cn("border-l-8 shadow-lg hover:translate-y-[-2px] transition-all group rounded-2xl bg-white overflow-hidden", isLegacy ? "border-l-slate-200" : (isCaptain ? "border-l-amber-500" : isVC ? "border-l-slate-600" : "border-l-primary"))}>
       <CardContent className="p-5">
@@ -585,18 +588,27 @@ function PlayerStatCard({ player, stats, team, isUmpire, onEdit, onRelease, onDe
             </div>
           )}
         </div>
-        <div className="mt-6 grid grid-cols-5 gap-1 border-t pt-4 text-center bg-slate-50/50 -mx-5 -mb-5 p-4">
-          <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">M</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.matches}</p></div>
-          <div className="flex flex-col items-center">
-            <p className="text-[7px] font-black text-slate-400 uppercase mb-1">Inn</p>
-            <div className="flex flex-col -space-y-0.5">
-              <span className={cn("text-[8px] font-black", isLegacy ? "text-slate-300" : "text-primary")}>B:{s.batInn}</span>
-              <span className={cn("text-[8px] font-black", isLegacy ? "text-slate-300" : "text-secondary")}>W:{s.bowlInn}</span>
+        
+        {/* Statistics Grid - Professional Dashboard */}
+        <div className="mt-6 border-t pt-4 -mx-5 -mb-5 bg-slate-50/50 p-4 space-y-4">
+          <div className="grid grid-cols-3 gap-1 text-center">
+            <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">M</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.matches}</p></div>
+            <div className="flex flex-col items-center">
+              <p className="text-[7px] font-black text-slate-400 uppercase mb-1">Inn</p>
+              <div className="flex flex-col -space-y-0.5">
+                <span className={cn("text-[8px] font-black", isLegacy ? "text-slate-300" : "text-primary")}>B:{s.batInn}</span>
+                <span className={cn("text-[8px] font-black", isLegacy ? "text-slate-300" : "text-secondary")}>W:{s.bowlInn}</span>
+              </div>
             </div>
+            <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Impact</p><p className={cn("font-black text-xs text-primary")}>{s.cvp.toFixed(1)}</p></div>
           </div>
-          <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Runs</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.runs}</p></div>
-          <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Wkts</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.wickets}</p></div>
-          <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">CVP</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-300" : "text-primary")}>{s.cvp.toFixed(1)}</p></div>
+          
+          <div className="grid grid-cols-4 gap-1 text-center border-t border-slate-200 pt-3">
+            <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Runs</p><p className={cn("font-black text-[11px]", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.runs}</p></div>
+            <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">SR</p><p className={cn("font-black text-[11px] text-primary")}>{strikeRate}</p></div>
+            <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Wkts</p><p className={cn("font-black text-[11px]", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.wickets}</p></div>
+            <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Econ</p><p className={cn("font-black text-[11px] text-secondary")}>{economy}</p></div>
+          </div>
         </div>
       </CardContent>
     </Card>
