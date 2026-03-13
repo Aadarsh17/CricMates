@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -217,10 +216,9 @@ export default function NewMatchPage() {
                       {filteredPool.map(p => {
                         const isSelectedInOther = t.otherSquad.includes(p.id);
                         return (
-                          <div key={p.id} className={cn("flex items-center gap-3 p-2 rounded-xl transition-colors", isSelectedInOther ? "opacity-40 grayscale" : "hover:bg-slate-50")}>
+                          <div key={p.id} className={cn("flex items-center gap-3 p-2 rounded-xl transition-colors hover:bg-slate-50")}>
                             <Checkbox 
                               checked={t.squad.includes(p.id)} 
-                              disabled={isSelectedInOther}
                               onCheckedChange={(c) => {
                                 if (t.id === 'team1') {
                                   const nextSquad = c ? [...setup.team1Squad, p.id] : setup.team1Squad.filter(id => id !== p.id);
@@ -233,7 +231,10 @@ export default function NewMatchPage() {
                               id={`${t.id}-${p.id}`} 
                               className="h-5 w-5 rounded-md border-2"
                             />
-                            <Label htmlFor={`${t.id}-${p.id}`} className="text-xs font-bold flex-1 cursor-pointer py-1">{p.name}</Label>
+                            <Label htmlFor={`${t.id}-${p.id}`} className="text-xs font-bold flex-1 cursor-pointer py-1 flex items-center justify-between">
+                              <span>{p.name}</span>
+                              {isSelectedInOther && <Badge variant="outline" className="text-[7px] h-4 font-black uppercase text-primary border-primary/30">Common Player</Badge>}
+                            </Label>
                           </div>
                         );
                       })}

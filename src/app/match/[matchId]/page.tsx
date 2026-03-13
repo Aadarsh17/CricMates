@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -780,7 +779,7 @@ export default function MatchScoreboardPage() {
                                       isDeclared: false
                                     });
                                     setIsCorrectionDialogOpen(true);
-                                  }} className="h-6 w-6 rounded-full bg-slate-50 text-slate-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-all p-0"><PlusCircle className="w-4 h-4" /></Button>
+                                  }} className="h-6 v-6 rounded-full bg-slate-50 text-slate-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-all p-0"><PlusCircle className="w-4 h-4" /></Button>
                                 </div>
                               )}
                               <Card className="border-none shadow-sm bg-white p-3 flex items-center justify-between rounded-xl group border-l-4 border-l-slate-100">
