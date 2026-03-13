@@ -30,7 +30,7 @@ import {
   Crosshair, 
   Crown, 
   Star, 
-  History 
+  History as HistoryIcon 
 } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -208,7 +208,7 @@ export default function PlayerProfilePage() {
   }, [matchWiseLog]);
 
   const leagueCaps = useMemo(() => {
-    if (!allMatches || !rawDeliveries || !isMounted) return { isOrange: false, isPurple: false };
+    if (!allMatches || !rawDeliveries || !isMounted || !playerId) return { isOrange: false, isPurple: false };
     const activeIds = new Set(allMatches.map(m => m.id));
     const allR: Record<string, number> = {};
     const allW: Record<string, number> = {};
@@ -447,7 +447,7 @@ export default function PlayerProfilePage() {
 
         <TabsContent value="history" className="space-y-3">
           <div className="px-2 mb-4">
-            <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2"><History className="w-5 h-5 text-primary" /> Verification Logs</h2>
+            <h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2"><HistoryIcon className="w-5 h-5 text-primary" /> Verification Logs</h2>
             <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Audit trail for all career matches</p>
           </div>
           {matchWiseLog.length > 0 ? (

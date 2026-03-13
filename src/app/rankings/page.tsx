@@ -69,17 +69,22 @@ export default function RankingsPage() {
       
       if (standings[batId]) {
         standings[batId].forR += (d.totalRunsOnDelivery || 0); 
-        if (d.extraType === 'none') standings[batId].forB++;
+        if (d.extraType === 'none' && d.dismissalType !== 'retired') standings[batId].forB++;
       }
       if (standings[bowlId]) {
         standings[bowlId].agR += (d.totalRunsOnDelivery || 0); 
-        if (d.extraType === 'none') standings[bowlId].agB++;
+        if (d.extraType === 'none' && d.dismissalType !== 'retired') standings[bowlId].agB++;
       }
     });
 
     return Object.values(standings).map((s: any) => {
       const forO = s.forB / 6; const agO = s.agB / 6;
       s.nrr = (forO > 0 ? s.forR / forO : 0) - (agO > 0 ? s.agR / agO : 0);
+      
+      // Zero-Play Guard: If no completed games are registered, force NRR to 0.000
+      const actualCompletedPlayed = matches.filter(m => m.status === 'completed' && (m.team1Id === s.id || m.team2Id === s.id)).length;
+      if (actualCompletedPlayed === 0) s.nrr = 0;
+
       return s;
     }).sort((a,b) => b.points !== a.points ? b.points - a.points : b.nrr - a.nrr);
   }, [teams, matches, rawDeliveries, isMounted]);
@@ -118,7 +123,6 @@ export default function RankingsPage() {
         }
       });
 
-      // Batting Leaderboard
       if (strikerId && stats[strikerId]) {
         const s = stats[strikerId];
         const mBat = pMatchStats[strikerId][matchId];
@@ -134,7 +138,6 @@ export default function RankingsPage() {
 
       if (d.isWicket && stats[d.batsmanOutPlayerId]) stats[d.batsmanOutPlayerId].outs++;
 
-      // Bowling Leaderboard
       if (bowlerId && stats[bowlerId]) {
         const b = stats[bowlerId];
         const mBowl = pMatchStats[bowlerId][matchId];
@@ -150,7 +153,6 @@ export default function RankingsPage() {
         }
       }
 
-      // Fielding Leaderboard
       if (fielderId && stats[fielderId]) {
         const f = stats[fielderId];
         const mField = pMatchStats[fielderId][matchId];
@@ -210,24 +212,88 @@ export default function RankingsPage() {
         <TabsList className="grid w-full max-w-[400px] grid-cols-2 h-12 bg-slate-100 p-1 rounded-xl mb-8"><TabsTrigger value="points" className="font-black text-[10px] uppercase">Points Table</TabsTrigger><TabsTrigger value="leaderboards" className="font-black text-[10px] uppercase">Leaderboards</TabsTrigger></TabsList>
         <TabsContent value="points">
           {teamStandings.length === 0 ? <NoDataMessage /> : (
-            <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white"><Table><TableHeader className="bg-slate-50"><TableRow><TableHead className="w-12 text-[10px] font-black uppercase">Pos</TableHead><TableHead className="text-[10px] font-black uppercase">Team</TableHead><TableHead className="text-center text-[10px] font-black uppercase">P</TableHead><TableHead className="text-center text-[10px] font-black uppercase">W</TableHead><TableHead className="text-center text-[10px] font-black uppercase">L</TableHead><TableHead className="text-center text-[10px] font-black uppercase">T</TableHead><TableHead className="text-center text-[10px] font-black uppercase">NR</TableHead><TableHead className="text-center text-[10px] font-black uppercase">NRR</TableHead><TableHead className="text-center text-[10px] font-black uppercase bg-primary/5">PTS</TableHead></TableRow></TableHeader><TableBody>{teamStandings.map((t, idx) => (<TableRow key={t.id}><TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell><TableCell className="font-black text-xs uppercase truncate max-w-[120px]"><Link href={`/teams/${t.id}`} className="hover:text-primary">{formatTeamName(t.name)}</Link></TableCell><TableCell className="text-center text-xs font-bold">{t.played}</TableCell><TableCell className="text-center text-xs font-bold text-emerald-600">{t.won}</TableCell><TableCell className="text-center text-xs font-bold text-red-600">{t.lost}</TableCell><TableCell className="text-center text-xs font-bold text-amber-600">{t.tied}</TableCell><TableCell className="text-center text-xs font-bold text-slate-500">{t.nr}</TableCell><TableCell className={cn("text-center text-xs font-bold", t.nrr >= 0 ? "text-primary" : "text-amber-600")}>{t.nrr >= 0 ? '+' : ''}{t.nrr.toFixed(3)}</TableCell><TableCell className="text-center text-xs font-black text-primary bg-primary/5">{t.points}</TableCell></TableRow>))}</TableBody></Table></Card>
+            <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white">
+              <Table>
+                <TableHeader className="bg-slate-50">
+                  <TableRow>
+                    <TableHead className="w-12 text-[10px] font-black uppercase">Pos</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Team</TableHead>
+                    <TableHead className="text-center text-[10px] font-black uppercase">P</TableHead>
+                    <TableHead className="text-center text-[10px] font-black uppercase">W</TableHead>
+                    <TableHead className="text-center text-[10px] font-black uppercase">L</TableHead>
+                    <TableHead className="text-center text-[10px] font-black uppercase">T</TableHead>
+                    <TableHead className="text-center text-[10px] font-black uppercase">NR</TableHead>
+                    <TableHead className="text-center text-[10px] font-black uppercase">NRR</TableHead>
+                    <TableHead className="text-center text-[10px] font-black uppercase bg-primary/5">PTS</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {teamStandings.map((t, idx) => (
+                    <TableRow key={t.id}>
+                      <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
+                      <TableCell className="font-black text-xs uppercase truncate max-w-[120px]">
+                        <Link href={`/teams/${t.id}`} className="hover:text-primary">{formatTeamName(t.name)}</Link>
+                      </TableCell>
+                      <TableCell className="text-center text-xs font-bold">{t.played}</TableCell>
+                      <TableCell className="text-center text-xs font-bold text-emerald-600">{t.won}</TableCell>
+                      <TableCell className="text-center text-xs font-bold text-red-600">{t.lost}</TableCell>
+                      <TableCell className="text-center text-xs font-bold text-amber-600">{t.tied}</TableCell>
+                      <TableCell className="text-center text-xs font-bold text-slate-500">{t.nr}</TableCell>
+                      <TableCell className={cn("text-center text-xs font-bold", t.nrr >= 0 ? "text-primary" : "text-amber-600")}>
+                        {t.nrr >= 0 ? '+' : ''}{t.nrr.toFixed(3)}
+                      </TableCell>
+                      <TableCell className="text-center text-xs font-black text-primary bg-primary/5">{t.points}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
           )}
         </TabsContent>
         <TabsContent value="leaderboards" className="space-y-6">
-          <div className="flex flex-col md:flex-row gap-4 justify-between items-center"><h2 className="text-lg font-black uppercase flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Player Rankings</h2><Select value={activeCategory} onValueChange={setActiveCategory}><SelectTrigger className="w-full md:w-[200px] h-12 font-black uppercase text-[10px]"><SelectValue placeholder="Category" /></SelectTrigger><SelectContent className="z-[200]">{[ {id:'runs', label:'Runs'}, {id:'wickets', label:'Wickets'}, {id:'cvp', label:'Impact (CVP)'}, {id:'avg', label:'Average'}, {id:'sr', label:'Strike Rate'}, {id:'er', label:'Economy'}, {id:'catches', label:'Catches'}, {id:'runOuts', label:'Run Outs'}, {id:'potm', label:'POTM'} ].map(c => <SelectItem key={c.id} value={c.id} className="font-black uppercase text-[10px]">{c.label}</SelectItem>)}</SelectContent></Select></div>
+          <div className="flex flex-col md:flex-row gap-4 justify-between items-center">
+            <h2 className="text-lg font-black uppercase flex items-center gap-2"><Star className="w-5 h-5 text-amber-500" /> Player Rankings</h2>
+            <Select value={activeCategory} onValueChange={setActiveCategory}>
+              <SelectTrigger className="w-full md:w-[200px] h-12 font-black uppercase text-[10px]">
+                <SelectValue placeholder="Category" />
+              </SelectTrigger>
+              <SelectContent className="z-[200]">
+                {[ 
+                  {id:'runs', label:'Runs'}, {id:'wickets', label:'Wickets'}, {id:'cvp', label:'Impact (CVP)'}, 
+                  {id:'avg', label:'Average'}, {id:'sr', label:'Strike Rate'}, {id:'er', label:'Economy'}, 
+                  {id:'catches', label:'Catches'}, {id:'runOuts', label:'Run Outs'}, {id:'potm', label:'POTM'} 
+                ].map(c => <SelectItem key={c.id} value={c.id} className="font-black uppercase text-[10px]">{c.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           {(!playerLeaderboards[activeCategory] || playerLeaderboards[activeCategory].length === 0) ? <NoDataMessage /> : (
-            <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white"><Table><TableHeader className="bg-slate-50"><TableRow><TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead><TableHead className="text-[10px] font-black uppercase">Player</TableHead><TableHead className="text-right text-[10px] font-black uppercase bg-primary/5">Score</TableHead></TableRow></TableHeader><TableBody>{playerLeaderboards[activeCategory].map((p: any, idx: number) => (
-              <TableRow key={p.id}>
-                <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
-                <TableCell className="font-black text-xs uppercase"><Link href={`/players/${p.id}`} className="hover:text-primary">{p.name}</Link></TableCell>
-                <TableCell className="text-right font-black text-primary bg-primary/5">
-                  {['avg', 'sr', 'er'].includes(activeCategory) 
-                    ? (p[activeCategory] || 0).toFixed(2) 
-                    : (activeCategory === 'wickets' ? p.wkts : (activeCategory === 'cvp' ? p.cvp.toFixed(1) : p[activeCategory]))
-                  }
-                </TableCell>
-              </TableRow>))}
-            </TableBody></Table></Card>
+            <Card className="border shadow-sm rounded-2xl overflow-hidden bg-white">
+              <Table>
+                <TableHeader className="bg-slate-50">
+                  <TableRow>
+                    <TableHead className="w-12 text-[10px] font-black uppercase">Rank</TableHead>
+                    <TableHead className="text-[10px] font-black uppercase">Player</TableHead>
+                    <TableHead className="text-right text-[10px] font-black uppercase bg-primary/5">Score</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {playerLeaderboards[activeCategory].map((p: any, idx: number) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-black text-xs text-slate-400">{idx + 1}</TableCell>
+                      <TableCell className="font-black text-xs uppercase">
+                        <Link href={`/players/${p.id}`} className="hover:text-primary">{p.name}</Link>
+                      </TableCell>
+                      <TableCell className="text-right font-black text-primary bg-primary/5">
+                        {['avg', 'sr', 'er'].includes(activeCategory) 
+                          ? (p[activeCategory] || 0).toFixed(2) 
+                          : (activeCategory === 'wickets' ? p.wkts : (activeCategory === 'cvp' ? p.cvp.toFixed(1) : p[activeCategory]))
+                        }
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
           )}
         </TabsContent>
       </Tabs>
