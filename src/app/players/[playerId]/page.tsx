@@ -182,7 +182,6 @@ export default function PlayerProfilePage() {
         }
         if (log.batting.runs > s.batting.high) s.batting.high = log.batting.runs;
         
-        // Accurate milestones (exclusive)
         if (log.batting.runs >= 100) s.batting.milestones.hundreds++;
         else if (log.batting.runs >= 50) s.batting.milestones.fifties++;
         else if (log.batting.runs >= 40) s.batting.milestones.forties++;
@@ -322,9 +321,10 @@ export default function PlayerProfilePage() {
               <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.batting.innings} Innings</Badge>
             </div>
             <CardContent className="p-6">
-              <div className="grid grid-cols-3 md:grid-cols-5 gap-4 text-center">
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-xl font-black text-slate-900">{careerStats.batting.runs}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-xl font-black text-slate-900">{careerStats.batting.balls}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Dots</p><p className="text-xl font-black text-slate-900">{careerStats.batting.dots}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">SR</p><p className="text-xl font-black text-primary">{careerStats.batting.balls > 0 ? ((careerStats.batting.runs / careerStats.batting.balls) * 100).toFixed(1) : '0.0'}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">4s/6s</p><p className="text-xl font-black text-slate-900">{careerStats.batting.fours}/{careerStats.batting.sixes}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.batting.outs > 0 ? (careerStats.batting.runs / careerStats.batting.outs).toFixed(1) : careerStats.batting.runs}</p></div>
