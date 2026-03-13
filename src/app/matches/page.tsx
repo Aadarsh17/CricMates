@@ -6,7 +6,7 @@ import { collection, query, orderBy, doc, getDocs, deleteDoc } from 'firebase/fi
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Trash2, Trophy, Loader2, ChevronLeft, Hash, RotateCcw } from 'lucide-react';
+import { Calendar, Trash2, Trophy, Loader2, ChevronLeft, Hash, RotateCcw, Activity, History } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
@@ -137,9 +137,34 @@ export default function MatchHistoryPage() {
     <div className="space-y-6 max-w-lg mx-auto pb-24 px-4">
       <div className="flex items-center gap-4"><Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button><h1 className="text-3xl font-black font-headline tracking-tight text-slate-900 uppercase">Match History</h1></div>
       <Tabs defaultValue="past" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6 h-12 bg-slate-100 p-1 rounded-xl"><TabsTrigger value="live" className="font-bold">Live</TabsTrigger><TabsTrigger value="past" className="font-bold">Completed</TabsTrigger></TabsList>
-        <TabsContent value="live" className="space-y-4">{isMatchesLoading ? <Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /> : liveMatches.map(m => <MatchScoreCard key={m.id} match={m} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)}</TabsContent>
-        <TabsContent value="past" className="space-y-4">{isMatchesLoading ? <Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /> : pastMatches.map(m => <MatchScoreCard key={m.id} match={m} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)}</TabsContent>
+        <TabsList className="grid w-full grid-cols-2 mb-6 h-12 bg-slate-100 p-1 rounded-xl">
+          <TabsTrigger value="live" className="font-bold">Live</TabsTrigger>
+          <TabsTrigger value="past" className="font-bold">Completed</TabsTrigger>
+        </TabsList>
+        <TabsContent value="live" className="space-y-4">
+          {isMatchesLoading ? (
+            <Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" />
+          ) : liveMatches.length > 0 ? (
+            liveMatches.map(m => <MatchScoreCard key={m.id} match={m} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)
+          ) : (
+            <div className="text-center py-20 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center">
+              <Activity className="w-10 h-10 text-slate-200 mb-2" />
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Live Matches Right Now</p>
+            </div>
+          )}
+        </TabsContent>
+        <TabsContent value="past" className="space-y-4">
+          {isMatchesLoading ? (
+            <Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" />
+          ) : pastMatches.length > 0 ? (
+            pastMatches.map(m => <MatchScoreCard key={m.id} match={m} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)
+          ) : (
+            <div className="text-center py-20 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center">
+              <History className="w-10 h-10 text-slate-200 mb-2" />
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Finished Matches Found</p>
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
     </div>
   );
