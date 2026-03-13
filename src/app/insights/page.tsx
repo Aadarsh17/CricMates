@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -210,6 +211,18 @@ export default function InsightsPage() {
     });
     return stats;
   }, [matches, players]);
+
+  const leaderIds = useMemo(() => {
+    const ids = new Set<string>();
+    // Official captains from teams
+    teams?.forEach(t => { if (t.captainId) ids.add(t.captainId); });
+    // Any player who was designated captain in a match
+    matches?.forEach(m => {
+      if (m.team1CaptainId) ids.add(m.team1CaptainId);
+      if (m.team2CaptainId) ids.add(m.team2CaptainId);
+    });
+    return ids;
+  }, [teams, matches]);
 
   const milestoneWatch = useMemo(() => {
     if (!players || players.length === 0) return { runs: [], wkts: [], catches: [], runOuts: [], stumpings: [] };
@@ -438,11 +451,25 @@ export default function InsightsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase">Captain A</Label>
-                <Select value={cap1Id} onValueChange={setCap1Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
+                <Select value={cap1Id} onValueChange={setCap1Id}>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    {players?.filter(p => leaderIds.has(p.id)).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase">Captain B</Label>
-                <Select value={cap2Id} onValueChange={setCap2Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
+                <Select value={cap2Id} onValueChange={setCap2Id}>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    {players?.filter(p => leaderIds.has(p.id)).map(p => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             {cap1Id && cap2Id ? (
