@@ -8,7 +8,7 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck, Trophy } from 'lucide-react';
+import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck, Trophy, X } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { cn } from '@/lib/utils';
 
 export default function PlayerProfilePage() {
   const params = useParams();
@@ -160,6 +161,7 @@ export default function PlayerProfilePage() {
         s.batting.fours += log.batting.fours;
         s.batting.sixes += log.batting.sixes;
         s.batting.dots += log.batting.dots;
+        
         if (log.batting.out) {
           s.batting.outs++;
           if (log.batting.runs === 0) {
@@ -168,6 +170,7 @@ export default function PlayerProfilePage() {
             else s.batting.ducks.regular++;
           }
         }
+        
         if (log.batting.runs > s.batting.high) s.batting.high = log.batting.runs;
 
         const r = log.batting.runs;
@@ -323,14 +326,18 @@ export default function PlayerProfilePage() {
               <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.batting.innings} Innings</Badge>
             </div>
             <div className="p-6">
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center">
+              <div className="grid grid-cols-3 md:grid-cols-5 gap-4 text-center">
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-xl font-black text-slate-900">{careerStats.batting.runs}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-xl font-black text-slate-900">{careerStats.batting.balls}</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Dots</p><p className="text-xl font-black text-slate-900">{careerStats.batting.dots}</p></div>
-                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Best</p><p className="text-xl font-black text-slate-900">{careerStats.batting.high}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">4s / 6s</p><p className="text-xl font-black text-slate-900">{careerStats.batting.fours} / {careerStats.batting.sixes}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.batting.avg.toFixed(2)}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">S.R.</p><p className="text-xl font-black text-slate-900">{careerStats.batting.sr.toFixed(1)}</p></div>
               </div>
+              <div className="grid grid-cols-2 md:grid-cols-2 gap-4 text-center mt-6 pt-6 border-t">
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Highest</p><p className="text-xl font-black text-slate-900">{careerStats.batting.high}</p></div>
+                <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Dots</p><p className="text-xl font-black text-slate-900">{careerStats.batting.dots}</p></div>
+              </div>
+              
               <div className="mt-6 pt-6 border-t">
                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Score Milestones</p>
                 <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
@@ -347,6 +354,24 @@ export default function PlayerProfilePage() {
                       <p className="text-[8px] font-black text-slate-400 uppercase">{m.label}</p>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              <div className="mt-6 pt-6 border-t">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Duck Registry</p>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-rose-50 p-3 rounded-xl text-center border border-rose-100">
+                    <p className="text-lg font-black text-rose-600">{careerStats.batting.ducks.regular}</p>
+                    <p className="text-[8px] font-black text-rose-400 uppercase">Regular</p>
+                  </div>
+                  <div className="bg-rose-100 p-3 rounded-xl text-center border border-rose-200">
+                    <p className="text-lg font-black text-rose-700">{careerStats.batting.ducks.golden}</p>
+                    <p className="text-[8px] font-black text-rose-500 uppercase">Golden</p>
+                  </div>
+                  <div className="bg-slate-900 p-3 rounded-xl text-center border border-slate-800">
+                    <p className="text-lg font-black text-white">{careerStats.batting.ducks.diamond}</p>
+                    <p className="text-[8px] font-black text-slate-400 uppercase">Diamond</p>
+                  </div>
                 </div>
               </div>
             </div>
