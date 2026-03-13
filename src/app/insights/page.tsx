@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from 'react';
@@ -261,7 +260,7 @@ export default function InsightsPage() {
       venues[v].innings += (s1 > 0 ? 1 : 0) + (s2 > 0 ? 1 : 0);
       venues[v].highest = Math.max(venues[v].highest, s1, s2);
       
-      const bat1TeamId = m.tossWinnerTeamId === m.team1Id ? (m.tossDecision === 'bat' ? m.team1Id : m.team2Id) : (m.tossDecision === 'bat' ? match.team2Id : match.team1Id);
+      const bat1TeamId = m.tossWinnerTeamId === m.team1Id ? (m.tossDecision === 'bat' ? m.team1Id : m.team2Id) : (m.tossDecision === 'bat' ? m.team2Id : m.team1Id);
       if (!m.isTie && m.winnerTeamId) {
         if (m.winnerTeamId === bat1TeamId) venues[v].bat1Won++;
         else venues[v].bat2Win++;
