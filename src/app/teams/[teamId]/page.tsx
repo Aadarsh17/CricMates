@@ -353,7 +353,7 @@ export default function TeamDetailsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {squadData.legacy.length > 0 ? squadData.legacy.map(player => (
-              <PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} isLegacy user={user} onReinstate={() => handleReinstatePlayer(player)} />
+              <PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} isLegacy user={user} onReinstate={() => handleReinstatePlayer(player)} onDelete={() => handleDeletePlayer(player)} />
             )) : (<div className="col-span-full py-12 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center text-center"><Clock className="w-10 h-10 text-slate-200 mb-2" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Legacy Data Found</p></div>)}
           </div>
         </TabsContent>
@@ -442,11 +442,14 @@ function PlayerStatCard({ player, stats, team, user, onEdit, onRelease, onDelete
             <div className="flex flex-col gap-1">
               {!isLegacy ? (
                 <>
-                  <Button variant="ghost" size="icon" onClick={onRelease} title="Release from Team" className="h-8 w-8 text-slate-300 hover:text-amber-500"><UserMinus className="w-4 h-4"/></Button>
-                  <Button variant="ghost" size="icon" onClick={onDelete} title="Purge Record" className="h-8 w-8 text-slate-100 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>
+                  <Button variant="ghost" size="icon" onClick={onRelease} title="Move to Legacy" className="h-8 w-8 text-slate-300 hover:text-amber-500"><UserMinus className="w-4 h-4"/></Button>
+                  <Button variant="ghost" size="icon" onClick={onDelete} title="Permanently Delete Player" className="h-8 w-8 text-slate-200 hover:text-rose-600 transition-colors"><Trash2 className="w-4 h-4"/></Button>
                 </>
               ) : (
-                <Button variant="ghost" size="icon" onClick={onReinstate} title="Reinstate to Squad" className="h-8 w-8 text-slate-300 hover:text-primary"><UserPlus className="w-4 h-4"/></Button>
+                <>
+                  <Button variant="ghost" size="icon" onClick={onReinstate} title="Reinstate to Squad" className="h-8 w-8 text-slate-300 hover:text-primary"><UserPlus className="w-4 h-4"/></Button>
+                  <Button variant="ghost" size="icon" onClick={onDelete} title="Permanently Delete Player" className="h-8 w-8 text-slate-200 hover:text-rose-600 transition-colors"><Trash2 className="w-4 h-4"/></Button>
+                </>
               )}
             </div>
           )}
