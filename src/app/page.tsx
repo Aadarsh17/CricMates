@@ -45,7 +45,7 @@ export default function Home() {
 
   const heroImage = PlaceHolderImages.find(img => img.id === 'hero-cricket')?.imageUrl || '';
 
-  // Standardized Aggregation for Home View
+  // Standardized Aggregation for Home View with Ghost-Filter
   const playerAggregates = useMemo(() => {
     if (!players || !allMatches || !rawDeliveries || !isMounted) return {};
     const activeMatchIds = new Set(allMatches.map(m => m.id));

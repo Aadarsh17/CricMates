@@ -64,13 +64,14 @@ export default function PlayerProfilePage() {
   const historyQuery = useMemoFirebase(() => isMounted && playerId ? query(collectionGroup(db, 'deliveryRecords')) : null, [db, playerId, isMounted]);
   const { data: allDeliveries, isLoading: isHistoryLoading } = useCollection(historyQuery);
 
+  // GHOST DATA PURGE: Build set of active match IDs
   const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
 
   const matchWiseLog = useMemo(() => {
     if (!isMounted || !player || !allDeliveries || !allMatches) return [];
     const logs: Record<string, any> = {};
     
-    // First, identify all matches where player was in the squad
+    // First, identify all matches where player was in the squad (GHOST FILTERED)
     allMatches.forEach(m => {
       const isInSquad = (m.team1SquadPlayerIds || []).includes(playerId) || (m.team2SquadPlayerIds || []).includes(playerId);
       if (isInSquad && activeMatchIds.has(m.id)) {
@@ -89,7 +90,8 @@ export default function PlayerProfilePage() {
 
     allDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
-      if (!matchId || !logs[matchId]) return;
+      // GHOST PROTECTION: Skip deliveries from matches that no longer exist
+      if (!matchId || !activeMatchIds.has(matchId) || !logs[matchId]) return;
       
       const log = logs[matchId];
       
@@ -286,7 +288,7 @@ export default function PlayerProfilePage() {
       <section className="bg-slate-950 text-white rounded-3xl p-8 shadow-2xl relative overflow-hidden ring-1 ring-white/10">
         <div className="absolute top-0 right-0 p-4 opacity-10"><Zap className="w-32 h-32" /></div>
         <div className="flex flex-col md:flex-row items-center gap-6 relative z-10 text-center md:text-left">
-          <Avatar className="w-28 h-28 border-4 border-white/10 rounded-3xl shadow-xl overflow-hidden shrink-0">
+          <Avatar className="w-28 h-28 border-4 border-white/10 rounded-3xl overflow-hidden shrink-0">
             <AvatarImage src={player.imageUrl} className="object-cover" />
             <AvatarFallback className="text-4xl font-black bg-white/5">{player.name[0]}</AvatarFallback>
           </Avatar>
@@ -496,7 +498,7 @@ export default function PlayerProfilePage() {
                         <p className="text-[10px] font-black uppercase text-slate-900">{log.matchName}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className="text-[8px] font-bold text-slate-400 uppercase">
-                            {new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            {log.date ? new Date(log.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No Date'}
                           </span>
                           <Badge variant="outline" className={cn("h-3 text-[6px] px-1 font-black", log.status === 'live' ? "text-red-500 border-red-200" : "text-slate-400 border-slate-200")}>
                             {log.status.toUpperCase()}
