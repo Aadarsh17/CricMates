@@ -58,18 +58,16 @@ export default function TeamDetailsPage() {
   const squadData = useMemo(() => {
     if (!allPlayers || !allMatches || !teamId) return { active: [], legacy: [] };
     
-    const teamMatches = allMatches.filter(m => m.team1Id === teamId || m.team2Id === teamId);
     const participationIds = new Set<string>();
-    
-    // Players found in team squads or delivery logs for this team
-    teamMatches.forEach(m => {
-      const squad = m.team1Id === teamId ? m.team1SquadPlayerIds : m.team2SquadPlayerIds;
-      squad?.forEach((id: string) => participationIds.add(id));
+    allMatches.forEach(m => {
+      if (m.team1Id === teamId || m.team2Id === teamId) {
+        const squad = m.team1Id === teamId ? m.team1SquadPlayerIds : m.team2SquadPlayerIds;
+        squad?.forEach((id: string) => participationIds.add(id));
+      }
     });
 
     const registered = allPlayers.filter(p => p.teamId === teamId || (participationIds.has(p.id) && !p.teamId));
     const registeredIds = new Set(registered.map(p => p.id));
-    
     const legacy = allPlayers.filter(p => participationIds.has(p.id) && !registeredIds.has(p.id));
     
     return { 
@@ -84,7 +82,11 @@ export default function TeamDetailsPage() {
     const pMatchStats: Record<string, Record<string, any>> = {};
 
     allPlayers.forEach(p => { 
-      stats[p.id] = { id: p.id, runs: 0, wickets: 0, cvp: 0, matches: 0, batInn: 0, bowlInn: 0, fours: 0, sixes: 0, ballsFaced: 0, ballsBowled: 0, runsConceded: 0 };
+      stats[p.id] = { 
+        id: p.id, runs: 0, wickets: 0, cvp: 0, matches: 0, 
+        batInn: 0, bowlInn: 0, fours: 0, sixes: 0, 
+        ballsFaced: 0, ballsBowled: 0, runsConceded: 0 
+      };
     });
 
     allMatches?.forEach(m => {
@@ -110,12 +112,22 @@ export default function TeamDetailsPage() {
 
       if (battingTeamId === teamId) {
         const sId = d.strikerPlayerId;
-        if (sId && stats[sId]) {
-          if (!pMatchStats[sId]) pMatchStats[sId] = {};
-          if (!pMatchStats[sId][matchId]) {
-            pMatchStats[sId][matchId] = { id: sId, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
-            stats[sId].batInn++;
+        const nsId = d.nonStrikerPlayerId;
+        
+        [sId, nsId].forEach(pid => {
+          if (pid && stats[pid]) {
+            if (!pMatchStats[pid]) pMatchStats[pid] = {};
+            if (!pMatchStats[pid][matchId]) {
+              pMatchStats[pid][matchId] = { id: pid, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0, hasBatted: false, hasBowled: false };
+            }
+            if (!pMatchStats[pid][matchId].hasBatted) {
+              pMatchStats[pid][matchId].hasBatted = true;
+              stats[pid].batInn++;
+            }
           }
+        });
+
+        if (sId && stats[sId]) {
           const s = pMatchStats[sId][matchId];
           s.runs += (d.runsScored || 0);
           stats[sId].runs += (d.runsScored || 0);
@@ -127,12 +139,16 @@ export default function TeamDetailsPage() {
           if (d.runsScored === 6) { s.sixes++; stats[sId].sixes++; }
         }
       }
+
       if (bowlingTeamId === teamId) {
         const bId = d.bowlerId || d.bowlerPlayerId;
         if (bId && stats[bId]) {
           if (!pMatchStats[bId]) pMatchStats[bId] = {};
           if (!pMatchStats[bId][matchId]) {
-            pMatchStats[bId][matchId] = { id: bId, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+            pMatchStats[bId][matchId] = { id: bId, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0, hasBatted: false, hasBowled: false };
+          }
+          if (!pMatchStats[bId][matchId].hasBowled) {
+            pMatchStats[bId][matchId].hasBowled = true;
             stats[bId].bowlInn++;
           }
           const b = pMatchStats[bId][matchId];
@@ -147,10 +163,11 @@ export default function TeamDetailsPage() {
             stats[bId].wickets++;
           }
         }
+        
         const fId = d.fielderPlayerId;
         if (fId && fId !== 'none' && stats[fId]) {
           if (!pMatchStats[fId]) pMatchStats[fId] = {};
-          if (!pMatchStats[fId][matchId]) pMatchStats[fId][matchId] = { id: fId, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+          if (!pMatchStats[fId][matchId]) pMatchStats[fId][matchId] = { id: fId, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0, hasBatted: false, hasBowled: false };
           const f = pMatchStats[fId][matchId];
           if (d.dismissalType === 'caught') f.catches++;
           if (d.dismissalType === 'stumped') f.stumpings++;
@@ -570,7 +587,13 @@ function PlayerStatCard({ player, stats, team, isUmpire, onEdit, onRelease, onDe
         </div>
         <div className="mt-6 grid grid-cols-5 gap-1 border-t pt-4 text-center bg-slate-50/50 -mx-5 -mb-5 p-4">
           <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">M</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.matches}</p></div>
-          <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Inn</p><div className="flex flex-col items-center"><span className={cn("text-[6px] font-black leading-none", isLegacy ? "text-slate-300" : "text-primary")}>B:{s.batInn}</span><span className={cn("text-[6px] font-black leading-none mt-0.5", isLegacy ? "text-slate-300" : "text-secondary")}>W:{s.bowlInn}</span></div></div>
+          <div className="flex flex-col items-center">
+            <p className="text-[7px] font-black text-slate-400 uppercase mb-1">Inn</p>
+            <div className="flex flex-col -space-y-0.5">
+              <span className={cn("text-[8px] font-black", isLegacy ? "text-slate-300" : "text-primary")}>B:{s.batInn}</span>
+              <span className={cn("text-[8px] font-black", isLegacy ? "text-slate-300" : "text-secondary")}>W:{s.bowlInn}</span>
+            </div>
+          </div>
           <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Runs</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.runs}</p></div>
           <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Wkts</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.wickets}</p></div>
           <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">CVP</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-300" : "text-primary")}>{s.cvp.toFixed(1)}</p></div>
