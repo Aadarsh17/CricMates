@@ -82,7 +82,6 @@ export default function StatsPage() {
     const careerAgg: Record<string, any> = {};
     const globalPartnerships: any[] = [];
     
-    // Process Career Totals and Match-wise stats
     players.forEach(p => {
       careerAgg[p.id] = { catches: 0, runOuts: 0, stumpings: 0, maidens: 0 };
     });
@@ -131,13 +130,11 @@ export default function StatsPage() {
 
     players.forEach(p => {
       Object.entries(pMatchStats[p.id] || {}).forEach(([mId, m]: [string, any]) => {
-        // Batting Records
         if (m.runs > batting.highestScore.val) batting.highestScore = { val: m.runs, name: p.name, matchId: mId };
         if (m.sixes > batting.most6s.val) batting.most6s = { val: m.sixes, name: p.name, matchId: mId };
         if (m.fours > batting.most4s.val) batting.most4s = { val: m.fours, name: p.name, matchId: mId };
         if (m.balls > batting.ballEater.val) batting.ballEater = { val: m.balls, name: p.name, matchId: mId };
         
-        // Bowling Records
         if (m.wkts > bowling.mostWkts.val) bowling.mostWkts = { val: m.wkts, name: p.name, matchId: mId };
         if (m.wkts > bowling.bestFigures.wkts || (m.wkts === bowling.bestFigures.wkts && m.runsCon < bowling.bestFigures.runs && m.ballsB > 0)) {
           bowling.bestFigures = { wkts: m.wkts, runs: m.runsCon, name: p.name, matchId: mId };
@@ -150,7 +147,6 @@ export default function StatsPage() {
         if (m.extras > bowling.extraGiver.val) bowling.extraGiver = { val: m.extras, name: p.name, matchId: mId };
       });
 
-      // Fielding (Career)
       if (careerAgg[p.id].catches > fielding.mostCatches.val) fielding.mostCatches = { val: careerAgg[p.id].catches, name: p.name };
       if (careerAgg[p.id].runOuts > fielding.mostRunOuts.val) fielding.mostRunOuts = { val: careerAgg[p.id].runOuts, name: p.name };
       if (careerAgg[p.id].stumpings > fielding.mostStumpings.val) fielding.mostStumpings = { val: careerAgg[p.id].stumpings, name: p.name };
@@ -209,29 +205,76 @@ export default function StatsPage() {
       <section className="space-y-6">
         <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Swords className="w-6 h-6 text-primary" /> Batting Elite</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <RecordCard title="Highest Score" value={`${records?.batting.highestScore.val} Runs`} subtitle={records?.batting.highestScore.name} icon={Trophy} color="bg-orange-500" />
-          <RecordCard title="Most 6s (Match)" value={`${records?.batting.most6s.val} Sixes`} subtitle={records?.batting.most6s.name} icon={Zap} color="bg-indigo-600" />
-          <RecordCard title="Most 4s (Match)" value={`${records?.batting.most4s.val} Fours`} subtitle={records?.batting.most4s.name} icon={Star} color="bg-amber-500" />
-          <RecordCard title="Ball Eater (Match)" value={`${records?.batting.ballEater.val} Balls`} subtitle={records?.batting.ballEater.name} icon={Timer} />
+          <RecordCard 
+            title="Highest Score" 
+            value={records?.batting.highestScore.val > 0 ? `${records.batting.highestScore.val} Runs` : '---'} 
+            subtitle={records?.batting.highestScore.name} 
+            icon={Trophy} 
+            color="bg-orange-500" 
+          />
+          <RecordCard 
+            title="Most 6s (Match)" 
+            value={records?.batting.most6s.val > 0 ? `${records.batting.most6s.val} Sixes` : '---'} 
+            subtitle={records?.batting.most6s.name} 
+            icon={Zap} 
+            color="bg-indigo-600" 
+          />
+          <RecordCard 
+            title="Most 4s (Match)" 
+            value={records?.batting.most4s.val > 0 ? `${records.batting.most4s.val} Fours` : '---'} 
+            subtitle={records?.batting.most4s.name} 
+            icon={Star} 
+            color="bg-amber-500" 
+          />
+          <RecordCard 
+            title="Ball Eater (Match)" 
+            value={records?.batting.ballEater.val > 0 ? `${records.batting.ballEater.val} Balls` : '---'} 
+            subtitle={records?.batting.ballEater.name} 
+            icon={Timer} 
+          />
         </div>
       </section>
 
       <section className="space-y-6">
         <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Target className="w-6 h-6 text-secondary" /> Bowling Kings</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <RecordCard title="Best Figures" value={`${records?.bowling.bestFigures.wkts}/${records?.bowling.bestFigures.runs}`} subtitle={records?.bowling.bestFigures.name} icon={Target} color="bg-secondary" />
-          <RecordCard title="Best Economy" value={`${records?.bowling.bestEcon.val.toFixed(2)}`} subtitle={records?.bowling.bestEcon.name} icon={Activity} color="bg-emerald-600" />
-          <RecordCard title="Dot Ball King" value={`${records?.bowling.dotBallKing.val} Dots`} subtitle={records?.bowling.dotBallKing.name} icon={CircleDot} color="bg-slate-900" />
-          <RecordCard title="Extra Giver" value={`${records?.bowling.extraGiver.val} Extras`} subtitle={records?.bowling.extraGiver.name} icon={AlertCircle} color="bg-rose-500" />
+          <RecordCard 
+            title="Best Figures" 
+            value={records?.bowling.bestFigures.runs !== 999 ? `${records.bowling.bestFigures.wkts}/${records.bowling.bestFigures.runs}` : '---'} 
+            subtitle={records?.bowling.bestFigures.name} 
+            icon={Target} 
+            color="bg-secondary" 
+          />
+          <RecordCard 
+            title="Best Economy" 
+            value={records?.bowling.bestEcon.val !== 99 ? `${records.bowling.bestEcon.val.toFixed(2)}` : '---'} 
+            subtitle={records?.bowling.bestEcon.name} 
+            icon={Activity} 
+            color="bg-emerald-600" 
+          />
+          <RecordCard 
+            title="Dot Ball King" 
+            value={records?.bowling.dotBallKing.val > 0 ? `${records.bowling.dotBallKing.val} Dots` : '---'} 
+            subtitle={records?.bowling.dotBallKing.name} 
+            icon={CircleDot} 
+            color="bg-slate-900" 
+          />
+          <RecordCard 
+            title="Extra Giver" 
+            value={records?.bowling.extraGiver.val > 0 ? `${records.bowling.extraGiver.val} Extras` : '---'} 
+            subtitle={records?.bowling.extraGiver.name} 
+            icon={AlertCircle} 
+            color="bg-rose-500" 
+          />
         </div>
       </section>
 
       <section className="space-y-6">
         <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Shield className="w-6 h-6 text-slate-900" /> Safe Hands (Fielding)</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <RecordCard title="Career Catches" value={`${records?.fielding.mostCatches.val} Catches`} subtitle={records?.fielding.mostCatches.name} icon={Hand} />
-          <RecordCard title="Direct Hits" value={`${records?.fielding.mostRunOuts.val} Run Outs`} subtitle={records?.fielding.mostRunOuts.name} icon={Swords} />
-          <RecordCard title="Keeper's Pride" value={`${records?.fielding.mostStumpings.val} Stumpings`} subtitle={records?.fielding.mostStumpings.name} icon={Shield} />
+          <RecordCard title="Career Catches" value={records?.fielding.mostCatches.val > 0 ? `${records.fielding.mostCatches.val} Catches` : '---'} subtitle={records?.fielding.mostCatches.name} icon={Hand} />
+          <RecordCard title="Direct Hits" value={records?.fielding.mostRunOuts.val > 0 ? `${records.fielding.mostRunOuts.val} Run Outs` : '---'} subtitle={records?.fielding.mostRunOuts.name} icon={Swords} />
+          <RecordCard title="Keeper's Pride" value={records?.fielding.mostStumpings.val > 0 ? `${records.fielding.mostStumpings.val} Stumpings` : '---'} subtitle={records?.fielding.mostStumpings.name} icon={Shield} />
         </div>
       </section>
 
