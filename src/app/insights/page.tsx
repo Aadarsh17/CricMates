@@ -22,7 +22,8 @@ import {
   MapPin,
   Users,
   Trophy,
-  Scale
+  Scale,
+  Hand
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -212,18 +213,37 @@ export default function InsightsPage() {
   }, [matches, players]);
 
   const milestoneWatch = useMemo(() => {
-    if (!players || players.length === 0) return { runs: [] };
+    if (!players || players.length === 0) return { runs: [], wkts: [], catches: [], runOuts: [], stumpings: [] };
+    
     const RUN_MILESTONES = [25, 50, 75, 100, 150, 200, 250, 500, 750, 1000];
+    const WKT_MILESTONES = [5, 10, 15, 20, 25, 50, 75, 100];
+    const FIELDING_MILESTONES = [2, 5, 10, 15, 20, 25, 50];
+
     const process = (type: string, milestones: number[], key: string) => {
       return players.map(p => {
         const val = playerCareerAggregates[p.id]?.[key] || 0;
         const next = milestones.find(m => m > val) || (Math.floor(val / 5) + 1) * 5;
         const prev = [...milestones].reverse().find(m => m <= val) || 0;
         const progress = next > prev ? ((val - prev) / (next - prev)) * 100 : 0;
-        return { ...p, type, current: val, next, diff: next - val, progress, label: `${next - val} more for ${next} Career ${type}` };
+        return { 
+          ...p, 
+          type, 
+          current: val, 
+          next, 
+          diff: next - val, 
+          progress, 
+          label: `${next - val} more for ${next} Career ${type}` 
+        };
       }).sort((a: any, b: any) => watchlistSort === 'progress' ? b.progress - a.progress : b.current - a.current);
     };
-    return { runs: process('runs', RUN_MILESTONES, 'runs') };
+
+    return { 
+      runs: process('runs', RUN_MILESTONES, 'runs'),
+      wkts: process('wickets', WKT_MILESTONES, 'wkts'),
+      catches: process('catches', FIELDING_MILESTONES, 'catches'),
+      runOuts: process('run outs', FIELDING_MILESTONES, 'runOuts'),
+      stumpings: process('stumpings', FIELDING_MILESTONES, 'stumpings')
+    };
   }, [players, playerCareerAggregates, watchlistSort]);
 
   const groundStats = useMemo(() => {
@@ -241,7 +261,7 @@ export default function InsightsPage() {
       venues[v].innings += (s1 > 0 ? 1 : 0) + (s2 > 0 ? 1 : 0);
       venues[v].highest = Math.max(venues[v].highest, s1, s2);
       
-      const bat1TeamId = m.tossWinnerTeamId === m.team1Id ? (m.tossDecision === 'bat' ? m.team1Id : m.team2Id) : (m.tossDecision === 'bat' ? m.team2Id : m.team1Id);
+      const bat1TeamId = m.tossWinnerTeamId === m.team1Id ? (m.tossDecision === 'bat' ? m.team1Id : m.team2Id) : (m.tossDecision === 'bat' ? match.team2Id : match.team1Id);
       if (!m.isTie && m.winnerTeamId) {
         if (m.winnerTeamId === bat1TeamId) venues[v].bat1Won++;
         else venues[v].bat2Win++;
@@ -255,6 +275,23 @@ export default function InsightsPage() {
   const getPData = (id: string) => playerCareerAggregates[id] || { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, fours: 0, sixes: 0, battingDots: 0, highest: 0, lowest: 0 };
   const getTData = (id: string) => teamAggregates[id] || { played: 0, won: 0, tied: 0, lost: 0, forR: 0, forB: 0, agR: 0, agB: 0, fours: 0, sixes: 0, highest: 0, lowest: 0 };
   const getCData = (id: string) => captainStats[id] || { played: 0, won: 0 };
+
+  const renderMilestoneList = (data: any[]) => (
+    <div className="space-y-4">
+      {data.slice(0, 10).map((p: any) => (
+        <Card key={p.id} className="p-5 border-none shadow-lg rounded-3xl bg-white space-y-4">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-black uppercase group-hover:text-primary">{p.name}</p>
+              <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{p.label}</p>
+            </div>
+            <div className="text-right"><p className="text-xl font-black text-slate-900 leading-none">{p.current}</p><p className="text-[7px] font-black text-slate-400 uppercase mt-1">Total</p></div>
+          </div>
+          <div className="space-y-1.5"><Progress value={p.progress} className="h-2 bg-slate-100" /></div>
+        </Card>
+      ))}
+    </div>
+  );
 
   return (
     <div className="max-w-lg mx-auto space-y-12 pb-32 px-4">
@@ -279,20 +316,41 @@ export default function InsightsPage() {
               {watchlistSort === 'progress' ? 'By Proximity' : 'By Volume'}
             </Button>
           </div>
-          <div className="space-y-4">
-            {milestoneWatch.runs.slice(0, 5).map((p: any) => (
-              <Card key={p.id} className="p-5 border-none shadow-lg rounded-3xl bg-white space-y-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm font-black uppercase group-hover:text-primary">{p.name}</p>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{p.label}</p>
-                  </div>
-                  <div className="text-right"><p className="text-xl font-black text-slate-900 leading-none">{p.current}</p><p className="text-[7px] font-black text-slate-400 uppercase mt-1">Total</p></div>
-                </div>
-                <div className="space-y-1.5"><Progress value={p.progress} className="h-2 bg-slate-100" /></div>
-              </Card>
-            ))}
-          </div>
+
+          <Tabs defaultValue="batting" className="w-full">
+            <TabsList className="grid w-full grid-cols-3 h-10 bg-slate-50 p-1 rounded-lg mb-6 border">
+              <TabsTrigger value="batting" className="font-bold text-[8px] uppercase">Batting</TabsTrigger>
+              <TabsTrigger value="bowling" className="font-bold text-[8px] uppercase">Bowling</TabsTrigger>
+              <TabsTrigger value="fielding" className="font-bold text-[8px] uppercase">Fielding</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="batting">
+              {renderMilestoneList(milestoneWatch.runs)}
+            </TabsContent>
+
+            <TabsContent value="bowling">
+              {renderMilestoneList(milestoneWatch.wkts)}
+            </TabsContent>
+
+            <TabsContent value="fielding">
+              <Tabs defaultValue="caught" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 h-8 bg-white p-1 rounded-md mb-4 border border-dashed">
+                  <TabsTrigger value="caught" className="text-[7px] font-black uppercase">Caught</TabsTrigger>
+                  <TabsTrigger value="runout" className="text-[7px] font-black uppercase">Run Out</TabsTrigger>
+                  <TabsTrigger value="stumping" className="text-[7px] font-black uppercase">Stumping</TabsTrigger>
+                </TabsList>
+                <TabsContent value="caught">
+                  {renderMilestoneList(milestoneWatch.catches)}
+                </TabsContent>
+                <TabsContent value="runout">
+                  {renderMilestoneList(milestoneWatch.runOuts)}
+                </TabsContent>
+                <TabsContent value="stumping">
+                  {renderMilestoneList(milestoneWatch.stumpings)}
+                </TabsContent>
+              </Tabs>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="comparison" className="space-y-6">
