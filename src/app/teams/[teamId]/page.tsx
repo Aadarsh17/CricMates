@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, Loader2, Edit2, Camera, Users, Scale, ShieldCheck, X, Zap, Target, Medal, Clock, History, UserMinus } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, Loader2, Edit2, Camera, Users, Scale, ShieldCheck, X, Zap, Target, Medal, Clock, History, UserMinus, RotateCcw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -222,14 +222,20 @@ export default function TeamDetailsPage() {
   const handleUpdatePlayer = () => { if (editingPlayerId) updateDocumentNonBlocking(doc(db, 'players', editingPlayerId), editForm); setIsEditOpen(false); toast({ title: "Profile Updated" }); };
   
   const handleReleasePlayer = (p: any) => {
-    if (!confirm(`Release ${p.name} from ${team?.name}? They will become a free agent.`)) return;
+    if (!confirm(`Release ${p.name} from ${team?.name}? They will be moved to legacy participants.`)) return;
     updateDocumentNonBlocking(doc(db, 'players', p.id), { teamId: '' });
     const teamUpdates: any = {};
     if (team?.captainId === p.id) teamUpdates.captainId = '';
     if (team?.viceCaptainId === p.id) teamUpdates.viceCaptainId = '';
     if (team?.wicketKeeperId === p.id) teamUpdates.wicketKeeperId = '';
     if (Object.keys(teamUpdates).length > 0) updateDocumentNonBlocking(doc(db, 'teams', teamId), teamUpdates);
-    toast({ title: "Player Released" });
+    toast({ title: "Moved to Legacy" });
+  };
+
+  const handleReinstatePlayer = (p: any) => {
+    if (!confirm(`Reinstate ${p.name} to ${team?.name} active squad?`)) return;
+    updateDocumentNonBlocking(doc(db, 'players', p.id), { teamId: teamId });
+    toast({ title: "Reinstated to Active Squad" });
   };
 
   const handleDeletePlayer = (p: any) => {
@@ -347,7 +353,7 @@ export default function TeamDetailsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {squadData.legacy.length > 0 ? squadData.legacy.map(player => (
-              <PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} isLegacy />
+              <PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} isLegacy user={user} onReinstate={() => handleReinstatePlayer(player)} />
             )) : (<div className="col-span-full py-12 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center text-center"><Clock className="w-10 h-10 text-slate-200 mb-2" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Legacy Data Found</p></div>)}
           </div>
         </TabsContent>
@@ -409,7 +415,7 @@ export default function TeamDetailsPage() {
   );
 }
 
-function PlayerStatCard({ player, stats, team, user, onEdit, onRelease, onDelete, isLegacy }: { player: any, stats: any, team?: any, user?: any, onEdit?: () => void, onRelease?: () => void, onDelete?: () => void, isLegacy?: boolean }) {
+function PlayerStatCard({ player, stats, team, user, onEdit, onRelease, onDelete, onReinstate, isLegacy }: { player: any, stats: any, team?: any, user?: any, onEdit?: () => void, onRelease?: () => void, onDelete?: () => void, onReinstate?: () => void, isLegacy?: boolean }) {
   const isCaptain = player.id === team?.captainId;
   const isVC = player.id === team?.viceCaptainId;
   const isWK = player.id === team?.wicketKeeperId;
@@ -432,10 +438,16 @@ function PlayerStatCard({ player, stats, team, user, onEdit, onRelease, onDelete
               <div className="flex gap-1 items-center mt-1"><Badge variant="secondary" className={cn("text-[8px] font-black uppercase px-2 h-5 border-none", isLegacy ? "bg-slate-100 text-slate-400" : "bg-primary/10 text-primary")}>{player.role}</Badge>{!isLegacy && isWK && <Badge className="bg-secondary text-white text-[7px] font-black h-5 px-1.5">WK</Badge>}{isLegacy && <Badge variant="outline" className="text-[7px] font-black uppercase h-5 text-slate-300 border-slate-200">Ex-Player</Badge>}</div>
             </Link>
           </div>
-          {!isLegacy && user && (
+          {user && (
             <div className="flex flex-col gap-1">
-              <Button variant="ghost" size="icon" onClick={onRelease} title="Release from Team" className="h-8 w-8 text-slate-300 hover:text-amber-500"><UserMinus className="w-4 h-4"/></Button>
-              <Button variant="ghost" size="icon" onClick={onDelete} title="Purge Record" className="h-8 w-8 text-slate-100 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>
+              {!isLegacy ? (
+                <>
+                  <Button variant="ghost" size="icon" onClick={onRelease} title="Release from Team" className="h-8 w-8 text-slate-300 hover:text-amber-500"><UserMinus className="w-4 h-4"/></Button>
+                  <Button variant="ghost" size="icon" onClick={onDelete} title="Purge Record" className="h-8 w-8 text-slate-100 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>
+                </>
+              ) : (
+                <Button variant="ghost" size="icon" onClick={onReinstate} title="Reinstate to Squad" className="h-8 w-8 text-slate-300 hover:text-primary"><UserPlus className="w-4 h-4"/></Button>
+              )}
             </div>
           )}
         </div>
