@@ -8,7 +8,7 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck, Trophy, X, Hash, Crosshair, Crown, Star } from 'lucide-react';
+import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck, Trophy, X, Hash, Crosshair, Crown, Star, History } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
