@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Users, Scale, Crown, Shield, ShieldCheck, X, Zap, Target, Medal } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, History as HistoryIcon, Loader2, Edit2, Camera, Users, Scale, Crown, Shield, ShieldCheck, X, Zap, Target, Medal, Clock, History } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,7 @@ import { cn, formatTeamName } from '@/lib/utils';
 import Link from 'next/link';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function TeamDetailsPage() {
   const params = useParams();
@@ -49,23 +50,135 @@ export default function TeamDetailsPage() {
   }, [db, isMounted]);
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
-  const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
-  const { data: allTeams } = useCollection(allTeamsQuery);
-
   // CRITICAL: Filter for Ghost Data from deleted matches
   const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
 
-  const activeSquad = useMemo(() => {
-    if (!allPlayers || !allMatches || !teamId) return [];
-    const registeredIds = new Set(allPlayers.filter(p => p.teamId === teamId).map(p => p.id));
-    const matchParticipantIds = new Set<string>();
+  // CATEGORIZED SQUAD LOGIC
+  const squadData = useMemo(() => {
+    if (!allPlayers || !allMatches || !teamId) return { active: [], legacy: [] };
+    
+    // Players currently registered to this team
+    const registered = allPlayers.filter(p => p.teamId === teamId);
+    const registeredIds = new Set(registered.map(p => p.id));
+
+    // Players who have appeared in a match for this team but aren't currently registered to it
+    const legacyIds = new Set<string>();
     allMatches.forEach(m => {
-      if (m.team1Id === teamId) m.team1SquadPlayerIds?.forEach((pid: string) => matchParticipantIds.add(pid));
-      if (m.team2Id === teamId) m.team2SquadPlayerIds?.forEach((pid: string) => matchParticipantIds.add(pid));
+      if (!activeMatchIds.has(m.id)) return;
+      if (m.team1Id === teamId) {
+        m.team1SquadPlayerIds?.forEach((pid: string) => { if (!registeredIds.has(pid)) legacyIds.add(pid); });
+      }
+      if (m.team2Id === teamId) {
+        m.team2SquadPlayerIds?.forEach((pid: string) => { if (!registeredIds.has(pid)) legacyIds.add(pid); });
+      }
     });
-    const combinedIds = new Set([...Array.from(registeredIds), ...Array.from(matchParticipantIds)]);
-    return allPlayers.filter(p => combinedIds.has(p.id));
-  }, [allPlayers, allMatches, teamId]);
+
+    const legacy = allPlayers.filter(p => legacyIds.has(p.id));
+    
+    return { active: registered, legacy };
+  }, [allPlayers, allMatches, teamId, activeMatchIds]);
+
+  // HIGH FIDELITY TEAM-SPECIFIC AGGREGATION ENGINE
+  const squadStats = useMemo(() => {
+    if (!allPlayers || !allMatches || !rawDeliveries || !teamId) return {};
+    const stats: Record<string, any> = {};
+    const playedMatchesSet: Record<string, Set<string>> = {};
+    const batInningsSet: Record<string, Set<string>> = {};
+    const bowlInningsSet: Record<string, Set<string>> = {};
+    const pMatchStats: Record<string, Record<string, any>> = {};
+
+    allPlayers.forEach(p => { 
+      stats[p.id] = { id: p.id, runs: 0, wickets: 0, cvp: 0, matches: 0, batInn: 0, bowlInn: 0 };
+      playedMatchesSet[p.id] = new Set();
+      batInningsSet[p.id] = new Set();
+      bowlInningsSet[p.id] = new Set();
+    });
+
+    // Process participation for this team only
+    allMatches.forEach(m => {
+      if (!activeMatchIds.has(m.id)) return;
+      const isTeam1 = m.team1Id === teamId;
+      const isTeam2 = m.team2Id === teamId;
+      if (!isTeam1 && !isTeam2) return;
+
+      const teamSquad = isTeam1 ? m.team1SquadPlayerIds : m.team2SquadPlayerIds;
+      teamSquad?.forEach((pid: string) => {
+        if (playedMatchesSet[pid]) playedMatchesSet[pid].add(m.id);
+      });
+    });
+
+    // Aggregate ball-by-ball stats for this team only
+    rawDeliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      const match = allMatches.find(m => m.id === matchId);
+      if (!match || !activeMatchIds.has(matchId)) return;
+
+      const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
+      const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
+      const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
+      const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+
+      // Stats for players while they were part of THIS team
+      if (battingTeamId === teamId) {
+        const sId = d.strikerPlayerId;
+        const nsId = d.nonStrikerPlayerId;
+        if (sId && stats[sId]) {
+          batInningsSet[sId].add(matchId);
+          if (!pMatchStats[sId]) pMatchStats[sId] = {};
+          if (!pMatchStats[sId][matchId]) pMatchStats[sId][matchId] = { id: sId, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+          const s = pMatchStats[sId][matchId];
+          s.runs += (d.runsScored || 0);
+          stats[sId].runs += (d.runsScored || 0);
+          if (d.extraType !== 'wide') s.ballsFaced++;
+          if (d.runsScored === 4) s.fours++;
+          if (d.runsScored === 6) s.sixes++;
+        }
+        if (nsId && stats[nsId]) batInningsSet[nsId].add(matchId);
+      }
+
+      if (bowlingTeamId === teamId) {
+        const bId = d.bowlerId || d.bowlerPlayerId;
+        if (bId && stats[bId]) {
+          bowlInningsSet[bId].add(matchId);
+          if (!pMatchStats[bId]) pMatchStats[bId] = {};
+          if (!pMatchStats[bId][matchId]) pMatchStats[bId][matchId] = { id: bId, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+          const b = pMatchStats[bId][matchId];
+          b.runsConceded += (d.totalRunsOnDelivery || 0);
+          if (d.extraType === 'none') b.ballsBowled++;
+          if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
+            b.wickets++;
+            stats[bId].wickets++;
+          }
+        }
+      }
+
+      // Fielding stats for this team
+      if (bowlingTeamId === teamId) {
+        const fId = d.fielderPlayerId;
+        if (fId && fId !== 'none' && stats[fId]) {
+          if (!pMatchStats[fId]) pMatchStats[fId] = {};
+          if (!pMatchStats[fId][matchId]) pMatchStats[fId][matchId] = { id: fId, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+          const f = pMatchStats[fId][matchId];
+          if (d.dismissalType === 'caught') f.catches++;
+          if (d.dismissalType === 'stumped') f.stumpings++;
+          if (d.dismissalType === 'runout') f.runOuts++;
+        }
+      }
+    });
+
+    Object.keys(stats).forEach(id => {
+      let totalCvp = 0;
+      Object.values(pMatchStats[id] || {}).forEach(mS => {
+        totalCvp += calculatePlayerCVP(mS as any);
+      });
+      stats[id].cvp = totalCvp;
+      stats[id].matches = playedMatchesSet[id]?.size || 0;
+      stats[id].batInn = batInningsSet[id]?.size || 0;
+      stats[id].bowlInn = bowlInningsSet[id]?.size || 0;
+    });
+
+    return stats;
+  }, [allPlayers, allMatches, rawDeliveries, teamId, activeMatchIds]);
 
   const standingsForThisTeam = useMemo(() => {
     if (!teamId || !allMatches || !allMatches.length) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
@@ -85,7 +198,7 @@ export default function TeamDetailsPage() {
       rawDeliveries.forEach(d => {
         const matchId = d.__fullPath?.split('/')[1];
         const match = allMatches.find(m => m.id === matchId);
-        if (!match || match.status !== 'completed') return;
+        if (!match || match.status !== 'completed' || !activeMatchIds.has(matchId)) return;
         
         const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
         const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
@@ -106,101 +219,17 @@ export default function TeamDetailsPage() {
     const forRR = forB > 0 ? (forR / (forB / 6)) : 0;
     const agRR = agB > 0 ? (agR / (agB / 6)) : 0;
     return { played, won, lost, drawn, nrr: forRR - agRR };
-  }, [allMatches, teamId, rawDeliveries]);
-
-  // HIGH FIDELITY AGGREGATION ENGINE
-  const squadStats = useMemo(() => {
-    if (!allPlayers || !allMatches || !rawDeliveries) return {};
-    const careerTotals: Record<string, any> = {};
-    const pMatchStats: Record<string, Record<string, any>> = {};
-    const playedMatchesSet: Record<string, Set<string>> = {};
-    const batInningsSet: Record<string, Set<string>> = {};
-    const bowlInningsSet: Record<string, Set<string>> = {};
-
-    allPlayers.forEach(p => { 
-      careerTotals[p.id] = { id: p.id, runs: 0, wickets: 0, cvp: 0, matches: 0, batInn: 0, bowlInn: 0 };
-      playedMatchesSet[p.id] = new Set();
-      batInningsSet[p.id] = new Set();
-      bowlInningsSet[p.id] = new Set();
-    });
-
-    // Count squad selections
-    allMatches.forEach(m => {
-      if (!activeMatchIds.has(m.id)) return;
-      [...(m.team1SquadPlayerIds || []), ...(m.team2SquadPlayerIds || [])].forEach(pid => {
-        if (playedMatchesSet[pid]) playedMatchesSet[pid].add(m.id);
-      });
-    });
-
-    // Count active play and accumulate totals
-    rawDeliveries.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      if (!matchId || !activeMatchIds.has(matchId)) return;
-
-      const sId = d.strikerPlayerId;
-      const nsId = d.nonStrikerPlayerId;
-      const bId = d.bowlerId || d.bowlerPlayerId;
-      const fId = d.fielderPlayerId;
-
-      if (sId && batInningsSet[sId]) batInningsSet[sId].add(matchId);
-      if (nsId && batInningsSet[nsId]) batInningsSet[nsId].add(matchId);
-      if (bId && bowlInningsSet[bId]) bowlInningsSet[bId].add(matchId);
-
-      const involved = [sId, bId, fId].filter(id => id && id !== 'none' && careerTotals[id]);
-      involved.forEach(pid => {
-        if (!pMatchStats[pid]) pMatchStats[pid] = {};
-        if (!pMatchStats[pid][matchId]) {
-          pMatchStats[pid][matchId] = { id: pid, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
-        }
-      });
-
-      if (sId && pMatchStats[sId]?.[matchId]) {
-        const s = pMatchStats[sId][matchId];
-        s.runs += (d.runsScored || 0);
-        careerTotals[sId].runs += (d.runsScored || 0);
-        if (d.extraType !== 'wide') s.ballsFaced++;
-        if (d.runsScored === 4) s.fours++;
-        if (d.runsScored === 6) s.sixes++;
-      }
-      if (bId && pMatchStats[bId]?.[matchId]) {
-        const b = pMatchStats[bId][matchId];
-        b.runsConceded += (d.totalRunsOnDelivery || 0);
-        if (d.extraType === 'none') b.ballsBowled++;
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
-          b.wickets++;
-          careerTotals[bId].wickets++;
-        }
-      }
-      if (fId && pMatchStats[fId]?.[matchId]) {
-        const f = pMatchStats[fId][matchId];
-        if (d.dismissalType === 'caught') f.catches++;
-        if (d.dismissalType === 'stumped') f.stumpings++;
-        if (d.dismissalType === 'runout') f.runOuts++;
-      }
-    });
-
-    Object.keys(careerTotals).forEach(id => {
-      let totalCvp = 0;
-      Object.values(pMatchStats[id] || {}).forEach(mS => {
-        totalCvp += calculatePlayerCVP(mS as any);
-      });
-      careerTotals[id].cvp = totalCvp;
-      careerTotals[id].matches = playedMatchesSet[id]?.size || 0;
-      careerTotals[id].batInn = batInningsSet[id]?.size || 0;
-      careerTotals[id].bowlInn = bowlInningsSet[id]?.size || 0;
-    });
-
-    return careerTotals;
-  }, [allPlayers, allMatches, rawDeliveries, activeMatchIds]);
+  }, [allMatches, teamId, rawDeliveries, activeMatchIds]);
 
   const teamHonors = useMemo(() => {
-    if (!activeSquad || activeSquad.length === 0) return null;
-    const statsArray = activeSquad.map(p => ({ ...squadStats[p.id], name: p.name }));
+    if (!squadData.active.length && !squadData.legacy.length) return null;
+    const allKnown = [...squadData.active, ...squadData.legacy];
+    const statsArray = allKnown.map(p => ({ ...squadStats[p.id], name: p.name }));
     const topScorer = [...statsArray].sort((a,b) => b.runs - a.runs)[0];
     const topWkt = [...statsArray].sort((a,b) => b.wickets - a.wickets)[0];
     const mvp = [...statsArray].sort((a,b) => b.cvp - a.cvp)[0];
     return { topScorer, topWkt, mvp };
-  }, [activeSquad, squadStats]);
+  }, [squadData, squadStats]);
 
   // UI Dialog States
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
@@ -273,9 +302,9 @@ export default function TeamDetailsPage() {
   if (!isMounted || isTeamLoading || isDeliveriesLoading || isMatchesLoading || isAllPlayersLoading) return (<div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4"><Loader2 className="w-10 h-10 text-primary animate-spin" /><p className="text-[10px] font-black uppercase text-slate-400">Syncing Team Center...</p></div>);
 
   return (
-    <div className="space-y-10 pb-32 px-1 md:px-4 max-w-5xl mx-auto">
+    <div className="space-y-10 pb-32 px-1 md:px-4 max-w-5xl mx-auto animate-in fade-in duration-500">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full"><ArrowLeft className="w-5 h-5"/></Button>
+        <Button variant="ghost" size="icon" onClick={() => router.push('/teams')} className="rounded-full"><ArrowLeft className="w-5 h-5"/></Button>
         <Avatar className="w-16 h-16 border-4 border-primary rounded-2xl shadow-lg"><AvatarImage src={team?.logoUrl || defaultTeamLogo} className="object-cover" /><AvatarFallback className="bg-primary text-white font-black text-2xl">{team?.name[0]}</AvatarFallback></Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
@@ -294,7 +323,7 @@ export default function TeamDetailsPage() {
           { label: 'NRR', value: (standingsForThisTeam.nrr || 0).toFixed(3), icon: HistoryIcon, color: 'text-primary' },
           { label: 'Played', value: standingsForThisTeam.played, icon: Users, color: 'text-slate-600' },
         ].map((stat, i) => (
-          <Card key={i} className="shadow-xl border-none overflow-hidden">
+          <Card key={i} className="shadow-xl border-none overflow-hidden hover:scale-[1.02] transition-transform">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="p-2 bg-slate-50 rounded-xl"><stat.icon className={cn("w-5 h-5", stat.color)}/></div>
               <div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</p><p className="text-xl font-black">{stat.value}</p></div>
@@ -307,82 +336,84 @@ export default function TeamDetailsPage() {
         <section className="space-y-4">
           <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Medal className="w-6 h-6 text-amber-500" /> Franchise Honors</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="border-none shadow-lg bg-white overflow-hidden">
+            <Card className="border-none shadow-lg bg-white overflow-hidden group">
               <CardContent className="p-4 flex items-center gap-4">
-                <div className="bg-amber-50 p-3 rounded-2xl"><Zap className="w-6 h-6 text-amber-500" /></div>
-                <div><p className="text-[10px] font-black text-slate-400 uppercase">Leading Scorer</p><p className="font-black text-sm uppercase">{teamHonors.topScorer.name}</p><p className="text-xs font-bold text-primary">{teamHonors.topScorer.runs} Career Runs</p></div>
+                <div className="bg-amber-50 p-3 rounded-2xl group-hover:rotate-12 transition-transform"><Zap className="w-6 h-6 text-amber-500" /></div>
+                <div><p className="text-[10px] font-black text-slate-400 uppercase">Leading Scorer</p><p className="font-black text-sm uppercase truncate max-w-[120px]">{teamHonors.topScorer.name}</p><p className="text-xs font-bold text-primary">{teamHonors.topScorer.runs} Career Runs</p></div>
               </CardContent>
             </Card>
-            <Card className="border-none shadow-lg bg-white overflow-hidden">
+            <Card className="border-none shadow-lg bg-white overflow-hidden group">
               <CardContent className="p-4 flex items-center gap-4">
-                <div className="bg-primary/10 p-3 rounded-2xl"><Target className="w-6 h-6 text-primary" /></div>
-                <div><p className="text-[10px] font-black text-slate-400 uppercase">Wicket King</p><p className="font-black text-sm uppercase">{teamHonors.topWkt.name}</p><p className="text-xs font-bold text-secondary">{teamHonors.topWkt.wickets} Career Wickets</p></div>
+                <div className="bg-primary/10 p-3 rounded-2xl group-hover:rotate-12 transition-transform"><Target className="w-6 h-6 text-primary" /></div>
+                <div><p className="text-[10px] font-black text-slate-400 uppercase">Wicket King</p><p className="font-black text-sm uppercase truncate max-w-[120px]">{teamHonors.topWkt.name}</p><p className="text-xs font-bold text-secondary">{teamHonors.topWkt.wickets} Career Wickets</p></div>
               </CardContent>
             </Card>
-            <Card className="border-none shadow-lg bg-white overflow-hidden">
+            <Card className="border-none shadow-lg bg-white overflow-hidden group">
               <CardContent className="p-4 flex items-center gap-4">
-                <div className="bg-secondary/10 p-3 rounded-2xl"><ShieldCheck className="w-6 h-6 text-secondary" /></div>
-                <div><p className="text-[10px] font-black text-slate-400 uppercase">Franchise MVP</p><p className="font-black text-sm uppercase">{teamHonors.mvp.name}</p><p className="text-xs font-bold text-emerald-600">{teamHonors.mvp.cvp.toFixed(1)} CVP Pts</p></div>
+                <div className="bg-secondary/10 p-3 rounded-2xl group-hover:rotate-12 transition-transform"><ShieldCheck className="w-6 h-6 text-secondary" /></div>
+                <div><p className="text-[10px] font-black text-slate-400 uppercase">Franchise MVP</p><p className="font-black text-sm uppercase truncate max-w-[120px]">{teamHonors.mvp.name}</p><p className="text-xs font-bold text-emerald-600">{teamHonors.mvp.cvp.toFixed(1)} CVP Pts</p></div>
               </CardContent>
             </Card>
           </div>
         </section>
       )}
 
-      <div className="space-y-6">
-        <div className="flex justify-between items-center gap-4 px-2">
-          <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight flex items-center gap-2"><Users className="w-6 h-6 text-primary" /> Active Squad</h2>
-          {user && (
-            <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
-              <DialogTrigger asChild><Button className="bg-primary hover:bg-primary/90 font-black uppercase text-[10px] h-10 px-6"><UserPlus className="mr-2 h-4 w-4"/> Register Player</Button></DialogTrigger>
-              <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl">
-                <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl">Official Registration</DialogTitle></DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Full Name</Label><Input value={newPlayer.name} onChange={(e) => setNewPlayer({...newPlayer, name: e.target.value})} className="font-bold h-12 shadow-sm" /></div>
-                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Primary Role</Label><Select value={newPlayer.role} onValueChange={(v) => setNewPlayer({...newPlayer, role: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman">Batsman</SelectItem><SelectItem value="Bowler">Bowler</SelectItem><SelectItem value="All-rounder">All-rounder</SelectItem></SelectContent></Select></div>
-                </div>
-                <DialogFooter><Button onClick={handleAddPlayer} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl bg-primary">Commit Registration</Button></DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
-        </div>
+      <Tabs defaultValue="current" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 h-12 bg-slate-100 p-1 rounded-xl mb-8">
+          <TabsTrigger value="current" className="font-black text-[10px] uppercase">Active Squad</TabsTrigger>
+          <TabsTrigger value="history" className="font-black text-[10px] uppercase">Legacy Participants</TabsTrigger>
+        </TabsList>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {activeSquad.map(player => {
-            const stats = squadStats[player.id] || { runs: 0, wickets: 0, cvp: 0, matches: 0, batInn: 0, bowlInn: 0 };
-            const isCaptain = player.id === team?.captainId;
-            const isVC = player.id === team?.viceCaptainId;
-            const isWK = player.id === team?.wicketKeeperId;
-            return (
-              <Card key={player.id} className={cn("border-l-8 shadow-lg hover:translate-y-[-2px] transition-all group rounded-2xl bg-white overflow-hidden", isCaptain ? "border-l-amber-500" : isVC ? "border-l-slate-600" : "border-l-primary")}>
-                <CardContent className="p-5">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-4">
-                      <div className="relative">
-                        <Avatar className="w-16 h-16 rounded-2xl shadow-md border-2 border-white overflow-hidden ring-4 ring-slate-50"><AvatarImage src={player.imageUrl || defaultAvatar} className="object-cover" /><AvatarFallback className="font-black text-slate-400 bg-slate-50">{player.name[0]}</AvatarFallback></Avatar>
-                        {user && <button onClick={() => openEditDialog(player)} className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-lg border shadow-sm text-primary hover:scale-110 transition-transform z-10"><Edit2 className="w-3 h-3" /></button>}
-                      </div>
-                      <Link href={`/players/${player.id}`} className="min-w-0">
-                        <p className="font-black text-sm truncate max-w-[140px] uppercase tracking-tight text-slate-900 group-hover:text-primary transition-colors">{player.name} {isCaptain && '(C)'} {isVC && '(VC)'}</p>
-                        <div className="flex gap-1 items-center mt-1"><Badge variant="secondary" className="text-[8px] font-black uppercase px-2 h-5 bg-primary/10 text-primary border-none">{player.role}</Badge>{isWK && <Badge className="bg-secondary text-white text-[7px] font-black h-5 px-1.5">WK</Badge>}</div>
-                      </Link>
-                    </div>
-                    {user && <Button variant="ghost" size="icon" onClick={() => { if(confirm(`Release ${player.name}?`)) deleteDocumentNonBlocking(doc(db, 'players', player.id)); }} className="h-8 w-8 text-slate-200 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>}
+        <TabsContent value="current" className="space-y-6">
+          <div className="flex justify-between items-center gap-4 px-2">
+            <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight flex items-center gap-2"><Users className="w-6 h-6 text-primary" /> Registered Players</h2>
+            {user && (
+              <Dialog open={isAddPlayerOpen} onOpenChange={setIsAddPlayerOpen}>
+                <DialogTrigger asChild><Button className="bg-primary hover:bg-primary/90 font-black uppercase text-[10px] h-10 px-6"><UserPlus className="mr-2 h-4 w-4"/> Register Player</Button></DialogTrigger>
+                <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl">
+                  <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl">Official Registration</DialogTitle></DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Full Name</Label><Input value={newPlayer.name} onChange={(e) => setNewPlayer({...newPlayer, name: e.target.value})} className="font-bold h-12 shadow-sm" /></div>
+                    <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Primary Role</Label><Select value={newPlayer.role} onValueChange={(v) => setNewPlayer({...newPlayer, role: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman">Batsman</SelectItem><SelectItem value="Bowler">Bowler</SelectItem><SelectItem value="All-rounder">All-rounder</SelectItem></SelectContent></Select></div>
                   </div>
-                  <div className="mt-6 grid grid-cols-5 gap-1 border-t pt-4 text-center bg-slate-50/50 -mx-5 -mb-5 p-4">
-                    <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">M</p><p className="font-black text-xs text-slate-900">{stats.matches}</p></div>
-                    <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Inn</p><div className="flex flex-col items-center"><span className="text-[6px] font-black text-primary leading-none">B:{stats.batInn}</span><span className="text-[6px] font-black text-secondary leading-none mt-0.5">W:{stats.bowlInn}</span></div></div>
-                    <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="font-black text-xs text-slate-900">{stats.runs}</p></div>
-                    <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Wkts</p><p className="font-black text-xs text-slate-900">{stats.wickets}</p></div>
-                    <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">CVP</p><p className="font-black text-xs text-primary">{stats.cvp.toFixed(1)}</p></div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
+                  <DialogFooter><Button onClick={handleAddPlayer} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl bg-primary">Commit Registration</Button></DialogFooter>
+                </DialogContent>
+              </Dialog>
+            )}
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {squadData.active.length > 0 ? squadData.active.map(player => (
+              <PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} team={team} user={user} onEdit={() => openEditDialog(player)} onDelete={() => { if(confirm(`Release ${player.name}?`)) deleteDocumentNonBlocking(doc(db, 'players', player.id)); }} />
+            )) : (
+              <div className="col-span-full py-12 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center text-center">
+                <Users className="w-10 h-10 text-slate-200 mb-2" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Players Registered</p>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-6">
+          <div className="px-2">
+            <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight flex items-center gap-2"><HistoryIcon className="w-6 h-6 text-slate-400" /> Previous Representatives</h2>
+            <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Players who appeared for this team but are NOT currently registered</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {squadData.legacy.length > 0 ? squadData.legacy.map(player => (
+              <PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} isLegacy />
+            )) : (
+              <div className="col-span-full py-12 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center text-center">
+                <Clock className="w-10 h-10 text-slate-200 mb-2" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Legacy Data Found</p>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
+
+      {/* Shared Dialogs (Edit Team, Edit Player) */}
       <Dialog open={isEditTeamOpen} onOpenChange={setIsEditTeamOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl">
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Franchise Details</DialogTitle></DialogHeader>
@@ -403,9 +434,9 @@ export default function TeamDetailsPage() {
             <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Franchise Name</Label><Input value={teamForm.name} onChange={(e) => setTeamForm({...teamForm, name: e.target.value})} className="font-bold h-12" /></div>
             <div className="space-y-4 pt-2 border-t">
               <p className="text-[10px] font-black uppercase text-slate-500">Leadership</p>
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Official Captain</Label><Select value={teamForm.captainId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, captainId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign Leader" /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{activeSquad.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Vice-Captain</Label><Select value={teamForm.viceCaptainId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, viceCaptainId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign VC" /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{activeSquad.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Wicket-Keeper</Label><Select value={teamForm.wicketKeeperId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, wicketKeeperId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign WK" /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{activeSquad.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Official Captain</Label><Select value={teamForm.captainId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, captainId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign Leader" /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{squadData.active.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Vice-Captain</Label><Select value={teamForm.viceCaptainId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, viceCaptainId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign VC" /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{squadData.active.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Wicket-Keeper</Label><Select value={teamForm.wicketKeeperId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, wicketKeeperId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign WK" /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{squadData.active.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
           </div>
           <DialogFooter><Button onClick={handleUpdateTeam} className="w-full h-14 font-black uppercase tracking-widest shadow-xl bg-primary">Save Changes</Button></DialogFooter>
@@ -436,5 +467,63 @@ export default function TeamDetailsPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function PlayerStatCard({ player, stats, team, user, onEdit, onDelete, isLegacy }: { player: any, stats: any, team?: any, user?: any, onEdit?: () => void, onDelete?: () => void, isLegacy?: boolean }) {
+  const isCaptain = player.id === team?.captainId;
+  const isVC = player.id === team?.viceCaptainId;
+  const isWK = player.id === team?.wicketKeeperId;
+  const defaultAvatar = PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl || '';
+
+  const s = stats || { runs: 0, wickets: 0, cvp: 0, matches: 0, batInn: 0, bowlInn: 0 };
+
+  return (
+    <Card className={cn(
+      "border-l-8 shadow-lg hover:translate-y-[-2px] transition-all group rounded-2xl bg-white overflow-hidden", 
+      isLegacy ? "border-l-slate-200" : (isCaptain ? "border-l-amber-500" : isVC ? "border-l-slate-600" : "border-l-primary")
+    )}>
+      <CardContent className="p-5">
+        <div className="flex justify-between items-start">
+          <div className="flex items-center gap-4">
+            <div className="relative">
+              <Avatar className={cn("w-16 h-16 rounded-2xl shadow-md border-2 border-white overflow-hidden ring-4", isLegacy ? "ring-slate-50 opacity-60" : "ring-slate-50")}>
+                <AvatarImage src={player.imageUrl || defaultAvatar} className="object-cover" />
+                <AvatarFallback className="font-black text-slate-400 bg-slate-50">{player.name[0]}</AvatarFallback>
+              </Avatar>
+              {!isLegacy && user && (
+                <button onClick={onEdit} className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-lg border shadow-sm text-primary hover:scale-110 transition-transform z-10">
+                  <Edit2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            <Link href={`/players/${player.id}`} className="min-w-0">
+              <p className={cn("font-black text-sm truncate max-w-[140px] uppercase tracking-tight transition-colors", isLegacy ? "text-slate-400" : "text-slate-900 group-hover:text-primary")}>
+                {player.name} {!isLegacy && isCaptain && '(C)'} {!isLegacy && isVC && '(VC)'}
+              </p>
+              <div className="flex gap-1 items-center mt-1">
+                <Badge variant="secondary" className={cn("text-[8px] font-black uppercase px-2 h-5 border-none", isLegacy ? "bg-slate-100 text-slate-400" : "bg-primary/10 text-primary")}>
+                  {player.role}
+                </Badge>
+                {!isLegacy && isWK && <Badge className="bg-secondary text-white text-[7px] font-black h-5 px-1.5">WK</Badge>}
+                {isLegacy && <Badge variant="outline" className="text-[7px] font-black uppercase h-5 text-slate-300 border-slate-200">Ex-Player</Badge>}
+              </div>
+            </Link>
+          </div>
+          {!isLegacy && user && (
+            <Button variant="ghost" size="icon" onClick={onDelete} className="h-8 w-8 text-slate-200 hover:text-destructive">
+              <Trash2 className="w-4 h-4"/>
+            </Button>
+          )}
+        </div>
+        <div className="mt-6 grid grid-cols-5 gap-1 border-t pt-4 text-center bg-slate-50/50 -mx-5 -mb-5 p-4">
+          <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">M</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.matches}</p></div>
+          <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Inn</p><div className="flex flex-col items-center"><span className={cn("text-[6px] font-black leading-none", isLegacy ? "text-slate-300" : "text-primary")}>B:{s.batInn}</span><span className={cn("text-[6px] font-black leading-none mt-0.5", isLegacy ? "text-slate-300" : "text-secondary")}>W:{s.bowlInn}</span></div></div>
+          <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Runs</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.runs}</p></div>
+          <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Wkts</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.wickets}</p></div>
+          <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">CVP</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-300" : "text-primary")}>{s.cvp.toFixed(1)}</p></div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
