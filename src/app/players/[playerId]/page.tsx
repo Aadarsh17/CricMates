@@ -8,7 +8,7 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck, Trophy } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -369,6 +369,36 @@ export default function PlayerProfilePage() {
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">ER</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.econ.toFixed(2)}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.avg.toFixed(2)}</p></div>
                 <div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">SR</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.sr.toFixed(1)}</p></div>
+              </div>
+
+              <div className="mt-6 pt-6 border-t">
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Wicket Milestones</p>
+                <div className="grid grid-cols-5 gap-2 mb-6">
+                  {[
+                    { label: '1W', val: careerStats.bowling.mil.oneW },
+                    { label: '2W', val: careerStats.bowling.mil.twoW },
+                    { label: '3W', val: careerStats.bowling.mil.threeW },
+                    { label: '4W', val: careerStats.bowling.mil.fourW },
+                    { label: '5W', val: careerStats.bowling.mil.fiveW },
+                  ].map(m => (
+                    <div key={m.label} className="bg-slate-50 p-2 rounded-xl text-center border">
+                      <p className="text-sm font-black text-slate-900">{m.val}</p>
+                      <p className="text-[8px] font-black text-slate-400 uppercase">{m.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap justify-center gap-2">
+                  {[10, 20, 30, 40, 50, 100].map(landmark => {
+                    const hasReached = careerStats.bowling.wkts >= landmark;
+                    if (!hasReached) return null;
+                    return (
+                      <Badge key={landmark} className="bg-secondary text-white font-black py-1.5 px-3 flex items-center gap-1.5 shadow-md">
+                        <Trophy className="w-3 h-3" /> {landmark}Ws
+                      </Badge>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </Card>
