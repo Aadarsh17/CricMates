@@ -61,7 +61,7 @@ export default function TeamsPage() {
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: allPlayers } = useCollection(allPlayersQuery);
 
-  const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
+  const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: allMatches = [], isLoading: isMatchesLoading } = useCollection(allMatchesQuery);
 
   const allDeliveriesQuery = useMemoFirebase(() => {
@@ -100,7 +100,8 @@ export default function TeamsPage() {
           : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
         
         const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
-        const bowlingTeamId = battingTeamId === teamId ? (battingTeamId === match.team1Id ? match.team2Id : match.team1Id) : teamId;
+        // Fix: Use match details to find opponent, not undefined teamId
+        const opponentTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
 
         if (totals[battingTeamId]) { 
           totals[battingTeamId].forR += (d.totalRunsOnDelivery || 0); 
@@ -109,10 +110,10 @@ export default function TeamsPage() {
           }
         }
         
-        if (totals[bowlingTeamId]) { 
-          totals[bowlingTeamId].agR += (d.totalRunsOnDelivery || 0); 
+        if (totals[opponentTeamId]) { 
+          totals[opponentTeamId].agR += (d.totalRunsOnDelivery || 0); 
           if (d.extraType === 'none' && d.dismissalType !== 'retired') {
-            totals[bowlingTeamId].agB += 1; 
+            totals[opponentTeamId].agB += 1; 
           }
         }
       });
