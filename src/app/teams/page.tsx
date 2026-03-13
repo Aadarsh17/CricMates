@@ -95,24 +95,74 @@ export default function TeamsPage() {
 
   const teamStats = useMemo(() => {
     const stats: Record<string, any> = {};
-    if (!teams) return stats;
-    const validMatchIds = new Set(allMatches.map(m => m.id));
+    if (!teams || !allMatches) return stats;
+    
+    // NRR and Standings must only be calculated for COMPLETED matches
+    const completedMatches = allMatches.filter(m => m.status === 'completed');
+    const validMatchIds = new Set(completedMatches.map(m => m.id));
+    
     const totals: Record<string, { forR: number, forB: number, agR: number, agB: number, wins: number, losses: number }> = {};
-    teams.forEach(t => { stats[t.id] = { wins: 0, losses: 0, nrr: 0 }; totals[t.id] = { forR: 0, forB: 0, agR: 0, agB: 0, wins: 0, losses: 0 }; });
-    if (rawDeliveries) {
+    
+    teams.forEach(t => { 
+      stats[t.id] = { wins: 0, losses: 0, nrr: 0 }; 
+      totals[t.id] = { forR: 0, forB: 0, agR: 0, agB: 0, wins: 0, losses: 0 }; 
+    });
+
+    if (rawDeliveries && validMatchIds.size > 0) {
       rawDeliveries.forEach(d => {
-        const matchId = d.__fullPath?.split('/')[1]; if (!matchId || !validMatchIds.has(matchId)) return;
-        const match = allMatches.find(m => m.id === matchId); if (!match) return;
+        const matchId = d.__fullPath?.split('/')[1]; 
+        if (!matchId || !validMatchIds.has(matchId)) return;
+        
+        const match = completedMatches.find(m => m.id === matchId); 
+        if (!match) return;
+
         const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
-        const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
+        const inn1BatId = match.tossWinnerTeamId === match.team1Id 
+          ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) 
+          : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
+        
         const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
         const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
-        if (totals[battingTeamId]) { totals[battingTeamId].forR += (d.totalRunsOnDelivery || 0); if (d.extraType !== 'wide' && d.extraType !== 'noball') totals[battingTeamId].forB += 1; }
-        if (totals[bowlingTeamId]) { totals[bowlingTeamId].agR += (d.totalRunsOnDelivery || 0); if (d.extraType !== 'wide' && d.extraType !== 'noball') totals[bowlingTeamId].agB += 1; }
+
+        // Batting stats for NRR
+        if (totals[battingTeamId]) { 
+          totals[battingTeamId].forR += (d.totalRunsOnDelivery || 0); 
+          if (d.extraType !== 'wide' && d.extraType !== 'noball' && d.dismissalType !== 'retired') {
+            totals[battingTeamId].forB += 1; 
+          }
+        }
+        
+        // Bowling stats for NRR
+        if (totals[bowlingTeamId]) { 
+          totals[bowlingTeamId].agR += (d.totalRunsOnDelivery || 0); 
+          if (d.extraType !== 'wide' && d.extraType !== 'noball' && d.dismissalType !== 'retired') {
+            totals[bowlingTeamId].agB += 1; 
+          }
+        }
       });
     }
-    allMatches.filter(m => m.status === 'completed').forEach(m => { const winnerId = m.winnerTeamId; if (winnerId && winnerId !== 'none' && totals[winnerId]) { totals[winnerId].wins++; const loserId = winnerId === m.team1Id ? m.team2Id : m.team1Id; if (totals[loserId]) totals[loserId].losses++; } });
-    teams.forEach(t => { const forRR = totals[t.id].forB > 0 ? (totals[t.id].forR / (totals[t.id].forB / 6)) : 0; const agRR = totals[t.id].agB > 0 ? (totals[t.id].agR / (totals[t.id].agB / 6)) : 0; stats[t.id] = { wins: totals[t.id].wins, losses: totals[t.id].losses, nrr: forRR - agRR }; });
+
+    // Wins and Losses
+    completedMatches.forEach(m => { 
+      const winnerId = m.winnerTeamId; 
+      if (winnerId && winnerId !== 'none' && totals[winnerId]) { 
+        totals[winnerId].wins++; 
+        const loserId = winnerId === m.team1Id ? m.team2Id : m.team1Id; 
+        if (totals[loserId]) totals[loserId].losses++; 
+      } 
+    });
+
+    // Finalize Stats
+    teams.forEach(t => { 
+      const forRR = totals[t.id].forB > 0 ? (totals[t.id].forR / (totals[t.id].forB / 6)) : 0; 
+      const agRR = totals[t.id].agB > 0 ? (totals[t.id].agR / (totals[t.id].agB / 6)) : 0; 
+      stats[t.id] = { 
+        wins: totals[t.id].wins, 
+        losses: totals[t.id].losses, 
+        nrr: forRR - agRR 
+      }; 
+    });
+
     return stats;
   }, [teams, allMatches, rawDeliveries]);
 
