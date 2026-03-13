@@ -22,12 +22,14 @@ import {
   Star,
   CircleDot,
   AlertCircle,
-  Activity
+  Activity,
+  TrendingDown,
+  TrendingUp
 } from 'lucide-react';
 import { useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+import { cn, formatTeamName } from '@/lib/utils';
 
 export default function StatsPage() {
   const db = useFirestore();
@@ -37,6 +39,9 @@ export default function StatsPage() {
 
   const playersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: players } = useCollection(playersQuery);
+
+  const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
+  const { data: teams } = useCollection(teamsQuery);
 
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
   const { data: matches } = useCollection(matchesQuery);
@@ -54,25 +59,27 @@ export default function StatsPage() {
         most6s: { val: 0, name: '-', matchId: '' }, 
         most4s: { val: 0, name: '-', matchId: '' },
         ballEater: { val: 0, name: '-', matchId: '' },
-        fastestFifty: { val: 999, name: '-', matchId: '' }
       },
       bowling: { 
         bestFigures: { wkts: 0, runs: 999, name: '-', matchId: '' }, 
         mostWkts: { val: 0, name: '-', matchId: '' }, 
-        bestEcon: { val: 99, name: '-', matchId: '' },
-        dotBallKing: { val: 0, name: '-', matchId: '' },
-        extraGiver: { val: 0, name: '-', matchId: '' },
-        careerMaidens: { val: 0, name: '-' }
+        bestEcon: { val: 99, name: '-' },
+        dotBallKing: { val: 0, name: '-' },
+        extraGiver: { val: 0, name: '-' },
       },
       fielding: { 
         mostCatches: { val: 0, name: '-' }, 
         mostRunOuts: { val: 0, name: '-' }, 
         mostStumpings: { val: 0, name: '-' } 
       },
+      team: {
+        highestTotal: { val: 0, name: '-' },
+        lowestTotal: { val: 999, name: '-' }
+      },
       topPartnerships: [] as any[]
     };
 
-    if (!players || !rawDeliveries || !matches || matches.length === 0) return defaultData;
+    if (!players || !rawDeliveries || !matches || !teams || matches.length === 0) return defaultData;
     
     const activeMatchIds = new Set(matches.map(m => m.id));
     const validDeliveries = rawDeliveries.filter(d => { 
@@ -85,18 +92,34 @@ export default function StatsPage() {
     const batting = { ...defaultData.batting };
     const bowling = { ...defaultData.bowling };
     const fielding = { ...defaultData.fielding };
+    const teamRecords = { ...defaultData.team };
 
     const pMatchStats: Record<string, Record<string, any>> = {};
     const careerAgg: Record<string, any> = {};
     const globalPartnerships: any[] = [];
     
     players.forEach(p => {
-      careerAgg[p.id] = { catches: 0, runOuts: 0, stumpings: 0, maidens: 0 };
+      careerAgg[p.id] = { catches: 0, runOuts: 0, stumpings: 0, dotsB: 0, extras: 0, runsCon: 0, ballsB: 0 };
     });
+
+    const getTeamName = (id: string) => teams?.find(t => t.id === id)?.name ? formatTeamName(teams.find(t => t.id === id)!.name) : 'Unknown';
 
     matches.forEach(m => {
       if (m.status !== 'completed') return;
       const mD = validDeliveries.filter(d => d.__fullPath?.split('/')[1] === m.id);
+      
+      // Calculate Team Scores
+      const s1 = mD.filter(d => d.__fullPath?.includes('inning_1')).reduce((a, b) => a + (b.totalRunsOnDelivery || 0), 0);
+      const s2 = mD.filter(d => d.__fullPath?.includes('inning_2')).reduce((a, b) => a + (b.totalRunsOnDelivery || 0), 0);
+
+      const inn1BatId = m.tossWinnerTeamId === m.team1Id ? (m.tossDecision === 'bat' ? m.team1Id : m.team2Id) : (m.tossDecision === 'bat' ? m.team2Id : m.team1Id);
+      const inn2BatId = inn1BatId === m.team1Id ? m.team2Id : m.team1Id;
+
+      if (s1 > teamRecords.highestTotal.val) teamRecords.highestTotal = { val: s1, name: getTeamName(inn1BatId) };
+      if (s1 > 0 && s1 < teamRecords.lowestTotal.val) teamRecords.lowestTotal = { val: s1, name: getTeamName(inn1BatId) };
+      if (s2 > teamRecords.highestTotal.val) teamRecords.highestTotal = { val: s2, name: getTeamName(inn2BatId) };
+      if (s2 > 0 && s2 < teamRecords.lowestTotal.val) teamRecords.lowestTotal = { val: s2, name: getTeamName(inn2BatId) };
+
       ['inning_1', 'inning_2'].forEach(inn => processPartnerships(mD.filter(d => d.__fullPath?.includes(inn)), globalPartnerships, m.id));
     });
 
@@ -108,7 +131,7 @@ export default function StatsPage() {
 
       [sId, bId, fId].filter(id => id && id !== 'none' && careerAgg[id]).forEach(pid => {
         if (!pMatchStats[pid]) pMatchStats[pid] = {};
-        if (!pMatchStats[pid][matchId!]) pMatchStats[pid][matchId!] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, runOuts: 0, stumpings: 0, fours: 0, sixes: 0, dotsB: 0, dotsF: 0, extras: 0 };
+        if (!pMatchStats[pid][matchId!]) pMatchStats[pid][matchId!] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, fours: 0, sixes: 0, dotsB: 0, extras: 0 };
       });
 
       if (sId && pMatchStats[sId]?.[matchId!]) { 
@@ -117,16 +140,20 @@ export default function StatsPage() {
         if (d.extraType !== 'wide') s.balls++;
         if (d.runsScored === 4) s.fours++; 
         if (d.runsScored === 6) s.sixes++; 
-        if (d.runsScored === 0 && d.extraType === 'none') s.dotsF++;
       }
 
       if (bId && pMatchStats[bId]?.[matchId!]) { 
         const b = pMatchStats[bId][matchId!]; 
-        b.runsCon += (d.totalRunsOnDelivery || 0); 
-        if (d.extraType === 'none') b.ballsB++; 
+        const c = careerAgg[bId];
+        const runsOnD = (d.totalRunsOnDelivery || 0);
+        b.runsCon += runsOnD; c.runsCon += runsOnD;
+        if (d.extraType === 'none') {
+          b.ballsB++; c.ballsB++;
+          if (runsOnD === 0) { b.dotsB++; c.dotsB++; }
+        } else {
+          b.extras++; c.extras++;
+        }
         if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) b.wkts++; 
-        if (d.totalRunsOnDelivery === 0 && d.extraType === 'none') b.dotsB++;
-        if (d.extraType !== 'none') b.extras++;
       }
 
       if (fId && careerAgg[fId]) { 
@@ -147,21 +174,24 @@ export default function StatsPage() {
         if (m.wkts > bowling.bestFigures.wkts || (m.wkts === bowling.bestFigures.wkts && m.runsCon < bowling.bestFigures.runs && m.ballsB > 0)) {
           bowling.bestFigures = { wkts: m.wkts, runs: m.runsCon, name: p.name, matchId: mId };
         }
-        if (m.ballsB >= 12) { 
-          const econ = m.runsCon / (m.ballsB / 6); 
-          if (econ < bowling.bestEcon.val) bowling.bestEcon = { val: econ, name: p.name, matchId: mId }; 
-        }
-        if (m.dotsB > bowling.dotBallKing.val) bowling.dotBallKing = { val: m.dotsB, name: p.name, matchId: mId };
-        if (m.extras > bowling.extraGiver.val) bowling.extraGiver = { val: m.extras, name: p.name, matchId: mId };
       });
 
-      if (careerAgg[p.id].catches > fielding.mostCatches.val) fielding.mostCatches = { val: careerAgg[p.id].catches, name: p.name };
-      if (careerAgg[p.id].runOuts > fielding.mostRunOuts.val) fielding.mostRunOuts = { val: careerAgg[p.id].runOuts, name: p.name };
-      if (careerAgg[p.id].stumpings > fielding.mostStumpings.val) fielding.mostStumpings = { val: careerAgg[p.id].stumpings, name: p.name };
+      // Career Records
+      const c = careerAgg[p.id];
+      if (c.ballsB >= 12) { // Min 2 overs total in career for Best Economy
+        const econ = c.runsCon / (c.ballsB / 6);
+        if (econ < bowling.bestEcon.val) bowling.bestEcon = { val: econ, name: p.name };
+      }
+      if (c.dotsB > bowling.dotBallKing.val) bowling.dotBallKing = { val: c.dotsB, name: p.name };
+      if (c.extras > bowling.extraGiver.val) bowling.extraGiver = { val: c.extras, name: p.name };
+
+      if (c.catches > fielding.mostCatches.val) fielding.mostCatches = { val: c.catches, name: p.name };
+      if (c.runOuts > fielding.mostRunOuts.val) fielding.mostRunOuts = { val: c.runOuts, name: p.name };
+      if (c.stumpings > fielding.mostStumpings.val) fielding.mostStumpings = { val: c.stumpings, name: p.name };
     });
 
-    return { batting, bowling, fielding, topPartnerships: globalPartnerships.sort((a,b) => b.runs - a.runs).slice(0, 5) };
-  }, [players, rawDeliveries, matches, isMounted]);
+    return { batting, bowling, fielding, team: teamRecords, topPartnerships: globalPartnerships.sort((a,b) => b.runs - a.runs).slice(0, 5) };
+  }, [players, rawDeliveries, matches, teams, isMounted]);
 
   function processPartnerships(deliveries: any[], list: any[], matchId: string) {
     if (deliveries.length === 0) return;
@@ -191,7 +221,7 @@ export default function StatsPage() {
         <div className={cn("p-3 rounded-2xl shrink-0", color || "bg-slate-50")}>
           <Icon className={cn("w-5 h-5", color ? "text-white" : "text-slate-600")} />
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{title}</p>
           <p className="text-sm font-black uppercase truncate text-slate-900">{subtitle}</p>
           <p className="text-lg font-black text-primary leading-tight">{value}</p>
@@ -212,9 +242,9 @@ export default function StatsPage() {
 
       <section className="space-y-6">
         <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Swords className="w-6 h-6 text-primary" /> Batting Elite</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <RecordCard 
-            title="Highest Score" 
+            title="Highest Score (Match)" 
             value={records?.batting?.highestScore?.val > 0 ? `${records.batting.highestScore.val} Runs` : '---'} 
             subtitle={records?.batting?.highestScore?.name} 
             icon={Trophy} 
@@ -245,30 +275,30 @@ export default function StatsPage() {
 
       <section className="space-y-6">
         <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Target className="w-6 h-6 text-secondary" /> Bowling Kings</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <RecordCard 
-            title="Best Figures" 
+            title="Best Figures (Match)" 
             value={records?.bowling?.bestFigures?.runs !== 999 ? `${records.bowling.bestFigures.wkts}/${records.bowling.bestFigures.runs}` : '---'} 
             subtitle={records?.bowling?.bestFigures?.name} 
             icon={Target} 
             color="bg-secondary" 
           />
           <RecordCard 
-            title="Best Economy" 
+            title="Best Economy (Career)" 
             value={records?.bowling?.bestEcon?.val !== 99 ? `${records.bowling.bestEcon.val.toFixed(2)}` : '---'} 
             subtitle={records?.bowling?.bestEcon?.name} 
             icon={Activity} 
             color="bg-emerald-600" 
           />
           <RecordCard 
-            title="Dot Ball King" 
+            title="Dot Ball King (Career)" 
             value={records?.bowling?.dotBallKing?.val > 0 ? `${records.bowling.dotBallKing.val} Dots` : '---'} 
             subtitle={records?.bowling?.dotBallKing?.name} 
             icon={CircleDot} 
             color="bg-slate-900" 
           />
           <RecordCard 
-            title="Extra Giver" 
+            title="Extra Giver (Career)" 
             value={records?.bowling?.extraGiver?.val > 0 ? `${records.bowling.extraGiver.val} Extras` : '---'} 
             subtitle={records?.bowling?.extraGiver?.name} 
             icon={AlertCircle} 
@@ -279,50 +309,72 @@ export default function StatsPage() {
 
       <section className="space-y-6">
         <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Shield className="w-6 h-6 text-slate-900" /> Safe Hands (Fielding)</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <RecordCard title="Career Catches" value={records?.fielding?.mostCatches?.val > 0 ? `${records.fielding.mostCatches.val} Catches` : '---'} subtitle={records?.fielding?.mostCatches?.name} icon={Hand} />
-          <RecordCard title="Direct Hits" value={records?.fielding?.mostRunOuts?.val > 0 ? `${records.fielding.mostRunOuts.val} Run Outs` : '---'} subtitle={records?.fielding?.mostRunOuts?.name} icon={Swords} />
-          <RecordCard title="Keeper's Pride" value={records?.fielding?.mostStumpings?.val > 0 ? `${records.fielding.mostStumpings.val} Stumpings` : '---'} subtitle={records?.fielding?.mostStumpings?.name} icon={Shield} />
+          <RecordCard title="Direct Hits (Run Outs)" value={records?.fielding?.mostRunOuts?.val > 0 ? `${records.fielding.mostRunOuts.val} Run Outs` : '---'} subtitle={records?.fielding?.mostRunOuts?.name} icon={Swords} />
+          <RecordCard title="Keeper's Pride (Stumpings)" value={records?.fielding?.mostStumpings?.val > 0 ? `${records.fielding.mostStumpings.val} Stumpings` : '---'} subtitle={records?.fielding?.mostStumpings?.name} icon={Shield} />
         </div>
       </section>
 
-      <section className="space-y-6">
-        <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Users className="w-6 h-6 text-primary" /> Elite Partnerships</h2>
-        <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
-          <Table>
-            <TableHeader className="bg-slate-50">
-              <TableRow>
-                <TableHead className="text-[10px] font-black uppercase">Pair & Contributions</TableHead>
-                <TableHead className="text-right text-[10px] font-black uppercase">Runs</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {records?.topPartnerships && records.topPartnerships.length > 0 ? records.topPartnerships.map((p: any, i: number) => (
-                <TableRow key={i} className="hover:bg-slate-50 transition-colors">
-                  <TableCell className="py-4">
-                    <p className="font-black text-[11px] uppercase truncate max-w-[280px] text-primary">
-                      {p.batters.map((id: string) => `${getPlayerName(id)} (${p.contributions[id] || 0})`).join(' & ')}
-                    </p>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase italic mt-1 flex items-center gap-2">
-                      <Timer className="w-3 h-3" /> {p.balls} Balls {p.isUnbroken && <span className="text-emerald-500 font-black">• UNBROKEN STAND</span>}
-                    </p>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <span className="font-black text-slate-900 text-2xl tracking-tighter">{p.runs}</span>
-                  </TableCell>
-                </TableRow>
-              )) : (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <section className="space-y-6">
+          <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Trophy className="w-6 h-6 text-amber-500" /> Franchise Records</h2>
+          <div className="grid grid-cols-1 gap-4">
+            <RecordCard 
+              title="Highest Team Total" 
+              value={records?.team?.highestTotal?.val > 0 ? `${records.team.highestTotal.val} Runs` : '---'} 
+              subtitle={records?.team?.highestTotal?.name} 
+              icon={TrendingUp} 
+              color="bg-emerald-500"
+            />
+            <RecordCard 
+              title="Lowest Defended Total" 
+              value={records?.team?.lowestTotal?.val !== 999 ? `${records.team.lowestTotal.val} Runs` : '---'} 
+              subtitle={records?.team?.lowestTotal?.name} 
+              icon={TrendingDown} 
+              color="bg-rose-500"
+            />
+          </div>
+        </section>
+
+        <section className="space-y-6">
+          <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Users className="w-6 h-6 text-primary" /> Elite Partnerships</h2>
+          <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+            <Table>
+              <TableHeader className="bg-slate-50">
                 <TableRow>
-                  <TableCell colSpan={2} className="text-center py-12">
-                    <Users className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-                    <p className="text-[10px] font-black uppercase text-slate-300">No major stands recorded</p>
-                  </TableCell>
+                  <TableHead className="text-[10px] font-black uppercase">Pair & Contributions</TableHead>
+                  <TableHead className="text-right text-[10px] font-black uppercase">Runs</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </Card>
-      </section>
+              </TableHeader>
+              <TableBody>
+                {records?.topPartnerships && records.topPartnerships.length > 0 ? records.topPartnerships.map((p: any, i: number) => (
+                  <TableRow key={i} className="hover:bg-slate-50 transition-colors">
+                    <TableCell className="py-4">
+                      <p className="font-black text-[11px] uppercase truncate max-w-[280px] text-primary">
+                        {p.batters.map((id: string) => `${getPlayerName(id)} (${p.contributions[id] || 0})`).join(' & ')}
+                      </p>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase italic mt-1 flex items-center gap-2">
+                        <Timer className="w-3 h-3" /> {p.balls} Balls {p.isUnbroken && <span className="text-emerald-500 font-black">• UNBROKEN STAND</span>}
+                      </p>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <span className="font-black text-slate-900 text-2xl tracking-tighter">{p.runs}</span>
+                    </TableCell>
+                  </TableRow>
+                )) : (
+                  <TableRow>
+                    <TableCell colSpan={2} className="text-center py-12">
+                      <Users className="w-10 h-10 text-slate-200 mx-auto mb-2" />
+                      <p className="text-[10px] font-black uppercase text-slate-300">No major stands recorded</p>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </section>
+      </div>
     </div>
   );
 }
