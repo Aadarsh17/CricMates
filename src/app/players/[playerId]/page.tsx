@@ -8,7 +8,7 @@ import { doc, collectionGroup, query, collection } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck, Trophy, X, Hash } from 'lucide-react';
+import { ChevronLeft, Loader2, Calendar, Activity, Zap, Medal, TrendingUp, Swords, Shield, Target, Hand, Skull, Edit2, Camera, ShieldCheck, Trophy, X, Hash, Crosshair } from 'lucide-react';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -148,6 +148,43 @@ export default function PlayerProfilePage() {
         <TabsContent value="career" className="space-y-8">
           <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden"><div className="bg-slate-900 text-white p-4 flex items-center justify-between"><div className="flex items-center gap-2"><Swords className="w-4 h-4 text-primary" /><span className="text-[10px] font-black uppercase tracking-widest">Batting Summary</span></div><Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.batting.innings} Innings</Badge></div><div className="p-6"><div className="grid grid-cols-3 md:grid-cols-5 gap-4 text-center"><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-xl font-black text-slate-900">{careerStats.batting.runs}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-xl font-black text-slate-900">{careerStats.batting.balls}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">4s / 6s</p><p className="text-xl font-black text-slate-900">{careerStats.batting.fours} / {careerStats.batting.sixes}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.batting.avg.toFixed(2)}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">S.R.</p><p className="text-xl font-black text-slate-900">{careerStats.batting.sr.toFixed(1)}</p></div></div><div className="mt-6 pt-6 border-t"><p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Score Milestones</p><div className="grid grid-cols-3 md:grid-cols-6 gap-2">{[{label:'10s',val:careerStats.batting.milestones.tens},{label:'20s',val:careerStats.batting.milestones.twenties},{label:'30s',val:careerStats.batting.milestones.thirties},{label:'40s',val:careerStats.batting.milestones.forties},{label:'50s',val:careerStats.batting.milestones.fifties},{label:'100s',val:careerStats.batting.milestones.hundreds}].map(m=>(<div key={m.label} className="bg-slate-50 p-2 rounded-xl text-center border"><p className="text-sm font-black text-slate-900">{m.val}</p><p className="text-[8px] font-black text-slate-400 uppercase">{m.label}</p></div>))}</div></div><div className="mt-6 pt-6 border-t"><p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Duck Registry</p><div className="grid grid-cols-3 gap-2"><div className="bg-rose-50 p-3 rounded-xl text-center border border-rose-100"><p className="text-lg font-black text-rose-600">{careerStats.batting.ducks.regular}</p><p className="text-[8px] font-black text-rose-400 uppercase">Regular</p></div><div className="bg-rose-100 p-3 rounded-xl text-center border border-rose-200"><p className="text-lg font-black text-rose-700">{careerStats.batting.ducks.golden}</p><p className="text-[8px] font-black text-rose-500 uppercase">Golden</p></div><div className="bg-slate-900 p-3 rounded-xl text-center border border-slate-800"><p className="text-lg font-black text-white">{careerStats.batting.ducks.diamond}</p><p className="text-[8px] font-black text-slate-400 uppercase">Diamond</p></div></div></div></div></Card>
           <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden"><div className="bg-slate-900 text-white p-4 flex items-center justify-between"><div className="flex items-center gap-2"><Target className="w-4 h-4 text-secondary" /><span className="text-[10px] font-black uppercase tracking-widest">Bowling Summary</span></div><Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">{careerStats.bowling.innings} Innings</Badge></div><div className="p-6"><div className="grid grid-cols-3 md:grid-cols-7 gap-4 text-center"><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Wickets</p><p className="text-xl font-black text-secondary">{careerStats.bowling.wkts}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Balls</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.balls}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Dots</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.dots}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.runs}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">ER</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.econ.toFixed(2)}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Avg</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.avg.toFixed(2)}</p></div><div><p className="text-[8px] font-black text-slate-400 uppercase mb-1">SR</p><p className="text-xl font-black text-slate-900">{careerStats.bowling.sr.toFixed(1)}</p></div></div><div className="mt-6 pt-6 border-t"><p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Wicket Landmarks</p><div className="flex flex-wrap justify-center gap-3">{[10,20,30,40,50,100].map(l=>{const reached=careerStats.bowling.wkts>=l;return(<div key={l} className={cn("flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all",reached?"bg-secondary/10 border-secondary text-secondary shadow-sm":"bg-slate-50 border-slate-100 text-slate-300")}><Trophy className={cn("w-4 h-4",reached?"fill-secondary":"")}/><span className="text-xs font-black uppercase tracking-widest">{l}Ws</span></div>);})}</div></div></div></Card>
+          
+          <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden">
+            <div className="bg-slate-900 text-white p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Hand className="w-4 h-4 text-emerald-500" />
+                <span className="text-[10px] font-black uppercase tracking-widest">Fielding Summary</span>
+              </div>
+              <Badge variant="outline" className="text-[8px] font-black border-white/20 text-white uppercase">
+                {careerStats.fielding.catches + careerStats.fielding.stumpings + careerStats.fielding.runOuts} Dismissals
+              </Badge>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Catches</p>
+                  <div className="flex flex-col items-center gap-1">
+                    <Hand className="w-4 h-4 text-emerald-500/50" />
+                    <p className="text-xl font-black text-slate-900">{careerStats.fielding.catches}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Stumpings</p>
+                  <div className="flex flex-col items-center gap-1">
+                    <ShieldCheck className="w-4 h-4 text-indigo-500/50" />
+                    <p className="text-xl font-black text-slate-900">{careerStats.fielding.stumpings}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Run Outs</p>
+                  <div className="flex flex-col items-center gap-1">
+                    <Crosshair className="w-4 h-4 text-rose-500/50" />
+                    <p className="text-xl font-black text-slate-900">{careerStats.fielding.runOuts}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Card>
         </TabsContent>
         <TabsContent value="form" className="space-y-4"><h2 className="text-lg font-black uppercase text-slate-900 flex items-center gap-2 px-2"><Activity className="w-5 h-5 text-primary" /> Recent Form</h2><div className="space-y-3">{matchWiseLog.filter(l=>l.hasParticipated).slice(0,5).map((log,idx)=>(<Card key={idx} className="border-none shadow-sm rounded-2xl bg-white overflow-hidden"><div className="p-4 flex items-center justify-between"><div className="flex items-center gap-4"><div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex flex-col items-center justify-center min-w-[50px]"><Calendar className="w-3 h-3 text-slate-400 mb-1"/><span className="text-[8px] font-black text-slate-500 uppercase">{log.date ? new Date(log.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'}) : '---'}</span></div><div><p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">{log.matchName}</p><div className="flex items-baseline gap-2"><span className="text-xl font-black text-slate-900">{log.batting.runs} <span className="text-[8px] text-slate-400">R</span></span><span className="text-sm font-black text-secondary">{log.bowling.wickets} <span className="text-[8px] text-slate-400">W</span></span></div></div></div><div className="text-right"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">Impact</p><Badge variant="secondary" className="font-black text-xs h-6">{log.totalCVP.toFixed(1)}</Badge></div></div></Card>))}</div></TabsContent>
         <TabsContent value="history" className="space-y-3">
