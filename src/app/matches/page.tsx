@@ -25,17 +25,20 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
   const inn2Ref = useMemoFirebase(() => doc(db, 'matches', match.id, 'innings', 'inning_2'), [db, match.id]);
   const { data: inn2 } = useDoc(inn2Ref);
 
-  const getTeam = (id: string) => teams.find(t => t.id === id);
+  const getTeam = (id: string) => (teams || []).find(t => t.id === id);
 
   const formatDate = (dateString: string) => {
     if (!isMounted || !dateString) return '---';
-    return new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    try {
+      return new Date(dateString).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch (e) {
+      return '---';
+    }
   };
 
   const getDynamicResult = () => {
     if (match.status !== 'completed') return 'Match in Progress';
     
-    // Recalculate result from actual scores to ensure consistency
     if (inn1 && inn2) {
       const s1 = inn1.score || 0;
       const s2 = inn2.score || 0;
@@ -178,7 +181,9 @@ export default function MatchHistoryPage() {
   const matchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
   const { data: matches, isLoading: isMatchesLoading } = useCollection(matchesQuery);
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
-  const { data: teams = [] } = useCollection(teamsQuery);
+  const { data: rawTeams } = useCollection(teamsQuery);
+  
+  const teams = rawTeams || [];
 
   const filteredMatches = useMemo(() => {
     if (!matches || !teams || teams.length === 0) return matches || [];
