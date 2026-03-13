@@ -92,7 +92,6 @@ export default function PlayerProfilePage() {
         
         if (match?.status === 'completed' && match.winnerTeamId) {
           const inn2BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team2Id : match.team1Id) : (match.tossDecision === 'bat' ? match.team1Id : match.team2Id);
-          // Very basic winning run detection
           if (match.winnerTeamId === inn2BatId && d.__fullPath?.includes('inning_2')) {
             log.isWinningStriker = true; 
           }
@@ -225,6 +224,8 @@ export default function PlayerProfilePage() {
 
   if (!isMounted || isPlayerLoading || isHistoryLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
 
+  if (!player) return <div className="py-20 text-center"><div className="bg-slate-50 p-12 rounded-3xl border border-dashed max-w-md mx-auto"><X className="w-12 h-12 text-slate-200 mx-auto mb-4"/><p className="font-black uppercase tracking-widest text-slate-400">Player Record Not Found</p><Button onClick={() => router.push('/players')} variant="link" className="mt-4 font-bold uppercase text-xs">Back to Registry</Button></div></div>;
+
   return (
     <div className="max-w-2xl mx-auto space-y-8 pb-32 px-4 animate-in fade-in slide-in-from-bottom-4">
       <div className="flex items-center gap-4"><Button variant="ghost" size="icon" onClick={() => router.push('/players')} className="rounded-full h-10 w-10"><ChevronLeft className="w-6 h-6" /></Button><h1 className="text-xl font-black uppercase tracking-widest text-slate-900">Player Record</h1></div>
@@ -233,8 +234,8 @@ export default function PlayerProfilePage() {
         <div className="absolute top-0 right-0 p-4 opacity-10"><Zap className="w-32 h-32" /></div>
         <div className="flex flex-col md:flex-row items-center gap-6 relative z-10 text-center md:text-left">
           <Avatar className="w-28 h-28 border-4 border-white/10 rounded-3xl overflow-hidden shrink-0">
-            <AvatarImage src={player.imageUrl} className="object-cover" />
-            <AvatarFallback className="text-4xl font-black bg-white/5">{player.name[0]}</AvatarFallback>
+            <AvatarImage src={player?.imageUrl || ''} className="object-cover" />
+            <AvatarFallback className="text-4xl font-black bg-white/5">{player?.name?.[0] || '?'}</AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
