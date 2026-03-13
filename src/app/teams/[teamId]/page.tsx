@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, Loader2, Edit2, Camera, Users, Scale, ShieldCheck, X, Zap, Target, Medal, Clock, History } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, Loader2, Edit2, Camera, Users, Scale, ShieldCheck, X, Zap, Target, Medal, Clock, History, UserMinus } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,9 +50,7 @@ export default function TeamDetailsPage() {
   }, [db, isMounted]);
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
-  // CRITICAL: Only consider matches that ACTUALLY exist in the registry
   const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
-  // CRITICAL: For standings, only consider COMPLETED matches
   const completedMatchIds = useMemo(() => new Set(allMatches?.filter(m => m.status === 'completed').map(m => m.id) || []), [allMatches]);
 
   const squadData = useMemo(() => {
@@ -60,8 +58,8 @@ export default function TeamDetailsPage() {
     const registered = allPlayers.filter(p => p.teamId === teamId);
     const registeredIds = new Set(registered.map(p => p.id));
     const legacyIds = new Set<string>();
-    allMatches.forEach(m => {
-      if (!activeMatchIds.has(m.id)) return; // Strictly ignore ghost matches
+    allMatches?.forEach(m => {
+      if (!activeMatchIds.has(m.id)) return;
       const isTeam1 = m.team1Id === teamId;
       const isTeam2 = m.team2Id === teamId;
       if (isTeam1) {
@@ -90,7 +88,7 @@ export default function TeamDetailsPage() {
       bowlInningsSet[p.id] = new Set();
     });
 
-    allMatches.forEach(m => {
+    allMatches?.forEach(m => {
       if (!activeMatchIds.has(m.id)) return;
       const isTeam1 = m.team1Id === teamId;
       const isTeam2 = m.team2Id === teamId;
@@ -99,17 +97,17 @@ export default function TeamDetailsPage() {
       teamSquad?.forEach((pid: string) => { if (playedMatchesSet[pid]) playedMatchesSet[pid].add(m.id); });
     });
 
-    rawDeliveries.forEach(d => {
+    rawDeliveries?.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
-      if (!matchId || !activeMatchIds.has(matchId)) return; // Ghost Data Filter
+      if (!matchId || !activeMatchIds.has(matchId)) return;
 
-      const match = allMatches.find(m => m.id === matchId);
+      const match = allMatches?.find(m => m.id === matchId);
       if (!match) return;
 
       const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
       const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
       const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
-      const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+      const bowlingTeamId = battingTeamId === teamId ? (battingTeamId === match.team1Id ? match.team2Id : match.team1Id) : teamId;
 
       if (battingTeamId === teamId) {
         const sId = d.strikerPlayerId;
@@ -167,47 +165,30 @@ export default function TeamDetailsPage() {
     let played = 0, won = 0, lost = 0, drawn = 0;
     
     allMatches.forEach(m => {
-      // CRITICAL: Standings must only come from COMPLETED matches that exist
       if (m.status !== 'completed' || !activeMatchIds.has(m.id) || (m.team1Id !== teamId && m.team2Id !== teamId)) return;
-      
       played++;
-      const winnerId = m.winnerTeamId;
       if (m.isTie) drawn++;
-      else if (winnerId === teamId) won++;
-      else if (winnerId && winnerId !== 'none') lost++;
+      else if (m.winnerTeamId === teamId) won++;
+      else if (m.winnerTeamId && m.winnerTeamId !== 'none') lost++;
     });
 
-    // CRITICAL: If no completed matches, forced clean 0 state
     if (played === 0) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
 
-    if (rawDeliveries) {
-      rawDeliveries.forEach(d => {
-        const matchId = d.__fullPath?.split('/')[1];
-        // CRITICAL: NRR must only come from COMPLETED matches that exist
-        if (!matchId || !completedMatchIds.has(matchId)) return;
-
-        const match = allMatches.find(m => m.id === matchId);
-        if (!match) return;
-
-        const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
-        const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
-        const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
-        const bowlingTeamId = battingTeamId === teamId ? (battingTeamId === match.team1Id ? match.team2Id : match.team1Id) : teamId;
-
-        if (battingTeamId === teamId) { 
-          forR += (d.totalRunsOnDelivery || 0); 
-          if (d.extraType === 'none' && d.dismissalType !== 'retired') forB++; 
-        }
-        if (bowlingTeamId === teamId && battingTeamId !== teamId) { 
-          agR += (d.totalRunsOnDelivery || 0); 
-          if (d.extraType === 'none' && d.dismissalType !== 'retired') agB++; 
-        }
-      });
-    }
+    rawDeliveries?.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      if (!matchId || !completedMatchIds.has(matchId)) return;
+      const match = allMatches.find(m => m.id === matchId);
+      if (!match) return;
+      const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
+      const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
+      const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
+      const bowlingTeamId = battingTeamId === teamId ? (battingTeamId === match.team1Id ? match.team2Id : match.team1Id) : teamId;
+      if (battingTeamId === teamId) { forR += (d.totalRunsOnDelivery || 0); if (d.extraType === 'none' && d.dismissalType !== 'retired') forB++; }
+      if (bowlingTeamId === teamId && battingTeamId !== teamId) { agR += (d.totalRunsOnDelivery || 0); if (d.extraType === 'none' && d.dismissalType !== 'retired') agB++; }
+    });
 
     const forRR = forB > 0 ? (forR / (forB / 6)) : 0;
     const agRR = agB > 0 ? (agR / (agB / 6)) : 0;
-    
     return { played, won, lost, drawn, nrr: forRR - agRR };
   }, [allMatches, teamId, rawDeliveries, activeMatchIds, completedMatchIds]);
 
@@ -218,10 +199,7 @@ export default function TeamDetailsPage() {
     const topScorer = [...statsArray].sort((a,b) => b.runs - a.runs)[0];
     const topWkt = [...statsArray].sort((a,b) => b.wickets - a.wickets)[0];
     const mvp = [...statsArray].sort((a,b) => b.cvp - a.cvp)[0];
-    
-    // Safety check for empty stats
     if (!topScorer || topScorer.runs === 0 && topWkt.wickets === 0) return null;
-    
     return { topScorer, topWkt, mvp };
   }, [squadData, squadStats]);
 
@@ -242,6 +220,29 @@ export default function TeamDetailsPage() {
   const handleAddPlayer = () => { if (!user || !newPlayer.name.trim()) return; const pid = doc(collection(db, 'players')).id; const pData = { id: pid, name: newPlayer.name, teamId, ownerId: user.uid, role: newPlayer.role, battingStyle: 'Right Handed Bat', isWicketKeeper: false, isRetired: false, matchesPlayed: 0, runsScored: 0, wicketsTaken: 0, highestScore: 0, bestBowlingFigures: '0/0', careerCVP: 0, imageUrl: '' }; setDocumentNonBlocking(doc(db, 'players', pid), pData, { merge: true }); setIsAddPlayerOpen(false); setNewPlayer({ name: '', role: 'Batsman' }); toast({ title: "Player Added" }); };
   const openEditDialog = (p: any) => { setEditingPlayerId(p.id); setEditForm({ name: p.name, role: p.role, imageUrl: p.imageUrl || '', battingStyle: p.battingStyle || 'Right Handed Bat', isWicketKeeper: !!p.isWicketKeeper }); setIsEditOpen(true); };
   const handleUpdatePlayer = () => { if (editingPlayerId) updateDocumentNonBlocking(doc(db, 'players', editingPlayerId), editForm); setIsEditOpen(false); toast({ title: "Profile Updated" }); };
+  
+  const handleReleasePlayer = (p: any) => {
+    if (!confirm(`Release ${p.name} from ${team?.name}? They will become a free agent.`)) return;
+    updateDocumentNonBlocking(doc(db, 'players', p.id), { teamId: '' });
+    const teamUpdates: any = {};
+    if (team?.captainId === p.id) teamUpdates.captainId = '';
+    if (team?.viceCaptainId === p.id) teamUpdates.viceCaptainId = '';
+    if (team?.wicketKeeperId === p.id) teamUpdates.wicketKeeperId = '';
+    if (Object.keys(teamUpdates).length > 0) updateDocumentNonBlocking(doc(db, 'teams', teamId), teamUpdates);
+    toast({ title: "Player Released" });
+  };
+
+  const handleDeletePlayer = (p: any) => {
+    if (!confirm(`Permanently delete ${p.name}? This will purge their record from the league.`)) return;
+    deleteDocumentNonBlocking(doc(db, 'players', p.id));
+    const teamUpdates: any = {};
+    if (team?.captainId === p.id) teamUpdates.captainId = '';
+    if (team?.viceCaptainId === p.id) teamUpdates.viceCaptainId = '';
+    if (team?.wicketKeeperId === p.id) teamUpdates.wicketKeeperId = '';
+    if (Object.keys(teamUpdates).length > 0) updateDocumentNonBlocking(doc(db, 'teams', teamId), teamUpdates);
+    toast({ title: "Record Purged" });
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, target: 'player' | 'team') => { const file = e.target.files?.[0]; if (file) { const reader = new FileReader(); reader.readAsDataURL(file); reader.onload = (event) => { const img = new Image(); img.src = event.target?.result as string; img.onload = () => { const canvas = document.createElement('canvas'); const size = 200; let width = img.width; let height = img.height; if (width > height) { if (width > size) { height *= size / width; width = size; } } else { if (height > size) { width *= size / height; height = size; } } canvas.width = width; canvas.height = height; const ctx = canvas.getContext('2d'); ctx?.drawImage(img, 0, 0, width, height); const dataUrl = canvas.toDataURL('image/jpeg', 0.8); if (target === 'player') setEditForm(prev => ({ ...prev, imageUrl: dataUrl })); else setTeamForm(prev => ({ ...prev, logoUrl: dataUrl })); toast({ title: "Photo Ready" }); }; }; } };
 
   if (!isMounted || isTeamLoading || isDeliveriesLoading || isMatchesLoading || isAllPlayersLoading) return (<div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4"><Loader2 className="w-10 h-10 text-primary animate-spin" /><p className="text-[10px] font-black uppercase text-slate-400">Syncing Team Center...</p></div>);
@@ -334,7 +335,7 @@ export default function TeamDetailsPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {squadData.active.length > 0 ? squadData.active.map(player => (
-              <PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} team={team} user={user} onEdit={() => openEditDialog(player)} onDelete={() => { if(confirm(`Release ${player.name}?`)) deleteDocumentNonBlocking(doc(db, 'players', player.id)); }} />
+              <PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} team={team} user={user} onEdit={() => openEditDialog(player)} onRelease={() => handleReleasePlayer(player)} onDelete={() => handleDeletePlayer(player)} />
             )) : (<div className="col-span-full py-12 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center text-center"><Users className="w-10 h-10 text-slate-200 mb-2" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Players Registered</p></div>)}
           </div>
         </TabsContent>
@@ -408,7 +409,7 @@ export default function TeamDetailsPage() {
   );
 }
 
-function PlayerStatCard({ player, stats, team, user, onEdit, onDelete, isLegacy }: { player: any, stats: any, team?: any, user?: any, onEdit?: () => void, onDelete?: () => void, isLegacy?: boolean }) {
+function PlayerStatCard({ player, stats, team, user, onEdit, onRelease, onDelete, isLegacy }: { player: any, stats: any, team?: any, user?: any, onEdit?: () => void, onRelease?: () => void, onDelete?: () => void, isLegacy?: boolean }) {
   const isCaptain = player.id === team?.captainId;
   const isVC = player.id === team?.viceCaptainId;
   const isWK = player.id === team?.wicketKeeperId;
@@ -431,7 +432,12 @@ function PlayerStatCard({ player, stats, team, user, onEdit, onDelete, isLegacy 
               <div className="flex gap-1 items-center mt-1"><Badge variant="secondary" className={cn("text-[8px] font-black uppercase px-2 h-5 border-none", isLegacy ? "bg-slate-100 text-slate-400" : "bg-primary/10 text-primary")}>{player.role}</Badge>{!isLegacy && isWK && <Badge className="bg-secondary text-white text-[7px] font-black h-5 px-1.5">WK</Badge>}{isLegacy && <Badge variant="outline" className="text-[7px] font-black uppercase h-5 text-slate-300 border-slate-200">Ex-Player</Badge>}</div>
             </Link>
           </div>
-          {!isLegacy && user && (<Button variant="ghost" size="icon" onClick={onDelete} className="h-8 w-8 text-slate-200 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>)}
+          {!isLegacy && user && (
+            <div className="flex flex-col gap-1">
+              <Button variant="ghost" size="icon" onClick={onRelease} title="Release from Team" className="h-8 w-8 text-slate-300 hover:text-amber-500"><UserMinus className="w-4 h-4"/></Button>
+              <Button variant="ghost" size="icon" onClick={onDelete} title="Purge Record" className="h-8 w-8 text-slate-100 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>
+            </div>
+          )}
         </div>
         <div className="mt-6 grid grid-cols-5 gap-1 border-t pt-4 text-center bg-slate-50/50 -mx-5 -mb-5 p-4">
           <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">M</p><p className={cn("font-black text-xs", isLegacy ? "text-slate-400" : "text-slate-900")}>{s.matches}</p></div>
