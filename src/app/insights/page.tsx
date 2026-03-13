@@ -75,6 +75,8 @@ export default function InsightsPage() {
   const playerCareerAggregates = useMemo(() => {
     if (!deliveries || !players) return {};
     const stats: Record<string, any> = {};
+    const perMatchRuns: Record<string, Record<string, number>> = {}; // pid -> { matchId: runs }
+
     players.forEach(p => { 
       stats[p.id] = { 
         runs: 0, 
@@ -88,11 +90,14 @@ export default function InsightsPage() {
         outs: 0,
         fours: 0,
         sixes: 0,
-        battingDots: 0
+        battingDots: 0,
+        highest: 0,
+        lowest: 999
       }; 
     });
     
     deliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
       if (d.strikerPlayerId && stats[d.strikerPlayerId]) {
         const s = stats[d.strikerPlayerId];
         s.runs += (d.runsScored || 0);
@@ -102,6 +107,11 @@ export default function InsightsPage() {
         }
         if (d.runsScored === 4) s.fours++;
         if (d.runsScored === 6) s.sixes++;
+
+        if (matchId) {
+          if (!perMatchRuns[d.strikerPlayerId]) perMatchRuns[d.strikerPlayerId] = {};
+          perMatchRuns[d.strikerPlayerId][matchId] = (perMatchRuns[d.strikerPlayerId][matchId] || 0) + (d.runsScored || 0);
+        }
       }
       if (d.isWicket && stats[d.batsmanOutPlayerId]) stats[d.batsmanOutPlayerId].outs++;
 
@@ -118,6 +128,17 @@ export default function InsightsPage() {
         if (d.dismissalType === 'runout') stats[fId].runOuts++;
       }
     });
+
+    Object.keys(stats).forEach(pid => {
+      const scores = Object.values(perMatchRuns[pid] || {});
+      if (scores.length > 0) {
+        stats[pid].highest = Math.max(...scores);
+        stats[pid].lowest = Math.min(...scores);
+      } else {
+        stats[pid].lowest = 0;
+      }
+    });
+
     return stats;
   }, [deliveries, players]);
 
@@ -231,7 +252,7 @@ export default function InsightsPage() {
 
   if (!isMounted || isDeliveriesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
 
-  const getPData = (id: string) => playerCareerAggregates[id] || { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, fours: 0, sixes: 0, battingDots: 0 };
+  const getPData = (id: string) => playerCareerAggregates[id] || { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, fours: 0, sixes: 0, battingDots: 0, highest: 0, lowest: 0 };
   const getTData = (id: string) => teamAggregates[id] || { played: 0, won: 0, tied: 0, lost: 0, forR: 0, forB: 0, agR: 0, agB: 0, fours: 0, sixes: 0, highest: 0, lowest: 0 };
   const getCData = (id: string) => captainStats[id] || { played: 0, won: 0 };
 
@@ -372,12 +393,18 @@ export default function InsightsPage() {
                 {[
                   { label: 'Matches Led', v1: getCData(cap1Id).played, v2: getCData(cap2Id).played },
                   { label: 'Wins', v1: getCData(cap1Id).won, v2: getCData(cap2Id).won },
-                  { label: 'Success Rate', v1: getCData(cap1Id).played > 0 ? (getCData(cap1Id).won/getCData(cap1Id).played)*100 : 0, v2: getCData(cap2Id).played > 0 ? (getCData(cap2Id).won/getCData(cap2Id).played)*100 : 0, unit: '%' }
+                  { label: 'Success Rate', v1: getCData(cap1Id).played > 0 ? (getCData(cap1Id).won/getCData(cap1Id).played)*100 : 0, v2: getCData(cap2Id).played > 0 ? (getCData(cap2Id).won/getCData(cap2Id).played)*100 : 0, unit: '%' },
+                  { label: 'Total Runs', v1: getPData(cap1Id).runs, v2: getPData(cap2Id).runs },
+                  { label: 'Highest Score', v1: getPData(cap1Id).highest, v2: getPData(cap2Id).highest },
+                  { label: 'Lowest Score', v1: getPData(cap1Id).lowest, v2: getPData(cap2Id).lowest, reverse: true },
+                  { label: 'Total 4s', v1: getPData(cap1Id).fours, v2: getPData(cap2Id).fours },
+                  { label: 'Total 6s', v1: getPData(cap1Id).sixes, v2: getPData(cap2Id).sixes },
+                  { label: 'Wickets', v1: getPData(cap1Id).wkts, v2: getPData(cap2Id).wkts }
                 ].map((row, i) => (
                   <div key={i} className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
-                    <span className={cn("text-sm font-black", row.v1 > row.v2 ? "text-primary" : "text-slate-400")}>{row.v1.toFixed(0)}{row.unit}</span>
+                    <span className={cn("text-sm font-black", (row.reverse ? row.v1 < row.v2 : row.v1 > row.v2) ? "text-primary" : "text-slate-400")}>{row.v1.toFixed(0)}{(row as any).unit || ''}</span>
                     <span className="text-[9px] font-black uppercase text-slate-500">{row.label}</span>
-                    <span className={cn("text-sm font-black", row.v2 > row.v1 ? "text-secondary" : "text-slate-400")}>{row.v2.toFixed(0)}{row.unit}</span>
+                    <span className={cn("text-sm font-black", (row.reverse ? row.v2 < row.v1 : row.v2 > row.v1) ? "text-secondary" : "text-slate-400")}>{row.v2.toFixed(0)}{(row as any).unit || ''}</span>
                   </div>
                 ))}
               </div>

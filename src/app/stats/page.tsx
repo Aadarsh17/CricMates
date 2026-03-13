@@ -139,24 +139,28 @@ export default function StatsPage() {
   function processPartnerships(deliveries: any[], list: any[], matchId: string) {
     if (deliveries.length === 0) return;
     deliveries.sort((a,b) => a.timestamp - b.timestamp);
-    let curP: any = { runs: 0, balls: 0, batters: new Set<string>() };
+    let curP: any = { runs: 0, balls: 0, contributions: {} as Record<string, number> };
     
     deliveries.forEach(d => {
+      const sId = d.strikerPlayerId;
+      if (!sId) return;
+
       curP.runs += (d.totalRunsOnDelivery || 0);
       if (d.extraType === 'none') curP.balls++;
-      if (d.strikerPlayerId) curP.batters.add(d.strikerPlayerId);
-      if (d.nonStrikerPlayerId) curP.batters.add(d.nonStrikerPlayerId);
+      
+      if (!curP.contributions[sId]) curP.contributions[sId] = 0;
+      curP.contributions[sId] += (d.runsScored || 0);
 
       if (d.isWicket) {
-        if (curP.batters.size >= 2) {
-          list.push({ runs: curP.runs, balls: curP.balls, batters: Array.from(curP.batters), matchId });
+        if (Object.keys(curP.contributions).length >= 2) {
+          list.push({ runs: curP.runs, balls: curP.balls, contributions: { ...curP.contributions }, batters: Object.keys(curP.contributions), matchId });
         }
-        curP = { runs: 0, balls: 0, batters: new Set<string>() };
+        curP = { runs: 0, balls: 0, contributions: {} };
       }
     });
     // Add unbroken last partnership
-    if (curP.batters.size >= 2 && (curP.runs > 0 || curP.balls > 0)) {
-      list.push({ runs: curP.runs, balls: curP.balls, batters: Array.from(curP.batters), matchId, isUnbroken: true });
+    if (Object.keys(curP.contributions).length >= 2 && (curP.runs > 0 || curP.balls > 0)) {
+      list.push({ runs: curP.runs, balls: curP.balls, contributions: { ...curP.contributions }, batters: Object.keys(curP.contributions), matchId, isUnbroken: true });
     }
   }
 
@@ -200,19 +204,19 @@ export default function StatsPage() {
         </h2>
         <Card className="border-none shadow-xl rounded-2xl overflow-hidden bg-white">
           <Table>
-            <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Pair</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead></TableRow></TableHeader>
+            <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Pair & Contributions</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Runs</TableHead></TableRow></TableHeader>
             <TableBody>
               {records?.topPartnerships.map((p, i) => (
                 <TableRow key={i}>
                   <TableCell className="py-3">
-                    <p className="font-black text-[10px] uppercase truncate max-w-[180px]">
-                      {getPlayerName(p.batters[0])} & {getPlayerName(p.batters[1])}
+                    <p className="font-black text-[10px] uppercase truncate max-w-[220px] text-primary">
+                      {p.batters.map((id: string) => `${getPlayerName(id)} (${p.contributions[id] || 0})`).join(' & ')}
                     </p>
-                    <p className="text-[8px] font-bold text-slate-400 uppercase italic">
-                      {p.balls} Balls {p.isUnbroken && '• Unbroken'}
+                    <p className="text-[8px] font-bold text-slate-400 uppercase italic mt-1">
+                      {p.balls} Balls {p.isUnbroken && '• Unbroken stand'}
                     </p>
                   </TableCell>
-                  <TableCell className="text-right font-black text-slate-900">{p.runs}</TableCell>
+                  <TableCell className="text-right font-black text-slate-900 text-lg">{p.runs}</TableCell>
                 </TableRow>
               )) || <TableRow><TableCell colSpan={2} className="text-center py-8 text-[9px] font-black uppercase text-slate-300">No major stands recorded</TableCell></TableRow>}
             </TableBody>
