@@ -48,35 +48,43 @@ export default function StatsPage() {
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
   const records = useMemo(() => {
-    if (!players || !rawDeliveries || !matches || matches.length === 0) return null;
+    const defaultData = {
+      batting: { 
+        highestScore: { val: 0, name: '-', matchId: '' }, 
+        most6s: { val: 0, name: '-', matchId: '' }, 
+        most4s: { val: 0, name: '-', matchId: '' },
+        ballEater: { val: 0, name: '-', matchId: '' },
+        fastestFifty: { val: 999, name: '-', matchId: '' }
+      },
+      bowling: { 
+        bestFigures: { wkts: 0, runs: 999, name: '-', matchId: '' }, 
+        mostWkts: { val: 0, name: '-', matchId: '' }, 
+        bestEcon: { val: 99, name: '-', matchId: '' },
+        dotBallKing: { val: 0, name: '-', matchId: '' },
+        extraGiver: { val: 0, name: '-', matchId: '' },
+        careerMaidens: { val: 0, name: '-' }
+      },
+      fielding: { 
+        mostCatches: { val: 0, name: '-' }, 
+        mostRunOuts: { val: 0, name: '-' }, 
+        mostStumpings: { val: 0, name: '-' } 
+      },
+      topPartnerships: [] as any[]
+    };
+
+    if (!players || !rawDeliveries || !matches || matches.length === 0) return defaultData;
+    
     const activeMatchIds = new Set(matches.map(m => m.id));
     const validDeliveries = rawDeliveries.filter(d => { 
       const matchId = d.__fullPath?.split('/')[1]; 
       return matchId && activeMatchIds.has(matchId); 
     });
     
-    if (validDeliveries.length === 0) return null;
+    if (validDeliveries.length === 0) return defaultData;
 
-    const batting: any = { 
-      highestScore: { val: 0, name: '-', matchId: '' }, 
-      most6s: { val: 0, name: '-', matchId: '' }, 
-      most4s: { val: 0, name: '-', matchId: '' },
-      ballEater: { val: 0, name: '-', matchId: '' },
-      fastestFifty: { val: 999, name: '-', matchId: '' }
-    };
-    const bowling: any = { 
-      bestFigures: { wkts: 0, runs: 999, name: '-', matchId: '' }, 
-      mostWkts: { val: 0, name: '-', matchId: '' }, 
-      bestEcon: { val: 99, name: '-', matchId: '' },
-      dotBallKing: { val: 0, name: '-', matchId: '' },
-      extraGiver: { val: 0, name: '-', matchId: '' },
-      careerMaidens: { val: 0, name: '-' }
-    };
-    const fielding: any = { 
-      mostCatches: { val: 0, name: '-' }, 
-      mostRunOuts: { val: 0, name: '-' }, 
-      mostStumpings: { val: 0, name: '-' } 
-    };
+    const batting = { ...defaultData.batting };
+    const bowling = { ...defaultData.bowling };
+    const fielding = { ...defaultData.fielding };
 
     const pMatchStats: Record<string, Record<string, any>> = {};
     const careerAgg: Record<string, any> = {};
@@ -207,29 +215,29 @@ export default function StatsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <RecordCard 
             title="Highest Score" 
-            value={records?.batting.highestScore.val > 0 ? `${records.batting.highestScore.val} Runs` : '---'} 
-            subtitle={records?.batting.highestScore.name} 
+            value={records?.batting?.highestScore?.val > 0 ? `${records.batting.highestScore.val} Runs` : '---'} 
+            subtitle={records?.batting?.highestScore?.name} 
             icon={Trophy} 
             color="bg-orange-500" 
           />
           <RecordCard 
             title="Most 6s (Match)" 
-            value={records?.batting.most6s.val > 0 ? `${records.batting.most6s.val} Sixes` : '---'} 
-            subtitle={records?.batting.most6s.name} 
+            value={records?.batting?.most6s?.val > 0 ? `${records.batting.most6s.val} Sixes` : '---'} 
+            subtitle={records?.batting?.most6s?.name} 
             icon={Zap} 
             color="bg-indigo-600" 
           />
           <RecordCard 
             title="Most 4s (Match)" 
-            value={records?.batting.most4s.val > 0 ? `${records.batting.most4s.val} Fours` : '---'} 
-            subtitle={records?.batting.most4s.name} 
+            value={records?.batting?.most4s?.val > 0 ? `${records.batting.most4s.val} Fours` : '---'} 
+            subtitle={records?.batting?.most4s?.name} 
             icon={Star} 
             color="bg-amber-500" 
           />
           <RecordCard 
             title="Ball Eater (Match)" 
-            value={records?.batting.ballEater.val > 0 ? `${records.batting.ballEater.val} Balls` : '---'} 
-            subtitle={records?.batting.ballEater.name} 
+            value={records?.batting?.ballEater?.val > 0 ? `${records.batting.ballEater.val} Balls` : '---'} 
+            subtitle={records?.batting?.ballEater?.name} 
             icon={Timer} 
           />
         </div>
@@ -240,29 +248,29 @@ export default function StatsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <RecordCard 
             title="Best Figures" 
-            value={records?.bowling.bestFigures.runs !== 999 ? `${records.bowling.bestFigures.wkts}/${records.bowling.bestFigures.runs}` : '---'} 
-            subtitle={records?.bowling.bestFigures.name} 
+            value={records?.bowling?.bestFigures?.runs !== 999 ? `${records.bowling.bestFigures.wkts}/${records.bowling.bestFigures.runs}` : '---'} 
+            subtitle={records?.bowling?.bestFigures?.name} 
             icon={Target} 
             color="bg-secondary" 
           />
           <RecordCard 
             title="Best Economy" 
-            value={records?.bowling.bestEcon.val !== 99 ? `${records.bowling.bestEcon.val.toFixed(2)}` : '---'} 
-            subtitle={records?.bowling.bestEcon.name} 
+            value={records?.bowling?.bestEcon?.val !== 99 ? `${records.bowling.bestEcon.val.toFixed(2)}` : '---'} 
+            subtitle={records?.bowling?.bestEcon?.name} 
             icon={Activity} 
             color="bg-emerald-600" 
           />
           <RecordCard 
             title="Dot Ball King" 
-            value={records?.bowling.dotBallKing.val > 0 ? `${records.bowling.dotBallKing.val} Dots` : '---'} 
-            subtitle={records?.bowling.dotBallKing.name} 
+            value={records?.bowling?.dotBallKing?.val > 0 ? `${records.bowling.dotBallKing.val} Dots` : '---'} 
+            subtitle={records?.bowling?.dotBallKing?.name} 
             icon={CircleDot} 
             color="bg-slate-900" 
           />
           <RecordCard 
             title="Extra Giver" 
-            value={records?.bowling.extraGiver.val > 0 ? `${records.bowling.extraGiver.val} Extras` : '---'} 
-            subtitle={records?.bowling.extraGiver.name} 
+            value={records?.bowling?.extraGiver?.val > 0 ? `${records.bowling.extraGiver.val} Extras` : '---'} 
+            subtitle={records?.bowling?.extraGiver?.name} 
             icon={AlertCircle} 
             color="bg-rose-500" 
           />
@@ -272,9 +280,9 @@ export default function StatsPage() {
       <section className="space-y-6">
         <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Shield className="w-6 h-6 text-slate-900" /> Safe Hands (Fielding)</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <RecordCard title="Career Catches" value={records?.fielding.mostCatches.val > 0 ? `${records.fielding.mostCatches.val} Catches` : '---'} subtitle={records?.fielding.mostCatches.name} icon={Hand} />
-          <RecordCard title="Direct Hits" value={records?.fielding.mostRunOuts.val > 0 ? `${records.fielding.mostRunOuts.val} Run Outs` : '---'} subtitle={records?.fielding.mostRunOuts.name} icon={Swords} />
-          <RecordCard title="Keeper's Pride" value={records?.fielding.mostStumpings.val > 0 ? `${records.fielding.mostStumpings.val} Stumpings` : '---'} subtitle={records?.fielding.mostStumpings.name} icon={Shield} />
+          <RecordCard title="Career Catches" value={records?.fielding?.mostCatches?.val > 0 ? `${records.fielding.mostCatches.val} Catches` : '---'} subtitle={records?.fielding?.mostCatches?.name} icon={Hand} />
+          <RecordCard title="Direct Hits" value={records?.fielding?.mostRunOuts?.val > 0 ? `${records.fielding.mostRunOuts.val} Run Outs` : '---'} subtitle={records?.fielding?.mostRunOuts?.name} icon={Swords} />
+          <RecordCard title="Keeper's Pride" value={records?.fielding?.mostStumpings?.val > 0 ? `${records.fielding.mostStumpings.val} Stumpings` : '---'} subtitle={records?.fielding?.mostStumpings?.name} icon={Shield} />
         </div>
       </section>
 
@@ -289,7 +297,7 @@ export default function StatsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {records?.topPartnerships.map((p, i) => (
+              {records?.topPartnerships && records.topPartnerships.length > 0 ? records.topPartnerships.map((p: any, i: number) => (
                 <TableRow key={i} className="hover:bg-slate-50 transition-colors">
                   <TableCell className="py-4">
                     <p className="font-black text-[11px] uppercase truncate max-w-[280px] text-primary">
@@ -303,7 +311,7 @@ export default function StatsPage() {
                     <span className="font-black text-slate-900 text-2xl tracking-tighter">{p.runs}</span>
                   </TableCell>
                 </TableRow>
-              )) || (
+              )) : (
                 <TableRow>
                   <TableCell colSpan={2} className="text-center py-12">
                     <Users className="w-10 h-10 text-slate-200 mx-auto mb-2" />
