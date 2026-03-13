@@ -156,68 +156,68 @@ export default function Home() {
       </section>
 
       {/* MVP & Caps Spotlight */}
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-none shadow-xl bg-slate-900 text-white overflow-hidden relative group">
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="border-none shadow-2xl bg-slate-900 text-white overflow-hidden relative group">
           <div className="absolute -right-4 -top-4 opacity-10 group-hover:rotate-12 transition-transform"><Calendar className="w-24 h-24" /></div>
-          <CardContent className="p-6 space-y-4 relative z-10">
+          <CardContent className="p-6 space-y-6 relative z-10">
             <div className="flex items-center gap-2"><Crown className="w-4 h-4 text-amber-500" /><span className="text-[10px] font-black uppercase tracking-widest text-slate-400">MVP of the Week</span></div>
-            <div className="flex justify-between items-start gap-4">
+            <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <p className="text-2xl font-black uppercase tracking-tighter truncate leading-tight">{leagueData.mvpId ? leagueData.stats[leagueData.mvpId].name : 'Calculating...'}</p>
                 <p className="text-[9px] font-bold text-amber-500 uppercase mt-1">Highest impact in last 7 days</p>
               </div>
               {mvpPlayer && (
-                <Avatar className="w-14 h-14 border-2 border-white/20 rounded-xl shadow-lg shrink-0 overflow-hidden">
+                <Avatar className="w-24 h-24 border-4 border-white/10 rounded-2xl shadow-2xl shrink-0 overflow-hidden ring-4 ring-white/5 group-hover:scale-105 transition-transform">
                   <AvatarImage src={mvpPlayer.imageUrl} className="object-cover" />
-                  <AvatarFallback className="bg-white/10 text-white font-black text-xl">{mvpPlayer.name[0]}</AvatarFallback>
+                  <AvatarFallback className="bg-white/10 text-white font-black text-2xl">{mvpPlayer.name[0]}</AvatarFallback>
                 </Avatar>
               )}
             </div>
-            <Button variant="outline" size="sm" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[9px] h-10" asChild>
+            <Button variant="outline" size="sm" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[9px] h-12" asChild>
               {leagueData.mvpId ? <Link href={`/players/${leagueData.mvpId}`}>View Profile</Link> : <span>Syncing...</span>}
             </Button>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-xl bg-orange-500 text-white overflow-hidden relative group">
+        <Card className="border-none shadow-2xl bg-orange-500 text-white overflow-hidden relative group">
           <div className="absolute -right-4 -top-4 opacity-20"><Zap className="w-24 h-24 text-white" /></div>
-          <CardContent className="p-6 space-y-4">
+          <CardContent className="p-6 space-y-6">
             <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-orange-100">Orange Cap Holder</span></div>
-            <div className="flex justify-between items-start gap-4">
+            <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <p className="text-2xl font-black uppercase tracking-tighter truncate leading-tight">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].name : '---'}</p>
                 <p className="text-xl font-black text-white/80">{leagueData.orangeCapId ? leagueData.stats[leagueData.orangeCapId].runs : 0} <span className="text-[10px] uppercase">Runs</span></p>
               </div>
               {orangePlayer && (
-                <Avatar className="w-14 h-14 border-2 border-white/20 rounded-xl shadow-lg shrink-0 overflow-hidden">
+                <Avatar className="w-24 h-24 border-4 border-white/30 rounded-2xl shadow-2xl shrink-0 overflow-hidden ring-4 ring-white/10 group-hover:scale-105 transition-transform">
                   <AvatarImage src={orangePlayer.imageUrl} className="object-cover" />
-                  <AvatarFallback className="bg-white/10 text-white font-black text-xl">{orangePlayer.name[0]}</AvatarFallback>
+                  <AvatarFallback className="bg-white/20 text-white font-black text-2xl">{orangePlayer.name[0]}</AvatarFallback>
                 </Avatar>
               )}
             </div>
-            <Button variant="outline" size="sm" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[9px] h-10" asChild>
+            <Button variant="outline" size="sm" className="w-full border-white/20 bg-white/10 hover:bg-white/20 text-white font-black uppercase text-[9px] h-12" asChild>
               {leagueData.orangeCapId ? <Link href={`/players/${leagueData.orangeCapId}`}>View Profile</Link> : <span>Syncing...</span>}
             </Button>
           </CardContent>
         </Card>
 
-        <Card className="border-none shadow-xl bg-indigo-600 text-white overflow-hidden relative group">
+        <Card className="border-none shadow-2xl bg-indigo-600 text-white overflow-hidden relative group">
           <div className="absolute -right-4 -top-4 opacity-20"><Target className="w-24 h-24 text-white" /></div>
-          <CardContent className="p-6 space-y-4">
+          <CardContent className="p-6 space-y-6">
             <div className="flex items-center gap-2"><Trophy className="w-4 h-4 text-white" /><span className="text-[10px] font-black uppercase tracking-widest text-indigo-100">Purple Cap Holder</span></div>
-            <div className="flex justify-between items-start gap-4">
+            <div className="flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <p className="text-2xl font-black uppercase tracking-tighter truncate leading-tight">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].name : '---'}</p>
                 <p className="text-xl font-black text-white/80">{leagueData.purpleCapId ? leagueData.stats[leagueData.purpleCapId].wkts : 0} <span className="text-[10px] uppercase">Wickets</span></p>
               </div>
               {purplePlayer && (
-                <Avatar className="w-14 h-14 border-2 border-white/20 rounded-xl shadow-lg shrink-0 overflow-hidden">
+                <Avatar className="w-24 h-24 border-4 border-white/30 rounded-2xl shadow-2xl shrink-0 overflow-hidden ring-4 ring-white/10 group-hover:scale-105 transition-transform">
                   <AvatarImage src={purplePlayer.imageUrl} className="object-cover" />
-                  <AvatarFallback className="bg-white/10 text-white font-black text-xl">{purplePlayer.name[0]}</AvatarFallback>
+                  <AvatarFallback className="bg-white/20 text-white font-black text-2xl">{purplePlayer.name[0]}</AvatarFallback>
                 </Avatar>
               )}
             </div>
-            <Button variant="outline" size="sm" className="w-full border-white/10 bg-white/5 hover:bg-white/10 text-white font-black uppercase text-[9px] h-10" asChild>
+            <Button variant="outline" size="sm" className="w-full border-white/20 bg-white/10 hover:bg-white/20 text-white font-black uppercase text-[9px] h-12" asChild>
               {leagueData.purpleCapId ? <Link href={`/players/${leagueData.purpleCapId}`}>View Profile</Link> : <span>Syncing...</span>}
             </Button>
           </CardContent>
