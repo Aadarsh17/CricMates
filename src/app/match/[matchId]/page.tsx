@@ -218,7 +218,7 @@ export default function MatchScoreboardPage() {
   const handleRepairMatchData = async () => {
     if (!repairTargetId || !replacementPlayerId) return;
     setIsRepairing(true);
-    toast({ title: "Repairing Scorecard...", description: "Re-mapping all deliveries." });
+    toast({ title: "Repairing Scorecard...", description: "Re-mapping all deliveries and squads." });
 
     try {
       const batch = writeBatch(db);
@@ -249,7 +249,7 @@ export default function MatchScoreboardPage() {
 
       await batch.commit();
       
-      // Update match squad arrays too
+      // Update match record metadata (squads, leadership, potm)
       const matchUpdates: any = {};
       if (match?.team1SquadPlayerIds?.includes(repairTargetId)) {
         matchUpdates.team1SquadPlayerIds = match.team1SquadPlayerIds.map((id: string) => id === repairTargetId ? replacementPlayerId : id);
@@ -257,15 +257,42 @@ export default function MatchScoreboardPage() {
       if (match?.team2SquadPlayerIds?.includes(repairTargetId)) {
         matchUpdates.team2SquadPlayerIds = match.team2SquadPlayerIds.map((id: string) => id === repairTargetId ? replacementPlayerId : id);
       }
+      if (match?.team1CaptainId === repairTargetId) matchUpdates.team1CaptainId = replacementPlayerId;
+      if (match?.team1ViceCaptainId === repairTargetId) matchUpdates.team1ViceCaptainId = replacementPlayerId;
+      if (match?.team1WicketKeeperId === repairTargetId) matchUpdates.team1WicketKeeperId = replacementPlayerId;
+      if (match?.team2CaptainId === repairTargetId) matchUpdates.team2CaptainId = replacementPlayerId;
+      if (match?.team2ViceCaptainId === repairTargetId) matchUpdates.team2ViceCaptainId = replacementPlayerId;
+      if (match?.team2WicketKeeperId === repairTargetId) matchUpdates.team2WicketKeeperId = replacementPlayerId;
+      if (match?.potmPlayerId === repairTargetId) matchUpdates.potmPlayerId = replacementPlayerId;
+
       if (Object.keys(matchUpdates).length > 0) {
         await updateDocumentNonBlocking(doc(db, 'matches', matchId), matchUpdates);
+      }
+
+      // Also repair inning-level active positions
+      for (const innId of innings) {
+        const innRef = doc(db, 'matches', matchId, 'innings', innId);
+        const innSnap = await getDocs(query(collection(db, 'temp'), limit(1))); // dummy to check if inn exists
+        // Actually we just use the inn1/inn2 data we have or fetch it
+        const innD = innId === 'inning_1' ? inn1 : inn2;
+        if (innD) {
+          const innUpdates: any = {};
+          if (innD.strikerPlayerId === repairTargetId) innUpdates.strikerPlayerId = replacementPlayerId;
+          if (innD.nonStrikerPlayerId === repairTargetId) innUpdates.nonStrikerPlayerId = replacementPlayerId;
+          if (innD.currentBowlerPlayerId === repairTargetId) innUpdates.currentBowlerPlayerId = replacementPlayerId;
+          if (Object.keys(innUpdates).length > 0) {
+            await updateDocumentNonBlocking(innRef, innUpdates);
+          }
+        }
       }
 
       await recalculateInningState('inning_1');
       await recalculateInningState('inning_2');
       
-      toast({ title: "Repair Complete", description: "All records have been synchronized." });
+      toast({ title: "Deep Repair Complete", description: "Records merged into new profile." });
       setIsRepairOpen(false);
+      setRepairTargetId('');
+      setReplacementPlayerId('');
     } catch (e) {
       toast({ title: "Repair Failed", variant: "destructive" });
     } finally {
@@ -951,7 +978,7 @@ export default function MatchScoreboardPage() {
               </Select>
             </div>
             <div className="bg-slate-50 p-4 rounded-xl text-[10px] font-medium text-slate-500 italic">
-              * This will update all historical records in this match where this ID appears.
+              * This will merge all historical records in this match where this ID appears into the new profile.
             </div>
           </div>
           <DialogFooter>
