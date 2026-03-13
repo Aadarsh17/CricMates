@@ -66,38 +66,11 @@ export default function TeamsPage() {
 
   const defaultTeamLogo = PlaceHolderImages.find(img => img.id === 'team-logo')?.imageUrl || '';
 
-  const resizeImage = (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader(); reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image(); img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas'); const size = 300;
-          let width = img.width; let height = img.height;
-          if (width > height) { if (width > size) { height *= size / width; width = size; } }
-          else { if (height > size) { width *= size / height; height = size; } }
-          canvas.width = width; canvas.height = height;
-          const ctx = canvas.getContext('2d'); ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.8));
-        };
-      };
-    });
-  };
-
-  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) { 
-      const resized = await resizeImage(file); 
-      setNewTeam(prev => ({ ...prev, logoUrl: resized })); 
-      toast({ title: "Logo Ready" }); 
-    }
-  };
-
   const teamStats = useMemo(() => {
     const stats: Record<string, any> = {};
     if (!teams || !allMatches) return stats;
     
-    // NRR and Standings must only be calculated for COMPLETED matches
+    // CRITICAL: Standings and NRR must only be calculated for COMPLETED matches that EXIST
     const completedMatches = allMatches.filter(m => m.status === 'completed');
     const validMatchIds = new Set(completedMatches.map(m => m.id));
     
@@ -111,6 +84,7 @@ export default function TeamsPage() {
     if (rawDeliveries && validMatchIds.size > 0) {
       rawDeliveries.forEach(d => {
         const matchId = d.__fullPath?.split('/')[1]; 
+        // Ghost Data Filter
         if (!matchId || !validMatchIds.has(matchId)) return;
         
         const match = completedMatches.find(m => m.id === matchId); 
@@ -124,18 +98,18 @@ export default function TeamsPage() {
         const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
         const bowlingTeamId = battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
 
-        // Batting stats for NRR
+        // Batting stats for NRR (Total Runs / Total Overs Faced)
         if (totals[battingTeamId]) { 
           totals[battingTeamId].forR += (d.totalRunsOnDelivery || 0); 
-          if (d.extraType !== 'wide' && d.extraType !== 'noball' && d.dismissalType !== 'retired') {
+          if (d.extraType === 'none' && d.dismissalType !== 'retired') {
             totals[battingTeamId].forB += 1; 
           }
         }
         
-        // Bowling stats for NRR
+        // Bowling stats for NRR (Total Runs Conceded / Total Overs Bowled)
         if (totals[bowlingTeamId]) { 
           totals[bowlingTeamId].agR += (d.totalRunsOnDelivery || 0); 
-          if (d.extraType !== 'wide' && d.extraType !== 'noball' && d.dismissalType !== 'retired') {
+          if (d.extraType === 'none' && d.dismissalType !== 'retired') {
             totals[bowlingTeamId].agB += 1; 
           }
         }
@@ -144,6 +118,7 @@ export default function TeamsPage() {
 
     // Wins and Losses
     completedMatches.forEach(m => { 
+      if (!validMatchIds.has(m.id)) return;
       const winnerId = m.winnerTeamId; 
       if (winnerId && winnerId !== 'none' && totals[winnerId]) { 
         totals[winnerId].wins++; 
@@ -156,10 +131,14 @@ export default function TeamsPage() {
     teams.forEach(t => { 
       const forRR = totals[t.id].forB > 0 ? (totals[t.id].forR / (totals[t.id].forB / 6)) : 0; 
       const agRR = totals[t.id].agB > 0 ? (totals[t.id].agR / (totals[t.id].agB / 6)) : 0; 
+      
+      // Safety: If wins/losses are 0, force NRR to 0 to prevent ghost data leakage
+      const hasPlayed = totals[t.id].wins > 0 || totals[t.id].losses > 0;
+
       stats[t.id] = { 
         wins: totals[t.id].wins, 
         losses: totals[t.id].losses, 
-        nrr: forRR - agRR 
+        nrr: hasPlayed ? (forRR - agRR) : 0 
       }; 
     });
 

@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, Loader2, Edit2, Camera, Users, Scale, Crown, Shield, ShieldCheck, X, Zap, Target, Medal, Clock, History } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, Loader2, Edit2, Camera, Users, Scale, ShieldCheck, X, Zap, Target, Medal, Clock, History } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -50,7 +50,10 @@ export default function TeamDetailsPage() {
   }, [db, isMounted]);
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
+  // CRITICAL: Only consider matches that ACTUALLY exist in the registry
   const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
+  // CRITICAL: For standings, only consider COMPLETED matches
+  const completedMatchIds = useMemo(() => new Set(allMatches?.filter(m => m.status === 'completed').map(m => m.id) || []), [allMatches]);
 
   const squadData = useMemo(() => {
     if (!allPlayers || !allMatches || !teamId) return { active: [], legacy: [] };
@@ -58,11 +61,13 @@ export default function TeamDetailsPage() {
     const registeredIds = new Set(registered.map(p => p.id));
     const legacyIds = new Set<string>();
     allMatches.forEach(m => {
-      if (!activeMatchIds.has(m.id)) return;
-      if (m.team1Id === teamId) {
+      if (!activeMatchIds.has(m.id)) return; // Strictly ignore ghost matches
+      const isTeam1 = m.team1Id === teamId;
+      const isTeam2 = m.team2Id === teamId;
+      if (isTeam1) {
         m.team1SquadPlayerIds?.forEach((pid: string) => { if (!registeredIds.has(pid)) legacyIds.add(pid); });
       }
-      if (m.team2Id === teamId) {
+      if (isTeam2) {
         m.team2SquadPlayerIds?.forEach((pid: string) => { if (!registeredIds.has(pid)) legacyIds.add(pid); });
       }
     });
@@ -96,8 +101,11 @@ export default function TeamDetailsPage() {
 
     rawDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
+      if (!matchId || !activeMatchIds.has(matchId)) return; // Ghost Data Filter
+
       const match = allMatches.find(m => m.id === matchId);
-      if (!match || !activeMatchIds.has(matchId)) return;
+      if (!match) return;
+
       const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
       const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
       const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
@@ -157,31 +165,51 @@ export default function TeamDetailsPage() {
     if (!teamId || !allMatches || !allMatches.length) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
     let forR = 0, forB = 0, agR = 0, agB = 0;
     let played = 0, won = 0, lost = 0, drawn = 0;
+    
     allMatches.forEach(m => {
-      if (m.status !== 'completed' || (m.team1Id !== teamId && m.team2Id !== teamId)) return;
+      // CRITICAL: Standings must only come from COMPLETED matches that exist
+      if (m.status !== 'completed' || !activeMatchIds.has(m.id) || (m.team1Id !== teamId && m.team2Id !== teamId)) return;
+      
       played++;
       const winnerId = m.winnerTeamId;
       if (m.isTie) drawn++;
       else if (winnerId === teamId) won++;
       else if (winnerId && winnerId !== 'none') lost++;
     });
+
+    // CRITICAL: If no completed matches, forced clean 0 state
+    if (played === 0) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
+
     if (rawDeliveries) {
       rawDeliveries.forEach(d => {
         const matchId = d.__fullPath?.split('/')[1];
+        // CRITICAL: NRR must only come from COMPLETED matches that exist
+        if (!matchId || !completedMatchIds.has(matchId)) return;
+
         const match = allMatches.find(m => m.id === matchId);
-        if (!match || match.status !== 'completed' || !activeMatchIds.has(matchId)) return;
+        if (!match) return;
+
         const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
         const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
         const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
         const bowlingTeamId = battingTeamId === teamId ? (battingTeamId === match.team1Id ? match.team2Id : match.team1Id) : teamId;
-        if (battingTeamId === teamId) { forR += (d.totalRunsOnDelivery || 0); if (d.extraType === 'none') forB++; }
-        if (bowlingTeamId === teamId && battingTeamId !== teamId) { agR += (d.totalRunsOnDelivery || 0); if (d.extraType === 'none') agB++; }
+
+        if (battingTeamId === teamId) { 
+          forR += (d.totalRunsOnDelivery || 0); 
+          if (d.extraType === 'none' && d.dismissalType !== 'retired') forB++; 
+        }
+        if (bowlingTeamId === teamId && battingTeamId !== teamId) { 
+          agR += (d.totalRunsOnDelivery || 0); 
+          if (d.extraType === 'none' && d.dismissalType !== 'retired') agB++; 
+        }
       });
     }
+
     const forRR = forB > 0 ? (forR / (forB / 6)) : 0;
     const agRR = agB > 0 ? (agR / (agB / 6)) : 0;
+    
     return { played, won, lost, drawn, nrr: forRR - agRR };
-  }, [allMatches, teamId, rawDeliveries, activeMatchIds]);
+  }, [allMatches, teamId, rawDeliveries, activeMatchIds, completedMatchIds]);
 
   const teamHonors = useMemo(() => {
     if (!squadData.active.length && !squadData.legacy.length) return null;
@@ -190,6 +218,10 @@ export default function TeamDetailsPage() {
     const topScorer = [...statsArray].sort((a,b) => b.runs - a.runs)[0];
     const topWkt = [...statsArray].sort((a,b) => b.wickets - a.wickets)[0];
     const mvp = [...statsArray].sort((a,b) => b.cvp - a.cvp)[0];
+    
+    // Safety check for empty stats
+    if (!topScorer || topScorer.runs === 0 && topWkt.wickets === 0) return null;
+    
     return { topScorer, topWkt, mvp };
   }, [squadData, squadStats]);
 
@@ -229,7 +261,13 @@ export default function TeamDetailsPage() {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        {[ { label: 'Wins', value: standingsForThisTeam.won, icon: Trophy, color: 'text-secondary' }, { label: 'Losses', value: standingsForThisTeam.lost, icon: Activity, color: 'text-destructive' }, { label: 'NR/Ties', value: standingsForThisTeam.drawn, icon: Scale, color: 'text-amber-500' }, { label: 'NRR', value: (standingsForThisTeam.nrr || 0).toFixed(3), icon: History, color: 'text-primary' }, { label: 'Played', value: standingsForThisTeam.played, icon: Users, color: 'text-slate-600' } ].map((stat, i) => (
+        {[ 
+          { label: 'Wins', value: standingsForThisTeam.won, icon: Trophy, color: 'text-secondary' }, 
+          { label: 'Losses', value: standingsForThisTeam.lost, icon: Activity, color: 'text-destructive' }, 
+          { label: 'NR/Ties', value: standingsForThisTeam.drawn, icon: Scale, color: 'text-amber-500' }, 
+          { label: 'NRR', value: (standingsForThisTeam.nrr || 0).toFixed(3), icon: History, color: 'text-primary' }, 
+          { label: 'Played', value: standingsForThisTeam.played, icon: Users, color: 'text-slate-600' } 
+        ].map((stat, i) => (
           <Card key={i} className="shadow-xl border-none overflow-hidden hover:scale-[1.02] transition-transform">
             <CardContent className="p-4 flex items-center gap-4">
               <div className="p-2 bg-slate-50 rounded-xl"><stat.icon className={cn("w-5 h-5", stat.color)}/></div>
@@ -243,24 +281,30 @@ export default function TeamDetailsPage() {
         <section className="space-y-4">
           <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Medal className="w-6 h-6 text-amber-500" /> Franchise Honors</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="border-none shadow-lg bg-white overflow-hidden group">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="bg-amber-50 p-3 rounded-2xl group-hover:rotate-12 transition-transform"><Zap className="w-6 h-6 text-amber-500" /></div>
-                <div><p className="text-[10px] font-black text-slate-400 uppercase">Leading Scorer</p><p className="font-black text-sm uppercase truncate max-w-[120px]">{teamHonors.topScorer.name}</p><p className="text-xs font-bold text-primary">{teamHonors.topScorer.runs} Career Runs</p></div>
-              </CardContent>
-            </Card>
-            <Card className="border-none shadow-lg bg-white overflow-hidden group">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="bg-primary/10 p-3 rounded-2xl group-hover:rotate-12 transition-transform"><Target className="w-6 h-6 text-primary" /></div>
-                <div><p className="text-[10px] font-black text-slate-400 uppercase">Wicket King</p><p className="font-black text-sm uppercase truncate max-w-[120px]">{teamHonors.topWkt.name}</p><p className="text-xs font-bold text-secondary">{teamHonors.topWkt.wickets} Career Wickets</p></div>
-              </CardContent>
-            </Card>
-            <Card className="border-none shadow-lg bg-white overflow-hidden group">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="bg-secondary/10 p-3 rounded-2xl group-hover:rotate-12 transition-transform"><ShieldCheck className="w-6 h-6 text-secondary" /></div>
-                <div><p className="text-[10px] font-black text-slate-400 uppercase">Franchise MVP</p><p className="font-black text-sm uppercase truncate max-w-[120px]">{teamHonors.mvp.name}</p><p className="text-xs font-bold text-emerald-600">{teamHonors.mvp.cvp.toFixed(1)} CVP Pts</p></div>
-              </CardContent>
-            </Card>
+            {teamHonors.topScorer.runs > 0 && (
+              <Card className="border-none shadow-lg bg-white overflow-hidden group">
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="bg-amber-50 p-3 rounded-2xl group-hover:rotate-12 transition-transform"><Zap className="w-6 h-6 text-amber-500" /></div>
+                  <div><p className="text-[10px] font-black text-slate-400 uppercase">Leading Scorer</p><p className="font-black text-sm uppercase truncate max-w-[120px]">{teamHonors.topScorer.name}</p><p className="text-xs font-bold text-primary">{teamHonors.topScorer.runs} Career Runs</p></div>
+                </CardContent>
+              </Card>
+            )}
+            {teamHonors.topWkt.wickets > 0 && (
+              <Card className="border-none shadow-lg bg-white overflow-hidden group">
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="bg-primary/10 p-3 rounded-2xl group-hover:rotate-12 transition-transform"><Target className="w-6 h-6 text-primary" /></div>
+                  <div><p className="text-[10px] font-black text-slate-400 uppercase">Wicket King</p><p className="font-black text-sm uppercase truncate max-w-[120px]">{teamHonors.topWkt.name}</p><p className="text-xs font-bold text-secondary">{teamHonors.topWkt.wickets} Career Wickets</p></div>
+                </CardContent>
+              </Card>
+            )}
+            {teamHonors.mvp.cvp > 0 && (
+              <Card className="border-none shadow-lg bg-white overflow-hidden group">
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="bg-secondary/10 p-3 rounded-2xl group-hover:rotate-12 transition-transform"><ShieldCheck className="w-6 h-6 text-secondary" /></div>
+                  <div><p className="text-[10px] font-black text-slate-400 uppercase">Franchise MVP</p><p className="font-black text-sm uppercase truncate max-w-[120px]">{teamHonors.mvp.name}</p><p className="text-xs font-bold text-emerald-600">{teamHonors.mvp.cvp.toFixed(1)} CVP Pts</p></div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </section>
       )}
