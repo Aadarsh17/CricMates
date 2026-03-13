@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Crown, Users, UserPlus, Undo2 } from 'lucide-react';
+import { History, Loader2, ArrowLeftRight, ShieldCheck, CheckCircle2, Settings2, Rewind, Download, Edit2, PlusCircle, Filter, Calendar, UserCheck, MapPin, Hash, ChevronLeft, Trash2, Share2, Star, Zap, Swords, Trophy, Target, Crown, Users, UserPlus, Undo2, RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -743,6 +743,13 @@ export default function MatchScoreboardPage() {
                 </div>
                 <div className="grid grid-cols-1 gap-3 pt-4 border-t">
                   <Button className="w-full h-14 bg-secondary font-black uppercase shadow-lg group" onClick={handleShareImage} disabled={isSharing}>{isSharing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Share2 className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />} Generate HD Share Image</Button>
+                  {isUmpire && match?.status === 'completed' && (
+                    <Button asChild variant="default" className="w-full h-14 bg-[#3f51b5] font-black uppercase shadow-lg">
+                      <Link href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}&mNum=${encodeURIComponent(match.matchNumber || '')}`}>
+                        <RotateCcw className="w-5 h-5 mr-2" /> Play Rematch
+                      </Link>
+                    </Button>
+                  )}
                   <Button variant="outline" className="w-full h-12 font-black uppercase text-[10px] border-slate-200" onClick={() => { const namesMap = allPlayers?.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {}) || {}; const report = generateMatchReport(match, allTeams || [], namesMap, inn1, inn2, stats1, stats2); const blob = new Blob([report], { type: 'text/html' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `CricMates_${match?.id}.html`; a.click(); }}><Download className="w-4 h-4 mr-2" /> Download HTML Scorecard</Button>
                 </div>
               </div>

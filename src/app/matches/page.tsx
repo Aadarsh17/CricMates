@@ -6,7 +6,7 @@ import { collection, query, orderBy, doc, getDocs, deleteDoc } from 'firebase/fi
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Calendar, Trash2, Trophy, Loader2, ChevronLeft, Hash } from 'lucide-react';
+import { Calendar, Trash2, Trophy, Loader2, ChevronLeft, Hash, RotateCcw } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import Link from 'next/link';
@@ -98,7 +98,18 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
           )}
         </div>
         <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">{renderInningRow(inn1, row1TeamId)}{renderInningRow(inn2, row2TeamId)}</div>
-        <div className="flex gap-2 mt-4"><Button asChild className="flex-1 bg-primary font-bold h-10 shadow-sm"><Link href={`/match/${match.id}`}>Scorecard</Link></Button></div>
+        <div className="flex gap-2 mt-4">
+          <Button asChild className="flex-1 bg-primary font-bold h-10 shadow-sm">
+            <Link href={`/match/${match.id}`}>Scorecard</Link>
+          </Button>
+          {isUmpire && match.status === 'completed' && (
+            <Button asChild variant="outline" className="flex-1 font-black h-10 border-primary text-primary hover:bg-primary/5 uppercase text-[9px]">
+              <Link href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}&mNum=${encodeURIComponent(match.matchNumber || '')}`}>
+                <RotateCcw className="w-3 h-3 mr-1" /> Play Again
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
     </Card>
   );
