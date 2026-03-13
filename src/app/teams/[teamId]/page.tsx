@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useRouter } from 'navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { collection, query, doc, orderBy, collectionGroup } from 'firebase/firestore';
 import { Card, CardContent } from '@/components/ui/card';
@@ -128,7 +128,6 @@ export default function TeamDetailsPage() {
       bowlingInningsSet[p.id] = new Set();
     });
 
-    // Unique Squad Selection Count (GHOST PROTECTED)
     allMatches.forEach(m => {
       if (!activeMatchIds.has(m.id)) return;
       [...(m.team1SquadPlayerIds || []), ...(m.team2SquadPlayerIds || [])].forEach(pid => {

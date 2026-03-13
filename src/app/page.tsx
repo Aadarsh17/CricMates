@@ -99,13 +99,11 @@ export default function Home() {
 
     const alerts: any[] = [];
     Object.values(playerAggregates).forEach((p: any) => {
-      // Batting Near-Hits
       const nextRun = RUN_MILESTONES.find(m => m > p.runs);
       if (nextRun) {
         const diff = nextRun - p.runs;
         if (diff <= 5 && p.runs > 0) alerts.push({ name: p.name, id: p.id, type: 'runs', val: p.runs, next: nextRun, diff, icon: Zap, color: 'text-amber-500' });
       }
-      // Bowling Near-Hits
       const nextWkt = WKT_MILESTONES.find(m => m > p.wkts);
       if (nextWkt) {
         const diff = nextWkt - p.wkts;

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -165,11 +166,7 @@ export default function MatchScoreboardPage() {
       toast({ title: "Image Ready", description: "HD Share Card saved to gallery." });
     } catch (err: any) {
       console.error('Share Image Error:', err);
-      toast({ 
-        title: "Sharing Error", 
-        description: "Failed to generate HD image.",
-        variant: "destructive" 
-      });
+      toast({ title: "Sharing Error", description: "Failed to generate HD image.", variant: "destructive" });
     } finally {
       setIsSharing(false);
     }
@@ -208,14 +205,8 @@ export default function MatchScoreboardPage() {
       }
     });
     
-    const updates: any = { 
-      score, wickets: wkts, oversCompleted: Math.floor(legal / 6), ballsInCurrentOver: legal % 6,
-      strikerPlayerId: sId || '',
-      nonStrikerPlayerId: nsId || '',
-      isDeclaredFinished: false 
-    };
+    const updates: any = { score, wickets: wkts, oversCompleted: Math.floor(legal / 6), ballsInCurrentOver: legal % 6, strikerPlayerId: sId || '', nonStrikerPlayerId: nsId || '', isDeclaredFinished: false };
     if (legal % 6 === 0 && legal > 0) updates.currentBowlerPlayerId = '';
-
     await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', inningId), updates, { merge: true });
   };
 
@@ -243,17 +234,11 @@ export default function MatchScoreboardPage() {
       const wicketsLeft = Math.max(0, maxWicketsPossible - w2);
       result = `${winnerName} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}`;
     } else {
-      isTie = true;
-      result = "Match Tied";
+      isTie = true; result = "Match Tied";
     }
     
     try {
-      await setDocumentNonBlocking(doc(db, 'matches', matchId), { 
-        status: 'completed',
-        resultDescription: result,
-        winnerTeamId: winnerId || 'none',
-        isTie: isTie
-      }, { merge: true });
+      await setDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed', resultDescription: result, winnerTeamId: winnerId || 'none', isTie: isTie }, { merge: true });
       toast({ title: "Match Finalized", description: result });
     } catch (e) {
       toast({ title: "Error", description: "Failed to finalize match.", variant: "destructive" });
@@ -271,18 +256,7 @@ export default function MatchScoreboardPage() {
     const newTotalLegal = totalLegalCount + (isLegal ? 1 : 0);
     
     const deliveryId = doc(collection(db, 'temp')).id;
-    const dData = { 
-      id: deliveryId, 
-      strikerPlayerId: activeInningData.strikerPlayerId || '', 
-      nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || '',
-      bowlerId: activeInningData.currentBowlerPlayerId || '', 
-      runsScored: runs, 
-      extraType: extra, 
-      isDeclared: isDeclared,
-      totalRunsOnDelivery: runs + (extra !== 'none' ? 1 : 0), 
-      isWicket: false, 
-      timestamp: Date.now() 
-    };
+    const dData = { id: deliveryId, strikerPlayerId: activeInningData.strikerPlayerId || '', nonStrikerPlayerId: activeInningData.nonStrikerPlayerId || '', bowlerId: activeInningData.currentBowlerPlayerId || '', runsScored: runs, extraType: extra, isDeclared: isDeclared, totalRunsOnDelivery: runs + (extra !== 'none' ? 1 : 0), isWicket: false, timestamp: Date.now() };
     
     await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', deliveryId), dData, { merge: true });
 
@@ -293,13 +267,7 @@ export default function MatchScoreboardPage() {
       if (newTotalLegal % 6 === 0 && isLegal) [nextS, nextNS] = [nextNS, nextS];
     }
 
-    const updates: any = { 
-      score: activeInningData.score + dData.totalRunsOnDelivery, 
-      oversCompleted: Math.floor(newTotalLegal / 6), 
-      ballsInCurrentOver: newTotalLegal % 6, 
-      strikerPlayerId: nextS || '', 
-      nonStrikerPlayerId: nextNS || '' 
-    };
+    const updates: any = { score: activeInningData.score + dData.totalRunsOnDelivery, oversCompleted: Math.floor(newTotalLegal / 6), ballsInCurrentOver: newTotalLegal % 6, strikerPlayerId: nextS || '', nonStrikerPlayerId: nextNS || '' };
     
     if (newTotalLegal % 6 === 0 && isLegal) updates.currentBowlerPlayerId = '';
     if (newTotalLegal >= match.totalOvers * 6) updates.isDeclaredFinished = true;
@@ -310,27 +278,13 @@ export default function MatchScoreboardPage() {
 
   const handleManualCorrection = async () => {
     if (!correctionForm.strikerId || !correctionForm.bowlerId || !correctionForm.targetInning) return;
-    
     const deliveryId = correctionForm.id || doc(collection(db, 'temp')).id;
     const runs = Number(correctionForm.runs) || 0;
     const extra = correctionForm.extra || 'none';
     const isWicket = !!correctionForm.isWicket;
     const isDeclared = !!correctionForm.isDeclared;
 
-    const dData: any = {
-      id: deliveryId,
-      strikerPlayerId: correctionForm.strikerId || '',
-      nonStrikerPlayerId: correctionForm.nonStrikerId || '',
-      bowlerId: correctionForm.bowlerId || '',
-      runsScored: runs,
-      extraType: extra,
-      isDeclared: isDeclared,
-      totalRunsOnDelivery: runs + (extra !== 'none' ? 1 : 0),
-      isWicket: isWicket,
-      dismissalType: isWicket ? (correctionForm.wicketType || 'bowled') : '',
-      batsmanOutPlayerId: isWicket ? (correctionForm.batterOutId || correctionForm.strikerId) : '',
-      timestamp: correctionForm.timestamp || Date.now()
-    };
+    const dData: any = { id: deliveryId, strikerPlayerId: correctionForm.strikerId || '', nonStrikerPlayerId: correctionForm.nonStrikerId || '', bowlerId: correctionForm.bowlerId || '', runsScored: runs, extraType: extra, isDeclared: isDeclared, totalRunsOnDelivery: runs + (extra !== 'none' ? 1 : 0), isWicket: isWicket, dismissalType: isWicket ? (correctionForm.wicketType || 'bowled') : '', batsmanOutPlayerId: isWicket ? (correctionForm.batterOutId || correctionForm.strikerId) : '', timestamp: correctionForm.timestamp || Date.now() };
 
     await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', correctionForm.targetInning, 'deliveryRecords', deliveryId), dData, { merge: true });
     await recalculateInningState(correctionForm.targetInning);
@@ -341,45 +295,19 @@ export default function MatchScoreboardPage() {
   const handleQuickAddPlayer = async () => {
     if (!quickAddName.trim() || !quickAddTeamId) return;
     const pid = doc(collection(db, 'players')).id;
-    const pData = { 
-      id: pid, 
-      name: quickAddName, 
-      teamId: quickAddTeamId, 
-      ownerId: match?.umpireId || 'anonymous',
-      role: 'All-rounder', 
-      battingStyle: 'Right Handed Bat', 
-      isWicketKeeper: false, 
-      isRetired: false, 
-      matchesPlayed: 0, 
-      runsScored: 0, 
-      wicketsTaken: 0, 
-      highestScore: 0, 
-      bestBowlingFigures: '0/0', 
-      careerCVP: 0, 
-      imageUrl: '' 
-    };
-    
+    const pData = { id: pid, name: quickAddName, teamId: quickAddTeamId, ownerId: match?.umpireId || 'anonymous', role: 'All-rounder', battingStyle: 'Right Handed Bat', isWicketKeeper: false, isRetired: false, matchesPlayed: 0, runsScored: 0, wicketsTaken: 0, highestScore: 0, bestBowlingFigures: '0/0', careerCVP: 0, imageUrl: '' };
     await setDocumentNonBlocking(doc(db, 'players', pid), pData, { merge: true });
-    
     const isTeam1 = quickAddTeamId === match?.team1Id;
     const squadKey = isTeam1 ? 'team1SquadPlayerIds' : 'team2SquadPlayerIds';
     const updatedSquad = [...(match?.[squadKey] || []), pid];
-    
     await setDocumentNonBlocking(doc(db, 'matches', matchId), { [squadKey]: updatedSquad }, { merge: true });
-    
-    setQuickAddName('');
-    setIsQuickAddOpen(false);
-    toast({ title: "Player Drafted" });
+    setQuickAddName(''); setIsQuickAddOpen(false); toast({ title: "Player Drafted" });
   };
 
   const handleUndo = async () => {
     const currId = `inning_${match?.currentInningNumber}`;
     const snap = await getDocs(query(collection(db, 'matches', matchId, 'innings', currId, 'deliveryRecords'), orderBy('timestamp', 'desc'), limit(1)));
-    if(!snap.empty) { 
-      await deleteDocumentNonBlocking(snap.docs[0].ref); 
-      await recalculateInningState(currId); 
-      toast({ title: "Action Purged (Undo)" }); 
-    }
+    if(!snap.empty) { await deleteDocumentNonBlocking(snap.docs[0].ref); await recalculateInningState(currId); toast({ title: "Action Purged (Undo)" }); }
   };
 
   const matchCvpMap = useMemo(() => {
@@ -538,7 +466,7 @@ export default function MatchScoreboardPage() {
                 <Table>
                   <TableHeader><TableRow><TableHead className="text-[9px] font-black uppercase">Batter</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">B</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Dots</TableHead><TableHead className="text-right text-[9px] font-black uppercase">SR</TableHead></TableRow></TableHeader>
                   <TableBody>{[activeInningData?.strikerPlayerId, activeInningData?.nonStrikerPlayerId].map((pid, idx) => {
-                      if (!pid) return null;
+                      if (!pid || pid === 'none') return null;
                       const stats = match?.currentInningNumber === 1 ? stats1 : stats2;
                       const b = stats.batting.find((p: any) => p?.id === pid) || { runs: 0, balls: 0, dots: 0 };
                       return (
@@ -605,10 +533,7 @@ export default function MatchScoreboardPage() {
           </TabsContent>
 
           <TabsContent value="scorecard" className="space-y-8">
-            {[ 
-              {id: 1, stats: stats1, teamId: inn1?.battingTeamId || match?.team1Id, label: '1st Innings'}, 
-              {id: 2, stats: stats2, teamId: inn2?.battingTeamId || (inn1?.battingTeamId === match?.team1Id ? match?.team2Id : match?.team1Id), label: '2nd Innings'} 
-            ].map(inn => (
+            {[ {id: 1, stats: stats1, teamId: inn1?.battingTeamId || match?.team1Id, label: '1st Innings'}, {id: 2, stats: stats2, teamId: inn2?.battingTeamId || (inn1?.battingTeamId === match?.team1Id ? match?.team2Id : match?.team1Id), label: '2nd Innings'} ].map(inn => (
               <div key={inn.id} className="space-y-6">
                 <div className="flex justify-between items-center px-2">
                   <h2 className="text-lg font-black uppercase text-slate-900">{inn.label} - {getTeamName(inn.teamId || '')}</h2>
@@ -633,14 +558,12 @@ export default function MatchScoreboardPage() {
                   </Table>
                   <div className="bg-slate-50 p-4 border-t flex justify-between items-center"><span className="text-[10px] font-black uppercase text-slate-400">Extras: {inn.stats.extras.total} (wd {inn.stats.extras.w}, nb {inn.stats.extras.nb})</span><span className="text-xs font-black uppercase text-slate-900">Total: {inn.stats.total}/{inn.stats.wickets}</span></div>
                 </Card>
-
                 {inn.stats.didNotBat?.length > 0 && (
                   <div className="px-4 py-3 bg-slate-50 rounded-2xl border border-dashed">
                     <span className="text-[10px] font-black text-slate-400 uppercase mr-3">Did Not Bat:</span>
                     <span className="text-[10px] font-bold text-slate-600 uppercase">{inn.stats.didNotBat.map((id: string) => getPlayerName(id)).join(', ')}</span>
                   </div>
                 )}
-
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card className="border-none shadow-md rounded-2xl bg-white p-4">
                     <h3 className="text-[10px] font-black uppercase text-slate-400 mb-3 tracking-widest border-b pb-2">Fall of Wickets</h3>
@@ -668,7 +591,6 @@ export default function MatchScoreboardPage() {
                     </div>
                   </Card>
                 </div>
-
                 <Card className="border-none shadow-lg rounded-3xl overflow-hidden bg-white">
                   <Table>
                     <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[9px] font-black uppercase">Bowler</TableHead><TableHead className="text-right text-[9px] font-black uppercase">O</TableHead><TableHead className="text-right text-[9px] font-black uppercase">M</TableHead><TableHead className="text-right text-[9px] font-black uppercase">Dots</TableHead><TableHead className="text-right text-[9px] font-black uppercase">R</TableHead><TableHead className="text-right text-[9px] font-black uppercase">W</TableHead><TableHead className="text-right text-[9px] font-black uppercase">ER</TableHead></TableRow></TableHeader>
@@ -735,10 +657,7 @@ export default function MatchScoreboardPage() {
                   <TabsTrigger value="current" className="text-[9px] font-black uppercase">Inning {match?.currentInningNumber}</TabsTrigger>
                   <TabsTrigger value="other" className="text-[9px] font-black uppercase">Inning {match?.currentInningNumber === 1 ? 2 : 1}</TabsTrigger>
                 </TabsList>
-                {[ 
-                  {id: 'current', labels: (match?.currentInningNumber === 1 ? inn1WithLabels : inn2WithLabels), innKey: `inning_${match?.currentInningNumber}`}, 
-                  {id: 'other', labels: (match?.currentInningNumber === 1 ? inn2WithLabels : inn1WithLabels), innKey: `inning_${match?.currentInningNumber === 1 ? 2 : 1}`} 
-                ].map(tab => {
+                {[ {id: 'current', labels: (match?.currentInningNumber === 1 ? inn1WithLabels : inn2WithLabels), innKey: `inning_${match?.currentInningNumber}`}, {id: 'other', labels: (match?.currentInningNumber === 1 ? inn2WithLabels : inn1WithLabels), innKey: `inning_${match?.currentInningNumber === 1 ? 2 : 1}`} ].map(tab => {
                   const oversMap: Record<number, string> = {};
                   tab.labels.forEach(d => { if (!oversMap[d.overIndex]) oversMap[d.overIndex] = `Over ${d.overIndex} - ${getPlayerName(d.bowlerId)}`; });
                   const filteredLog = selectedOverFilter === 'all' ? tab.labels : tab.labels.filter(d => d.overIndex.toString() === selectedOverFilter);
@@ -766,18 +685,7 @@ export default function MatchScoreboardPage() {
                                 <div className="flex justify-center py-1 group">
                                   <Button variant="ghost" size="sm" onClick={() => {
                                     const newTs = prevBallInLog ? (prevBallInLog.timestamp + d.timestamp) / 2 : d.timestamp - 1000;
-                                    setCorrectionForm({ 
-                                      id: '', 
-                                      strikerId: d.strikerPlayerId || '', 
-                                      nonStrikerId: d.nonStrikerPlayerId || '', 
-                                      bowlerId: d.bowlerId || d.bowlerPlayerId || '', 
-                                      runs: 0, 
-                                      extra: 'none', 
-                                      isWicket: false, 
-                                      timestamp: newTs, 
-                                      targetInning: tab.innKey,
-                                      isDeclared: false
-                                    });
+                                    setCorrectionForm({ id: '', strikerId: d.strikerPlayerId || '', nonStrikerId: d.nonStrikerPlayerId || '', bowlerId: d.bowlerId || d.bowlerPlayerId || '', runs: 0, extra: 'none', isWicket: false, timestamp: newTs, targetInning: tab.innKey, isDeclared: false });
                                     setIsCorrectionDialogOpen(true);
                                   }} className="h-6 v-6 rounded-full bg-slate-50 text-slate-300 hover:text-primary opacity-0 group-hover:opacity-100 transition-all p-0"><PlusCircle className="w-4 h-4" /></Button>
                                 </div>
@@ -794,19 +702,7 @@ export default function MatchScoreboardPage() {
                                     <p className={cn("text-[8px] font-bold uppercase", d.isWicket ? (d.dismissalType === 'retired' ? "text-slate-500" : "text-red-500") : "text-slate-400")}>{d.isWicket ? d.dismissalType : `${d.runsScored || 0} runs${d.isDeclared ? ' (Declared)' : ''}`}</p>
                                   </div>
                                 </div>
-                                {isUmpire && <div className="flex gap-1 shrink-0"><Button variant="ghost" size="icon" onClick={() => { 
-                                  setCorrectionForm({ 
-                                    ...d, 
-                                    strikerId: d.strikerPlayerId, 
-                                    nonStrikerId: d.nonStrikerPlayerId, 
-                                    bowlerId: d.bowlerId || d.bowlerPlayerId, 
-                                    extra: d.extraType || 'none', 
-                                    runs: d.runsScored || 0, 
-                                    targetInning: tab.innKey,
-                                    isDeclared: !!d.isDeclared
-                                  }); 
-                                  setIsCorrectionDialogOpen(true); 
-                                }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3" /></Button><Button variant="ghost" size="icon" onClick={async () => { if(confirm("Delete delivery?")) { await deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); await recalculateInningState(tab.innKey); toast({ title: "Action Purged" }); } }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button></div>}
+                                {isUmpire && <div className="flex gap-1 shrink-0"><Button variant="ghost" size="icon" onClick={() => { setCorrectionForm({ ...d, strikerId: d.strikerPlayerId, nonStrikerId: d.nonStrikerPlayerId, bowlerId: d.bowlerId || d.bowlerPlayerId, extra: d.extraType || 'none', runs: d.runsScored || 0, targetInning: tab.innKey, isDeclared: !!d.isDeclared }); setIsCorrectionDialogOpen(true); }} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-3 h-3" /></Button><Button variant="ghost" size="icon" onClick={async () => { if(confirm("Delete delivery?")) { await deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', tab.innKey, 'deliveryRecords', d.id)); await recalculateInningState(tab.innKey); toast({ title: "Action Purged" }); } }} className="h-8 w-8 text-slate-300 hover:text-destructive"><Trash2 className="w-4 h-4" /></Button></div>}
                               </Card>
                             </div>
                           );
@@ -832,59 +728,22 @@ export default function MatchScoreboardPage() {
                     <div className="bg-amber-50 p-4 rounded-2xl border border-amber-100 col-span-2"><p className="text-[8px] font-black text-amber-600 uppercase mb-1">Player of the Match</p><p className="text-sm font-black uppercase flex items-center gap-2 text-amber-900"><UserCheck className="w-4 h-4 text-amber-500" /> {match?.potmPlayerId ? getPlayerName(match.potmPlayerId) : 'TO BE DECLARED'}</p></div>
                   </div>
                 </div>
-
                 <div className="space-y-6 pt-4 border-t">
                   <h3 className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><Users className="w-3 h-3" /> Participating Squads</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2 px-1">
-                        <div className="w-1 h-3 bg-primary rounded-full" />
-                        <p className="text-[9px] font-black uppercase text-slate-900 truncate tracking-wider">{getTeamName(match?.team1Id)}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {match?.team1SquadPlayerIds?.map((pid: string) => (
-                          <Link key={pid} href={`/players/${pid}`}>
-                            <Badge variant="outline" className="h-7 border-slate-200 hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer">
-                              <span className="text-[9px] font-bold text-slate-600 group-hover:text-primary uppercase">
-                                {getPlayerName(pid)} {pid === match.team1CaptainId && '(C)'} {pid === match.team1ViceCaptainId && '(VC)'} {pid === match.team1WicketKeeperId && '(WK)'}
-                              </span>
-                            </Badge>
-                          </Link>
-                        ))}
-                      </div>
+                      <div className="flex items-center gap-2 px-1"><div className="w-1 h-3 bg-primary rounded-full" /><p className="text-[9px] font-black uppercase text-slate-900 truncate tracking-wider">{getTeamName(match?.team1Id)}</p></div>
+                      <div className="flex flex-wrap gap-1.5">{match?.team1SquadPlayerIds?.map((pid: string) => (<Link key={pid} href={`/players/${pid}`}><Badge variant="outline" className="h-7 border-slate-200 hover:border-primary hover:bg-primary/5 transition-all group cursor-pointer"><span className="text-[9px] font-bold text-slate-600 group-hover:text-primary uppercase">{getPlayerName(pid)} {pid === match.team1CaptainId && '(C)'} {pid === match.team1ViceCaptainId && '(VC)'} {pid === match.team1WicketKeeperId && '(WK)'}</span></Badge></Link>))}</div>
                     </div>
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2 px-1">
-                        <div className="w-1 h-3 bg-secondary rounded-full" />
-                        <p className="text-[9px] font-black uppercase text-slate-900 truncate tracking-wider">{getTeamName(match?.team2Id)}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {match?.team2SquadPlayerIds?.map((pid: string) => (
-                          <Link key={pid} href={`/players/${pid}`}>
-                            <Badge variant="outline" className="h-7 border-slate-200 hover:border-secondary hover:bg-secondary/5 transition-all group cursor-pointer">
-                              <span className="text-[9px] font-bold text-slate-600 group-hover:text-secondary uppercase">
-                                {getPlayerName(pid)} {pid === match.team2CaptainId && '(C)'} {pid === match.team2ViceCaptainId && '(VC)'} {pid === match.team2WicketKeeperId && '(WK)'}
-                              </span>
-                            </Badge>
-                          </Link>
-                        ))}
-                      </div>
+                      <div className="flex items-center gap-2 px-1"><div className="w-1 h-3 bg-secondary rounded-full" /><p className="text-[9px] font-black uppercase text-slate-900 truncate tracking-wider">{getTeamName(match?.team2Id)}</p></div>
+                      <div className="flex flex-wrap gap-1.5">{match?.team2SquadPlayerIds?.map((pid: string) => (<Link key={pid} href={`/players/${pid}`}><Badge variant="outline" className="h-7 border-slate-200 hover:border-secondary hover:bg-secondary/5 transition-all group cursor-pointer"><span className="text-[9px] font-bold text-slate-600 group-hover:text-secondary uppercase">{getPlayerName(pid)} {pid === match.team2CaptainId && '(C)'} {pid === match.team2ViceCaptainId && '(VC)'} {pid === match.team2WicketKeeperId && '(WK)'}</span></Badge></Link>))}</div>
                     </div>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 gap-3 pt-4 border-t">
-                  <Button className="w-full h-14 bg-secondary font-black uppercase shadow-lg group" onClick={handleShareImage} disabled={isSharing}>
-                    {isSharing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Share2 className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />} 
-                    Generate HD Share Image
-                  </Button>
-                  <Button variant="outline" className="w-full h-12 font-black uppercase text-[10px] border-slate-200" onClick={() => {
-                    const namesMap = allPlayers?.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {}) || {};
-                    const report = generateMatchReport(match, allTeams || [], namesMap, inn1, inn2, stats1, stats2);
-                    const blob = new Blob([report], { type: 'text/html' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a'); a.href = url; a.download = `CricMates_${match?.id}.html`; a.click();
-                  }}><Download className="w-4 h-4 mr-2" /> Download HTML Scorecard</Button>
+                  <Button className="w-full h-14 bg-secondary font-black uppercase shadow-lg group" onClick={handleShareImage} disabled={isSharing}>{isSharing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Share2 className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />} Generate HD Share Image</Button>
+                  <Button variant="outline" className="w-full h-12 font-black uppercase text-[10px] border-slate-200" onClick={() => { const namesMap = allPlayers?.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), {}) || {}; const report = generateMatchReport(match, allTeams || [], namesMap, inn1, inn2, stats1, stats2); const blob = new Blob([report], { type: 'text/html' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `CricMates_${match?.id}.html`; a.click(); }}><Download className="w-4 h-4 mr-2" /> Download HTML Scorecard</Button>
                 </div>
               </div>
             </Card>
@@ -899,63 +758,35 @@ export default function MatchScoreboardPage() {
           <div className="relative z-10 flex flex-col items-center text-center space-y-2 mb-10">
             <div className="p-2 bg-primary rounded-xl mb-2"><Trophy className="w-8 h-8 text-white" /></div>
             <h1 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400">Official League Record</h1>
-            <div className="flex items-center gap-3">
-              <span className="h-px w-8 bg-slate-300"></span>
-              <h2 className="text-xl font-black uppercase text-slate-900 tracking-tighter">{match?.matchNumber || 'Match X'}</h2>
-              <span className="h-px w-8 bg-slate-300"></span>
-            </div>
+            <div className="flex items-center gap-3"><span className="h-px w-8 bg-slate-300"></span><h2 className="text-xl font-black uppercase text-slate-900 tracking-tighter">{match?.matchNumber || 'Match X'}</h2><span className="h-px w-8 bg-slate-300"></span></div>
             <p className="text-[10px] font-bold uppercase text-slate-500 tracking-widest">{match?.venue || 'The Arena'} • {match?.matchDate ? new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</p>
           </div>
-
           <div className="flex justify-between items-center gap-6 mb-10">
-            <div className="flex-1 text-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-              <p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(row1TeamId)}</p>
-              <p className="text-4xl font-black text-slate-900">{stats1.total}/{stats1.wickets}</p>
-              <p className="text-[10px] font-bold text-primary uppercase mt-1">({stats1.overs} Overs)</p>
-            </div>
+            <div className="flex-1 text-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100"><p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(row1TeamId)}</p><p className="text-4xl font-black text-slate-900">{stats1.total}/{stats1.wickets}</p><p className="text-[10px] font-bold text-primary uppercase mt-1">({stats1.overs} Overs)</p></div>
             <div className="bg-slate-900 text-white font-black h-12 w-12 rounded-full flex items-center justify-center text-sm shadow-xl">VS</div>
-            <div className="flex-1 text-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-              <p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(row2TeamId)}</p>
-              <p className="text-4xl font-black text-slate-900">{stats2.total}/{stats2.wickets}</p>
-              <p className="text-[10px] font-bold text-secondary uppercase mt-1">({stats2.overs} Overs)</p>
-            </div>
+            <div className="flex-1 text-center bg-white p-6 rounded-3xl shadow-sm border border-slate-100"><p className="text-[10px] font-black uppercase text-slate-400 mb-2 truncate">{getTeamName(row2TeamId)}</p><p className="text-4xl font-black text-slate-900">{stats2.total}/{stats2.wickets}</p><p className="text-[10px] font-bold text-secondary uppercase mt-1">({stats2.overs} Overs)</p></div>
           </div>
-
-          <div className="bg-primary text-white text-center py-4 px-6 rounded-2xl shadow-lg mb-8 font-black uppercase text-sm tracking-tight border-b-4 border-black/20">
-            {match?.resultDescription || 'MATCH IN PROGRESS'}
-          </div>
-
+          <div className="bg-primary text-white text-center py-4 px-6 rounded-2xl shadow-lg mb-8 font-black uppercase text-sm tracking-tight border-b-4 border-black/20">{match?.resultDescription || 'MATCH IN PROGRESS'}</div>
           <div className="grid grid-cols-2 gap-6 mb-8">
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-2"><Zap className="w-4 h-4 text-amber-500" /><h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Top Batters</h3></div>
               {[...stats1.batting, ...stats2.batting].sort((a,b) => b.runs - a.runs).slice(0, 3).map((b, i) => (
-                <div key={i} className="flex justify-between items-center border-b border-slate-200 pb-2">
-                  <span className="text-[11px] font-black uppercase text-slate-700 truncate max-w-[120px]">{getPlayerName(b.id)}</span>
-                  <span className="text-[11px] font-black text-slate-900">{b.runs} <span className="text-[8px] opacity-40">({b.balls})</span></span>
-                </div>
+                <div key={i} className="flex justify-between items-center border-b border-slate-200 pb-2"><span className="text-[11px] font-black uppercase text-slate-700 truncate max-w-[120px]">{getPlayerName(b.id)}</span><span className="text-[11px] font-black text-slate-900">{b.runs} <span className="text-[8px] opacity-40">({b.balls})</span></span></div>
               ))}
             </div>
             <div className="space-y-4">
               <div className="flex items-center gap-2 mb-2"><Target className="w-4 h-4 text-emerald-500" /><h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Top Bowlers</h3></div>
               {[...stats1.bowling, ...stats2.bowling].sort((a,b) => b.wickets - a.wickets || a.runs - b.runs).slice(0, 3).map((b, i) => (
-                <div key={i} className="flex justify-between items-center border-b border-slate-200 pb-2">
-                  <span className="text-[11px] font-black uppercase text-slate-700 truncate max-w-[120px]">{getPlayerName(b.id)}</span>
-                  <span className="text-[11px] font-black text-slate-900">{b.wickets}/{b.runs} <span className="text-[8px] opacity-40">({b.oversDisplay})</span></span>
-                </div>
+                <div key={i} className="flex justify-between items-center border-b border-slate-200 pb-2"><span className="text-[11px] font-black uppercase text-slate-700 truncate max-w-[120px]">{getPlayerName(b.id)}</span><span className="text-[11px] font-black text-slate-900">{b.wickets}/{b.runs} <span className="text-[8px] opacity-40">({b.oversDisplay})</span></span></div>
               ))}
             </div>
           </div>
-
           {match?.potmPlayerId && (
             <div className="bg-amber-50 border-2 border-amber-200 p-4 rounded-2xl flex items-center justify-between mb-8">
-              <div className="flex items-center gap-3">
-                <div className="bg-amber-500 p-2 rounded-lg shadow-sm"><Star className="w-4 h-4 text-white fill-white" /></div>
-                <div><p className="text-[8px] font-black uppercase text-amber-600 mb-0.5">Player of the Match</p><p className="text-sm font-black uppercase text-amber-900">{getPlayerName(match.potmPlayerId)}</p></div>
-              </div>
+              <div className="flex items-center gap-3"><div className="bg-amber-500 p-2 rounded-lg shadow-sm"><Star className="w-4 h-4 text-white fill-white" /></div><div><p className="text-[8px] font-black uppercase text-amber-600 mb-0.5">Player of the Match</p><p className="text-sm font-black uppercase text-amber-900">{getPlayerName(match.potmPlayerId)}</p></div></div>
               <div className="text-right"><p className="text-lg font-black text-amber-600 leading-none">{(matchCvpMap[match.potmPlayerId] || 0).toFixed(1)}</p><p className="text-[8px] font-black uppercase text-amber-400">PTS</p></div>
             </div>
           )}
-
           <div className="text-center pt-4 border-t border-slate-200"><p className="text-[8px] font-black uppercase text-slate-300 tracking-[0.5em]">Generated by CricMates Pro League Interface</p></div>
         </div>
       </div>
@@ -968,13 +799,7 @@ export default function MatchScoreboardPage() {
             <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Ground Name / Venue</Label><Input value={venueForm} onChange={(e) => setVenueForm(e.target.value)} placeholder="e.g. Lords Ground" className="h-14 font-bold" /></div>
             <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Date & Time</Label><Input type="datetime-local" value={matchDateForm} onChange={(e) => setMatchDateForm(e.target.value)} className="h-14 font-bold" /></div>
           </div>
-          <DialogFooter><Button onClick={async () => { 
-            const updates: any = { venue: venueForm, matchNumber: matchNumberForm };
-            if (matchDateForm) updates.matchDate = new Date(matchDateForm).toISOString();
-            await setDocumentNonBlocking(doc(db, 'matches', matchId), updates, { merge: true });
-            setIsMatchDetailsDialogOpen(false);
-            toast({ title: "Updated" });
-          }} className="w-full h-14 bg-primary font-black uppercase shadow-xl">Save Changes</Button></DialogFooter>
+          <DialogFooter><Button onClick={async () => { const updates: any = { venue: venueForm, matchNumber: matchNumberForm }; if (matchDateForm) updates.matchDate = new Date(matchDateForm).toISOString(); await setDocumentNonBlocking(doc(db, 'matches', matchId), updates, { merge: true }); setIsMatchDetailsDialogOpen(false); toast({ title: "Updated" }); }} className="w-full h-14 bg-primary font-black uppercase shadow-xl">Save Changes</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -997,11 +822,7 @@ export default function MatchScoreboardPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter><Button onClick={async () => { 
-            await setDocumentNonBlocking(doc(db, 'matches', matchId), { potmPlayerId: potmId === 'none' ? '' : potmId }, { merge: true });
-            setIsPotmDialogOpen(false);
-            toast({ title: "POTM Recorded" });
-          }} className="w-full h-14 bg-amber-600 font-black uppercase shadow-xl">Confirm</Button></DialogFooter>
+          <DialogFooter><Button onClick={async () => { await setDocumentNonBlocking(doc(db, 'matches', matchId), { potmPlayerId: potmId === 'none' ? '' : potmId }, { merge: true }); setIsPotmDialogOpen(false); toast({ title: "POTM Recorded" }); }} className="w-full h-14 bg-amber-600 font-black uppercase shadow-xl">Confirm</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

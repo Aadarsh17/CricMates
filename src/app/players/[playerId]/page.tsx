@@ -64,14 +64,12 @@ export default function PlayerProfilePage() {
   const historyQuery = useMemoFirebase(() => isMounted && playerId ? query(collectionGroup(db, 'deliveryRecords')) : null, [db, playerId, isMounted]);
   const { data: allDeliveries, isLoading: isHistoryLoading } = useCollection(historyQuery);
 
-  // GHOST DATA PURGE: Build set of active match IDs
   const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
 
   const matchWiseLog = useMemo(() => {
     if (!isMounted || !player || !allDeliveries || !allMatches) return [];
     const logs: Record<string, any> = {};
     
-    // First, identify all matches where player was in the squad (GHOST FILTERED)
     allMatches.forEach(m => {
       const isInSquad = (m.team1SquadPlayerIds || []).includes(playerId) || (m.team2SquadPlayerIds || []).includes(playerId);
       if (isInSquad && activeMatchIds.has(m.id)) {
@@ -90,12 +88,10 @@ export default function PlayerProfilePage() {
 
     allDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
-      // GHOST PROTECTION: Skip deliveries from matches that no longer exist
       if (!matchId || !activeMatchIds.has(matchId) || !logs[matchId]) return;
       
       const log = logs[matchId];
       
-      // Batting Scan
       if (d.strikerPlayerId === playerId || d.nonStrikerPlayerId === playerId) {
         log.hasParticipated = true;
       }
@@ -113,7 +109,6 @@ export default function PlayerProfilePage() {
         log.batting.out = true;
       }
       
-      // Bowling Scan
       const bId = d.bowlerId || d.bowlerPlayerId;
       if (bId === playerId) { 
         log.hasParticipated = true;
@@ -122,12 +117,11 @@ export default function PlayerProfilePage() {
           log.bowling.ballsBowled++; 
           if (d.totalRunsOnDelivery === 0) log.bowling.dots++;
         }
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) { 
           log.bowling.wickets++; 
         }
       }
       
-      // Fielding Scan
       if (d.fielderPlayerId === playerId) {
         log.hasParticipated = true;
         if (d.dismissalType === 'caught') log.fielding.catches++;

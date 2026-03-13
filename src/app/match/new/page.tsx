@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -77,7 +78,6 @@ export default function NewMatchPage() {
     }
   }, [searchParams]);
 
-  // Effect to pre-fill roles when teams are selected
   useEffect(() => {
     if (teams && setup.team1Id) {
       const t1 = teams.find(t => t.id === setup.team1Id);
@@ -319,7 +319,6 @@ export default function NewMatchPage() {
         </Card>
       )}
 
-      {/* Quick Reg Dialog */}
       <Dialog open={isQuickRegOpen} onOpenChange={setIsQuickRegOpen}>
         <DialogContent className="max-w-[90vw] sm:max-w-md rounded-2xl border-t-8 border-t-primary z-[200]">
           <DialogHeader><DialogTitle className="font-black uppercase tracking-tight">Quick Player Add</DialogTitle></DialogHeader>
