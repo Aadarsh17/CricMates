@@ -50,6 +50,7 @@ export default function Home() {
     if (!players || !allMatches || !rawDeliveries || !isMounted) return {};
     const activeMatchIds = new Set(allMatches.map(m => m.id));
     const stats: Record<string, any> = {};
+    const pMatchStats: Record<string, Record<string, any>> = {};
     
     players.forEach(p => {
       stats[p.id] = { id: p.id, name: p.name, runs: 0, wkts: 0, ballsFaced: 0, ballsBowled: 0, fours: 0, sixes: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0, cvp: 0 };
@@ -63,26 +64,50 @@ export default function Home() {
       const bId = d.bowlerId || d.bowlerPlayerId;
       const fId = d.fielderPlayerId;
 
+      const involved = [sId, bId, fId].filter(id => id && id !== 'none' && stats[id]);
+      involved.forEach(pid => {
+        if (!pMatchStats[pid]) pMatchStats[pid] = {};
+        if (!pMatchStats[pid][matchId]) {
+          pMatchStats[pid][matchId] = { id: pid, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+        }
+      });
+
       if (sId && stats[sId]) {
         stats[sId].runs += (d.runsScored || 0);
         if (d.extraType !== 'wide') stats[sId].ballsFaced++;
         if (d.runsScored === 4) stats[sId].fours++;
         if (d.runsScored === 6) stats[sId].sixes++;
+        
+        const mS = pMatchStats[sId][matchId];
+        mS.runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') mS.ballsFaced++;
+        if (d.runsScored === 4) mS.fours++;
+        if (d.runsScored === 6) mS.sixes++;
       }
       if (bId && stats[bId]) {
         stats[bId].runsConceded += (d.totalRunsOnDelivery || 0);
         if (d.extraType === 'none') stats[bId].ballsBowled++;
         if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) stats[bId].wkts++;
+
+        const mB = pMatchStats[bId][matchId];
+        mB.runsConceded += (d.totalRunsOnDelivery || 0);
+        if (d.extraType === 'none') mB.ballsBowled++;
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) mB.wickets++;
       }
       if (fId && stats[fId]) {
-        if (d.dismissalType === 'caught') stats[fId].catches++;
-        if (d.dismissalType === 'stumped') stats[fId].stumpings++;
-        if (d.dismissalType === 'runout') stats[fId].runOuts++;
+        const mF = pMatchStats[fId][matchId];
+        if (d.dismissalType === 'caught') { stats[fId].catches++; mF.catches++; }
+        if (d.dismissalType === 'stumped') { stats[fId].stumpings++; mF.stumpings++; }
+        if (d.dismissalType === 'runout') { stats[fId].runOuts++; mF.runOuts++; }
       }
     });
 
     Object.keys(stats).forEach(id => {
-      stats[id].cvp = calculatePlayerCVP(stats[id]);
+      let totalCvp = 0;
+      Object.values(pMatchStats[id] || {}).forEach(mS => {
+        totalCvp += calculatePlayerCVP(mS as any);
+      });
+      stats[id].cvp = totalCvp;
     });
 
     return stats;

@@ -43,15 +43,16 @@ export default function TeamDetailsPage() {
   const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
   const { data: allMatches, isLoading: isMatchesLoading } = useCollection(allMatchesQuery);
 
-  const squadDeliveriesQuery = useMemoFirebase(() => {
+  const deliveriesQuery = useMemoFirebase(() => {
     if (!isMounted) return null;
     return query(collectionGroup(db, 'deliveryRecords'));
   }, [db, isMounted]);
-  const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(squadDeliveriesQuery);
+  const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
   const allTeamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: allTeams } = useCollection(allTeamsQuery);
 
+  // CRITICAL: Filter for Ghost Data from deleted matches
   const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
 
   const activeSquad = useMemo(() => {
@@ -66,68 +67,64 @@ export default function TeamDetailsPage() {
     return allPlayers.filter(p => combinedIds.has(p.id));
   }, [allPlayers, allMatches, teamId]);
 
-  const allDeliveries = useMemo(() => {
-    if (!rawDeliveries || !allMatches || allMatches.length === 0) return [];
-    return rawDeliveries.filter(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      return matchId && activeMatchIds.has(matchId);
-    });
-  }, [rawDeliveries, allMatches, activeMatchIds]);
-
   const standingsForThisTeam = useMemo(() => {
     if (!teamId || !allMatches || !allMatches.length) return { played: 0, won: 0, lost: 0, drawn: 0, nrr: 0 };
     let forR = 0, forB = 0, agR = 0, agB = 0;
     let played = 0, won = 0, lost = 0, drawn = 0;
+    
     allMatches.forEach(m => {
       if (m.status !== 'completed' || (m.team1Id !== teamId && m.team2Id !== teamId)) return;
       played++;
       const winnerId = m.winnerTeamId;
-      if (winnerId) {
-        if (winnerId === teamId) won++;
-        else if (m.isTie) drawn++;
-        else if (winnerId !== 'none') lost++;
-        else drawn++;
-      } else {
-        const res = m.resultDescription?.toLowerCase() || '';
-        const t1 = allTeams?.find(t => t.id === m.team1Id);
-        const t2 = allTeams?.find(t => t.id === m.team2Id);
-        if (m.isTie || res.includes('tied') || res.includes('drawn')) drawn++;
-        else if (t1 && res.includes(t1.name.toLowerCase())) { if (m.team1Id === teamId) won++; else lost++; }
-        else if (t2 && res.includes(t2.name.toLowerCase())) { if (m.team2Id === teamId) won++; else lost++; }
-        else drawn++;
-      }
+      if (m.isTie) drawn++;
+      else if (winnerId === teamId) won++;
+      else if (winnerId && winnerId !== 'none') lost++;
     });
-    allDeliveries.forEach(d => {
-      const matchId = d.__fullPath?.split('/')[1];
-      const match = allMatches.find(m => m.id === matchId);
-      if (!match) return;
-      const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
-      const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
-      const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
-      const bowlingTeamId = battingTeamId === teamId ? match.team2Id : match.team1Id;
-      if (battingTeamId === teamId) { forR += (d.totalRunsOnDelivery || 0); if (d.extraType === 'none') forB += 1; }
-      else if (bowlingTeamId === teamId) { agR += (d.totalRunsOnDelivery || 0); if (d.extraType === 'none') agB += 1; }
-    });
+
+    if (rawDeliveries) {
+      rawDeliveries.forEach(d => {
+        const matchId = d.__fullPath?.split('/')[1];
+        const match = allMatches.find(m => m.id === matchId);
+        if (!match || match.status !== 'completed') return;
+        
+        const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
+        const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
+        const battingTeamId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
+        const bowlingTeamId = battingTeamId === teamId ? (battingTeamId === match.team1Id ? match.team2Id : match.team1Id) : teamId;
+
+        if (battingTeamId === teamId) {
+          forR += (d.totalRunsOnDelivery || 0);
+          if (d.extraType === 'none') forB++;
+        }
+        if (bowlingTeamId === teamId && battingTeamId !== teamId) {
+          agR += (d.totalRunsOnDelivery || 0);
+          if (d.extraType === 'none') agB++;
+        }
+      });
+    }
+
     const forRR = forB > 0 ? (forR / (forB / 6)) : 0;
     const agRR = agB > 0 ? (agR / (agB / 6)) : 0;
     return { played, won, lost, drawn, nrr: forRR - agRR };
-  }, [allMatches, teamId, allDeliveries, allTeams]);
+  }, [allMatches, teamId, rawDeliveries]);
 
+  // HIGH FIDELITY AGGREGATION ENGINE
   const squadStats = useMemo(() => {
-    if (!allPlayers || allPlayers.length === 0 || !allMatches) return {};
+    if (!allPlayers || !allMatches || !rawDeliveries) return {};
     const careerTotals: Record<string, any> = {};
     const pMatchStats: Record<string, Record<string, any>> = {};
     const playedMatchesSet: Record<string, Set<string>> = {};
-    const battingInningsSet: Record<string, Set<string>> = {};
-    const bowlingInningsSet: Record<string, Set<string>> = {};
+    const batInningsSet: Record<string, Set<string>> = {};
+    const bowlInningsSet: Record<string, Set<string>> = {};
 
     allPlayers.forEach(p => { 
-      careerTotals[p.id] = { id: p.id, name: p.name, runs: 0, wickets: 0, cvp: 0, matchesPlayed: 0, batInn: 0, bowlInn: 0 }; 
+      careerTotals[p.id] = { id: p.id, runs: 0, wickets: 0, cvp: 0, matches: 0, batInn: 0, bowlInn: 0 };
       playedMatchesSet[p.id] = new Set();
-      battingInningsSet[p.id] = new Set();
-      bowlingInningsSet[p.id] = new Set();
+      batInningsSet[p.id] = new Set();
+      bowlInningsSet[p.id] = new Set();
     });
 
+    // Count squad selections
     allMatches.forEach(m => {
       if (!activeMatchIds.has(m.id)) return;
       [...(m.team1SquadPlayerIds || []), ...(m.team2SquadPlayerIds || [])].forEach(pid => {
@@ -135,91 +132,84 @@ export default function TeamDetailsPage() {
       });
     });
 
-    allDeliveries.forEach(d => {
+    // Count active play and accumulate totals
+    rawDeliveries.forEach(d => {
       const matchId = d.__fullPath?.split('/')[1];
       if (!matchId || !activeMatchIds.has(matchId)) return;
 
-      const sId = d.strikerPlayerId; 
+      const sId = d.strikerPlayerId;
       const nsId = d.nonStrikerPlayerId;
-      const bId = d.bowlerId || d.bowlerPlayerId; 
+      const bId = d.bowlerId || d.bowlerPlayerId;
       const fId = d.fielderPlayerId;
 
-      if (sId && battingInningsSet[sId]) battingInningsSet[sId].add(matchId);
-      if (nsId && battingInningsSet[nsId]) battingInningsSet[nsId].add(matchId);
-      if (bId && bowlingInningsSet[bId]) bowlingInningsSet[bId].add(matchId);
+      if (sId && batInningsSet[sId]) batInningsSet[sId].add(matchId);
+      if (nsId && batInningsSet[nsId]) batInningsSet[nsId].add(matchId);
+      if (bId && bowlInningsSet[bId]) bowlInningsSet[bId].add(matchId);
 
-      const involvedIds = [sId, bId, fId].filter(id => id && id !== 'none' && careerTotals[id]);
-      involvedIds.forEach(pid => {
+      const involved = [sId, bId, fId].filter(id => id && id !== 'none' && careerTotals[id]);
+      involved.forEach(pid => {
         if (!pMatchStats[pid]) pMatchStats[pid] = {};
-        if (!pMatchStats[pid][matchId]) { 
-          pMatchStats[pid][matchId] = { id: pid, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 }; 
+        if (!pMatchStats[pid][matchId]) {
+          pMatchStats[pid][matchId] = { id: pid, name: '', runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
         }
       });
 
-      if (careerTotals[sId] && pMatchStats[sId]?.[matchId]) { 
-        const sStats = pMatchStats[sId][matchId]; 
-        sStats.runs += d.runsScored || 0; 
-        careerTotals[sId].runs += d.runsScored || 0; 
+      if (sId && pMatchStats[sId]?.[matchId]) {
+        const s = pMatchStats[sId][matchId];
+        s.runs += (d.runsScored || 0);
+        careerTotals[sId].runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') s.ballsFaced++;
+        if (d.runsScored === 4) s.fours++;
+        if (d.runsScored === 6) s.sixes++;
       }
-      if (bId && careerTotals[bId] && pMatchStats[bId]?.[matchId]) { 
-        const bStats = pMatchStats[bId][matchId]; 
-        bStats.runsConceded += d.totalRunsOnDelivery || 0; 
-        if (d.extraType === 'none') bStats.ballsBowled += 1; 
-        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) { 
-          bStats.wickets += 1; 
-          careerTotals[bId].wickets += 1; 
-        } 
+      if (bId && pMatchStats[bId]?.[matchId]) {
+        const b = pMatchStats[bId][matchId];
+        b.runsConceded += (d.totalRunsOnDelivery || 0);
+        if (d.extraType === 'none') b.ballsBowled++;
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) {
+          b.wickets++;
+          careerTotals[bId].wickets++;
+        }
       }
-      if (fId && careerTotals[fId] && pMatchStats[fId]?.[matchId]) { 
-        const fStats = pMatchStats[fId][matchId]; 
-        if (d.dismissalType === 'caught') fStats.catches += 1; 
-        if (d.dismissalType === 'stumped') fStats.stumpings += 1; 
-        if (d.dismissalType === 'runout') fStats.runOuts += 1; 
+      if (fId && pMatchStats[fId]?.[matchId]) {
+        const f = pMatchStats[fId][matchId];
+        if (d.dismissalType === 'caught') f.catches++;
+        if (d.dismissalType === 'stumped') f.stumpings++;
+        if (d.dismissalType === 'runout') f.runOuts++;
       }
     });
 
-    Object.keys(careerTotals).forEach(id => { 
-      const matchHistory = pMatchStats[id] || {}; 
-      let totalCvp = 0; 
-      Object.values(matchHistory).forEach(ms => { totalCvp += calculatePlayerCVP(ms as any); }); 
+    Object.keys(careerTotals).forEach(id => {
+      let totalCvp = 0;
+      Object.values(pMatchStats[id] || {}).forEach(mS => {
+        totalCvp += calculatePlayerCVP(mS as any);
+      });
       careerTotals[id].cvp = totalCvp;
-      careerTotals[id].matchesPlayed = playedMatchesSet[id]?.size || 0;
-      careerTotals[id].batInn = battingInningsSet[id]?.size || 0;
-      careerTotals[id].bowlInn = bowlingInningsSet[id]?.size || 0;
+      careerTotals[id].matches = playedMatchesSet[id]?.size || 0;
+      careerTotals[id].batInn = batInningsSet[id]?.size || 0;
+      careerTotals[id].bowlInn = bowlInningsSet[id]?.size || 0;
     });
+
     return careerTotals;
-  }, [allPlayers, allDeliveries, allMatches, activeMatchIds]);
+  }, [allPlayers, allMatches, rawDeliveries, activeMatchIds]);
 
   const teamHonors = useMemo(() => {
     if (!activeSquad || activeSquad.length === 0) return null;
-    const statsArray = activeSquad.map(p => squadStats[p.id] || { runs: 0, wickets: 0, cvp: 0, name: p.name });
+    const statsArray = activeSquad.map(p => ({ ...squadStats[p.id], name: p.name }));
     const topScorer = [...statsArray].sort((a,b) => b.runs - a.runs)[0];
     const topWkt = [...statsArray].sort((a,b) => b.wickets - a.wickets)[0];
     const mvp = [...statsArray].sort((a,b) => b.cvp - a.cvp)[0];
     return { topScorer, topWkt, mvp };
   }, [activeSquad, squadStats]);
 
+  // UI Dialog States
   const [isAddPlayerOpen, setIsAddPlayerOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isEditTeamOpen, setIsEditTeamOpen] = useState(false);
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [newPlayer, setNewPlayer] = useState({ name: '', role: 'Batsman' });
-  
-  const [teamForm, setTeamForm] = useState({
-    name: '',
-    logoUrl: '',
-    captainId: '',
-    viceCaptainId: '',
-    wicketKeeperId: ''
-  });
-  
-  const [editForm, setEditForm] = useState({ 
-    name: '', 
-    role: 'Batsman', 
-    imageUrl: '', 
-    battingStyle: 'Right Handed Bat',
-    isWicketKeeper: false
-  });
+  const [teamForm, setTeamForm] = useState({ name: '', logoUrl: '', captainId: '', viceCaptainId: '', wicketKeeperId: '' });
+  const [editForm, setEditForm] = useState({ name: '', role: 'Batsman', imageUrl: '', battingStyle: 'Right Handed Bat', isWicketKeeper: false });
 
   const defaultAvatar = PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl || '';
   const defaultTeamLogo = PlaceHolderImages.find(img => img.id === 'team-logo')?.imageUrl || '';
@@ -236,72 +226,60 @@ export default function TeamDetailsPage() {
     }
   }, [team]);
 
-  const resizeImage = (file: File, size = 200): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader(); reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image(); img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas'); const MAX_WIDTH = size; const MAX_HEIGHT = size;
-          let width = img.width; let height = img.height;
-          if (width > height) { if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; } }
-          else { if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; } }
-          canvas.width = width; canvas.height = height;
-          const ctx = canvas.getContext('2d'); ctx?.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', 0.8));
-        };
-      };
-    });
-  };
-
   const handleUpdateTeam = () => {
     if (!teamId || !teamForm.name.trim()) return;
     updateDocumentNonBlocking(doc(db, 'teams', teamId), { 
-      name: teamForm.name,
-      logoUrl: teamForm.logoUrl,
+      name: teamForm.name, logoUrl: teamForm.logoUrl,
       captainId: teamForm.captainId === 'none' ? '' : teamForm.captainId,
       viceCaptainId: teamForm.viceCaptainId === 'none' ? '' : teamForm.viceCaptainId,
       wicketKeeperId: teamForm.wicketKeeperId === 'none' ? '' : teamForm.wicketKeeperId
     });
-    setIsEditTeamOpen(false);
-    toast({ title: "Franchise Updated" });
+    setIsEditTeamOpen(false); toast({ title: "Franchise Updated" });
   };
 
   const handleAddPlayer = () => {
     if (!user || !newPlayer.name.trim()) return;
-    const playerId = doc(collection(db, 'players')).id;
-    const playerData = { id: playerId, name: newPlayer.name, teamId, ownerId: user.uid, role: newPlayer.role, battingStyle: 'Right Handed Bat', isWicketKeeper: false, isRetired: false, matchesPlayed: 0, runsScored: 0, wicketsTaken: 0, highestScore: 0, bestBowlingFigures: '0/0', careerCVP: 0, imageUrl: '' };
-    setDocumentNonBlocking(doc(db, 'players', playerId), playerData, { merge: true });
+    const pid = doc(collection(db, 'players')).id;
+    const pData = { id: pid, name: newPlayer.name, teamId, ownerId: user.uid, role: newPlayer.role, battingStyle: 'Right Handed Bat', isWicketKeeper: false, isRetired: false, matchesPlayed: 0, runsScored: 0, wicketsTaken: 0, highestScore: 0, bestBowlingFigures: '0/0', careerCVP: 0, imageUrl: '' };
+    setDocumentNonBlocking(doc(db, 'players', pid), pData, { merge: true });
     setIsAddPlayerOpen(false); setNewPlayer({ name: '', role: 'Batsman' }); toast({ title: "Player Added" });
   };
 
-  const openEditDialog = (player: any) => { setEditingPlayerId(player.id); setEditForm({ name: player.name, role: player.role, imageUrl: player.imageUrl || '', battingStyle: player.battingStyle || 'Right Handed Bat', isWicketKeeper: !!player.isWicketKeeper }); setIsEditOpen(true); };
-
-  const handleUpdatePlayer = () => { if (!editingPlayerId) return; updateDocumentNonBlocking(doc(db, 'players', editingPlayerId), editForm); setIsEditOpen(false); toast({ title: "Profile Updated" }); };
+  const openEditDialog = (p: any) => { setEditingPlayerId(p.id); setEditForm({ name: p.name, role: p.role, imageUrl: p.imageUrl || '', battingStyle: p.battingStyle || 'Right Handed Bat', isWicketKeeper: !!p.isWicketKeeper }); setIsEditOpen(true); };
+  const handleUpdatePlayer = () => { if (editingPlayerId) updateDocumentNonBlocking(doc(db, 'players', editingPlayerId), editForm); setIsEditOpen(false); toast({ title: "Profile Updated" }); };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, target: 'player' | 'team') => {
     const file = e.target.files?.[0];
-    if (file) { 
-      const resized = await resizeImage(file, target === 'player' ? 200 : 300); 
-      if (target === 'player') setEditForm(prev => ({ ...prev, imageUrl: resized }));
-      else setTeamForm(prev => ({ ...prev, logoUrl: resized }));
-      toast({ title: "Photo Ready" }); 
+    if (file) {
+      const reader = new FileReader(); reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image(); img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas'); const size = 200;
+          let width = img.width; let height = img.height;
+          if (width > height) { if (width > size) { height *= size / width; width = size; } }
+          else { if (height > size) { width *= size / height; height = size; } }
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d'); ctx?.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+          if (target === 'player') setEditForm(prev => ({ ...prev, imageUrl: dataUrl }));
+          else setTeamForm(prev => ({ ...prev, logoUrl: dataUrl }));
+          toast({ title: "Photo Ready" });
+        };
+      };
     }
   };
 
-  const handleDeletePlayer = (id: string, name: string) => { if (confirm(`Release ${name} from squad?`)) { deleteDocumentNonBlocking(doc(db, 'players', id)); toast({ title: "Player Released" }); } };
-
-  if (!isMounted || isTeamLoading || isDeliveriesLoading || isMatchesLoading || isAllPlayersLoading) return (<div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4"><Loader2 className="w-10 h-10 text-primary animate-spin" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Syncing Team Center...</p></div>);
-  if (!team) return <div className="p-8 text-center font-black uppercase tracking-widest text-slate-400">Franchise Not Found</div>;
+  if (!isMounted || isTeamLoading || isDeliveriesLoading || isMatchesLoading || isAllPlayersLoading) return (<div className="flex flex-col items-center justify-center min-h-[60vh] space-y-4"><Loader2 className="w-10 h-10 text-primary animate-spin" /><p className="text-[10px] font-black uppercase text-slate-400">Syncing Team Center...</p></div>);
 
   return (
     <div className="space-y-10 pb-32 px-1 md:px-4 max-w-5xl mx-auto">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full"><ArrowLeft className="w-5 h-5"/></Button>
-        <Avatar className="w-16 h-16 border-4 border-primary rounded-2xl shadow-lg"><AvatarImage src={team.logoUrl || defaultTeamLogo} className="object-cover" /><AvatarFallback className="bg-primary text-white font-black text-2xl">{team.name[0]}</AvatarFallback></Avatar>
+        <Avatar className="w-16 h-16 border-4 border-primary rounded-2xl shadow-lg"><AvatarImage src={team?.logoUrl || defaultTeamLogo} className="object-cover" /><AvatarFallback className="bg-primary text-white font-black text-2xl">{team?.name[0]}</AvatarFallback></Avatar>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl md:text-4xl font-black truncate uppercase tracking-tighter">{formatTeamName(team.name)}</h1>
+            <h1 className="text-2xl md:text-4xl font-black truncate uppercase tracking-tighter">{team ? formatTeamName(team.name) : 'Team'}</h1>
             {user && <Button variant="ghost" size="icon" onClick={() => setIsEditTeamOpen(true)} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>}
           </div>
           <p className="text-[10px] text-primary font-black uppercase tracking-[0.2em]">Franchise Dashboard</p>
@@ -332,31 +310,19 @@ export default function TeamDetailsPage() {
             <Card className="border-none shadow-lg bg-white overflow-hidden">
               <CardContent className="p-4 flex items-center gap-4">
                 <div className="bg-amber-50 p-3 rounded-2xl"><Zap className="w-6 h-6 text-amber-500" /></div>
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase">Leading Scorer</p>
-                  <p className="font-black text-sm uppercase">{teamHonors.topScorer.name}</p>
-                  <p className="text-xs font-bold text-primary">{teamHonors.topScorer.runs} Career Runs</p>
-                </div>
+                <div><p className="text-[10px] font-black text-slate-400 uppercase">Leading Scorer</p><p className="font-black text-sm uppercase">{teamHonors.topScorer.name}</p><p className="text-xs font-bold text-primary">{teamHonors.topScorer.runs} Career Runs</p></div>
               </CardContent>
             </Card>
             <Card className="border-none shadow-lg bg-white overflow-hidden">
               <CardContent className="p-4 flex items-center gap-4">
                 <div className="bg-primary/10 p-3 rounded-2xl"><Target className="w-6 h-6 text-primary" /></div>
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase">Wicket King</p>
-                  <p className="font-black text-sm uppercase">{teamHonors.topWkt.name}</p>
-                  <p className="text-xs font-bold text-secondary">{teamHonors.topWkt.wickets} Career Wickets</p>
-                </div>
+                <div><p className="text-[10px] font-black text-slate-400 uppercase">Wicket King</p><p className="font-black text-sm uppercase">{teamHonors.topWkt.name}</p><p className="text-xs font-bold text-secondary">{teamHonors.topWkt.wickets} Career Wickets</p></div>
               </CardContent>
             </Card>
             <Card className="border-none shadow-lg bg-white overflow-hidden">
               <CardContent className="p-4 flex items-center gap-4">
                 <div className="bg-secondary/10 p-3 rounded-2xl"><ShieldCheck className="w-6 h-6 text-secondary" /></div>
-                <div>
-                  <p className="text-[10px] font-black text-slate-400 uppercase">Franchise MVP</p>
-                  <p className="font-black text-sm uppercase">{teamHonors.mvp.name}</p>
-                  <p className="text-xs font-bold text-emerald-600">{teamHonors.mvp.cvp.toFixed(1)} CVP Pts</p>
-                </div>
+                <div><p className="text-[10px] font-black text-slate-400 uppercase">Franchise MVP</p><p className="font-black text-sm uppercase">{teamHonors.mvp.name}</p><p className="text-xs font-bold text-emerald-600">{teamHonors.mvp.cvp.toFixed(1)} CVP Pts</p></div>
               </CardContent>
             </Card>
           </div>
@@ -372,8 +338,8 @@ export default function TeamDetailsPage() {
               <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl">
                 <DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-xl">Official Registration</DialogTitle></DialogHeader>
                 <div className="space-y-4 py-4">
-                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Full Name</Label><Input value={newPlayer.name} onChange={(e) => setNewPlayer({...newPlayer, name: e.target.value})} className="font-bold h-12 shadow-sm" /></div>
-                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Primary Role</Label><Select value={newPlayer.role} onValueChange={(v) => setNewPlayer({...newPlayer, role: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman" className="font-bold uppercase text-xs">Batsman</SelectItem><SelectItem value="Bowler" className="font-bold uppercase text-xs">Bowler</SelectItem><SelectItem value="All-rounder" className="font-bold uppercase text-xs">All-rounder</SelectItem></SelectContent></Select></div>
+                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Full Name</Label><Input value={newPlayer.name} onChange={(e) => setNewPlayer({...newPlayer, name: e.target.value})} className="font-bold h-12 shadow-sm" /></div>
+                  <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Primary Role</Label><Select value={newPlayer.role} onValueChange={(v) => setNewPlayer({...newPlayer, role: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="Batsman">Batsman</SelectItem><SelectItem value="Bowler">Bowler</SelectItem><SelectItem value="All-rounder">All-rounder</SelectItem></SelectContent></Select></div>
                 </div>
                 <DialogFooter><Button onClick={handleAddPlayer} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl bg-primary">Commit Registration</Button></DialogFooter>
               </DialogContent>
@@ -381,50 +347,40 @@ export default function TeamDetailsPage() {
           )}
         </div>
 
-        {activeSquad.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {activeSquad.map(player => {
-              const stats = squadStats[player.id] || { runs: 0, wickets: 0, cvp: 0, matchesPlayed: 0, batInn: 0, bowlInn: 0 };
-              const isCaptain = player.id === team.captainId;
-              const isVC = player.id === team.viceCaptainId;
-              const isWK = player.id === team.wicketKeeperId;
-              return (
-                <Card key={player.id} className={cn("border-l-8 shadow-lg hover:translate-y-[-2px] transition-all group rounded-2xl bg-white overflow-hidden", isCaptain ? "border-l-amber-500" : isVC ? "border-l-slate-600" : "border-l-primary")}>
-                  <CardContent className="p-5">
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-4">
-                        <div className="relative">
-                          <Avatar className="w-16 h-16 rounded-2xl shadow-md border-2 border-white overflow-hidden ring-4 ring-slate-50"><AvatarImage src={player.imageUrl || defaultAvatar} className="object-cover" /><AvatarFallback className="font-black text-slate-400 bg-slate-50">{player.name[0]}</AvatarFallback></Avatar>
-                          {user && <button onClick={() => openEditDialog(player)} className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-lg border shadow-sm text-primary hover:scale-110 transition-transform z-10"><Edit2 className="w-3 h-3" /></button>}
-                        </div>
-                        <Link href={`/players/${player.id}`} className="min-w-0">
-                          <p className="font-black text-sm truncate max-w-[140px] uppercase tracking-tight text-slate-900 group-hover:text-primary transition-colors">{player.name} {isCaptain && '(C)'} {isVC && '(VC)'}</p>
-                          <div className="flex gap-1 items-center mt-1"><Badge variant="secondary" className="text-[8px] font-black uppercase px-2 h-5 bg-primary/10 text-primary border-none">{player.role}</Badge>{isWK && <Badge className="bg-secondary text-white text-[7px] font-black h-5 px-1.5">WK</Badge>}</div>
-                        </Link>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {activeSquad.map(player => {
+            const stats = squadStats[player.id] || { runs: 0, wickets: 0, cvp: 0, matches: 0, batInn: 0, bowlInn: 0 };
+            const isCaptain = player.id === team?.captainId;
+            const isVC = player.id === team?.viceCaptainId;
+            const isWK = player.id === team?.wicketKeeperId;
+            return (
+              <Card key={player.id} className={cn("border-l-8 shadow-lg hover:translate-y-[-2px] transition-all group rounded-2xl bg-white overflow-hidden", isCaptain ? "border-l-amber-500" : isVC ? "border-l-slate-600" : "border-l-primary")}>
+                <CardContent className="p-5">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        <Avatar className="w-16 h-16 rounded-2xl shadow-md border-2 border-white overflow-hidden ring-4 ring-slate-50"><AvatarImage src={player.imageUrl || defaultAvatar} className="object-cover" /><AvatarFallback className="font-black text-slate-400 bg-slate-50">{player.name[0]}</AvatarFallback></Avatar>
+                        {user && <button onClick={() => openEditDialog(player)} className="absolute -bottom-1 -right-1 bg-white p-1.5 rounded-lg border shadow-sm text-primary hover:scale-110 transition-transform z-10"><Edit2 className="w-3 h-3" /></button>}
                       </div>
-                      {user && <Button variant="ghost" size="icon" onClick={() => handleDeletePlayer(player.id, player.name)} className="h-8 w-8 text-slate-200 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>}
+                      <Link href={`/players/${player.id}`} className="min-w-0">
+                        <p className="font-black text-sm truncate max-w-[140px] uppercase tracking-tight text-slate-900 group-hover:text-primary transition-colors">{player.name} {isCaptain && '(C)'} {isVC && '(VC)'}</p>
+                        <div className="flex gap-1 items-center mt-1"><Badge variant="secondary" className="text-[8px] font-black uppercase px-2 h-5 bg-primary/10 text-primary border-none">{player.role}</Badge>{isWK && <Badge className="bg-secondary text-white text-[7px] font-black h-5 px-1.5">WK</Badge>}</div>
+                      </Link>
                     </div>
-                    <div className="mt-6 grid grid-cols-5 gap-1 border-t pt-4 text-center bg-slate-50/50 -mx-5 -mb-5 p-4">
-                      <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">M</p><p className="font-black text-xs text-slate-900">{stats.matchesPlayed}</p></div>
-                      <div>
-                        <p className="text-[7px] font-black text-slate-400 uppercase mb-1">Inn</p>
-                        <div className="flex flex-col items-center">
-                          <span className="text-[6px] font-black text-primary leading-none">B:{stats.batInn}</span>
-                          <span className="text-[6px] font-black text-secondary leading-none mt-0.5">W:{stats.bowlInn}</span>
-                        </div>
-                      </div>
-                      <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="font-black text-xs text-slate-900">{stats.runs}</p></div>
-                      <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Wkts</p><p className="font-black text-xs text-slate-900">{stats.wickets}</p></div>
-                      <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">CVP</p><p className="font-black text-xs text-primary">{stats.cvp.toFixed(1)}</p></div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-20 border-2 border-dashed rounded-3xl bg-slate-50/50 mx-2 flex flex-col items-center"><Users className="w-12 h-12 text-slate-200 mb-4" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No active players registered in squad</p>{user && <Button variant="outline" onClick={() => setIsAddPlayerOpen(true)} className="mt-4 font-black uppercase text-[9px] border-primary/30 text-primary">Register First Player</Button>}</div>
-        )}
+                    {user && <Button variant="ghost" size="icon" onClick={() => { if(confirm(`Release ${player.name}?`)) deleteDocumentNonBlocking(doc(db, 'players', player.id)); }} className="h-8 w-8 text-slate-200 hover:text-destructive"><Trash2 className="w-4 h-4"/></Button>}
+                  </div>
+                  <div className="mt-6 grid grid-cols-5 gap-1 border-t pt-4 text-center bg-slate-50/50 -mx-5 -mb-5 p-4">
+                    <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">M</p><p className="font-black text-xs text-slate-900">{stats.matches}</p></div>
+                    <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Inn</p><div className="flex flex-col items-center"><span className="text-[6px] font-black text-primary leading-none">B:{stats.batInn}</span><span className="text-[6px] font-black text-secondary leading-none mt-0.5">W:{stats.bowlInn}</span></div></div>
+                    <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Runs</p><p className="font-black text-xs text-slate-900">{stats.runs}</p></div>
+                    <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">Wkts</p><p className="font-black text-xs text-slate-900">{stats.wickets}</p></div>
+                    <div><p className="text-[7px] font-black text-slate-400 uppercase mb-1">CVP</p><p className="font-black text-xs text-primary">{stats.cvp.toFixed(1)}</p></div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       </div>
 
       <Dialog open={isEditTeamOpen} onOpenChange={setIsEditTeamOpen}>
@@ -443,46 +399,13 @@ export default function TeamDetailsPage() {
                 </div>
                 <input type="file" ref={teamLogoInputRef} onChange={(e) => handleFileChange(e, 'team')} className="hidden" accept="image/*" />
               </div>
-              {teamForm.logoUrl && (
-                <Button variant="ghost" size="sm" onClick={() => setTeamForm({...teamForm, logoUrl: ''})} className="text-[8px] font-black uppercase text-slate-400 h-6">
-                  <X className="w-3 h-3 mr-1" /> Remove Logo
-                </Button>
-              )}
             </div>
-
             <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Franchise Name</Label><Input value={teamForm.name} onChange={(e) => setTeamForm({...teamForm, name: e.target.value})} className="font-bold h-12" /></div>
             <div className="space-y-4 pt-2 border-t">
               <p className="text-[10px] font-black uppercase text-slate-500">Leadership</p>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase">Official Captain</Label>
-                <Select value={teamForm.captainId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, captainId: v})}>
-                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign Leader" /></SelectTrigger>
-                  <SelectContent className="z-[200] max-h-[250px]" position="popper">
-                    <SelectItem value="none" className="font-bold uppercase text-xs">No Captain</SelectItem>
-                    {activeSquad.map(p => <SelectItem key={p.id} value={p.id} className="font-bold text-xs">{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase">Vice-Captain</Label>
-                <Select value={teamForm.viceCaptainId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, viceCaptainId: v})}>
-                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign VC" /></SelectTrigger>
-                  <SelectContent className="z-[200] max-h-[250px]" position="popper">
-                    <SelectItem value="none" className="font-bold uppercase text-xs">No Vice-Captain</SelectItem>
-                    {activeSquad.map(p => <SelectItem key={p.id} value={p.id} className="font-bold text-xs">{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase">Wicket-Keeper</Label>
-                <Select value={teamForm.wicketKeeperId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, wicketKeeperId: v})}>
-                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign WK" /></SelectTrigger>
-                  <SelectContent className="z-[200] max-h-[250px]" position="popper">
-                    <SelectItem value="none" className="font-bold uppercase text-xs">No Wicket-Keeper</SelectItem>
-                    {activeSquad.map(p => <SelectItem key={p.id} value={p.id} className="font-bold text-xs">{p.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Official Captain</Label><Select value={teamForm.captainId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, captainId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign Leader" /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{activeSquad.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Vice-Captain</Label><Select value={teamForm.viceCaptainId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, viceCaptainId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign VC" /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{activeSquad.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Wicket-Keeper</Label><Select value={teamForm.wicketKeeperId || 'none'} onValueChange={(v) => setTeamForm({...teamForm, wicketKeeperId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Assign WK" /></SelectTrigger><SelectContent className="z-[200] max-h-[250px]">{activeSquad.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select></div>
             </div>
           </div>
           <DialogFooter><Button onClick={handleUpdateTeam} className="w-full h-14 font-black uppercase tracking-widest shadow-xl bg-primary">Save Changes</Button></DialogFooter>
@@ -495,21 +418,10 @@ export default function TeamDetailsPage() {
           <div className="space-y-6 py-4">
             <div className="flex flex-col items-center gap-4">
               <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                <Avatar className="w-28 h-28 border-4 border-white shadow-xl rounded-3xl overflow-hidden ring-4 ring-slate-100">
-                  <AvatarImage src={editForm.imageUrl || defaultAvatar} className="object-cover" />
-                  <AvatarFallback className="bg-primary text-white text-4xl font-black">{editForm.name?.[0] || '?'}</AvatarFallback>
-                </Avatar>
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex flex-col items-center justify-center text-white text-center">
-                  <Camera className="w-6 h-6 mb-1" />
-                  <span className="text-[8px] font-black uppercase">Change Photo</span>
-                </div>
+                <Avatar className="w-28 h-28 border-4 border-white shadow-xl rounded-3xl overflow-hidden ring-4 ring-slate-100"><AvatarImage src={editForm.imageUrl || defaultAvatar} className="object-cover" /><AvatarFallback className="bg-primary text-white text-4xl font-black">{editForm.name?.[0] || '?'}</AvatarFallback></Avatar>
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity rounded-3xl flex flex-col items-center justify-center text-white"><Camera className="w-6 h-6 mb-1"/><span className="text-[8px] font-black uppercase">Change Photo</span></div>
                 <input type="file" ref={fileInputRef} onChange={(e) => handleFileChange(e, 'player')} className="hidden" accept="image/*" />
               </div>
-              {editForm.imageUrl && (
-                <Button variant="ghost" size="sm" onClick={() => setEditForm({...editForm, imageUrl: ''})} className="text-[8px] font-black uppercase text-slate-400 h-6">
-                  <X className="w-3 h-3 mr-1" /> Remove Photo
-                </Button>
-              )}
             </div>
             <div className="space-y-4">
               <div className="space-y-1.5"><Label className="text-[10px] font-black uppercase">Official Name</Label><Input value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} className="font-bold h-12 shadow-sm" /></div>

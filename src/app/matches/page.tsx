@@ -36,53 +36,21 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
     }
   };
 
-  const getDynamicResult = () => {
-    if (match.status !== 'completed') return 'Match in Progress';
-    
-    if (inn1 && inn2) {
-      const s1 = inn1.score || 0;
-      const s2 = inn2.score || 0;
-      const w2 = inn2.wickets || 0;
-      const bat1Id = inn1.battingTeamId || match.team1Id;
-      const bat2Id = inn2.battingTeamId || (bat1Id === match.team1Id ? match.team2Id : match.team1Id);
-      
-      if (s1 === s2) return 'Match Tied';
-      
-      if (s1 > s2) {
-        const winner = getTeam(bat1Id);
-        return winner ? `${formatTeamName(winner.name)} won by ${s1 - s2} runs` : 'Match Completed';
-      } else {
-        const winner = getTeam(bat2Id);
-        const winningTeamSquad = winner?.id === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
-        const squadSize = winningTeamSquad?.length || 11;
-        const maxWicketsPossible = squadSize - 1;
-        const wicketsLeft = Math.max(0, maxWicketsPossible - w2);
-        return winner ? `${formatTeamName(winner.name)} won by ${wicketsLeft} wicket${wicketsLeft !== 1 ? 's' : ''}` : 'Match Completed';
-      }
-    }
-
-    return match.resultDescription || 'Match Completed';
-  };
-
   const executeDeepDelete = async () => {
     if (isDeleting) return;
     setIsDeleting(true);
-    toast({ title: "Purging History...", description: "Removing all sub-records for this match." });
-
+    toast({ title: "Purging History...", description: "Removing all sub-records." });
     try {
       const innings = ['inning_1', 'inning_2'];
       for (const innId of innings) {
-        const deliveriesRef = collection(db, 'matches', match.id, 'innings', innId, 'deliveryRecords');
-        const deliveriesSnapshot = await getDocs(deliveriesRef);
-        for (const docSnapshot of deliveriesSnapshot.docs) {
-          await deleteDoc(docSnapshot.ref);
-        }
+        const delRef = collection(db, 'matches', match.id, 'innings', innId, 'deliveryRecords');
+        const snap = await getDocs(delRef);
+        for (const d of snap.docs) await deleteDoc(d.ref);
         await deleteDoc(doc(db, 'matches', match.id, 'innings', innId));
       }
       await deleteDoc(doc(db, 'matches', match.id));
-      toast({ title: "Match Deleted", description: "All records purged successfully." });
-    } catch (e: any) {
-      console.error("Purge Failed:", e);
+      toast({ title: "Match Purged" });
+    } catch (e) {
       toast({ title: "Deletion Error", variant: "destructive" });
     } finally {
       setIsDeleting(false);
@@ -92,29 +60,14 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
   const renderInningRow = (innData: any, fallbackTeamId: string) => {
     const teamId = innData?.battingTeamId || fallbackTeamId;
     const team = getTeam(teamId);
-    
     return (
       <div className="flex justify-between items-center w-full py-2 border-b border-slate-100 last:border-0">
         <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Avatar className="h-8 w-8 border bg-muted shrink-0">
-            <AvatarFallback>{team?.name?.[0] || '?'}</AvatarFallback>
-          </Avatar>
-          <Link 
-            href={`/teams/${teamId}`} 
-            className="font-black text-sm text-slate-800 tracking-tight hover:text-primary transition-colors leading-tight py-1"
-          >
-            {team ? formatTeamName(team.name) : 'Syncing Team...'}
-          </Link>
+          <Avatar className="h-8 w-8 border bg-muted shrink-0"><AvatarFallback>{team?.name?.[0] || '?'}</AvatarFallback></Avatar>
+          <Link href={`/teams/${teamId}`} className="font-black text-sm text-slate-800 tracking-tight hover:text-primary truncate">{team ? formatTeamName(team.name) : 'Syncing...'}</Link>
         </div>
         <div className="flex items-baseline gap-2 shrink-0 ml-4">
-          {innData ? (
-            <>
-              <span className="font-black text-xl text-slate-900">{innData.score}/{innData.wickets}</span>
-              <span className="text-[10px] font-bold text-slate-500">({innData.oversCompleted}.{innData.ballsInCurrentOver || 0})</span>
-            </>
-          ) : (
-            <span className="text-[10px] font-bold text-slate-300 uppercase animate-pulse">Wait...</span>
-          )}
+          {innData ? (<><span className="font-black text-xl text-slate-900">{innData.score}/{innData.wickets}</span><span className="text-[10px] font-bold text-slate-500">({innData.oversCompleted}.{innData.ballsInCurrentOver || 0})</span></>) : (<span className="text-[10px] font-bold text-slate-300 uppercase animate-pulse">Wait...</span>)}
         </div>
       </div>
     );
@@ -124,7 +77,7 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
   const row2TeamId = inn2?.battingTeamId || (row1TeamId === match.team1Id ? match.team2Id : match.team1Id);
 
   return (
-    <Card className="border shadow-sm bg-white overflow-hidden group relative border-l-4 border-l-primary rounded-xl">
+    <Card className="border shadow-sm bg-white overflow-hidden border-l-4 border-l-primary rounded-xl">
       <div className="p-5">
         <div className="flex justify-between items-start mb-3">
           <div className="flex flex-col">
@@ -132,40 +85,20 @@ function MatchScoreCard({ match, teams, isUmpire, isMounted }: { match: any, tea
               <span className="flex items-center gap-1 text-primary"><Hash className="w-3 h-3"/> {match.matchNumber || 'Match X'}</span>
               <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {formatDate(match.matchDate)}</span>
             </span>
-            <div className="text-sm font-black text-primary mt-1">{getDynamicResult()}</div>
+            <div className="text-sm font-black text-primary mt-1">{match.resultDescription || 'Match Record'}</div>
           </div>
           {isUmpire && (
             <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive" disabled={isDeleting}>
-                  {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                </Button>
-              </AlertDialogTrigger>
+              <AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-destructive" disabled={isDeleting}>{isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}</Button></AlertDialogTrigger>
               <AlertDialogContent className="z-[200]">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete Match Permanently?</AlertDialogTitle>
-                  <AlertDialogDescription>This will purge the match and <strong>ALL associated records</strong>. Data integrity will be maintained across rankings.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={executeDeepDelete} className="bg-destructive">Confirm Purge</AlertDialogAction>
-                </AlertDialogFooter>
+                <AlertDialogHeader><AlertDialogTitle>Purge Records?</AlertDialogTitle><AlertDialogDescription>This will delete the match and all associated player statistics instantly.</AlertDialogDescription></AlertDialogHeader>
+                <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={executeDeepDelete} className="bg-destructive">Confirm</AlertDialogAction></AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           )}
         </div>
-        <div className="space-y-0 bg-slate-50/50 p-3 rounded-xl border border-slate-100">
-          {renderInningRow(inn1, row1TeamId)}
-          {renderInningRow(inn2, row2TeamId)}
-        </div>
-        <div className="flex gap-2 mt-4">
-          <Button asChild className="flex-1 bg-primary font-bold h-10 shadow-sm"><Link href={`/match/${match.id}`}>Scorecard</Link></Button>
-          {match.status === 'completed' && (
-            <Button asChild variant="outline" className="flex-1 border-secondary text-secondary font-black uppercase text-[10px] h-10">
-              <Link href={`/match/new?t1=${match.team1Id}&t2=${match.team2Id}&overs=${match.totalOvers}&mNum=${match.matchNumber}`}>Play Again</Link>
-            </Button>
-          )}
-        </div>
+        <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-100">{renderInningRow(inn1, row1TeamId)}{renderInningRow(inn2, row2TeamId)}</div>
+        <div className="flex gap-2 mt-4"><Button asChild className="flex-1 bg-primary font-bold h-10 shadow-sm"><Link href={`/match/${match.id}`}>Scorecard</Link></Button></div>
       </div>
     </Card>
   );
@@ -182,48 +115,21 @@ export default function MatchHistoryPage() {
   const { data: matches, isLoading: isMatchesLoading } = useCollection(matchesQuery);
   const teamsQuery = useMemoFirebase(() => query(collection(db, 'teams')), [db]);
   const { data: rawTeams } = useCollection(teamsQuery);
-  
   const teams = rawTeams || [];
-
-  const filteredMatches = useMemo(() => {
-    if (!matches || !teams || teams.length === 0) return matches || [];
-    const teamIds = new Set(teams.map(t => t.id));
-    return matches.filter(m => teamIds.has(m.team1Id) && teamIds.has(m.team2Id));
-  }, [matches, teams]);
-
-  const liveMatches = filteredMatches.filter(m => m.status === 'live');
-  const pastMatches = filteredMatches.filter(m => m.status === 'completed');
 
   if (!isMounted) return null;
 
+  const liveMatches = matches?.filter(m => m.status === 'live') || [];
+  const pastMatches = matches?.filter(m => m.status === 'completed') || [];
+
   return (
     <div className="space-y-6 max-w-lg mx-auto pb-24 px-4">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full">
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
-        <h1 className="text-3xl font-black font-headline tracking-tight text-slate-900 uppercase">Match History</h1>
-      </div>
+      <div className="flex items-center gap-4"><Button variant="ghost" size="icon" onClick={() => router.push('/')} className="rounded-full"><ChevronLeft className="w-6 h-6" /></Button><h1 className="text-3xl font-black font-headline tracking-tight text-slate-900 uppercase">Match History</h1></div>
       <Tabs defaultValue="past" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6 h-12 bg-slate-100 p-1 rounded-xl">
-          <TabsTrigger value="live" className="font-bold rounded-lg">Live</TabsTrigger>
-          <TabsTrigger value="past" className="font-bold rounded-lg">Completed</TabsTrigger>
-        </TabsList>
-        <TabsContent value="live" className="space-y-4">
-          {isMatchesLoading ? <div className="py-20 text-center animate-pulse text-xs font-black uppercase text-slate-400">Syncing Live Center...</div> : liveMatches.length > 0 ? liveMatches.map(m => <MatchScoreCard key={m.id} match={m} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />) : <NoMatchesMessage />}
-        </TabsContent>
-        <TabsContent value="past" className="space-y-4">
-          {isMatchesLoading ? <div className="py-20 text-center animate-pulse text-xs font-black uppercase text-slate-400">Loading History...</div> : pastMatches.length > 0 ? pastMatches.map(m => <MatchScoreCard key={m.id} match={m} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />) : <NoMatchesMessage />}
-        </TabsContent>
+        <TabsList className="grid w-full grid-cols-2 mb-6 h-12 bg-slate-100 p-1 rounded-xl"><TabsTrigger value="live" className="font-bold">Live</TabsTrigger><TabsTrigger value="past" className="font-bold">Completed</TabsTrigger></TabsList>
+        <TabsContent value="live" className="space-y-4">{isMatchesLoading ? <Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /> : liveMatches.map(m => <MatchScoreCard key={m.id} match={m} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)}</TabsContent>
+        <TabsContent value="past" className="space-y-4">{isMatchesLoading ? <Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /> : pastMatches.map(m => <MatchScoreCard key={m.id} match={m} teams={teams} isUmpire={isUmpire} isMounted={isMounted} />)}</TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-function NoMatchesMessage() {
-  return (
-    <div className="py-20 text-center border-2 border-dashed rounded-2xl bg-slate-50/50">
-      <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No Match Records Available</p>
     </div>
   );
 }
