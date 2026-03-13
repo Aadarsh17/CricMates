@@ -15,23 +15,19 @@ import {
   Swords, 
   Crown, 
   Activity, 
-  Flame, 
   Target, 
   Shield,
-  Hand,
   ArrowUpDown,
   Zap,
-  Crosshair,
-  TrendingUp,
-  ShieldCheck,
-  Scale,
-  MapPin
+  MapPin,
+  Users,
+  Trophy,
+  Scale
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { cn } from '@/lib/utils';
-import Link from 'next/link';
+import { cn, formatTeamName } from '@/lib/utils';
 
 export default function InsightsPage() {
   const db = useFirestore();
@@ -79,11 +75,21 @@ export default function InsightsPage() {
   const playerCareerAggregates = useMemo(() => {
     if (!deliveries || !players) return {};
     const stats: Record<string, any> = {};
-    players.forEach(p => { stats[p.id] = { runs: 0, wkts: 0, catches: 0, stumpings: 0, runOuts: 0 }; });
+    players.forEach(p => { stats[p.id] = { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0, catches: 0, stumpings: 0, runOuts: 0, outs: 0 }; });
+    
     deliveries.forEach(d => {
-      if (d.strikerPlayerId && stats[d.strikerPlayerId]) stats[d.strikerPlayerId].runs += (d.runsScored || 0);
+      if (d.strikerPlayerId && stats[d.strikerPlayerId]) {
+        stats[d.strikerPlayerId].runs += (d.runsScored || 0);
+        if (d.extraType !== 'wide') stats[d.strikerPlayerId].balls++;
+      }
+      if (d.isWicket && stats[d.batsmanOutPlayerId]) stats[d.batsmanOutPlayerId].outs++;
+
       const bId = d.bowlerId || d.bowlerPlayerId;
-      if (bId && bId !== 'none' && stats[bId] && d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) stats[bId].wkts++;
+      if (bId && bId !== 'none' && stats[bId]) {
+        stats[bId].runsCon += (d.totalRunsOnDelivery || 0);
+        if (d.extraType === 'none') stats[bId].ballsB++;
+        if (d.isWicket && !['runout', 'retired'].includes(d.dismissalType || '')) stats[bId].wkts++;
+      }
       const fId = d.fielderPlayerId;
       if (fId && fId !== 'none' && stats[fId]) {
         if (d.dismissalType === 'caught') stats[fId].catches++;
@@ -94,10 +100,53 @@ export default function InsightsPage() {
     return stats;
   }, [deliveries, players]);
 
+  const teamAggregates = useMemo(() => {
+    if (!matches || !teams) return {};
+    const stats: Record<string, any> = {};
+    teams.forEach(t => stats[t.id] = { played: 0, won: 0, lost: 0, tied: 0, forR: 0, forB: 0, agR: 0, agB: 0 });
+
+    matches.forEach(m => {
+      if (m.status !== 'completed' || !stats[m.team1Id] || !stats[m.team2Id]) return;
+      stats[m.team1Id].played++; stats[m.team2Id].played++;
+      if (m.isTie) { stats[m.team1Id].tied++; stats[m.team2Id].tied++; }
+      else if (m.winnerTeamId === m.team1Id) { stats[m.team1Id].won++; stats[m.team2Id].lost++; }
+      else if (m.winnerTeamId === m.team2Id) { stats[m.team2Id].won++; stats[m.team1Id].lost++; }
+    });
+
+    deliveries.forEach(d => {
+      const matchId = d.__fullPath?.split('/')[1];
+      const match = matches?.find(m => m.id === matchId);
+      if (!match) return;
+      const innNum = parseInt(d.__fullPath?.split('/')[3].split('_')[1] || '1');
+      const inn1BatId = match.tossWinnerTeamId === match.team1Id ? (match.tossDecision === 'bat' ? match.team1Id : match.team2Id) : (match.tossDecision === 'bat' ? match.team2Id : match.team1Id);
+      const batId = innNum === 1 ? inn1BatId : (inn1BatId === match.team1Id ? match.team2Id : match.team1Id);
+      const bowlId = batId === match.team1Id ? match.team2Id : match.team1Id;
+      
+      if (stats[batId]) { stats[batId].forR += d.totalRunsOnDelivery; if (d.extraType === 'none') stats[batId].forB++; }
+      if (stats[bowlId]) { stats[bowlId].agR += d.totalRunsOnDelivery; if (d.extraType === 'none') stats[bowlId].agB++; }
+    });
+
+    return stats;
+  }, [matches, teams, deliveries]);
+
+  const captainStats = useMemo(() => {
+    if (!matches || !players) return {};
+    const stats: Record<string, any> = {};
+    matches.forEach(m => {
+      if (m.status !== 'completed') return;
+      [ { cid: m.team1CaptainId, tid: m.team1Id }, { cid: m.team2CaptainId, tid: m.team2Id } ].forEach(cap => {
+        if (!cap.cid) return;
+        if (!stats[cap.cid]) stats[cap.cid] = { played: 0, won: 0 };
+        stats[cap.cid].played++;
+        if (m.winnerTeamId === cap.tid) stats[cap.cid].won++;
+      });
+    });
+    return stats;
+  }, [matches, players]);
+
   const milestoneWatch = useMemo(() => {
-    if (!players || players.length === 0) return { runs: [], wickets: [], catches: [], stumpings: [], runOuts: [] };
+    if (!players || players.length === 0) return { runs: [] };
     const RUN_MILESTONES = [25, 50, 75, 100, 150, 200, 250, 500, 750, 1000];
-    const WKT_MILESTONES = Array.from({length: 20}, (_, i) => (i + 1) * 5); 
     const process = (type: string, milestones: number[], key: string) => {
       return players.map(p => {
         const val = playerCareerAggregates[p.id]?.[key] || 0;
@@ -107,7 +156,7 @@ export default function InsightsPage() {
         return { ...p, type, current: val, next, diff: next - val, progress, label: `${next - val} more for ${next} Career ${type}` };
       }).sort((a: any, b: any) => watchlistSort === 'progress' ? b.progress - a.progress : b.current - a.current);
     };
-    return { runs: process('runs', RUN_MILESTONES, 'runs'), wickets: process('wickets', WKT_MILESTONES, 'wkts'), catches: process('catches', WKT_MILESTONES, 'catches'), stumpings: process('stumpings', [5, 10, 20, 50], 'stumpings'), runOuts: process('runOuts', WKT_MILESTONES, 'runOuts') };
+    return { runs: process('runs', RUN_MILESTONES, 'runs') };
   }, [players, playerCareerAggregates, watchlistSort]);
 
   const groundStats = useMemo(() => {
@@ -135,6 +184,10 @@ export default function InsightsPage() {
   }, [matches, deliveries]);
 
   if (!isMounted || isDeliveriesLoading) return <div className="py-20 text-center"><Loader2 className="w-10 h-10 animate-spin mx-auto text-primary" /></div>;
+
+  const getPData = (id: string) => playerCareerAggregates[id] || { runs: 0, balls: 0, wkts: 0, runsCon: 0, ballsB: 0 };
+  const getTData = (id: string) => teamAggregates[id] || { played: 0, won: 0, tied: 0, lost: 0, forR: 0, forB: 0, agR: 0, agB: 0 };
+  const getCData = (id: string) => captainStats[id] || { played: 0, won: 0 };
 
   return (
     <div className="max-w-lg mx-auto space-y-12 pb-32 px-4">
@@ -175,7 +228,110 @@ export default function InsightsPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="ground" className="space-y-6 animate-in fade-in">
+        <TabsContent value="comparison" className="space-y-6">
+          <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><ArrowUpDown className="w-5 h-5 text-primary" /> Player Duel</h2>
+          <Card className="p-6 border-none shadow-xl rounded-3xl bg-white space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Player A</Label>
+                <Select value={rival1Id} onValueChange={setRival1Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Player B</Label>
+                <Select value={rival2Id} onValueChange={setRival2Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
+              </div>
+            </div>
+            {rival1Id && rival2Id ? (
+              <div className="space-y-4 pt-4 border-t">
+                {[
+                  { label: 'Total Runs', v1: getPData(rival1Id).runs, v2: getPData(rival2Id).runs, format: (v: number) => v },
+                  { label: 'Strike Rate', v1: getPData(rival1Id).balls > 0 ? (getPData(rival1Id).runs/getPData(rival1Id).balls)*100 : 0, v2: getPData(rival2Id).balls > 0 ? (getPData(rival2Id).runs/getPData(rival2Id).balls)*100 : 0, format: (v: number) => v.toFixed(1) },
+                  { label: 'Wickets', v1: getPData(rival1Id).wkts, v2: getPData(rival2Id).wkts, format: (v: number) => v },
+                  { label: 'Economy', v1: getPData(rival1Id).ballsB > 0 ? (getPData(rival1Id).runsCon/(getPData(rival1Id).ballsB/6)) : 99, v2: getPData(rival2Id).ballsB > 0 ? (getPData(rival2Id).runsCon/(getPData(rival2Id).ballsB/6)) : 99, reverse: true, format: (v: number) => v === 99 ? '---' : v.toFixed(2) }
+                ].map((row, i) => {
+                  const isV1Better = row.reverse ? row.v1 < row.v2 : row.v1 > row.v2;
+                  const isV2Better = row.reverse ? row.v2 < row.v1 : row.v2 > row.v1;
+                  return (
+                    <div key={i} className="space-y-1.5">
+                      <div className="flex justify-between text-[10px] font-black uppercase text-slate-400"><span>{row.format(row.v1)}</span><span>{row.label}</span><span>{row.format(row.v2)}</span></div>
+                      <div className="flex gap-1 h-2 rounded-full overflow-hidden bg-slate-50">
+                        <div className={cn("h-full transition-all", isV1Better ? "bg-primary" : "bg-slate-200")} style={{ flex: row.v1 || 1 }} />
+                        <div className={cn("h-full transition-all", isV2Better ? "bg-secondary" : "bg-slate-200")} style={{ flex: row.v2 || 1 }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : <div className="text-center py-12 border-2 border-dashed rounded-2xl"><p className="text-[10px] font-black uppercase text-slate-300">Select two players to begin duel</p></div>}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="franchise" className="space-y-6">
+          <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Scale className="w-5 h-5 text-secondary" /> Franchise Duel</h2>
+          <Card className="p-6 border-none shadow-xl rounded-3xl bg-white space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Team A</Label>
+                <Select value={team1DuelId} onValueChange={setTeam1DuelId}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{formatTeamName(t.name)}</SelectItem>)}</SelectContent></Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Team B</Label>
+                <Select value={team2DuelId} onValueChange={setTeam2DuelId}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{teams?.map(t => <SelectItem key={t.id} value={t.id}>{formatTeamName(t.name)}</SelectItem>)}</SelectContent></Select>
+              </div>
+            </div>
+            {team1DuelId && team2DuelId ? (
+              <div className="space-y-6 pt-4 border-t">
+                {[
+                  { label: 'Win Rate (%)', v1: getTData(team1DuelId).played > 0 ? (getTData(team1DuelId).won/getTData(team1DuelId).played)*100 : 0, v2: getTData(team2DuelId).played > 0 ? (getTData(team2DuelId).won/getTData(team2DuelId).played)*100 : 0 },
+                  { label: 'Inning Avg', v1: getTData(team1DuelId).forB > 0 ? (getTData(team1DuelId).forR / (getTData(team1DuelId).forB/6)) : 0, v2: getTData(team2DuelId).forB > 0 ? (getTData(team2DuelId).forR / (getTData(team2DuelId).forB/6)) : 0 }
+                ].map((row, i) => (
+                  <div key={i} className="flex items-center gap-4">
+                    <div className={cn("flex-1 p-3 rounded-2xl border text-center", row.v1 > row.v2 ? "bg-primary/5 border-primary/20" : "bg-slate-50")}>
+                      <p className="text-xl font-black">{row.v1.toFixed(1)}</p>
+                    </div>
+                    <p className="text-[9px] font-black uppercase text-slate-400 w-20 text-center">{row.label}</p>
+                    <div className={cn("flex-1 p-3 rounded-2xl border text-center", row.v2 > row.v1 ? "bg-secondary/5 border-secondary/20" : "bg-slate-50")}>
+                      <p className="text-xl font-black">{row.v2.toFixed(1)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="text-center py-12 border-2 border-dashed rounded-2xl"><p className="text-[10px] font-black uppercase text-slate-300">Select franchises to compare dominance</p></div>}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="captaincy" className="space-y-6">
+          <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Crown className="w-5 h-5 text-amber-500" /> Leader Duel</h2>
+          <Card className="p-6 border-none shadow-xl rounded-3xl bg-white space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Captain A</Label>
+                <Select value={cap1Id} onValueChange={setCap1Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[10px] font-black uppercase">Captain B</Label>
+                <Select value={cap2Id} onValueChange={setCap2Id}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
+              </div>
+            </div>
+            {cap1Id && cap2Id ? (
+              <div className="space-y-4 pt-4 border-t">
+                {[
+                  { label: 'Matches Led', v1: getCData(cap1Id).played, v2: getCData(cap2Id).played },
+                  { label: 'Wins', v1: getCData(cap1Id).won, v2: getCData(cap2Id).won },
+                  { label: 'Success Rate', v1: getCData(cap1Id).played > 0 ? (getCData(cap1Id).won/getCData(cap1Id).played)*100 : 0, v2: getCData(cap2Id).played > 0 ? (getCData(cap2Id).won/getCData(cap2Id).played)*100 : 0, unit: '%' }
+                ].map((row, i) => (
+                  <div key={i} className="flex justify-between items-center p-3 bg-slate-50 rounded-2xl">
+                    <span className={cn("text-sm font-black", row.v1 > row.v2 ? "text-primary" : "text-slate-400")}>{row.v1.toFixed(0)}{row.unit}</span>
+                    <span className="text-[9px] font-black uppercase text-slate-500">{row.label}</span>
+                    <span className={cn("text-sm font-black", row.v2 > row.v1 ? "text-secondary" : "text-slate-400")}>{row.v2.toFixed(0)}{row.unit}</span>
+                  </div>
+                ))}
+              </div>
+            ) : <div className="text-center py-12 border-2 border-dashed rounded-2xl"><p className="text-[10px] font-black uppercase text-slate-300">Select two captains to analyze records</p></div>}
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ground" className="space-y-6">
           <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><MapPin className="w-5 h-5 text-primary" /> Venue Intel</h2>
           <div className="space-y-4">
             {groundStats.map((g, i) => (
@@ -201,18 +357,6 @@ export default function InsightsPage() {
               </Card>
             ))}
           </div>
-        </TabsContent>
-
-        {/* Existing tabs (Captaincy, Comparison, Franchise) kept same logic, just ensuring data integrity */}
-        <TabsContent value="captaincy" className="space-y-8">
-          <h2 className="text-xl font-black uppercase flex items-center gap-2 px-2"><Crown className="w-5 h-5 text-amber-500" /> Captaincy Analysis</h2>
-          <Card className="border-none shadow-xl bg-white p-6 rounded-3xl">
-            <div className="space-y-4">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Select Captains to Compare</Label>
-              <Select value={cap1Id} onValueChange={setCap1Id}><SelectTrigger><SelectValue placeholder="Captain A" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
-              <Select value={cap2Id} onValueChange={setCap2Id}><SelectTrigger><SelectValue placeholder="Captain B" /></SelectTrigger><SelectContent>{players?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent></Select>
-            </div>
-          </Card>
         </TabsContent>
       </Tabs>
     </div>
