@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from 'react';
@@ -50,12 +51,7 @@ export default function AuthPage() {
       if (isLogin) {
         initiateEmailSignIn(auth, email, password);
       } else {
-        // Sign up logic - verification is handled by the initial setup key
         initiateEmailSignUp(auth, email, password);
-        
-        // In a production app, the Firestore doc creation would be triggered 
-        // by an auth listener or Cloud Function. For this prototype, we guide
-        // the user to the dashboard where the session sync will occur.
       }
 
       toast({ 
@@ -179,7 +175,10 @@ export default function AuthPage() {
               disabled={isLoading}
             >
               {isLoading ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                  <span>VERIFYING...</span>
+                </div>
               ) : (
                 <>
                   {isLogin ? "Sign In" : "Verify & Register"}
