@@ -2,20 +2,12 @@
 
 This project is a high-fidelity cricket scoring and analytics engine built with Next.js 15 and Firebase.
 
-## Core Architectural Pillars
+## 🔑 Environment Variables (Deployment)
 
-### 1. Atomic Data Integrity
-The system treats every delivery (ball) as the primary unit of data. All statistics, including Runs, Wickets, NRR, and Player CVP, are derived directly from the ball-by-ball delivery logs. This ensures that deleting or undoing a ball correctly recalculates the entire match state.
+To make the AI features work (Match Summaries & Performance Intel), you MUST add these variables in your deployment platform (Vercel/Firebase App Hosting):
 
-### 2. Unified Statistical Engine
-- **Net Run Rate (NRR):** Calculated using the official formula: `(Runs Scored / Overs Faced) - (Runs Conceded / Overs Bowled)`.
-- **Cricket Value Points (CVP) v1.2.5:** A comprehensive impact scoring system that rewards batting strike rates, bowling economy, and fielding dismissals.
-- **Milestone Detection:** An automated scanner that identifies achievements by traversing historical delivery records.
-
-### 3. Professional Umpire Controls
-- **Over Enforcement:** Strictly follows the 0.1 to 0.6 notation.
-- **Validation:** Prevents active batters from being assigned as bowlers.
-- **Mid-Match Registration:** Allows adding players directly from the scoreboard.
+1. **`GEMINI_API_KEY`**: Get this from [Google AI Studio](https://aistudio.google.com/).
+2. **`GOOGLE_GENAI_API_KEY`**: Same key as above.
 
 ---
 
@@ -48,7 +40,7 @@ git commit -m "Initial commit: Professional Cricket Engine"
 git branch -M main
 
 # Link to your GitHub repository
-# REPLACE <YOUR_GITHUB_URL> with the URL from your new repo (e.g. https://github.com/username/cricmates-pro.git)
+# REPLACE <YOUR_GITHUB_URL> with the URL from your new repo
 git remote add origin <YOUR_GITHUB_URL>
 
 # Push the code to GitHub
@@ -60,8 +52,8 @@ git push -u origin main
 - Sign in with GitHub.
 - Click **"Add New"** > **"Project"**.
 - Import your `cricmates-pro` repository.
-- Vercel will auto-detect Next.js settings. 
-- **Add Environment Variables**: If you have `GEMINI_API_KEY` or other keys, add them in the project settings on Vercel.
+- **Environment Variables**: In the "Environment Variables" section during setup, add:
+  - Key: `GEMINI_API_KEY` | Value: `[Your Key]`
 - Click **Deploy**.
 
 ---
