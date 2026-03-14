@@ -14,7 +14,8 @@ import {
   Download, Edit2, ChevronLeft, Trash2, Share2, Star, Zap, Swords, 
   Trophy, Target, Crown, Users, Info, BarChart3, LineChart, 
   UserCog, MapPin, Calendar, Clock, PlayCircle, Undo2, LayoutPanelLeft,
-  AlertCircle
+  AlertCircle,
+  Activity
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
@@ -46,6 +47,7 @@ export default function MatchScoreboardPage() {
   const [isPotmDialogOpen, setIsPotmDialogOpen] = useState(false);
   const [isEditBallOpen, setIsEditBallOpen] = useState(false);
   const [isEditMatchOpen, setIsEditMatchOpen] = useState(false);
+  const [isNoBallOpen, setIsNoBallOpen] = useState(false);
   
   // Form States
   const [assignmentForm, setAssignmentForm] = useState({ strikerId: '', nonStrikerId: '', bowlerId: '' });
@@ -100,19 +102,6 @@ export default function MatchScoreboardPage() {
     return t ? formatTeamName(t.name) : '---';
   };
 
-  const getWicketDetail = (b: any) => {
-    if (!b.isWicket) return 'Legal Delivery';
-    const type = b.dismissalType || 'out';
-    const fielder = getPlayerName(b.fielderId || b.fielderPlayerId);
-    if (type === 'bowled') return 'Bowled';
-    if (type === 'caught') return `Caught by ${fielder}`;
-    if (type === 'runout') return `Run Out by ${fielder}`;
-    if (type === 'stumped') return `Stumped by ${fielder}`;
-    if (type === 'lbw') return 'LBW';
-    if (type === 'retired') return 'Retired';
-    return type.toUpperCase();
-  };
-
   const activeInningData = useMemo(() => {
     if (!match) return null;
     return match.currentInningNumber === 1 ? inn1 : (match.currentInningNumber === 2 ? inn2 : null);
@@ -121,12 +110,6 @@ export default function MatchScoreboardPage() {
   const currentBattingSquad = useMemo(() => {
     if (!match || !activeInningData) return [];
     return activeInningData.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
-  }, [match, activeInningData]);
-
-  const currentBowlingSquad = useMemo(() => {
-    if (!match || !activeInningData) return [];
-    const batTeamId = activeInningData.battingTeamId;
-    return batTeamId === match.team1Id ? match.team2Id : match.team1Id;
   }, [match, activeInningData]);
 
   const opponentSquad = useMemo(() => {
@@ -211,6 +194,20 @@ export default function MatchScoreboardPage() {
 
     await setDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', deliveryId), dData);
     await recalculateInningState(currentInningId);
+    setIsNoBallOpen(false);
+  };
+
+  const handleUndoLastBall = async () => {
+    const currentInningId = `inning_${match?.currentInningNumber}`;
+    const deliveries = match?.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries;
+    if (!deliveries || deliveries.length === 0) return;
+    
+    const lastBall = [...deliveries].sort((a,b) => b.timestamp - a.timestamp)[0];
+    if (confirm(`Undo last ball (${lastBall.runsScored} runs)?`)) {
+      await deleteDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', currentInningId, 'deliveryRecords', lastBall.id));
+      await recalculateInningState(currentInningId);
+      toast({ title: "Ball Recalled" });
+    }
   };
 
   const handleRecordWicket = async () => {
@@ -313,7 +310,6 @@ export default function MatchScoreboardPage() {
       });
   };
 
-  // Analysis Data Processing
   const analysisData = useMemo(() => {
     const manhattan: any[] = [];
     const maxOvers = match?.totalOvers || 0;
@@ -349,15 +345,14 @@ export default function MatchScoreboardPage() {
   if (!isMounted || isMatchLoading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
   const currentOverBalls = (match?.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries)
-    ?.slice(-12)
+    ?.filter((b, idx, arr) => {
+      const sorted = [...arr].sort((a,b) => a.timestamp - b.timestamp);
+      const lastBallTimestamp = sorted[sorted.length-1]?.timestamp || 0;
+      // Filter for balls in the current active over
+      return true; // Simple slice for UI
+    })
     .sort((a,b) => a.timestamp - b.timestamp)
-    .filter((b, idx, arr) => {
-      // Find the start of the current over in the sorted list
-      let legalCount = 0;
-      arr.forEach((item, i) => { if (i <= idx && item.extraType === 'none') legalCount++; });
-      // This logic is simplified; we just want the last few balls for visual feedback
-      return true;
-    }).slice(-12) || [];
+    .slice(-12) || [];
 
   return (
     <div className="max-w-4xl mx-auto pb-32 px-1 relative">
@@ -449,10 +444,12 @@ export default function MatchScoreboardPage() {
                           </Button>
                         ))}
                         <Button disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(1, 'wide')} className="h-14 font-black text-lg rounded-2xl bg-amber-500 text-white">WD</Button>
-                        <Button disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(1, 'noball')} className="h-14 font-black text-lg rounded-2xl bg-orange-600 text-white">NB</Button>
-                        <Button variant="destructive" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || ''}); setIsWicketDialogOpen(true); }} className="h-14 font-black rounded-2xl uppercase text-[10px] shadow-lg">WICKET</Button>
+                        <Button disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => setIsNoBallOpen(true)} className="h-14 font-black text-lg rounded-2xl bg-orange-600 text-white">NB</Button>
+                        <Button disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(1, 'none', true)} className="h-14 font-black text-lg rounded-2xl bg-emerald-600 text-white">1D</Button>
+                        <Button onClick={handleUndoLastBall} className="h-14 font-black rounded-2xl bg-white/5 text-white border-white/10"><Undo2 className="w-5 h-5"/></Button>
+                        <Button variant="destructive" onClick={() => { setWicketForm({...wicketForm, batterOutId: activeInningData?.strikerPlayerId || ''}); setIsWicketDialogOpen(true); }} className="h-14 font-black rounded-2xl uppercase text-[10px] shadow-lg col-span-2">WICKET</Button>
                       </div>
-                      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide bg-black/20 p-3 rounded-2xl border border-white/5">
                         <span className="text-[10px] font-black text-slate-500 uppercase mr-2 shrink-0">Current Over:</span>
                         {currentOverBalls.map((b, i) => (
                           <div key={i} className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black text-sm shrink-0 border-2", b.isWicket ? "bg-red-500 border-red-600 text-white" : "bg-white/5 border-white/10 text-white")}>
@@ -736,7 +733,7 @@ export default function MatchScoreboardPage() {
                                 {getPlayerName(b.strikerPlayerId)} <span className="text-slate-300 mx-1">vs</span> {getPlayerName(b.bowlerId)}
                               </p>
                               <p className={cn("text-[9px] font-bold uppercase mt-0.5 flex items-center gap-2", b.isWicket ? "text-red-500" : "text-slate-400")}>
-                                {b.isWicket ? getWicketDetail(b) : (b.extraType === 'none' ? 'Legal Delivery' : b.extraType.toUpperCase())}
+                                {b.isWicket ? (b.dismissalType?.toUpperCase()) : (b.extraType === 'none' ? 'Legal Delivery' : b.extraType.toUpperCase())}
                                 <span className="text-slate-200">|</span>
                                 <Clock className="w-3 h-3" /> {new Date(b.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                               </p>
@@ -929,6 +926,28 @@ export default function MatchScoreboardPage() {
             </div>
           </div>
           <DialogFooter><Button onClick={handleUpdateMatchInfo} className="w-full h-14 bg-primary font-black uppercase shadow-xl">Apply Intelligence Update</Button></DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isNoBallOpen} onOpenChange={setIsNoBallOpen}>
+        <DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-orange-600 shadow-2xl z-[200]">
+          <DialogHeader>
+            <DialogTitle className="font-black uppercase text-orange-600 flex items-center gap-2">
+              <Zap className="w-5 h-5" /> No Ball Results
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-4 gap-2 py-6">
+            {[0, 1, 2, 3, 4, 5, 6].map(r => (
+              <Button 
+                key={`nb-${r}`} 
+                onClick={() => handleRecordBall(r, 'noball')} 
+                className="h-16 font-black text-xl bg-orange-50 text-orange-600 border-2 border-orange-100 hover:bg-orange-600 hover:text-white"
+              >
+                {r === 0 ? '•' : r}
+              </Button>
+            ))}
+          </div>
+          <p className="text-[10px] text-center font-black uppercase text-slate-400">Select runs scored on the No Ball</p>
         </DialogContent>
       </Dialog>
 
