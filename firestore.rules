@@ -1,51 +1,44 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
     /**
-     * GLOBAL COLLECTION GROUP AUTHORIZATION
-     * Allow historical analytics to be read by everyone.
-     * Write access is strictly restricted to authenticated Umpires.
+     * AUTHENTICATION HELPER
+     * Checks if the user is a verified league official.
      */
-    match /{path=**}/deliveryRecords/{deliveryId} {
-      allow read: if true;
-      allow write: if request.auth != null;
+    function isVerifiedOfficial() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/umpires/$(request.auth.uid)).data.isVerified == true;
     }
 
     /**
-     * MATCHES & INNINGS
-     * Public can view scores in real-time.
-     * Only authenticated Umpires (request.auth != null) can record balls or update status.
+     * PUBLIC DATA
+     * Allow everyone to read match stats, teams, and players.
      */
     match /matches/{matchId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isVerifiedOfficial();
       
       match /{allSubcollections=**} {
         allow read: if true;
-        allow write: if request.auth != null;
+        allow write: if isVerifiedOfficial();
       }
     }
 
-    /**
-     * TEAMS & PLAYERS
-     * Public can view profiles and standings.
-     * Only Umpires can register new players or teams.
-     */
     match /teams/{teamId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isVerifiedOfficial();
     }
 
     match /players/{playerId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isVerifiedOfficial();
     }
 
     /**
      * UMPIRE PROFILES
      * An umpire can only edit their own profile.
+     * New umpires can create their initial profile.
      */
     match /umpires/{umpireId} {
       allow read: if true;
@@ -54,11 +47,20 @@ service cloud.firestore {
 
     /**
      * SETTINGS & BRANDING
-     * Global league settings can only be managed by authenticated officials.
+     * Global league settings can only be managed by verified officials.
      */
     match /settings/{settingId} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isVerifiedOfficial();
+    }
+
+    /**
+     * COLLECTION GROUP READS
+     * Allow historical analytics to be read by everyone.
+     */
+    match /{path=**}/deliveryRecords/{deliveryId} {
+      allow read: if true;
+      allow write: if isVerifiedOfficial();
     }
 
     /**
@@ -67,7 +69,7 @@ service cloud.firestore {
      */
     match /{document=**} {
       allow read: if true;
-      allow write: if request.auth != null;
+      allow write: if isVerifiedOfficial();
     }
   }
 }

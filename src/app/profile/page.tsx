@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from 'react';
@@ -33,7 +32,8 @@ import {
   Move,
   RotateCcw,
   X,
-  Eraser
+  Eraser,
+  ShieldAlert
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
@@ -58,7 +58,8 @@ export default function UmpireProfilePage() {
   const [formData, setFormData] = useState({
     name: '',
     style: 'Elite Panel',
-    imageUrl: ''
+    imageUrl: '',
+    isVerified: false
   });
 
   const [leagueBranding, setLeagueBranding] = useState({
@@ -94,7 +95,8 @@ export default function UmpireProfilePage() {
       setFormData({
         name: profile.name || '',
         style: profile.style || 'Elite Panel',
-        imageUrl: profile.imageUrl || ''
+        imageUrl: profile.imageUrl || '',
+        isVerified: !!profile.isVerified
       });
     } else if (user && !isProfileLoading) {
       setFormData(prev => ({
@@ -333,7 +335,20 @@ export default function UmpireProfilePage() {
                 </div>
                 <input type="file" ref={fileInputRef} onChange={(e) => handleFileChange(e, 'profile')} className="hidden" accept="image/*" />
               </div>
-              <h3 className="font-black text-lg truncate w-full">{formData.name || 'Official Umpire'}</h3>
+              <div className="space-y-1">
+                <h3 className="font-black text-lg truncate w-full">{formData.name || 'Official Umpire'}</h3>
+                <div className="flex justify-center">
+                  {formData.isVerified ? (
+                    <Badge className="bg-emerald-500 text-white font-black text-[8px] uppercase flex items-center gap-1">
+                      <CheckCircle2 className="w-2.5 h-2.5" /> Official Verified
+                    </Badge>
+                  ) : (
+                    <Badge variant="destructive" className="font-black text-[8px] uppercase flex items-center gap-1">
+                      <ShieldAlert className="w-2.5 h-2.5" /> Unverified
+                    </Badge>
+                  )}
+                </div>
+              </div>
               <Badge variant="secondary" className="bg-primary text-white font-black text-[9px] uppercase">{formData.style}</Badge>
             </CardContent>
           </Card>
@@ -441,6 +456,15 @@ export default function UmpireProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
+              {!formData.isVerified && (
+                <div className="bg-rose-50 border border-rose-100 p-4 rounded-xl flex items-start gap-3 mb-4 animate-pulse">
+                  <ShieldAlert className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-rose-600">Access Restricted</p>
+                    <p className="text-[11px] font-medium text-rose-500 leading-tight">You are currently unverified. You can view data, but editing matches or league settings is disabled. Contact admin to verify your official status.</p>
+                  </div>
+                </div>
+              )}
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-400">Official Name</Label>
@@ -459,7 +483,7 @@ export default function UmpireProfilePage() {
                   </Select>
                 </div>
               </div>
-              <Button onClick={handleSave} disabled={isSaving} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl text-white">
+              <Button onClick={handleSave} disabled={isSaving} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl text-white bg-primary">
                 {isSaving ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Save className="w-6 h-6 mr-2" /> Save Profile</>}
               </Button>
             </CardContent>
