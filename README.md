@@ -11,6 +11,16 @@ To make the AI features work (Match Summaries & Performance Intel), you MUST add
 
 ---
 
+## 🛡️ Security & GitHub Alerts
+
+If GitHub sends you a "Secret detected" alert for the **Firebase API Key** in `src/firebase/config.ts`:
+- **This is a False Positive.**
+- Firebase API keys are designed to be public.
+- Your data is secured via **Firestore Security Rules**.
+- You can safely **Dismiss** the alert on GitHub as a "False Positive".
+
+---
+
 ## 🚀 How to Upload to GitHub & Deploy
 
 Follow these steps to host your code on GitHub and get it live:
