@@ -1,14 +1,15 @@
+
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useCollection, useDoc, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { doc, collection, query, orderBy, collectionGroup } from 'firebase/firestore';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, Loader2, Edit2, Camera, Users, Scale, ShieldCheck, X, Zap, Target, Medal, Clock, History as HistoryIcon, UserMinus, RotateCcw } from 'lucide-react';
+import { UserPlus, Trash2, ArrowLeft, Trophy, Activity, Loader2, Edit2, Camera, Users, Scale, ShieldCheck, X, Zap, Target, Medal, Clock, History as HistoryIcon, UserMinus, RotateCcw, ChevronRight, Hash, Calendar } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,7 +43,7 @@ export default function TeamDetailsPage() {
   const allPlayersQuery = useMemoFirebase(() => query(collection(db, 'players')), [db]);
   const { data: allPlayers, isLoading: isAllPlayersLoading } = useCollection(allPlayersQuery);
 
-  const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches')), [db]);
+  const allMatchesQuery = useMemoFirebase(() => query(collection(db, 'matches'), orderBy('matchDate', 'desc')), [db]);
   const { data: allMatches, isLoading: isMatchesLoading } = useCollection(allMatchesQuery);
 
   const deliveriesQuery = useMemoFirebase(() => {
@@ -52,6 +53,10 @@ export default function TeamDetailsPage() {
   const { data: rawDeliveries, isLoading: isDeliveriesLoading } = useCollection(deliveriesQuery);
 
   const activeMatchIds = useMemo(() => new Set(allMatches?.map(m => m.id) || []), [allMatches]);
+
+  const teamRecentMatches = useMemo(() => {
+    return allMatches?.filter(m => (m.team1Id === teamId || m.team2Id === teamId) && m.status === 'completed') || [];
+  }, [allMatches, teamId]);
 
   const squadData = useMemo(() => {
     if (!allPlayers || !allMatches || !teamId) return { active: [], legacy: [] };
@@ -121,7 +126,7 @@ export default function TeamDetailsPage() {
         const fId = d.fielderPlayerId;
         if (fId && fId !== 'none' && stats[fId]) {
           if (!pMatchStats[fId]) pMatchStats[fId] = {};
-          if (!pMatchStats[fId][matchId]) pMatchStats[fId][matchId] = { id: fId, runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+          if (!pMatchStats[fId][matchId]) { pMatchStats[fId][matchId] = { id: fId, runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 }; }
           const f = pMatchStats[fId][matchId];
           if (d.dismissalType === 'caught') f.catches++;
           if (d.dismissalType === 'stumped') f.stumpings++;
@@ -220,7 +225,7 @@ export default function TeamDetailsPage() {
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => router.push('/teams')} className="rounded-full"><ArrowLeft className="w-5 h-5"/></Button>
         <Avatar className="w-16 h-16 border-4 border-primary rounded-2xl shadow-lg"><AvatarImage src={team?.logoUrl || PlaceHolderImages.find(img => img.id === 'team-logo')?.imageUrl} className="object-cover" /><AvatarFallback className="bg-primary text-white font-black text-2xl">{team?.name[0]}</AvatarFallback></Avatar>
-        <div className="min-w-0 flex-1">
+        <div className="min-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="text-2xl md:text-4xl font-black truncate uppercase tracking-tighter">{team ? formatTeamName(team.name) : 'Team'}</h1>
             {isUmpire && <Button variant="ghost" size="icon" onClick={() => setIsEditTeamOpen(true)} className="h-8 w-8 text-slate-300 hover:text-primary"><Edit2 className="w-4 h-4" /></Button>}
@@ -254,10 +259,12 @@ export default function TeamDetailsPage() {
       )}
 
       <Tabs defaultValue="current" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 h-12 bg-slate-100 p-1 rounded-xl mb-8">
+        <TabsList className="grid w-full grid-cols-3 h-12 bg-slate-100 p-1 rounded-xl mb-8">
           <TabsTrigger value="current" className="font-black text-[10px] uppercase">Active Squad</TabsTrigger>
-          <TabsTrigger value="history" className="font-black text-[10px] uppercase">Legacy Participants</TabsTrigger>
+          <TabsTrigger value="matches" className="font-black text-[10px] uppercase">Recent Matches</TabsTrigger>
+          <TabsTrigger value="history" className="font-black text-[10px] uppercase">Legacy</TabsTrigger>
         </TabsList>
+        
         <TabsContent value="current" className="space-y-6">
           <div className="flex justify-between items-center gap-4 px-2">
             <h2 className="text-xl md:text-2xl font-black uppercase tracking-tight flex items-center gap-2"><Users className="w-6 h-6 text-primary" /> Squad Control</h2>
@@ -267,6 +274,35 @@ export default function TeamDetailsPage() {
             {squadData.active.length > 0 ? squadData.active.map(player => (<PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} team={team} isUmpire={isUmpire} onEdit={() => openEditDialog(player)} onRelease={() => { if(confirm(`Release ${player.name}?`)) { updateDocumentNonBlocking(doc(db, 'players', player.id), { teamId: '' }); toast({ title: "Released" }); } }} onDelete={() => { if(confirm(`Delete ${player.name}?`)) { deleteDocumentNonBlocking(doc(db, 'players', player.id)); toast({ title: "Deleted" }); } }} />)) : (<div className="col-span-full py-12 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center text-center"><Users className="w-10 h-10 text-slate-200 mb-2" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No active members found</p></div>)}
           </div>
         </TabsContent>
+
+        <TabsContent value="matches" className="space-y-4">
+          <h2 className="text-xl font-black uppercase tracking-tight flex items-center gap-2 px-2"><HistoryIcon className="w-6 h-6 text-primary" /> Performance History</h2>
+          <div className="space-y-3">
+            {teamRecentMatches.length > 0 ? teamRecentMatches.map(m => (
+              <Card key={m.id} className="border shadow-sm bg-white overflow-hidden border-l-4 border-l-primary rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] font-black text-primary uppercase flex items-center gap-1"><Hash className="w-3 h-3"/> {m.matchNumber}</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase flex items-center gap-1"><Calendar className="w-3 h-3"/> {new Date(m.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</span>
+                  </div>
+                  <p className="font-black text-slate-900 uppercase text-sm">
+                    vs {formatTeamName(m.team1Id === teamId ? allTeams?.find(t => t.id === m.team2Id)?.name : allTeams?.find(t => t.id === m.team1Id)?.name)}
+                  </p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase">{m.resultDescription}</p>
+                </div>
+                <Button size="sm" asChild className="font-black uppercase text-[10px] h-10 px-6 rounded-xl shadow-lg bg-primary hover:bg-primary/90 w-full md:w-auto">
+                  <Link href={`/match/${m.id}`}>View Scorecard <ChevronRight className="w-4 h-4 ml-1"/></Link>
+                </Button>
+              </Card>
+            )) : (
+              <div className="py-12 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center text-center">
+                <HistoryIcon className="w-10 h-10 text-slate-200 mb-2" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">No completed matches found</p>
+              </div>
+            )}
+          </div>
+        </TabsContent>
+
         <TabsContent value="history" className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {squadData.legacy.length > 0 ? squadData.legacy.map(player => (<PlayerStatCard key={player.id} player={player} stats={squadStats[player.id]} isLegacy isUmpire={isUmpire} onReinstate={() => { updateDocumentNonBlocking(doc(db, 'players', player.id), { teamId: teamId }); toast({ title: "Reinstated" }); }} onDelete={() => { if(confirm(`Delete ${player.name}?`)) { deleteDocumentNonBlocking(doc(db, 'players', player.id)); toast({ title: "Deleted" }); } }} />)) : (<div className="col-span-full py-12 border-2 border-dashed rounded-3xl bg-slate-50/50 flex flex-col items-center text-center"><Clock className="w-10 h-10 text-slate-200 mb-2" /><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Registry clean</p></div>)}
