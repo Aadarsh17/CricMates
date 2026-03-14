@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCollection, useMemoFirebase, useFirestore, useUser } from '@/firebase';
 import { collection, query, orderBy, doc, getDocs, where } from 'firebase/firestore';
@@ -18,7 +18,7 @@ import { ShieldCheck, ArrowRight, UserPlus, Search, ChevronLeft, Award, Shield }
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
-export default function NewMatchPage() {
+function NewMatchContent() {
   const db = useFirestore();
   const { user } = useUser();
   const { isUmpire } = useApp();
@@ -327,5 +327,13 @@ export default function NewMatchPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+export default function NewMatchPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-[60vh]"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>}>
+      <NewMatchContent />
+    </Suspense>
   );
 }
