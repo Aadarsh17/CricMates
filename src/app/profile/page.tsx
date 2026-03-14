@@ -28,7 +28,8 @@ import {
   CheckCircle2, 
   Trophy, 
   Image as ImageIcon,
-  Maximize
+  Maximize,
+  Move
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
@@ -60,13 +61,13 @@ export default function UmpireProfilePage() {
     logoUrl: ''
   });
 
-  // Logo Scaling States
+  // Logo Calibration States
   const [rawLogo, setRawLogo] = useState<string | null>(null);
-  const [logoScale, setLogoScale] = useState([1]); // 1 to 3
+  const [logoScale, setLogoScale] = useState([1]); 
+  const [logoOffset, setLogoOffset] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isCalibrating, setIsCalibrating] = useState(false);
-
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
 
   const defaultAvatar = PlaceHolderImages.find(img => img.id === 'player-avatar')?.imageUrl || '';
 
@@ -106,8 +107,8 @@ export default function UmpireProfilePage() {
     }
   }, [leagueData]);
 
-  // Canvas Drawing Logic for Logo Calibration
-  useEffect(() => {
+  // High-Precision Canvas Drawing Logic
+  const drawCanvas = () => {
     if (rawLogo && canvasRef.current) {
       const canvas = canvasRef.current;
       const ctx = canvas.getContext('2d');
@@ -116,32 +117,53 @@ export default function UmpireProfilePage() {
       const img = new Image();
       img.src = rawLogo;
       img.onload = () => {
-        const size = 400; // High-def bake size
+        const size = 600; // Master bake size
         canvas.width = size;
         canvas.height = size;
         
-        // Clear with transparent
         ctx.clearRect(0, 0, size, size);
         
         const scale = logoScale[0];
         const w = img.width;
         const h = img.height;
         
-        // Calculate centered fit
         const ratio = Math.min(size / w, size / h);
         const nw = w * ratio * scale;
         const nh = h * ratio * scale;
         
-        ctx.drawImage(
-          img, 
-          (size - nw) / 2, 
-          (size - nh) / 2, 
-          nw, 
-          nh
-        );
+        // Final position = Center + Manual Offset
+        const posX = (size - nw) / 2 + logoOffset.x;
+        const posY = (size - nh) / 2 + logoOffset.y;
+        
+        ctx.drawImage(img, posX, posY, nw, nh);
       };
     }
-  }, [rawLogo, logoScale]);
+  };
+
+  useEffect(() => {
+    drawCanvas();
+  }, [rawLogo, logoScale, logoOffset]);
+
+  const handleStartDrag = (e: any) => {
+    setIsDragging(true);
+    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+    setDragStart({ x: clientX - logoOffset.x, y: clientY - logoOffset.y });
+  };
+
+  const handleDrag = (e: any) => {
+    if (!isDragging) return;
+    const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+    const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+    setLogoOffset({
+      x: clientX - dragStart.x,
+      y: clientY - dragStart.y
+    });
+  };
+
+  const handleEndDrag = () => {
+    setIsDragging(false);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, target: 'profile' | 'league') => {
     const file = e.target.files?.[0];
@@ -159,7 +181,8 @@ export default function UmpireProfilePage() {
           setRawLogo(reader.result as string);
           setIsCalibrating(true);
           setLogoScale([1]);
-          toast({ title: "Logo calibration mode", description: "Use the slider to perfectly fit your logo." });
+          setLogoOffset({ x: 0, y: 0 });
+          toast({ title: "Calibration Mode", description: "Scale and Drag to center the logo." });
         }
       };
       reader.readAsDataURL(file);
@@ -168,21 +191,16 @@ export default function UmpireProfilePage() {
 
   const handleApplyCalibration = () => {
     if (canvasRef.current) {
-      const croppedDataUrl = canvasRef.current.toDataURL('image/png');
-      setLeagueBranding(prev => ({ ...prev, logoUrl: croppedDataUrl }));
+      const bakedDataUrl = canvasRef.current.toDataURL('image/png');
+      setLeagueBranding(prev => ({ ...prev, logoUrl: bakedDataUrl }));
       setIsCalibrating(false);
       setRawLogo(null);
-      toast({ title: "Calibration applied", description: "Logo is now perfectly centered." });
+      toast({ title: "Calibration Applied", description: "Logo updated globally." });
     }
   };
 
   const handleSave = () => {
     if (!user?.uid) return;
-    if (!formData.name.trim()) {
-      toast({ title: "Name Required", variant: "destructive" });
-      return;
-    }
-
     setIsSaving(true);
     setDocumentNonBlocking(doc(db, 'umpires', user.uid), {
       id: user.uid,
@@ -207,9 +225,12 @@ export default function UmpireProfilePage() {
 
     setTimeout(() => {
       setIsBrandingSaving(false);
-      toast({ title: "League Branding Updated", description: "Branding applied globally." });
+      toast({ title: "Branding Committed" });
     }, 500);
   };
+
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleChangePassword = async () => {
     if (!user) return;
@@ -255,8 +276,8 @@ export default function UmpireProfilePage() {
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full"><ArrowLeft className="w-6 h-6" /></Button>
         <div>
-          <h1 className="text-3xl font-black uppercase text-slate-900">Official Profile</h1>
-          <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Officiating Credentials</p>
+          <h1 className="text-3xl font-black uppercase text-slate-900 leading-tight">Official Hub</h1>
+          <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">Franchise & Profile Settings</p>
         </div>
       </div>
 
@@ -279,7 +300,7 @@ export default function UmpireProfilePage() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-xl border-t-4 border-t-[#009688] overflow-hidden">
+          <Card className="shadow-2xl border-t-4 border-t-[#009688] overflow-hidden">
             <CardHeader className="bg-slate-50 py-3">
               <CardTitle className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                 <Trophy className="w-3.5 h-3.5 text-[#009688]" /> League Identity
@@ -287,27 +308,44 @@ export default function UmpireProfilePage() {
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
               {isCalibrating ? (
-                <div className="space-y-4 animate-in fade-in zoom-in-95">
-                  <div className="aspect-square w-full bg-[#009688] rounded-2xl overflow-hidden flex items-center justify-center border-4 border-white shadow-lg">
-                    <canvas ref={canvasRef} className="w-full h-full object-contain" />
+                <div className="space-y-6 animate-in fade-in zoom-in-95">
+                  <div 
+                    className="aspect-square w-full bg-[#009688] rounded-full overflow-hidden flex items-center justify-center border-4 border-white shadow-2xl relative cursor-move touch-none"
+                    onMouseDown={handleStartDrag}
+                    onMouseMove={handleDrag}
+                    onMouseUp={handleEndDrag}
+                    onMouseLeave={handleEndDrag}
+                    onTouchStart={handleStartDrag}
+                    onTouchMove={handleDrag}
+                    onTouchEnd={handleEndDrag}
+                  >
+                    <canvas ref={canvasRef} className="w-full h-full object-contain pointer-events-none" />
+                    {isDragging && (
+                      <div className="absolute inset-0 bg-black/10 flex items-center justify-center pointer-events-none">
+                        <Move className="w-8 h-8 text-white animate-pulse" />
+                      </div>
+                    )}
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-center text-[8px] font-black uppercase text-slate-400">
-                      <span>Zoom / Scale</span>
-                      <span>{logoScale[0].toFixed(1)}x</span>
+                  
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
+                      <span className="flex items-center gap-1"><Maximize className="w-3 h-3" /> Scale Zoom</span>
+                      <span className="bg-slate-100 px-2 py-0.5 rounded">{logoScale[0].toFixed(1)}x</span>
                     </div>
                     <Slider 
                       value={logoScale} 
                       onValueChange={setLogoScale} 
                       min={0.5} 
-                      max={3} 
-                      step={0.1}
-                      className="py-4"
+                      max={4} 
+                      step={0.05}
+                      className="py-2"
                     />
+                    <p className="text-[8px] text-center font-bold text-slate-400 uppercase tracking-widest italic">Tip: Drag the logo inside the circle to center it</p>
                   </div>
+
                   <div className="flex gap-2">
-                    <Button onClick={() => setIsCalibrating(false)} variant="outline" size="sm" className="flex-1 font-black uppercase text-[10px]">Cancel</Button>
-                    <Button onClick={handleApplyCalibration} size="sm" className="flex-1 bg-primary font-black uppercase text-[10px]">Apply</Button>
+                    <Button onClick={() => setIsCalibrating(false)} variant="outline" size="sm" className="flex-1 font-black uppercase text-[10px] h-10">Cancel</Button>
+                    <Button onClick={handleApplyCalibration} size="sm" className="flex-1 bg-primary font-black uppercase text-[10px] h-10 shadow-lg">Apply</Button>
                   </div>
                 </div>
               ) : (
@@ -320,16 +358,16 @@ export default function UmpireProfilePage() {
                         <Trophy className="w-8 h-8 text-white" />
                       )}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center">
-                        <Maximize className="w-5 h-5 text-white" />
+                        <Camera className="w-5 h-5 text-white" />
                       </div>
                     </div>
                     <input type="file" ref={leagueLogoRef} onChange={(e) => handleFileChange(e, 'league')} className="hidden" accept="image/*" />
                   </div>
                   <div className="w-full space-y-2">
                     <Label className="text-[8px] font-black uppercase text-slate-400">Official Brand Name</Label>
-                    <Input value={leagueBranding.name} onChange={(e) => setLeagueBranding({...leagueBranding, name: e.target.value})} className="h-10 font-bold text-xs" />
+                    <Input value={leagueBranding.name} onChange={(e) => setLeagueBranding({...leagueBranding, name: e.target.value})} className="h-10 font-bold text-xs uppercase" />
                   </div>
-                  <Button onClick={handleSaveBranding} disabled={isBrandingSaving} size="sm" className="w-full h-10 bg-[#009688] font-black uppercase text-[10px]">
+                  <Button onClick={handleSaveBranding} disabled={isBrandingSaving} size="sm" className="w-full h-12 bg-[#009688] font-black uppercase text-[10px] shadow-lg">
                     {isBrandingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Commit Branding"}
                   </Button>
                 </div>
@@ -349,13 +387,13 @@ export default function UmpireProfilePage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-400">Official Name</Label>
-                  <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Full name" className="font-bold h-12" />
+                  <Input value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Full name" className="font-bold h-12 shadow-inner" />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase text-slate-400">Officiating Style</Label>
                   <Select value={formData.style} onValueChange={v => setFormData({...formData, style: v})}>
-                    <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
-                    <SelectContent>
+                    <SelectTrigger className="font-bold h-12 shadow-inner"><SelectValue /></SelectTrigger>
+                    <SelectContent className="z-[200]">
                       <SelectItem value="Elite Panel" className="font-bold">Elite Panel</SelectItem>
                       <SelectItem value="State Level" className="font-bold">State Level</SelectItem>
                       <SelectItem value="Club Official" className="font-bold">Club Official</SelectItem>
@@ -364,7 +402,7 @@ export default function UmpireProfilePage() {
                   </Select>
                 </div>
               </div>
-              <Button onClick={handleSave} disabled={isSaving} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-lg">
+              <Button onClick={handleSave} disabled={isSaving} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl">
                 {isSaving ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Save className="w-6 h-6 mr-2" /> Save Profile</>}
               </Button>
             </CardContent>
@@ -376,10 +414,10 @@ export default function UmpireProfilePage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">New Password</Label><Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="font-bold h-12" /></div>
-                <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Confirm</Label><Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="font-bold h-12" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">New Password</Label><Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="font-bold h-12 shadow-inner" /></div>
+                <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Confirm</Label><Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="font-bold h-12 shadow-inner" /></div>
               </div>
-              <Button variant="secondary" onClick={handleChangePassword} disabled={isUpdatingPassword || !newPassword} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-lg">
+              <Button variant="secondary" onClick={handleChangePassword} disabled={isUpdatingPassword || !newPassword} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl">
                 {isUpdatingPassword ? <Loader2 className="w-6 h-6 animate-spin" /> : "Update Password"}
               </Button>
             </CardContent>
