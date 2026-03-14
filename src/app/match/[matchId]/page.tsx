@@ -110,16 +110,15 @@ export default function MatchScoreboardPage() {
 
   const currentBattingSquad = useMemo(() => {
     if (!match || !activeInningData) return [];
-    return activeInningData.battingTeamId === match.team1Id ? match.team1SquadPlayerIds : match.team2SquadPlayerIds;
+    return activeInningData.battingTeamId === match.team1Id ? (match.team1SquadPlayerIds || []) : (match.team2SquadPlayerIds || []);
   }, [match, activeInningData]);
 
   const opponentSquad = useMemo(() => {
     if (!match || !activeInningData) return [];
     const batTeamId = activeInningData.battingTeamId;
-    return batTeamId === match.team1Id ? match.team2Id === match.team1Id ? [] : match.team2SquadPlayerIds : match.team1SquadPlayerIds;
+    return batTeamId === match.team1Id ? (match.team2SquadPlayerIds || []) : (match.team1SquadPlayerIds || []);
   }, [match, activeInningData]);
 
-  // Combined stats map for CVP lookup
   const matchPerformanceMap = useMemo(() => {
     const map: Record<string, any> = {};
     [...stats1.batting, ...stats2.batting].forEach(b => {
@@ -136,7 +135,6 @@ export default function MatchScoreboardPage() {
       map[b.id].runsConceded = b.runs;
       map[b.id].maidens = b.maidens;
     });
-    // Fielding simplified for CVP POTM list
     return map;
   }, [stats1, stats2, allPlayers]);
 
@@ -161,8 +159,10 @@ export default function MatchScoreboardPage() {
 
     deliveries.forEach((d) => {
       score += (d.totalRunsOnDelivery || 0);
-      if (d.isWicket && d.dismissalType !== 'retired') wkts++;
-      if (d.extraType === 'none' && d.dismissalType !== 'retired') legalCount++;
+      
+      const isRetirement = d.dismissalType === 'retired';
+      if (d.isWicket && !isRetirement) wkts++;
+      if (d.extraType === 'none' && !isRetirement) legalCount++;
 
       currentS = d.strikerPlayerId;
       currentNS = d.nonStrikerPlayerId;
@@ -178,7 +178,7 @@ export default function MatchScoreboardPage() {
         }
       }
 
-      if (currentNS && legalCount % 6 === 0 && d.extraType === 'none' && legalCount > 0) {
+      if (currentNS && legalCount % 6 === 0 && d.extraType === 'none' && !isRetirement && legalCount > 0) {
         [currentS, currentNS] = [currentNS, currentS];
         currentB = ''; 
       }
@@ -191,7 +191,7 @@ export default function MatchScoreboardPage() {
       ballsInCurrentOver: legalCount % 6,
       strikerPlayerId: currentS || '',
       nonStrikerPlayerId: currentNS || '',
-      currentBowlerPlayerId: (legalCount % 6 === 0 && deliveries[deliveries.length-1].extraType === 'none') ? '' : currentB,
+      currentBowlerPlayerId: (legalCount % 6 === 0 && deliveries[deliveries.length-1].extraType === 'none' && deliveries[deliveries.length-1].dismissalType !== 'retired') ? '' : currentB,
       isDeclaredFinished: legalCount >= (match?.totalOvers || 0) * 6 || wkts >= (currentBattingSquad?.length || 11) - 1
     });
   };
@@ -340,7 +340,8 @@ export default function MatchScoreboardPage() {
         let count = 0; let runs = 0;
         const sorted = [...(deliveries || [])].sort((a,b) => a.timestamp - b.timestamp);
         sorted.forEach(d => {
-          if (d.extraType === 'none' && d.dismissalType !== 'retired') count++;
+          const isRetirement = d.dismissalType === 'retired';
+          if (d.extraType === 'none' && !isRetirement) count++;
           if (Math.ceil(count / 6) === i) runs += (d.totalRunsOnDelivery || 0);
         });
         return runs;
@@ -354,9 +355,11 @@ export default function MatchScoreboardPage() {
       const sorted = [...(deliveries || [])].sort((a,b) => a.timestamp - b.timestamp);
       sorted.forEach(d => {
         cumulative += (d.totalRunsOnDelivery || 0);
-        if (d.extraType === 'none' && d.dismissalType !== 'retired') legalCount++;
+        const isRetirement = d.dismissalType === 'retired';
+        if (d.extraType === 'none' && !isRetirement) legalCount++;
         const over = parseFloat(`${Math.floor(legalCount/6)}.${legalCount%6}`);
-        points.push({ over, runs: cumulative, isWicket: d.isWicket, [label]: cumulative });
+        const isTrueWicket = d.isWicket && !isRetirement;
+        points.push({ over, runs: cumulative, isWicket: isTrueWicket, [label]: cumulative });
       });
       return points;
     };
@@ -367,16 +370,11 @@ export default function MatchScoreboardPage() {
   if (!isMounted || isMatchLoading) return <div className="flex items-center justify-center min-h-screen"><Loader2 className="w-10 h-10 animate-spin text-primary" /></div>;
 
   const currentOverBalls = (match?.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries)
-    ?.filter((b, idx, arr) => {
-      // Logic to show only the last 12 balls for the over timeline
-      return true;
-    })
-    .sort((a,b) => a.timestamp - b.timestamp)
+    ?.sort((a,b) => a.timestamp - b.timestamp)
     .slice(-12) || [];
 
   return (
     <div className="max-w-4xl mx-auto pb-32 px-1 relative">
-      {/* Header Sticky Scoreboard */}
       <div className="fixed top-16 left-0 right-0 z-[90] bg-white border-b-4 border-slate-200 shadow-xl p-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
           <Button variant="ghost" size="icon" onClick={() => router.push('/matches')} className="h-10 w-10 shrink-0 rounded-full hover:bg-slate-100"><ChevronLeft className="w-6 h-6" /></Button>
@@ -473,7 +471,7 @@ export default function MatchScoreboardPage() {
                         <span className="text-[10px] font-black text-slate-500 uppercase mr-2 shrink-0">Current Over:</span>
                         {currentOverBalls.map((b, i) => (
                           <div key={i} className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black text-sm shrink-0 border-2", b.isWicket ? "bg-red-500 border-red-600 text-white" : "bg-white/5 border-white/10 text-white")}>
-                            {b.isWicket ? 'W' : b.extraType === 'wide' ? 'wd' : b.extraType === 'noball' ? 'nb' : b.runsScored}
+                            {b.isWicket ? (b.dismissalType === 'retired' ? 'R' : 'W') : b.extraType === 'wide' ? 'wd' : b.extraType === 'noball' ? 'nb' : b.runsScored}
                           </div>
                         ))}
                       </div>
@@ -735,24 +733,25 @@ export default function MatchScoreboardPage() {
                   {(innTab.data || []).length > 0 ? (() => {
                     let legalCount = 0;
                     return [...innTab.data].sort((a,b) => a.timestamp - b.timestamp).map((b, idx) => {
-                      if (b.extraType === 'none' && b.dismissalType !== 'retired') legalCount++;
+                      const isRetirement = b.dismissalType === 'retired';
+                      if (b.extraType === 'none' && !isRetirement) legalCount++;
                       const overNotation = `${Math.floor((legalCount-1)/6)}.${((legalCount-1)%6) + 1}`;
-                      const isLegal = b.extraType === 'none';
+                      const isLegal = b.extraType === 'none' && !isRetirement;
                       
                       return (
                         <Card key={b.id} className="p-4 border-none shadow-lg rounded-2xl bg-white flex items-center justify-between group hover:ring-2 hover:ring-primary/20 transition-all">
                           <div className="flex items-center gap-4">
                             <div className="flex flex-col items-center shrink-0">
-                              <span className="text-[8px] font-black text-slate-400 mb-1">BALL {isLegal ? overNotation : 'EXT'}</span>
-                              <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg border-2", b.isWicket ? "bg-red-500 border-red-600 text-white" : "bg-slate-50 border-slate-100 text-slate-900")}>
-                                {b.isWicket ? 'W' : b.extraType !== 'none' ? b.extraType[0].toUpperCase() : b.runsScored}
+                              <span className="text-[8px] font-black text-slate-400 mb-1">{isLegal ? `BALL ${overNotation}` : 'EVENT'}</span>
+                              <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg border-2", b.isWicket ? (isRetirement ? "bg-amber-500 border-amber-600 text-white" : "bg-red-500 border-red-600 text-white") : "bg-slate-50 border-slate-100 text-slate-900")}>
+                                {b.isWicket ? (isRetirement ? 'R' : 'W') : b.extraType !== 'none' ? b.extraType[0].toUpperCase() : b.runsScored}
                               </div>
                             </div>
                             <div className="min-w-0">
                               <p className="text-[11px] font-black uppercase text-slate-900 truncate">
                                 {getPlayerName(b.strikerPlayerId)} <span className="text-slate-300 mx-1">vs</span> {getPlayerName(b.bowlerId)}
                               </p>
-                              <p className={cn("text-[9px] font-bold uppercase mt-0.5 flex items-center gap-2", b.isWicket ? "text-red-500" : "text-slate-400")}>
+                              <p className={cn("text-[9px] font-bold uppercase mt-0.5 flex items-center gap-2", b.isWicket ? (isRetirement ? "text-amber-600" : "text-red-500") : "text-slate-400")}>
                                 {b.isWicket ? (b.dismissalType?.toUpperCase()) : (b.extraType === 'none' ? 'Legal Delivery' : b.extraType.toUpperCase())}
                                 <span className="text-slate-200">|</span>
                                 <Clock className="w-3 h-3" /> {new Date(b.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -855,7 +854,6 @@ export default function MatchScoreboardPage() {
         </Tabs>
       </div>
 
-      {/* HIDDEN SHARE CARD TEMPLATE */}
       <div className="fixed -left-[2000px] top-0">
         <div ref={printRef} className="w-[600px] bg-slate-50 p-10 flex flex-col items-center font-body text-slate-900 border-[12px] border-white shadow-2xl rounded-[40px]">
           <div className="bg-primary p-4 rounded-3xl mb-6 shadow-xl"><Trophy className="w-10 h-10 text-white" /></div>
@@ -1028,7 +1026,7 @@ export default function MatchScoreboardPage() {
 
             <div className="border-t pt-4 space-y-4">
               <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border">
-                <div className="flex items-center gap-2 text-[10px] font-black uppercase"><AlertCircle className="w-4 h-4 text-destructive" /> Register Wicket?</div>
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase"><AlertCircle className="w-4 h-4 text-destructive" /> Register Wicket / Event?</div>
                 <Switch checked={editingBall?.isWicket} onCheckedChange={(c) => setEditingBall({...editingBall, isWicket: c, dismissalType: c ? 'bowled' : null})} />
               </div>
 
@@ -1036,7 +1034,7 @@ export default function MatchScoreboardPage() {
                 <div className="space-y-4 animate-in fade-in zoom-in-95">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] font-black uppercase text-slate-400">Batter Out</Label>
+                      <Label className="text-[10px] font-black uppercase text-slate-400">Participant</Label>
                       <Select value={editingBall.batsmanOutPlayerId || editingBall.strikerPlayerId} onValueChange={(v) => setEditingBall({...editingBall, batsmanOutPlayerId: v})}>
                         <SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger>
                         <SelectContent className="z-[250]">
@@ -1046,7 +1044,7 @@ export default function MatchScoreboardPage() {
                       </Select>
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-[10px] font-black uppercase text-slate-400">Dismissal</Label>
+                      <Label className="text-[10px] font-black uppercase text-slate-400">Event Type</Label>
                       <Select value={editingBall.dismissalType || 'bowled'} onValueChange={(v) => setEditingBall({...editingBall, dismissalType: v})}>
                         <SelectTrigger className="h-12 font-bold"><SelectValue /></SelectTrigger>
                         <SelectContent className="z-[250]">
@@ -1055,7 +1053,7 @@ export default function MatchScoreboardPage() {
                           <SelectItem value="runout">Run Out</SelectItem>
                           <SelectItem value="stumped">Stumped</SelectItem>
                           <SelectItem value="lbw">LBW</SelectItem>
-                          <SelectItem value="retired">Retired</SelectItem>
+                          <SelectItem value="retired">Retired (Hurt)</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1109,10 +1107,10 @@ export default function MatchScoreboardPage() {
 
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}>
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-destructive shadow-2xl z-[200]">
-          <DialogHeader><DialogTitle className="font-black uppercase text-xl text-destructive">Wicket Event</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="font-black uppercase text-xl text-destructive">Wicket / Event</DialogTitle></DialogHeader>
           <div className="space-y-6 py-4">
             <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Who is Out?</Label>
+              <Label className="text-[10px] font-black uppercase text-slate-400">Who is leaving?</Label>
               <Select value={wicketForm.batterOutId} onValueChange={(v) => setWicketForm({...wicketForm, batterOutId: v})}>
                 <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Dismissed player" /></SelectTrigger>
                 <SelectContent className="z-[250]">
@@ -1123,7 +1121,7 @@ export default function MatchScoreboardPage() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-slate-400">Dismissal Type</Label>
+                <Label className="text-[10px] font-black uppercase text-slate-400">Event Type</Label>
                 <Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}>
                   <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
                   <SelectContent className="z-[250]">
@@ -1132,7 +1130,7 @@ export default function MatchScoreboardPage() {
                     <SelectItem value="runout">Run Out</SelectItem>
                     <SelectItem value="stumped">Stumped</SelectItem>
                     <SelectItem value="lbw">LBW</SelectItem>
-                    <SelectItem value="retired">Retired</SelectItem>
+                    <SelectItem value="retired">Retired (Hurt)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1162,7 +1160,7 @@ export default function MatchScoreboardPage() {
               </Select>
             </div>
           </div>
-          <DialogFooter><Button onClick={handleRecordWicket} disabled={!wicketForm.batterOutId} className="w-full h-14 bg-destructive font-black uppercase shadow-xl">Confirm Dismissal</Button></DialogFooter>
+          <DialogFooter><Button onClick={handleRecordWicket} disabled={!wicketForm.batterOutId} className="w-full h-14 bg-destructive font-black uppercase shadow-xl">Confirm Entry</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

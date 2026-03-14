@@ -1,3 +1,4 @@
+
 /**
  * @fileOverview Utility functions for match statistics, professional scorecard generation, and match flow timeline logic.
  */
@@ -90,7 +91,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
       if (!isRetirement) currentWickets += 1;
       const outPid = d.batsmanOutPlayerId || sId;
       if (bat[outPid]) {
-        bat[outPid].out = true;
+        bat[outPid].out = !isRetirement; // Stay available if retired
         bat[outPid].fielderId = d.fielderPlayerId || 'none';
         let discStr = d.dismissalType || 'out';
         if (d.fielderPlayerId && d.fielderPlayerId !== 'none') {
@@ -98,7 +99,7 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
           else if (discStr === 'runout') discStr = `run out (Fielder)`;
           else if (discStr === 'stumped') discStr = `st Fielder b Bowler`;
         }
-        bat[outPid].dismissal = discStr;
+        bat[outPid].dismissal = isRetirement ? 'retired hurt' : discStr;
       }
       
       if (!isRetirement) {
@@ -135,7 +136,6 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
 
   const didNotBat = squadIds.filter(id => !battingOrder.includes(id));
 
-  // Sort partnerships highest to lowest
   const sortedPartnerships = rawPartnerships.sort((a, b) => b.runs - a.runs);
 
   return {
@@ -157,7 +157,6 @@ export const getExtendedInningStats = (deliveries: any[], squadIds: string[] = [
 };
 
 export const generateMatchReport = (match: any, allTeams: any[], playerNames: Record<string, string>, inn1: any, inn2: any, stats1: any, stats2: any) => {
-  // This is kept for backward compatibility if needed, but we now use html-to-image on a live card template.
   return `Scorecard generated via official interface.`;
 };
 
