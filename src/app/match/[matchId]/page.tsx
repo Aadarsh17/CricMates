@@ -15,7 +15,8 @@ import {
   Trophy, Target, Crown, Users, Info, BarChart3, LineChart, 
   UserCog, MapPin, Calendar, Clock, PlayCircle, Undo2, LayoutPanelLeft,
   AlertCircle,
-  Activity
+  Activity,
+  ArrowRight
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
@@ -116,8 +117,13 @@ export default function MatchScoreboardPage() {
   const opponentSquad = useMemo(() => {
     if (!match || !activeInningData) return [];
     const batTeamId = activeInningData.battingTeamId;
-    return batTeamId === match.team1Id ? (match.team2SquadPlayerIds || []) : (match.team1SquadPlayerIds || []);
+    return batTeamId === match.team1Id ? (match.team2Id) : (match.team1Id);
   }, [match, activeInningData]);
+
+  const opponentPlayerIds = useMemo(() => {
+    if (!match || !opponentSquad) return [];
+    return opponentSquad === match.team1Id ? (match.team1SquadPlayerIds || []) : (match.team2SquadPlayerIds || []);
+  }, [match, opponentSquad]);
 
   const matchPerformanceMap = useMemo(() => {
     const map: Record<string, any> = {};
@@ -1109,16 +1115,6 @@ export default function MatchScoreboardPage() {
         <DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-destructive shadow-2xl z-[200]">
           <DialogHeader><DialogTitle className="font-black uppercase text-xl text-destructive">Wicket / Event</DialogTitle></DialogHeader>
           <div className="space-y-6 py-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase text-slate-400">Who is leaving?</Label>
-              <Select value={wicketForm.batterOutId} onValueChange={(v) => setWicketForm({...wicketForm, batterOutId: v})}>
-                <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Dismissed player" /></SelectTrigger>
-                <SelectContent className="z-[250]">
-                  {activeInningData?.strikerPlayerId && <SelectItem value={activeInningData.strikerPlayerId}>Striker: {getPlayerName(activeInningData.strikerPlayerId)}</SelectItem>}
-                  {activeInningData?.nonStrikerPlayerId && <SelectItem value={activeInningData.nonStrikerPlayerId}>Non-Striker: {getPlayerName(activeInningData.nonStrikerPlayerId)}</SelectItem>}
-                </SelectContent>
-              </Select>
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-[10px] font-black uppercase text-slate-400">Event Type</Label>
@@ -1135,18 +1131,51 @@ export default function MatchScoreboardPage() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[10px] font-black uppercase text-slate-400">Fielder (Opt)</Label>
-                <Select value={wicketForm.fielderId} onValueChange={(v) => setWicketForm({...wicketForm, fielderId: v})}>
-                  <SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger>
+                <Label className="text-[10px] font-black uppercase text-slate-400">Who is leaving?</Label>
+                <Select value={wicketForm.batterOutId} onValueChange={(v) => setWicketForm({...wicketForm, batterOutId: v})}>
+                  <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent className="z-[250]">
-                    <SelectItem value="none">N/A</SelectItem>
-                    {allPlayers?.filter(p => opponentSquad?.includes(p.id)).map(p => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
+                    {activeInningData?.strikerPlayerId && <SelectItem value={activeInningData.strikerPlayerId}>Striker: {getPlayerName(activeInningData.strikerPlayerId)}</SelectItem>}
+                    {activeInningData?.nonStrikerPlayerId && <SelectItem value={activeInningData.nonStrikerPlayerId}>Non-Striker: {getPlayerName(activeInningData.nonStrikerPlayerId)}</SelectItem>}
                   </SelectContent>
                 </Select>
               </div>
             </div>
+
+            {wicketForm.type === 'runout' && (
+              <div className="bg-slate-50 p-4 rounded-xl space-y-3 animate-in zoom-in-95">
+                <Label className="text-[10px] font-black uppercase text-slate-400 flex items-center gap-2">
+                  <Activity className="w-3 h-3 text-primary" /> Runs Completed Before Out
+                </Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[0, 1, 2, 3].map(r => (
+                    <Button 
+                      key={r} 
+                      type="button"
+                      variant={wicketForm.runsCompleted === r ? "default" : "outline"}
+                      onClick={() => setWicketForm({...wicketForm, runsCompleted: r})}
+                      className={cn("h-10 font-black", wicketForm.runsCompleted === r ? "bg-primary" : "bg-white")}
+                    >
+                      {r}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-[10px] font-black uppercase text-slate-400">Fielder credited</Label>
+              <Select value={wicketForm.fielderId} onValueChange={(v) => setWicketForm({...wicketForm, fielderId: v})}>
+                <SelectTrigger className="font-bold h-12"><SelectValue placeholder="Select Fielder" /></SelectTrigger>
+                <SelectContent className="z-[250]">
+                  <SelectItem value="none">N/A</SelectItem>
+                  {opponentPlayerIds?.map(pId => (
+                    <SelectItem key={pId} value={pId}>{getPlayerName(pId)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2 pt-4 border-t">
               <Label className="text-[10px] font-black uppercase text-slate-400">Successor (Next Batter)</Label>
               <Select value={wicketForm.successorId} onValueChange={(v) => setWicketForm({...wicketForm, successorId: v})}>
@@ -1205,14 +1234,14 @@ export default function MatchScoreboardPage() {
                   <SelectValue placeholder="Assign Bowler" />
                 </SelectTrigger>
                 <SelectContent className="z-[250]">
-                  {allPlayers?.filter(p => opponentSquad?.includes(p.id)).map(p => (
+                  {allPlayers?.filter(p => opponentPlayerIds?.includes(p.id)).map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               {(!isInjuryOverride && (activeInningData?.ballsInCurrentOver || 0) > 0 && !!activeInningData?.currentBowlerPlayerId) && (
                 <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-xl border border-amber-100">
-                  <Switch id="inj-over" checked={isInjuryOverride} onCheckedChange={setIsInjuryOverride} />
+                  <Switch id="inj-over" checked={isInjuryOverride} onCheckedChange={(c) => setIsInjuryOverride(c)} />
                   <Label htmlFor="inj-over" className="text-[10px] font-black uppercase text-amber-700 leading-none">Force Change (Injury)</Label>
                 </div>
               )}
