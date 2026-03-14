@@ -17,6 +17,7 @@ import { useApp } from '@/context/AppContext';
 import { ShieldCheck, ArrowRight, UserPlus, Search, ChevronLeft, Award, Shield } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { Loader2 } from 'lucide-react';
 
 function NewMatchContent() {
   const db = useFirestore();
@@ -147,7 +148,7 @@ function NewMatchContent() {
     setDocumentNonBlocking(doc(db, 'matches', mid), mData, { merge: true });
     
     const batId = setup.tossWinner === setup.team1Id ? (setup.tossDecision === 'bat' ? setup.team1Id : setup.team2Id) : (setup.tossDecision === 'bat' ? setup.team2Id : setup.team1Id);
-    const bowlId = batId === setup.team1Id ? setup.team2Id : setup.team1Id;
+    const bowlId = batId === setup.team1Id ? setup.team2Id : match.team1Id;
 
     const iData = { id: 'inning_1', battingTeamId: batId, score: 0, wickets: 0, oversCompleted: 0, ballsInCurrentOver: 0, strikerPlayerId: setup.strikerId, nonStrikerPlayerId: setup.nonStrikerId || '', currentBowlerPlayerId: setup.bowlerId, isDeclaredFinished: false };
     setDocumentNonBlocking(doc(db, 'matches', mid, 'innings', 'inning_1'), iData, { merge: true });
