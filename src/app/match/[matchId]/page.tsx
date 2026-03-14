@@ -179,11 +179,13 @@ export default function MatchScoreboardPage() {
         if (outId === currentS) currentS = d.successorPlayerId || '';
         else if (outId === currentNS) currentNS = d.successorPlayerId || '';
       } else {
+        // Strike rotation on odd runs, only if non-striker exists
         if (currentNS && !d.isDeclared && (d.runsScored || 0) % 2 !== 0) {
           [currentS, currentNS] = [currentNS, currentS];
         }
       }
 
+      // Strike rotation on over end, only if non-striker exists
       if (currentNS && legalCount % 6 === 0 && d.extraType === 'none' && !isRetirement && legalCount > 0) {
         [currentS, currentNS] = [currentNS, currentS];
         currentB = ''; 
@@ -198,7 +200,8 @@ export default function MatchScoreboardPage() {
       strikerPlayerId: currentS || '',
       nonStrikerPlayerId: currentNS || '',
       currentBowlerPlayerId: (legalCount % 6 === 0 && deliveries[deliveries.length-1].extraType === 'none' && deliveries[deliveries.length-1].dismissalType !== 'retired') ? '' : currentB,
-      isDeclaredFinished: legalCount >= (match?.totalOvers || 0) * 6 || wkts >= (currentBattingSquad?.length || 11) - 1
+      // Fixed Solo Mode Logic: Only finish if wkts equals squad length
+      isDeclaredFinished: legalCount >= (match?.totalOvers || 0) * 6 || wkts >= (currentBattingSquad?.length || 11)
     });
   };
 
@@ -421,6 +424,7 @@ export default function MatchScoreboardPage() {
             {isUmpire && match?.status === 'live' && (
               <Card className="bg-slate-900 border-none rounded-3xl overflow-hidden shadow-2xl">
                 <CardContent className="p-6 space-y-6">
+                  {/* ACTIONS MOVED ABOVE THE INNINGS OVER CHECK */}
                   <div className="flex gap-2">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -749,7 +753,7 @@ export default function MatchScoreboardPage() {
                           <div className="flex items-center gap-4">
                             <div className="flex flex-col items-center shrink-0">
                               <span className="text-[8px] font-black text-slate-400 mb-1">{isLegal ? `BALL ${overNotation}` : 'EVENT'}</span>
-                              <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg border-2", b.isWicket ? (isRetirement ? "bg-amber-500 border-amber-600 text-white" : "bg-red-500 border-red-600 text-white") : "bg-slate-50 border-slate-100 text-slate-900")}>
+                              <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg border-2", b.isWicket ? (isRetirement ? "bg-amber-50 border-amber-600 text-white" : "bg-red-500 border-red-600 text-white") : "bg-slate-50 border-slate-100 text-slate-900")}>
                                 {b.isWicket ? (isRetirement ? 'R' : 'W') : b.extraType !== 'none' ? b.extraType[0].toUpperCase() : b.runsScored}
                               </div>
                             </div>
