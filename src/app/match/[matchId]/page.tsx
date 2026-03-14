@@ -19,7 +19,9 @@ import {
   ArrowRight,
   CircleDot,
   TrendingUp,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Sparkles,
+  FileText
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
@@ -36,6 +38,7 @@ import { toPng } from 'html-to-image';
 import Link from 'next/link';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Line, Scatter, Cell, LabelList } from 'recharts';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
+import { generateMatchSummary } from '@/ai/flows/generate-match-summary';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -54,6 +57,10 @@ export default function MatchScoreboardPage() {
   const [isEditBallOpen, setIsEditBallOpen] = useState(false);
   const [isEditMatchOpen, setIsEditMatchOpen] = useState(false);
   const [isNoBallOpen, setIsNoBallOpen] = useState(false);
+  
+  // AI States
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [isAiLoading, setIsAiLoading] = useState(false);
   
   // Form States
   const [assignmentForm, setAssignmentForm] = useState({ strikerId: '', nonStrikerId: '', bowlerId: '' });
@@ -290,6 +297,68 @@ export default function MatchScoreboardPage() {
     toast({ title: "Ball Deleted" });
   };
 
+  const handleGenerateAISummary = async () => {
+    if (!match || !inn1 || !inn2) return;
+    setIsAiLoading(true);
+    try {
+      const input = {
+        matchId: match.id,
+        matchOverall: {
+          date: match.matchDate || new Date().toISOString(),
+          totalOversScheduled: match.totalOvers,
+          result: match.resultDescription || 'Pending',
+          team1Name: getTeamName(match.team1Id),
+          team2Name: getTeamName(match.team2Id),
+          team1FinalScore: `${stats1.total}/${stats1.wickets} in ${stats1.overs} ov`,
+          team2FinalScore: `${stats2.total}/${stats2.wickets} in ${stats2.overs} ov`,
+          tossWinner: getTeamName(match.tossWinnerTeamId),
+          tossDecision: match.tossDecision
+        },
+        inningsSummaries: [
+          {
+            inningNumber: 1,
+            battingTeamName: getTeamName(inn1.battingTeamId),
+            bowlingTeamName: getTeamName(inn1.battingTeamId === match.team1Id ? match.team2Id : match.team1Id),
+            score: stats1.total,
+            wickets: stats1.wickets,
+            overs: parseFloat(stats1.overs),
+            topPerformersBatting: stats1.batting.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), runs: b.runs, ballsFaced: b.balls, fours: b.fours, sixes: b.sixes, strikeRate: parseFloat(b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0') })),
+            topPerformersBowling: stats1.bowling.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), overs: parseFloat(b.oversDisplay), maidens: b.maidens, runsConceded: b.runs, wickets: b.wickets, economy: parseFloat(b.economy) })),
+            keyMoments: stats1.fow.map(f => `Wicket ${f.wicketNum} at ${f.scoreAtWicket} (${f.over} ov)`)
+          },
+          {
+            inningNumber: 2,
+            battingTeamName: getTeamName(inn2.battingTeamId),
+            bowlingTeamName: getTeamName(inn2.battingTeamId === match.team1Id ? match.team2Id : match.team1Id),
+            score: stats2.total,
+            wickets: stats2.wickets,
+            overs: parseFloat(stats2.overs),
+            topPerformersBatting: stats2.batting.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), runs: b.runs, ballsFaced: b.balls, fours: b.fours, sixes: b.sixes, strikeRate: parseFloat(b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0') })),
+            topPerformersBowling: stats2.bowling.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), overs: parseFloat(b.oversDisplay), maidens: b.maidens, runsConceded: b.runs, wickets: b.wickets, economy: parseFloat(b.economy) })),
+            keyMoments: stats2.fow.map(f => `Wicket ${f.wicketNum} at ${f.scoreAtWicket} (${f.over} ov)`)
+          }
+        ],
+        playerOverallPerformance: Object.values(matchPerformanceMap).map(p => ({
+          playerName: p.name,
+          teamName: 'Player',
+          role: 'All-rounder' as any,
+          cvpScore: calculatePlayerCVP(p),
+          battingStats: p.runs > 0 ? { runs: p.runs, ballsFaced: p.ballsFaced, strikeRate: p.ballsFaced > 0 ? parseFloat(((p.runs/p.ballsFaced)*100).toFixed(1)) : 0, fours: p.fours, sixes: p.sixes } : undefined,
+          bowlingStats: p.ballsBowled > 0 ? { overs: p.ballsBowled/6, maidens: p.maidens, runsConceded: p.runsConceded, wickets: p.wickets, economy: p.ballsBowled > 0 ? parseFloat((p.runsConceded/(p.ballsBowled/6)).toFixed(2)) : 0 } : undefined,
+          fieldingStats: (p.catches + p.stumpings + p.runOuts) > 0 ? { catches: p.catches, stumpings: p.stumpings, runOuts: p.runOuts } : undefined
+        })).sort((a,b) => b.cvpScore - a.cvpScore).slice(0, 5)
+      };
+      const summary = await generateMatchSummary(input as any);
+      setAiSummary(summary);
+      toast({ title: "AI Intelligence Generated" });
+    } catch (err) {
+      console.error(err);
+      toast({ title: "AI Generation Failed", variant: "destructive" });
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
   const downloadScorecard = () => {
     if (printRef.current === null) return;
     toPng(printRef.current, { cacheBust: true, pixelRatio: 2, backgroundColor: '#ffffff' })
@@ -340,7 +409,7 @@ export default function MatchScoreboardPage() {
     const processWorm = (deliveries: any[], label: string) => {
       let cumulative = 0; let legalCount = 0;
       const points: any[] = [];
-      const sorted = [...(deliveries || [])].sort((a,b) => a.timestamp - b.timestamp);
+      const sorted = [...(deliveries || [])].sort((a,b) => (a.timestamp - b.timestamp) || a.id.localeCompare(b.id));
       sorted.forEach(d => {
         cumulative += (d.totalRunsOnDelivery || 0);
         const isRetirement = d.dismissalType === 'retired';
@@ -440,7 +509,7 @@ export default function MatchScoreboardPage() {
                         <DropdownMenuItem onClick={handleStartSecondInnings} disabled={match.currentInningNumber === 2 || !activeInningData?.isDeclaredFinished}><PlayCircle className="w-4 h-4 mr-2 text-primary" /> Start 2nd Innings</DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setIsPotmDialogOpen(true)}><Star className="w-4 h-4 mr-2 text-amber-500" /> Declare POTM</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={async () => { if(confirm("Complete match?")) await updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed', resultDescription: `${stats1.total > stats2.total ? getTeamName(match.team1Id) : getTeamName(match.team2Id)} won by ...` }); }}><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" /> Finalize Match</DropdownMenuItem>
+                        <DropdownMenuItem onClick={async () => { if(confirm("Complete match?")) await updateDocumentNonBlocking(doc(db, 'matches', matchId), { status: 'completed', resultDescription: `${stats1.total > stats2.total ? getTeamName(match.team1Id) : getTeamName(match.team2Id)} won by ${Math.abs(stats1.total - stats2.total)} runs` }); }}><CheckCircle2 className="w-4 h-4 mr-2 text-emerald-500" /> Finalize Match</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <Button variant="outline" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { strikerPlayerId: activeInningData?.nonStrikerPlayerId, nonStrikerPlayerId: activeInningData?.strikerPlayerId })} className="flex-1 h-12 border-white/10 text-white font-black uppercase text-[10px] bg-white/5"><ArrowLeftRight className="w-4 h-4 mr-2" /> Swap Ends</Button>
@@ -601,9 +670,41 @@ export default function MatchScoreboardPage() {
                     <div className="flex items-center gap-4"><div className="p-3 bg-slate-50 rounded-2xl text-secondary shadow-inner"><ShieldCheck className="w-5 h-5"/></div><div><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ref</p><p className="font-black uppercase">Official Umpire</p></div></div>
                   </div>
                 </div>
-                <div className="pt-8 border-t grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Button variant="outline" className="h-14 font-black uppercase border-2 border-primary text-primary hover:bg-primary/5 shadow-lg rounded-2xl" onClick={downloadMatchCard}><ImageIcon className="w-5 h-5 mr-2" /> Download Pro Card</Button>
-                  <Button variant="default" className="h-14 font-black uppercase bg-slate-900 text-white shadow-xl rounded-2xl" onClick={downloadScorecard}><Download className="w-5 h-5 mr-2" /> Download Detailed Scorecard</Button>
+
+                <div className="pt-8 border-t space-y-6">
+                  <div className="flex flex-col md:flex-row gap-4">
+                    <Button variant="outline" className="flex-1 h-14 font-black uppercase border-2 border-primary text-primary hover:bg-primary/5 shadow-lg rounded-2xl" onClick={downloadMatchCard}><ImageIcon className="w-5 h-5 mr-2" /> Download Pro Card</Button>
+                    <Button variant="default" className="flex-1 h-14 font-black uppercase bg-slate-900 text-white shadow-xl rounded-2xl" onClick={downloadScorecard}><Download className="w-5 h-5 mr-2" /> Download Detailed Scorecard</Button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-black uppercase text-sm tracking-tight flex items-center gap-2"><Sparkles className="w-4 h-4 text-amber-500" /> AI Performance Summary</h3>
+                      <Button 
+                        onClick={handleGenerateAISummary} 
+                        disabled={isAiLoading || !match || match.status !== 'completed'} 
+                        variant="secondary" 
+                        size="sm" 
+                        className="h-8 text-[8px] font-black uppercase"
+                      >
+                        {isAiLoading ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Sparkles className="w-3 h-3 mr-1" />}
+                        Generate Pro AI Intel
+                      </Button>
+                    </div>
+                    {aiSummary ? (
+                      <Card className="bg-slate-50 border-2 border-dashed p-6 rounded-2xl">
+                        <p className="text-xs font-medium leading-relaxed text-slate-700 italic">"{aiSummary}"</p>
+                        <div className="mt-4 pt-4 border-t border-slate-200 text-right">
+                          <p className="text-[8px] font-black uppercase text-slate-400">Generated by Genkit AI Analysis</p>
+                        </div>
+                      </Card>
+                    ) : (
+                      <div className="py-12 border-2 border-dashed rounded-2xl bg-slate-50/50 flex flex-col items-center justify-center text-center">
+                        <FileText className="w-8 h-8 text-slate-200 mb-2" />
+                        <p className="text-[9px] font-bold text-slate-400 uppercase">Summary becomes available after match finalization</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -611,7 +712,7 @@ export default function MatchScoreboardPage() {
         </Tabs>
       </div>
 
-      {/* HIDDEN EXPORT TEMPLATE: DETAILED SCORECARD (Compact) */}
+      {/* HIDDEN EXPORT TEMPLATE: DETAILED SCORECARD (Compact Single Page) */}
       <div className="fixed -left-[5000px] top-0">
         <div ref={printRef} className="w-[800px] bg-white p-6 flex flex-col font-body text-slate-900">
           <div className="text-center mb-2 border-b-2 border-slate-900 pb-2">
@@ -672,6 +773,7 @@ export default function MatchScoreboardPage() {
       <Dialog open={isNoBallOpen} onOpenChange={setIsNoBallOpen}><DialogContent className="max-w-[90vw] sm:max-w-md rounded-3xl border-t-8 border-t-orange-600 shadow-2xl z-[200]"><DialogHeader><DialogTitle className="font-black uppercase text-orange-600 flex items-center gap-2"><Zap className="w-5 h-5" /> No Ball Results</DialogTitle></DialogHeader><div className="grid grid-cols-4 gap-2 py-6">{[0, 1, 2, 3, 4, 5, 6].map(r => (<Button key={`nb-${r}`} onClick={() => handleRecordBall(r, 'noball')} className="h-16 font-black text-xl bg-orange-50 text-orange-600 border-2 border-orange-100 hover:bg-orange-600 hover:text-white">{r === 0 ? '•' : r}</Button>))}</div><p className="text-[10px] text-center font-black uppercase text-slate-400">Select runs scored on the No Ball</p></DialogContent></Dialog>
       <Dialog open={isWicketDialogOpen} onOpenChange={setIsWicketDialogOpen}><DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-destructive shadow-2xl z-[200]"><DialogHeader><DialogTitle className="font-black uppercase text-xl text-destructive">Wicket / Event</DialogTitle></DialogHeader><div className="space-y-6 py-4"><div className="grid grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Type</Label><Select value={wicketForm.type} onValueChange={(v) => setWicketForm({...wicketForm, type: v})}><SelectTrigger className="font-bold h-12"><SelectValue /></SelectTrigger><SelectContent className="z-[250]"><SelectItem value="bowled">Bowled</SelectItem><SelectItem value="caught">Caught</SelectItem><SelectItem value="runout">Run Out</SelectItem><SelectItem value="stumped">Stumped</SelectItem><SelectItem value="lbw">LBW</SelectItem><SelectItem value="retired">Retired (Hurt)</SelectItem></SelectContent></Select></div><div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Batter Out</Label><Select value={wicketForm.batterOutId} onValueChange={(v) => setWicketForm({...wicketForm, batterOutId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Select" /></SelectTrigger><SelectContent className="z-[250]">{activeInningData?.strikerPlayerId && <SelectItem value={activeInningData.strikerPlayerId}>Striker: {getPlayerName(activeInningData.strikerPlayerId)}</SelectItem>}{activeInningData?.nonStrikerPlayerId && <SelectItem value={activeInningData.nonStrikerPlayerId}>Non-Striker: {getPlayerName(activeInningData.nonStrikerPlayerId)}</SelectItem>}</SelectContent></Select></div></div><div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Fielder</Label><Select value={wicketForm.fielderId} onValueChange={(v) => setWicketForm({...wicketForm, fielderId: v})}><SelectTrigger className="font-bold h-12"><SelectValue placeholder="Select Fielder" /></SelectTrigger><SelectContent className="z-[250]"><SelectItem value="none">N/A</SelectItem>{opponentPlayerIds?.map(pId => (<SelectItem key={pId} value={pId}>{getPlayerName(pId)}</SelectItem>))}</SelectContent></Select></div><div className="space-y-2 pt-4 border-t"><Label className="text-[10px] font-black uppercase text-slate-400">Next Batter</Label><Select value={wicketForm.successorId} onValueChange={(v) => setWicketForm({...wicketForm, successorId: v})}><SelectTrigger className="h-14 font-black text-lg border-primary/20"><SelectValue placeholder="Pick next batter" /></SelectTrigger><SelectContent className="z-[250]"><SelectItem value="none">Solo / End</SelectItem>{allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id) && p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId).map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select></div></div><DialogFooter><Button onClick={handleRecordWicket} disabled={!wicketForm.batterOutId} className="w-full h-14 bg-destructive font-black uppercase shadow-xl">Confirm Entry</Button></DialogFooter></DialogContent></Dialog>
       <Dialog open={isPlayerAssignmentOpen} onOpenChange={setIsPlayerAssignmentOpen}><DialogContent className="max-w-[95vw] sm:max-w-md rounded-3xl border-t-8 border-t-primary shadow-2xl z-[200]"><DialogHeader><DialogTitle className="font-black uppercase text-xl">Official Assignment</DialogTitle></DialogHeader><div className="space-y-6 py-4"><div className="grid grid-cols-2 gap-4"><div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Striker</Label><Select value={assignmentForm.strikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Striker" /></SelectTrigger><SelectContent className="z-[250]">{allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id)).map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select></div><div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Non-Striker</Label><Select value={assignmentForm.nonStrikerId || 'none'} onValueChange={(v) => setAssignmentForm({...assignmentForm, nonStrikerId: v === 'none' ? '' : v})}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Non-Striker" /></SelectTrigger><SelectContent className="z-[250]"><SelectItem value="none">Solo Mode</SelectItem>{allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id) && p.id !== assignmentForm.strikerId).map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select></div></div><div className="space-y-3 pt-4 border-t"><Label className="text-[10px] font-black uppercase text-slate-400">Current Bowler</Label><Select value={assignmentForm.bowlerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, bowlerId: v})}><SelectTrigger className="h-14 font-black text-lg"><SelectValue placeholder="Assign Bowler" /></SelectTrigger><SelectContent className="z-[250]">{allPlayers?.filter(p => opponentPlayerIds?.includes(p.id)).map(p => (<SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>))}</SelectContent></Select></div></div><DialogFooter><Button onClick={async () => { await updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match?.currentInningNumber}`), { strikerPlayerId: assignmentForm.strikerId, nonStrikerPlayerId: assignmentForm.nonStrikerId || '', currentBowlerPlayerId: assignmentForm.bowlerId }); setIsPlayerAssignmentOpen(false); toast({ title: "Ends Assigned" }); }} className="w-full h-14 bg-primary font-black uppercase shadow-xl">Apply Setup</Button></DialogFooter></DialogContent></Dialog>
+      <Dialog open={isPotmDialogOpen} onOpenChange={setIsPotmDialogOpen}><DialogContent className="max-w-md rounded-3xl border-t-8 border-t-amber-500 shadow-2xl z-[200]"><DialogHeader><DialogTitle className="font-black uppercase tracking-tight text-amber-600 flex items-center gap-2"><Star className="w-5 h-5" /> Declare Player of the Match</DialogTitle></DialogHeader><div className="space-y-4 py-6"><div className="space-y-1.5"><Label className="text-[10px] font-black uppercase text-slate-400">Select Recipient</Label><Select value={potmId} onValueChange={setPotmId}><SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Pick a player" /></SelectTrigger><SelectContent className="z-[250]">{Object.values(matchPerformanceMap).map((p: any) => (<SelectItem key={p.id} value={p.id} className="font-bold">{p.name} ({calculatePlayerCVP(p).toFixed(1)} Pts)</SelectItem>))}</SelectContent></Select></div></div><DialogFooter><Button onClick={async () => { if(potmId) { await updateDocumentNonBlocking(doc(db, 'matches', matchId), { potmPlayerId: potmId, potmCvpScore: calculatePlayerCVP(matchPerformanceMap[potmId]) }); setIsPotmDialogOpen(false); toast({ title: "POTM Awarded" }); } }} className="w-full h-14 bg-amber-500 font-black uppercase shadow-xl">Confirm Award</Button></DialogFooter></DialogContent></Dialog>
     </div>
   );
 }
