@@ -13,10 +13,27 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { ShieldCheck, User, Camera, Save, ArrowLeft, Loader2, Sparkles, Upload, KeyRound, Lock, CheckCircle2, Trophy, Image as ImageIcon } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { 
+  ShieldCheck, 
+  User, 
+  Camera, 
+  Save, 
+  ArrowLeft, 
+  Loader2, 
+  Sparkles, 
+  Upload, 
+  KeyRound, 
+  Lock, 
+  CheckCircle2, 
+  Trophy, 
+  Image as ImageIcon,
+  Maximize
+} from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { cn } from '@/lib/utils';
 
 export default function UmpireProfilePage() {
   const db = useFirestore();
@@ -25,6 +42,7 @@ export default function UmpireProfilePage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const leagueLogoRef = useRef<HTMLInputElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [isMounted, setIsMounted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -41,6 +59,11 @@ export default function UmpireProfilePage() {
     name: 'CricMates',
     logoUrl: ''
   });
+
+  // Logo Scaling States
+  const [rawLogo, setRawLogo] = useState<string | null>(null);
+  const [logoScale, setLogoScale] = useState([1]); // 1 to 3
+  const [isCalibrating, setIsCalibrating] = useState(false);
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -83,23 +106,73 @@ export default function UmpireProfilePage() {
     }
   }, [leagueData]);
 
+  // Canvas Drawing Logic for Logo Calibration
+  useEffect(() => {
+    if (rawLogo && canvasRef.current) {
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      const img = new Image();
+      img.src = rawLogo;
+      img.onload = () => {
+        const size = 400; // High-def bake size
+        canvas.width = size;
+        canvas.height = size;
+        
+        // Clear with transparent
+        ctx.clearRect(0, 0, size, size);
+        
+        const scale = logoScale[0];
+        const w = img.width;
+        const h = img.height;
+        
+        // Calculate centered fit
+        const ratio = Math.min(size / w, size / h);
+        const nw = w * ratio * scale;
+        const nh = h * ratio * scale;
+        
+        ctx.drawImage(
+          img, 
+          (size - nw) / 2, 
+          (size - nh) / 2, 
+          nw, 
+          nh
+        );
+      };
+    }
+  }, [rawLogo, logoScale]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, target: 'profile' | 'league') => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 1024 * 1024) {
-        toast({ title: "Image too large", description: "Please select an image smaller than 1MB.", variant: "destructive" });
+      if (file.size > 2 * 1024 * 1024) {
+        toast({ title: "Image too large", description: "Max size is 2MB.", variant: "destructive" });
         return;
       }
       const reader = new FileReader();
       reader.onloadend = () => {
         if (target === 'profile') {
           setFormData(prev => ({ ...prev, imageUrl: reader.result as string }));
+          toast({ title: "Profile photo ready" });
         } else {
-          setLeagueBranding(prev => ({ ...prev, logoUrl: reader.result as string }));
+          setRawLogo(reader.result as string);
+          setIsCalibrating(true);
+          setLogoScale([1]);
+          toast({ title: "Logo calibration mode", description: "Use the slider to perfectly fit your logo." });
         }
-        toast({ title: "Photo selected", description: "Click 'Commit Changes' to finalize." });
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleApplyCalibration = () => {
+    if (canvasRef.current) {
+      const croppedDataUrl = canvasRef.current.toDataURL('image/png');
+      setLeagueBranding(prev => ({ ...prev, logoUrl: croppedDataUrl }));
+      setIsCalibrating(false);
+      setRawLogo(null);
+      toast({ title: "Calibration applied", description: "Logo is now perfectly centered." });
     }
   };
 
@@ -134,7 +207,7 @@ export default function UmpireProfilePage() {
 
     setTimeout(() => {
       setIsBrandingSaving(false);
-      toast({ title: "League Branding Updated", description: "The logo and name have been applied globally." });
+      toast({ title: "League Branding Updated", description: "Branding applied globally." });
     }, 500);
   };
 
@@ -212,29 +285,55 @@ export default function UmpireProfilePage() {
                 <Trophy className="w-3.5 h-3.5 text-[#009688]" /> League Identity
               </CardTitle>
             </CardHeader>
-            <CardContent className="pt-6 space-y-4">
-              <div className="flex flex-col items-center gap-4">
-                <div className="relative group cursor-pointer" onClick={() => leagueLogoRef.current?.click()}>
-                  <div className="w-20 h-20 bg-[#009688] rounded-2xl flex items-center justify-center shadow-lg border-2 border-white overflow-hidden relative">
-                    {leagueBranding.logoUrl ? (
-                      <img src={leagueBranding.logoUrl} className="w-full h-full object-cover" />
-                    ) : (
-                      <Trophy className="w-8 h-8 text-white" />
-                    )}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center">
-                      <Upload className="w-5 h-5 text-white" />
-                    </div>
+            <CardContent className="pt-6 space-y-6">
+              {isCalibrating ? (
+                <div className="space-y-4 animate-in fade-in zoom-in-95">
+                  <div className="aspect-square w-full bg-[#009688] rounded-2xl overflow-hidden flex items-center justify-center border-4 border-white shadow-lg">
+                    <canvas ref={canvasRef} className="w-full h-full object-contain" />
                   </div>
-                  <input type="file" ref={leagueLogoRef} onChange={(e) => handleFileChange(e, 'league')} className="hidden" accept="image/*" />
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center text-[8px] font-black uppercase text-slate-400">
+                      <span>Zoom / Scale</span>
+                      <span>{logoScale[0].toFixed(1)}x</span>
+                    </div>
+                    <Slider 
+                      value={logoScale} 
+                      onValueChange={setLogoScale} 
+                      min={0.5} 
+                      max={3} 
+                      step={0.1}
+                      className="py-4"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button onClick={() => setIsCalibrating(false)} variant="outline" size="sm" className="flex-1 font-black uppercase text-[10px]">Cancel</Button>
+                    <Button onClick={handleApplyCalibration} size="sm" className="flex-1 bg-primary font-black uppercase text-[10px]">Apply</Button>
+                  </div>
                 </div>
-                <div className="w-full space-y-2">
-                  <Label className="text-[8px] font-black uppercase text-slate-400">App Brand Name</Label>
-                  <Input value={leagueBranding.name} onChange={(e) => setLeagueBranding({...leagueBranding, name: e.target.value})} className="h-10 font-bold text-xs" />
+              ) : (
+                <div className="flex flex-col items-center gap-4">
+                  <div className="relative group cursor-pointer" onClick={() => leagueLogoRef.current?.click()}>
+                    <div className="w-24 h-24 bg-[#009688] rounded-2xl flex items-center justify-center shadow-lg border-2 border-white overflow-hidden relative">
+                      {leagueBranding.logoUrl ? (
+                        <img src={leagueBranding.logoUrl} className="w-full h-full object-contain" />
+                      ) : (
+                        <Trophy className="w-8 h-8 text-white" />
+                      )}
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center">
+                        <Maximize className="w-5 h-5 text-white" />
+                      </div>
+                    </div>
+                    <input type="file" ref={leagueLogoRef} onChange={(e) => handleFileChange(e, 'league')} className="hidden" accept="image/*" />
+                  </div>
+                  <div className="w-full space-y-2">
+                    <Label className="text-[8px] font-black uppercase text-slate-400">Official Brand Name</Label>
+                    <Input value={leagueBranding.name} onChange={(e) => setLeagueBranding({...leagueBranding, name: e.target.value})} className="h-10 font-bold text-xs" />
+                  </div>
+                  <Button onClick={handleSaveBranding} disabled={isBrandingSaving} size="sm" className="w-full h-10 bg-[#009688] font-black uppercase text-[10px]">
+                    {isBrandingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Commit Branding"}
+                  </Button>
                 </div>
-                <Button onClick={handleSaveBranding} disabled={isBrandingSaving} size="sm" className="w-full h-10 bg-[#009688] font-black uppercase text-[10px]">
-                  {isBrandingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Commit Branding"}
-                </Button>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>

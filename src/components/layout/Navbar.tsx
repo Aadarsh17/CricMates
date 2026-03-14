@@ -63,9 +63,9 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
           <Link href="/" className="flex items-center space-x-3 group shrink-0">
-            <div className="p-1.5 bg-[#009688] rounded-xl shadow-md group-hover:scale-105 transition-transform overflow-hidden w-10 h-10 flex items-center justify-center">
+            <div className="p-0.5 bg-[#009688] rounded-xl shadow-md group-hover:scale-105 transition-transform overflow-hidden w-10 h-10 flex items-center justify-center border-2 border-white/10">
               {leagueBranding?.logoUrl ? (
-                <img src={leagueBranding.logoUrl} className="w-full h-full object-cover" alt="League Logo" />
+                <img src={leagueBranding.logoUrl} className="w-full h-full object-contain" alt="League Logo" />
               ) : (
                 <Trophy className="w-6 h-6 text-white" />
               )}
