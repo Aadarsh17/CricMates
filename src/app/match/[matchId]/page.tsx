@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from 'react';
@@ -262,25 +261,6 @@ export default function MatchScoreboardPage() {
     setIsPlayerAssignmentOpen(true);
   };
 
-  const handleUpdateBall = async () => {
-    if (!editingBall) return;
-    const innId = editingBall.__fullPath?.split('/')[3] || `inning_${match?.currentInningNumber}`;
-    const ballRef = doc(db, 'matches', matchId, 'innings', innId, 'deliveryRecords', editingBall.id);
-    const updates = {
-      strikerPlayerId: editingBall.strikerPlayerId, nonStrikerPlayerId: editingBall.nonStrikerPlayerId,
-      bowlerId: editingBall.bowlerId, runsScored: editingBall.runsScored, extraType: editingBall.extraType,
-      totalRunsOnDelivery: editingBall.runsScored + (editingBall.extraType !== 'none' ? 1 : 0),
-      isWicket: editingBall.isWicket, dismissalType: editingBall.isWicket ? editingBall.dismissalType : null,
-      batsmanOutPlayerId: editingBall.isWicket ? editingBall.batsmanOutPlayerId : null,
-      fielderPlayerId: editingBall.isWicket ? (editingBall.fielderPlayerId || 'none') : null,
-      successorPlayerId: editingBall.isWicket ? (editingBall.successorPlayerId || 'none') : null
-    };
-    await updateDocumentNonBlocking(ballRef, updates);
-    await recalculateInningState(innId);
-    setIsEditBallOpen(false);
-    toast({ title: "Calibration Applied" });
-  };
-
   const handleUpdateMatchInfo = async () => {
     if (!matchId) return;
     await updateDocumentNonBlocking(doc(db, 'matches', matchId), matchEditForm);
@@ -322,7 +302,7 @@ export default function MatchScoreboardPage() {
             score: stats1.total,
             wickets: stats1.wickets,
             overs: parseFloat(stats1.overs),
-            topPerformersBatting: stats1.batting.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), runs: b.runs, ballsFaced: b.balls, fours: b.fours, sixes: b.sixes, strikeRate: parseFloat(b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0') })),
+            topPerformersBatting: stats1.batting.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), runs: b.runs, ballsFaced: b.balls, fours: b.fours, sixes: b.sixes, strikeRate: parseFloat(b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0' ) })),
             topPerformersBowling: stats1.bowling.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), overs: parseFloat(b.oversDisplay), maidens: b.maidens, runsConceded: b.runs, wickets: b.wickets, economy: parseFloat(b.economy) })),
             keyMoments: stats1.fow.map(f => `Wicket ${f.wicketNum} at ${f.scoreAtWicket} (${f.over} ov)`)
           },
@@ -333,7 +313,7 @@ export default function MatchScoreboardPage() {
             score: stats2.total,
             wickets: stats2.wickets,
             overs: parseFloat(stats2.overs),
-            topPerformersBatting: stats2.batting.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), runs: b.runs, ballsFaced: b.balls, fours: b.fours, sixes: b.sixes, strikeRate: parseFloat(b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0') })),
+            topPerformersBatting: stats2.batting.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), runs: b.runs, ballsFaced: b.balls, fours: b.fours, sixes: b.sixes, strikeRate: parseFloat(b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0' ) })),
             topPerformersBowling: stats2.bowling.slice(0, 3).map(b => ({ playerName: getPlayerName(b.id), overs: parseFloat(b.oversDisplay), maidens: b.maidens, runsConceded: b.runs, wickets: b.wickets, economy: parseFloat(b.economy) })),
             keyMoments: stats2.fow.map(f => `Wicket ${f.wicketNum} at ${f.scoreAtWicket} (${f.over} ov)`)
           }
@@ -548,6 +528,7 @@ export default function MatchScoreboardPage() {
               </Card>
 
               <div className="space-y-4">
+                {/* 1. Active Bowler */}
                 <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white">
                   <Table>
                     <TableHeader className="bg-slate-50"><TableRow><TableHead className="text-[10px] font-black uppercase">Active Bowler</TableHead><TableHead className="text-right text-[10px] font-black uppercase">O</TableHead><TableHead className="text-right text-[10px] font-black uppercase">R</TableHead><TableHead className="text-right text-[10px] font-black uppercase">W</TableHead><TableHead className="text-right text-[10px] font-black uppercase">ER</TableHead></TableRow></TableHeader>
@@ -561,6 +542,7 @@ export default function MatchScoreboardPage() {
                   </Table>
                 </Card>
 
+                {/* 2. Current Over Balls */}
                 <Card className="p-4 border-none shadow-lg rounded-2xl bg-white space-y-3">
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Current Over</p>
                   <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
@@ -568,6 +550,7 @@ export default function MatchScoreboardPage() {
                   </div>
                 </Card>
 
+                {/* 3. Previous Overs */}
                 {liveCentreSummary.prevOvers.length > 0 && (
                   <div className="space-y-2">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Previous Overs</p>
@@ -577,6 +560,7 @@ export default function MatchScoreboardPage() {
                   </div>
                 )}
 
+                {/* 4. Current Partnership */}
                 {liveCentreSummary.partnership && (
                   <Card className="p-5 border-none shadow-xl rounded-3xl bg-slate-900 text-white relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4 opacity-10"><Users className="w-16 h-16"/></div>

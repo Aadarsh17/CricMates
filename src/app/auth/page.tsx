@@ -50,14 +50,12 @@ export default function AuthPage() {
       if (isLogin) {
         initiateEmailSignIn(auth, email, password);
       } else {
-        // We'll create the user and immediately flag them as verified in Firestore
-        // The initiateEmailSignUp returns void, so we rely on FirebaseProvider 
-        // But for verification logic, we manually tag them on first creation
+        // Sign up logic - verification is handled by the initial setup key
         initiateEmailSignUp(auth, email, password);
         
-        // Note: In a production app, this would be handled by a Cloud Function 
-        // based on the signup result. For this prototype, we'll assume success 
-        // if the key was correct.
+        // In a production app, the Firestore doc creation would be triggered 
+        // by an auth listener or Cloud Function. For this prototype, we guide
+        // the user to the dashboard where the session sync will occur.
       }
 
       toast({ 
