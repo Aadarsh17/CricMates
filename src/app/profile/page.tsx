@@ -14,6 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { 
   ShieldCheck, 
   User, 
@@ -31,7 +32,8 @@ import {
   Maximize,
   Move,
   RotateCcw,
-  X
+  X,
+  Eraser
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
@@ -68,6 +70,7 @@ export default function UmpireProfilePage() {
   const [rawLogo, setRawLogo] = useState<string | null>(null);
   const [logoScale, setLogoScale] = useState([1]); 
   const [logoOffset, setLogoOffset] = useState({ x: 0, y: 0 });
+  const [shouldRemoveBg, setShouldRemoveBg] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isCalibrating, setIsCalibrating] = useState(false);
@@ -110,7 +113,7 @@ export default function UmpireProfilePage() {
     }
   }, [leagueData]);
 
-  // High-Precision Canvas Drawing Logic
+  // High-Precision Canvas Drawing Logic with Background Removal
   const drawCanvas = () => {
     if (rawLogo && canvasRef.current) {
       const canvas = canvasRef.current;
@@ -131,7 +134,6 @@ export default function UmpireProfilePage() {
         const h = img.height;
         
         // Use a "Contain" strategy with a 15% safety margin
-        // This ensures the full image (crown, details) is visible at 1.00x
         const ratio = Math.min(size / w, size / h) * 0.85;
         const nw = w * ratio * scale;
         const nh = h * ratio * scale;
@@ -141,13 +143,29 @@ export default function UmpireProfilePage() {
         const posY = (size - nh) / 2 + logoOffset.y;
         
         ctx.drawImage(img, posX, posY, nw, nh);
+
+        // Advanced Background Removal Logic (Color Keying White/Grey)
+        if (shouldRemoveBg) {
+          const imageData = ctx.getImageData(0, 0, size, size);
+          const data = imageData.data;
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            // Targets white and light grey pixels (r, g, b > 240)
+            if (r > 240 && g > 240 && b > 240) {
+              data[i + 3] = 0; // Set alpha to fully transparent
+            }
+          }
+          ctx.putImageData(imageData, 0, 0);
+        }
       };
     }
   };
 
   useEffect(() => {
     drawCanvas();
-  }, [rawLogo, logoScale, logoOffset]);
+  }, [rawLogo, logoScale, logoOffset, shouldRemoveBg]);
 
   const handleStartDrag = (e: any) => {
     setIsDragging(true);
@@ -322,7 +340,7 @@ export default function UmpireProfilePage() {
                 <div className="space-y-6 animate-in fade-in zoom-in-95">
                   <div 
                     ref={containerRef}
-                    className="aspect-square w-full bg-[#009688]/10 rounded-3xl overflow-hidden flex items-center justify-center border-4 border-white shadow-2xl relative cursor-move touch-none"
+                    className="aspect-square w-full bg-slate-100 rounded-3xl overflow-hidden flex items-center justify-center border-4 border-white shadow-inner relative cursor-move touch-none"
                     onMouseDown={handleStartDrag}
                     onMouseMove={handleDrag}
                     onMouseUp={handleEndDrag}
@@ -330,6 +348,7 @@ export default function UmpireProfilePage() {
                     onTouchStart={handleStartDrag}
                     onTouchMove={handleDrag}
                     onTouchEnd={handleEndDrag}
+                    style={{ backgroundImage: 'linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%, #f0f0f0), linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%, #f0f0f0)', backgroundSize: '20px 20px', backgroundPosition: '0 0, 10px 10px' }}
                   >
                     <canvas ref={canvasRef} className="w-full h-full object-contain pointer-events-none z-10" />
                     {isDragging && (
@@ -340,6 +359,13 @@ export default function UmpireProfilePage() {
                   </div>
                   
                   <div className="space-y-4">
+                    <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border">
+                      <div className="flex items-center gap-2 text-[9px] font-black uppercase">
+                        <Eraser className="w-3.5 h-3.5 text-[#009688]" /> Remove White BG
+                      </div>
+                      <Switch checked={shouldRemoveBg} onCheckedChange={setShouldRemoveBg} />
+                    </div>
+
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
                       <span className="flex items-center gap-1"><Maximize className="w-3 h-3" /> Scale Zoom</span>
                       <span className="bg-slate-100 px-2 py-0.5 rounded font-mono">{logoScale[0].toFixed(2)}x</span>
@@ -362,7 +388,6 @@ export default function UmpireProfilePage() {
                         <RotateCcw className="w-2.5 h-2.5 mr-1" /> Reset Center
                       </Button>
                     </div>
-                    <p className="text-[8px] text-center font-bold text-slate-400 uppercase tracking-widest italic">Zoom to 1.00x or less to see top crown details.</p>
                   </div>
 
                   <div className="flex gap-2">
