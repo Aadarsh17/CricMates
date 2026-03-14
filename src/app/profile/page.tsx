@@ -330,7 +330,7 @@ export default function UmpireProfilePage() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
                       <span className="flex items-center gap-1"><Maximize className="w-3 h-3" /> Scale Zoom</span>
-                      <span className="bg-slate-100 px-2 py-0.5 rounded">{logoScale[0].toFixed(1)}x</span>
+                      <span className="bg-slate-100 px-2 py-0.5 rounded">{logoScale[0].toFixed(2)}x</span>
                     </div>
                     <Slider 
                       value={logoScale} 
