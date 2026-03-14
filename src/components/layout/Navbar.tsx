@@ -3,8 +3,9 @@
 
 import Link from 'next/link';
 import { useApp } from '@/context/AppContext';
-import { useUser, useAuth } from '@/firebase';
+import { useUser, useAuth, useDoc, useMemoFirebase, useFirestore } from '@/firebase';
 import { signOut } from 'firebase/auth';
+import { doc } from 'firebase/firestore';
 import { 
   Trophy, 
   Users, 
@@ -30,9 +31,13 @@ export default function Navbar() {
   const { isUmpire } = useApp();
   const { user } = useUser();
   const auth = useAuth();
+  const db = useFirestore();
   const router = useRouter();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+
+  const leagueRef = useMemoFirebase(() => doc(db, 'settings', 'league'), [db]);
+  const { data: leagueBranding } = useDoc(leagueRef);
 
   const navLinks = [
     { name: 'Home', href: '/', icon: LayoutDashboard },
@@ -58,11 +63,15 @@ export default function Navbar() {
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand */}
           <Link href="/" className="flex items-center space-x-3 group shrink-0">
-            <div className="p-1.5 bg-[#009688] rounded-xl shadow-md group-hover:scale-105 transition-transform">
-              <Trophy className="w-6 h-6 text-white" />
+            <div className="p-1.5 bg-[#009688] rounded-xl shadow-md group-hover:scale-105 transition-transform overflow-hidden w-10 h-10 flex items-center justify-center">
+              {leagueBranding?.logoUrl ? (
+                <img src={leagueBranding.logoUrl} className="w-full h-full object-cover" alt="League Logo" />
+              ) : (
+                <Trophy className="w-6 h-6 text-white" />
+              )}
             </div>
             <span className="font-headline font-black text-2xl tracking-tighter uppercase text-white">
-              CricMates
+              {leagueBranding?.name || 'CricMates'}
             </span>
           </Link>
 
