@@ -130,8 +130,8 @@ export default function UmpireProfilePage() {
         const w = img.width;
         const h = img.height;
         
-        // Safety multiplier: 0.85 ensures 15% margin at 1.00x zoom.
-        // This prevents crowns or vertical elements from being clipped easily.
+        // Use a "Contain" strategy with a 15% safety margin
+        // This ensures the full image (crown, details) is visible at 1.00x
         const ratio = Math.min(size / w, size / h) * 0.85;
         const nw = w * ratio * scale;
         const nh = h * ratio * scale;
@@ -322,7 +322,7 @@ export default function UmpireProfilePage() {
                 <div className="space-y-6 animate-in fade-in zoom-in-95">
                   <div 
                     ref={containerRef}
-                    className="aspect-square w-full bg-slate-50 rounded-3xl overflow-hidden flex items-center justify-center border-4 border-white shadow-2xl relative cursor-move touch-none"
+                    className="aspect-square w-full bg-[#009688]/10 rounded-3xl overflow-hidden flex items-center justify-center border-4 border-white shadow-2xl relative cursor-move touch-none"
                     onMouseDown={handleStartDrag}
                     onMouseMove={handleDrag}
                     onMouseUp={handleEndDrag}
@@ -331,7 +331,6 @@ export default function UmpireProfilePage() {
                     onTouchMove={handleDrag}
                     onTouchEnd={handleEndDrag}
                   >
-                    <div className="absolute inset-0 bg-[#009688] opacity-10" />
                     <canvas ref={canvasRef} className="w-full h-full object-contain pointer-events-none z-10" />
                     {isDragging && (
                       <div className="absolute inset-0 bg-black/5 flex items-center justify-center pointer-events-none z-20">
@@ -349,7 +348,7 @@ export default function UmpireProfilePage() {
                       value={logoScale} 
                       onValueChange={setLogoScale} 
                       min={0.5} 
-                      max={3} 
+                      max={2} 
                       step={0.01}
                       className="py-2"
                     />
@@ -363,7 +362,7 @@ export default function UmpireProfilePage() {
                         <RotateCcw className="w-2.5 h-2.5 mr-1" /> Reset Center
                       </Button>
                     </div>
-                    <p className="text-[8px] text-center font-bold text-slate-400 uppercase tracking-widest italic">Zoom out to 1.00x or less to see top/bottom details.</p>
+                    <p className="text-[8px] text-center font-bold text-slate-400 uppercase tracking-widest italic">Zoom to 1.00x or less to see top crown details.</p>
                   </div>
 
                   <div className="flex gap-2">
@@ -388,7 +387,7 @@ export default function UmpireProfilePage() {
                   </div>
                   <div className="w-full space-y-2">
                     <Label className="text-[8px] font-black uppercase text-slate-400">Official Brand Name</Label>
-                    <Input value={leagueBranding.name} onChange={(e) => setLeagueBranding({...leagueBranding, name: e.target.value})} className="h-10 font-bold text-xs uppercase" />
+                    <Input value={leagueBranding.name} onChange={(e) => setLeagueBranding({...leagueBranding, name: e.target.value})} className="h-10 font-bold text-xs" />
                   </div>
                   <Button onClick={handleSaveBranding} disabled={isBrandingSaving} size="sm" className="w-full h-12 bg-[#009688] font-black uppercase text-[10px] shadow-lg">
                     {isBrandingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Commit Branding"}
@@ -441,7 +440,7 @@ export default function UmpireProfilePage() {
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Confirm</Label><Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="font-bold h-12 shadow-inner" /></div>
               </div>
               <Button variant="secondary" onClick={handleChangePassword} disabled={isUpdatingPassword || !newPassword} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl">
-                {isUpdatingPassword ? <Loader2 className="w-6 h-6 animate-spin" /> : "Update Password"}
+                {isUpdatingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : "Update Password"}
               </Button>
             </CardContent>
           </Card>

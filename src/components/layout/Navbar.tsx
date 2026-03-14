@@ -70,7 +70,7 @@ export default function Navbar() {
                 <Trophy className="w-6 h-6 text-white" />
               )}
             </div>
-            <span className="font-headline font-black text-2xl tracking-tighter uppercase text-white">
+            <span className="font-headline font-black text-2xl tracking-tighter text-white">
               {leagueBranding?.name || 'CricMates'}
             </span>
           </Link>
