@@ -30,7 +30,8 @@ import {
   Image as ImageIcon,
   Maximize,
   Move,
-  RotateCcw
+  RotateCcw,
+  X
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
@@ -45,6 +46,7 @@ export default function UmpireProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const leagueLogoRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const [isMounted, setIsMounted] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -118,7 +120,7 @@ export default function UmpireProfilePage() {
       const img = new Image();
       img.src = rawLogo;
       img.onload = () => {
-        const size = 600; // Master bake size
+        const size = 600; // High-res master bake size
         canvas.width = size;
         canvas.height = size;
         
@@ -128,7 +130,8 @@ export default function UmpireProfilePage() {
         const w = img.width;
         const h = img.height;
         
-        const ratio = Math.min(size / w, size / h);
+        // Base ratio to FILL the square (No gaps on sides)
+        const ratio = Math.max(size / w, size / h);
         const nw = w * ratio * scale;
         const nh = h * ratio * scale;
         
@@ -153,12 +156,18 @@ export default function UmpireProfilePage() {
   };
 
   const handleDrag = (e: any) => {
-    if (!isDragging) return;
+    if (!isDragging || !containerRef.current) return;
+    
+    // Calculate sensitivity based on display size vs canvas size
+    const containerWidth = containerRef.current.offsetWidth;
+    const sensitivity = 600 / containerWidth;
+
     const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
     const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+    
     setLogoOffset({
-      x: clientX - dragStart.x,
-      y: clientY - dragStart.y
+      x: (clientX - dragStart.x) * sensitivity,
+      y: (clientY - dragStart.y) * sensitivity
     });
   };
 
@@ -311,6 +320,7 @@ export default function UmpireProfilePage() {
               {isCalibrating ? (
                 <div className="space-y-6 animate-in fade-in zoom-in-95">
                   <div 
+                    ref={containerRef}
                     className="aspect-square w-full bg-[#009688] rounded-3xl overflow-hidden flex items-center justify-center border-4 border-white shadow-2xl relative cursor-move touch-none"
                     onMouseDown={handleStartDrag}
                     onMouseMove={handleDrag}
@@ -345,13 +355,13 @@ export default function UmpireProfilePage() {
                       <Button 
                         variant="ghost" 
                         size="sm" 
-                        onClick={() => setLogoOffset({ x: 0, y: 0 })}
+                        onClick={() => { setLogoOffset({ x: 0, y: 0 }); setLogoScale([1]); }}
                         className="flex-1 text-[8px] font-black uppercase text-slate-400 h-8 border border-dashed"
                       >
                         <RotateCcw className="w-2.5 h-2.5 mr-1" /> Reset Center
                       </Button>
                     </div>
-                    <p className="text-[8px] text-center font-bold text-slate-400 uppercase tracking-widest italic">Tip: Drag the logo inside the box to center it</p>
+                    <p className="text-[8px] text-center font-bold text-slate-400 uppercase tracking-widest italic">Tip: Image will always fill the box. Zoom and Drag to center.</p>
                   </div>
 
                   <div className="flex gap-2">
