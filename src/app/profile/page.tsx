@@ -130,8 +130,9 @@ export default function UmpireProfilePage() {
         const w = img.width;
         const h = img.height;
         
-        // Base ratio to CONTAIN the image (ensure nothing is cut by default)
-        const ratio = Math.min(size / w, size / h);
+        // Base ratio to CONTAIN the image with a 5% safety margin (0.95)
+        // This ensures the top/bottom are never clipped at 1.00x scale
+        const ratio = Math.min(size / w, size / h) * 0.95;
         const nw = w * ratio * scale;
         const nh = h * ratio * scale;
         
@@ -192,7 +193,7 @@ export default function UmpireProfilePage() {
           setIsCalibrating(true);
           setLogoScale([1]);
           setLogoOffset({ x: 0, y: 0 });
-          toast({ title: "Calibration Mode", description: "Zoom out to 1.00x to see the whole logo." });
+          toast({ title: "Calibration Mode", description: "Position your logo within the frame." });
         }
       };
       reader.readAsDataURL(file);
