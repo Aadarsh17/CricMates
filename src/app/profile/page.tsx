@@ -130,9 +130,9 @@ export default function UmpireProfilePage() {
         const w = img.width;
         const h = img.height;
         
-        // Base ratio to CONTAIN the image with a 5% safety margin (0.95)
-        // This ensures the top/bottom are never clipped at 1.00x scale
-        const ratio = Math.min(size / w, size / h) * 0.95;
+        // Safety multiplier: 0.85 ensures 15% margin at 1.00x zoom.
+        // This prevents crowns or vertical elements from being clipped easily.
+        const ratio = Math.min(size / w, size / h) * 0.85;
         const nw = w * ratio * scale;
         const nh = h * ratio * scale;
         
@@ -348,7 +348,7 @@ export default function UmpireProfilePage() {
                     <Slider 
                       value={logoScale} 
                       onValueChange={setLogoScale} 
-                      min={0.1} 
+                      min={0.5} 
                       max={3} 
                       step={0.01}
                       className="py-2"
