@@ -61,16 +61,16 @@ export default function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-[100] bg-[#3f51b5] border-b border-white/10 shadow-lg">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          {/* Logo & Brand */}
-          <Link href="/" className="flex items-center space-x-3 group shrink-0">
-            <div className="p-0.5 bg-[#009688] rounded-xl shadow-md group-hover:scale-105 transition-transform overflow-hidden w-10 h-10 flex items-center justify-center border-2 border-white/10">
+          {/* Logo & Brand - Exact replica of provided image */}
+          <Link href="/" className="flex items-center space-x-2 group shrink-0">
+            <div className="bg-[#009688] rounded-[14px] shadow-lg overflow-hidden w-11 h-11 flex items-center justify-center border-2 border-white/5 p-1">
               {leagueBranding?.logoUrl ? (
                 <img src={leagueBranding.logoUrl} className="w-full h-full object-contain" alt="League Logo" />
               ) : (
                 <Trophy className="w-6 h-6 text-white" />
               )}
             </div>
-            <span className="font-headline font-black text-2xl tracking-tighter text-white">
+            <span className="font-headline font-black text-2xl md:text-3xl tracking-tighter text-white">
               {leagueBranding?.name || 'CricMates'}
             </span>
           </Link>

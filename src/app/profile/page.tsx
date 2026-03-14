@@ -113,7 +113,7 @@ export default function UmpireProfilePage() {
     }
   }, [leagueData]);
 
-  // High-Precision Canvas Drawing Logic with Background Removal
+  // High-Precision Canvas Drawing Logic with Advanced Background Removal
   const drawCanvas = () => {
     if (rawLogo && canvasRef.current) {
       const canvas = canvasRef.current;
@@ -123,7 +123,7 @@ export default function UmpireProfilePage() {
       const img = new Image();
       img.src = rawLogo;
       img.onload = () => {
-        const size = 600; // High-res master bake size
+        const size = 800; // Even higher res for crisp logos
         canvas.width = size;
         canvas.height = size;
         
@@ -133,28 +133,38 @@ export default function UmpireProfilePage() {
         const w = img.width;
         const h = img.height;
         
-        // Use a "Contain" strategy with a 15% safety margin
-        const ratio = Math.min(size / w, size / h) * 0.85;
-        const nw = w * ratio * scale;
-        const nh = h * ratio * scale;
+        // Base "Contain" multiplier with 15% safety margin
+        const initialRatio = Math.min(size / w, size / h) * 0.85;
+        const nw = w * initialRatio * scale;
+        const nh = h * initialRatio * scale;
         
-        // Final position = Center + Manual Offset
+        // Center position + dynamic offsets
         const posX = (size - nw) / 2 + logoOffset.x;
         const posY = (size - nh) / 2 + logoOffset.y;
         
         ctx.drawImage(img, posX, posY, nw, nh);
 
-        // Advanced Background Removal Logic (Color Keying White/Grey)
+        // ADVANCED COLOR-KEYING (Euclidean distance for better fringe removal)
         if (shouldRemoveBg) {
           const imageData = ctx.getImageData(0, 0, size, size);
           const data = imageData.data;
+          const targetColor = { r: 255, g: 255, b: 255 }; // Target white/light-grey
+          const tolerance = 45; // Wider tolerance to catch anti-aliased fringes
+
           for (let i = 0; i < data.length; i += 4) {
             const r = data[i];
             const g = data[i + 1];
             const b = data[i + 2];
-            // Targets white and light grey pixels (r, g, b > 240)
-            if (r > 240 && g > 240 && b > 240) {
-              data[i + 3] = 0; // Set alpha to fully transparent
+            
+            // Calculate distance from white
+            const distance = Math.sqrt(
+              Math.pow(r - targetColor.r, 2) +
+              Math.pow(g - targetColor.g, 2) +
+              Math.pow(b - targetColor.b, 2)
+            );
+
+            if (distance < tolerance) {
+              data[i + 3] = 0; // Make fully transparent
             }
           }
           ctx.putImageData(imageData, 0, 0);
@@ -180,9 +190,8 @@ export default function UmpireProfilePage() {
     const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
     const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
     
-    // Calculate display-to-canvas sensitivity ratio
     const containerWidth = containerRef.current.offsetWidth;
-    const sensitivity = 600 / containerWidth;
+    const sensitivity = 800 / containerWidth;
 
     setLogoOffset({
       x: (clientX - dragStart.x) * sensitivity,
@@ -211,7 +220,7 @@ export default function UmpireProfilePage() {
           setIsCalibrating(true);
           setLogoScale([1]);
           setLogoOffset({ x: 0, y: 0 });
-          toast({ title: "Calibration Mode", description: "Position your logo within the frame." });
+          toast({ title: "Calibration Mode", description: "Knock out background and align logo." });
         }
       };
       reader.readAsDataURL(file);
@@ -224,7 +233,7 @@ export default function UmpireProfilePage() {
       setLeagueBranding(prev => ({ ...prev, logoUrl: bakedDataUrl }));
       setIsCalibrating(false);
       setRawLogo(null);
-      toast({ title: "Calibration Applied", description: "Branding updated." });
+      toast({ title: "Calibration Applied", description: "Logo baked with transparency." });
     }
   };
 
@@ -340,7 +349,7 @@ export default function UmpireProfilePage() {
                 <div className="space-y-6 animate-in fade-in zoom-in-95">
                   <div 
                     ref={containerRef}
-                    className="aspect-square w-full bg-slate-100 rounded-3xl overflow-hidden flex items-center justify-center border-4 border-white shadow-inner relative cursor-move touch-none"
+                    className="aspect-square w-full bg-[#009688] rounded-[24px] overflow-hidden flex items-center justify-center border-4 border-white shadow-inner relative cursor-move touch-none"
                     onMouseDown={handleStartDrag}
                     onMouseMove={handleDrag}
                     onMouseUp={handleEndDrag}
@@ -348,8 +357,9 @@ export default function UmpireProfilePage() {
                     onTouchStart={handleStartDrag}
                     onTouchMove={handleDrag}
                     onTouchEnd={handleEndDrag}
-                    style={{ backgroundImage: 'linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%, #f0f0f0), linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%, #f0f0f0)', backgroundSize: '20px 20px', backgroundPosition: '0 0, 10px 10px' }}
                   >
+                    {/* Checkerboard hint for transparency */}
+                    <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'linear-gradient(45deg, #ffffff 25%, transparent 25%, transparent 75%, #ffffff 75%, #ffffff), linear-gradient(45deg, #ffffff 25%, transparent 25%, transparent 75%, #ffffff 75%, #ffffff)', backgroundSize: '20px 20px', backgroundPosition: '0 0, 10px 10px' }} />
                     <canvas ref={canvasRef} className="w-full h-full object-contain pointer-events-none z-10" />
                     {isDragging && (
                       <div className="absolute inset-0 bg-black/5 flex items-center justify-center pointer-events-none z-20">
@@ -361,13 +371,13 @@ export default function UmpireProfilePage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border">
                       <div className="flex items-center gap-2 text-[9px] font-black uppercase">
-                        <Eraser className="w-3.5 h-3.5 text-[#009688]" /> Remove White BG
+                        <Eraser className="w-3.5 h-3.5 text-[#009688]" /> Kill White Background
                       </div>
                       <Switch checked={shouldRemoveBg} onCheckedChange={setShouldRemoveBg} />
                     </div>
 
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
-                      <span className="flex items-center gap-1"><Maximize className="w-3 h-3" /> Scale Zoom</span>
+                      <span className="flex items-center gap-1"><Maximize className="w-3 h-3" /> Fine Zoom</span>
                       <span className="bg-slate-100 px-2 py-0.5 rounded font-mono">{logoScale[0].toFixed(2)}x</span>
                     </div>
                     <Slider 
@@ -385,20 +395,20 @@ export default function UmpireProfilePage() {
                         onClick={() => { setLogoOffset({ x: 0, y: 0 }); setLogoScale([1]); }}
                         className="flex-1 text-[8px] font-black uppercase text-slate-400 h-8 border border-dashed"
                       >
-                        <RotateCcw className="w-2.5 h-2.5 mr-1" /> Reset Center
+                        <RotateCcw className="w-2.5 h-2.5 mr-1" /> Reset Alignment
                       </Button>
                     </div>
                   </div>
 
                   <div className="flex gap-2">
                     <Button onClick={() => setIsCalibrating(false)} variant="outline" size="sm" className="flex-1 font-black uppercase text-[10px] h-10">Cancel</Button>
-                    <Button onClick={handleApplyCalibration} size="sm" className="flex-1 bg-primary font-black uppercase text-[10px] h-10 shadow-lg">Apply</Button>
+                    <Button onClick={handleApplyCalibration} size="sm" className="flex-1 bg-primary font-black uppercase text-[10px] h-10 shadow-lg text-white">Apply Pro Decal</Button>
                   </div>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-4">
                   <div className="relative group cursor-pointer" onClick={() => leagueLogoRef.current?.click()}>
-                    <div className="w-24 h-24 bg-[#009688] rounded-2xl flex items-center justify-center shadow-lg border-2 border-white overflow-hidden relative">
+                    <div className="w-24 h-24 bg-[#009688] rounded-[18px] flex items-center justify-center shadow-lg border-2 border-white/10 overflow-hidden relative">
                       {leagueBranding.logoUrl ? (
                         <img src={leagueBranding.logoUrl} className="w-full h-full object-contain" alt="Current Logo" />
                       ) : (
@@ -414,7 +424,7 @@ export default function UmpireProfilePage() {
                     <Label className="text-[8px] font-black uppercase text-slate-400">Official Brand Name</Label>
                     <Input value={leagueBranding.name} onChange={(e) => setLeagueBranding({...leagueBranding, name: e.target.value})} className="h-10 font-bold text-xs" />
                   </div>
-                  <Button onClick={handleSaveBranding} disabled={isBrandingSaving} size="sm" className="w-full h-12 bg-[#009688] font-black uppercase text-[10px] shadow-lg">
+                  <Button onClick={handleSaveBranding} disabled={isBrandingSaving} size="sm" className="w-full h-12 bg-[#009688] font-black uppercase text-[10px] shadow-lg text-white">
                     {isBrandingSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Commit Branding"}
                   </Button>
                 </div>
@@ -449,7 +459,7 @@ export default function UmpireProfilePage() {
                   </Select>
                 </div>
               </div>
-              <Button onClick={handleSave} disabled={isSaving} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl">
+              <Button onClick={handleSave} disabled={isSaving} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl text-white">
                 {isSaving ? <Loader2 className="w-6 h-6 animate-spin" /> : <><Save className="w-6 h-6 mr-2" /> Save Profile</>}
               </Button>
             </CardContent>
@@ -464,7 +474,7 @@ export default function UmpireProfilePage() {
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">New Password</Label><Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} className="font-bold h-12 shadow-inner" /></div>
                 <div className="space-y-2"><Label className="text-[10px] font-black uppercase text-slate-400">Confirm</Label><Input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className="font-bold h-12 shadow-inner" /></div>
               </div>
-              <Button variant="secondary" onClick={handleChangePassword} disabled={isUpdatingPassword || !newPassword} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl">
+              <Button variant="secondary" onClick={handleChangePassword} disabled={isUpdatingPassword || !newPassword} className="w-full h-14 font-black uppercase tracking-widest text-lg shadow-xl text-white">
                 {isUpdatingPassword ? <Loader2 className="w-4 h-4 animate-spin" /> : "Update Password"}
               </Button>
             </CardContent>
