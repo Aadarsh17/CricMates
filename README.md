@@ -13,11 +13,14 @@ To make the AI features work (Match Summaries & Performance Intel), you MUST add
 
 ## 🛡️ Security & GitHub Alerts
 
-If GitHub sends you a "Secret detected" alert for the **Firebase API Key** in `src/firebase/config.ts`:
+If GitHub or Google sends you a "Secret detected" alert for the **Firebase API Key** in `src/firebase/config.ts`:
 - **This is a False Positive.**
-- Firebase API keys are designed to be public.
-- Your data is secured via **Firestore Security Rules**.
-- You can safely **Dismiss** the alert on GitHub as a "False Positive".
+- Firebase API keys for web apps are **designed to be public**. They are bundled into the client-side code so the browser can communicate with Firebase.
+- Your data is NOT secured by hiding this key; it is secured via **Firestore Security Rules** (which are already implemented in this project).
+- You can safely **Dismiss** the alert on GitHub as a "False Positive" or "Intended to be public".
+
+### For extra security:
+Go to [Google Cloud Console](https://console.cloud.google.com/), navigate to **APIs & Services > Credentials**, edit your API key, and add **HTTP Referrer Restrictions** to allow only your deployment domain (e.g., `your-app.vercel.app`).
 
 ---
 
