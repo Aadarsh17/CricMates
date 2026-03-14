@@ -17,14 +17,38 @@ The system treats every delivery (ball) as the primary unit of data. All statist
 - **Validation:** Prevents active batters from being assigned as bowlers.
 - **Mid-Match Registration:** Allows adding players directly from the scoreboard.
 
-## Deployment & Future Updates (Vercel)
+---
 
-If you have deployed this project on **Vercel**, follow these steps to update features in the future:
+## 🚀 How to Upload to GitHub & Deploy
 
-1. **Ask for Changes:** Talk to this AI to generate new features or fixes.
-2. **Apply Code:** Once the AI provides the `<changes>` XML block, the code is updated in your workspace.
-3. **Push to Git:** Commit and Push these changes to your linked GitHub/GitLab repository.
-4. **Auto-Deploy:** Vercel will automatically detect the changes and trigger a new build. Your live site will be updated in minutes.
+Follow these steps to host your code on GitHub and get it live:
+
+1. **Create a GitHub Repository:**
+   - Go to [github.com](https://github.com) and create a new repository (e.g., `cricmates-pro`).
+   - **Do not** initialize with a README, license, or gitignore (you already have them).
+
+2. **Push Code to GitHub:**
+   Open your terminal in this project folder and run:
+   ```bash
+   git init
+   git add .
+   git commit -m "Initial commit: CricMates Pro League Complete"
+   git branch -M main
+   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+   git push -u origin main
+   ```
+
+3. **Deploy to Vercel (Recommended):**
+   - Go to [Vercel.com](https://vercel.com).
+   - Click **"Add New"** > **"Project"**.
+   - Import your GitHub repository.
+   - Vercel will auto-detect Next.js. Click **Deploy**.
+   - Once deployed, your site will be live!
+
+4. **Firebase Configuration:**
+   - Ensure your Firebase project has **Authentication** (Email/Password) and **Cloud Firestore** enabled in the [Firebase Console](https://console.firebase.google.com).
+
+---
 
 ## Tech Stack
 - **Framework:** Next.js 15 (App Router)
