@@ -33,7 +33,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { toPng } from 'html-to-image';
-import Link from 'link';
+import Link from 'next/link';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ComposedChart, Line, Scatter, Cell, LabelList } from 'recharts';
 import { calculatePlayerCVP } from '@/lib/cvp-utils';
 
@@ -274,6 +274,13 @@ export default function MatchScoreboardPage() {
     toast({ title: "Calibration Applied" });
   };
 
+  const handleUpdateMatchInfo = async () => {
+    if (!matchId) return;
+    await updateDocumentNonBlocking(doc(db, 'matches', matchId), matchEditForm);
+    setIsEditMatchOpen(false);
+    toast({ title: "Match Info Updated" });
+  };
+
   const handleDeleteBall = async (ballId: string, inningPath: string) => {
     if (!confirm("Permanently delete this delivery?")) return;
     const innId = inningPath?.split('/')[3] || `inning_${match?.currentInningNumber}`;
@@ -281,13 +288,6 @@ export default function MatchScoreboardPage() {
     await deleteDocumentNonBlocking(ballRef);
     await recalculateInningState(innId);
     toast({ title: "Ball Deleted" });
-  };
-
-  const handleUpdateMatchInfo = async () => {
-    if (!matchId) return;
-    await updateDocumentNonBlocking(doc(db, 'matches', matchId), matchEditForm);
-    setIsEditMatchOpen(false);
-    toast({ title: "Match Info Updated" });
   };
 
   const downloadScorecard = () => {
@@ -563,7 +563,7 @@ export default function MatchScoreboardPage() {
             </Card>
             <Card className="p-6 border-none shadow-xl rounded-3xl bg-white space-y-6">
               <h3 className="text-xs font-black uppercase text-slate-400 flex items-center gap-2"><LineChart className="w-4 h-4" /> Match Momentum (Worm)</h3>
-              <div className="h-[300px] w-full"><ResponsiveContainer width="100%" height="100%"><ComposedChart><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis type="number" dataKey="over" domain={[0, match?.totalOvers || 0]} fontSize={10} hide /><YAxis fontSize={10} label={{ value: 'Runs', angle: -90, position: 'insideLeft', fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} /><Line type="monotone" data={analysisData.worm1} dataKey="inn1" stroke="hsl(var(--primary))" strokeWidth={4} dot={false} connectNulls /><Line type="monotone" data={analysisData.worm2} dataKey="inn2" stroke="hsl(var(--secondary))" strokeWidth={4} dot={false} connectNulls /><Scatter data={analysisData.worm1.filter(p => p.isWicket)} dataKey="runs" fill="#ef4444"><LabelList dataKey="runs" content={({ x, y }) => (<g transform={`translate(${x},${y})`}><circle r="8" fill="#ef4444" /><text x="0" y="3" textAnchor="middle" fill="white" fontSize="8" fontWeight="900">W</text></g>)} /></Scatter><Scatter data={analysisData.worm2.filter(p => p.isWicket)} dataKey="runs" fill="#ef4444"><LabelList dataKey="runs" content={({ x, y }) => (<g transform={`translate(${x},${y})`}><circle r="8" fill="#ef4444" /><text x="0" y="3" textAnchor="middle" fill="white" fontSize="8" fontWeight="900">W</text></g>)} /></Scatter></ComposedChart></ResponsiveContainer></div>
+              <div className="h-[300px] w-full"><ResponsiveContainer width="100%" height="100%"><ComposedChart><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis type="number" dataKey="over" domain={[0, match?.totalOvers || 0]} fontSize={10} hide /><YAxis fontSize={10} label={{ value: 'Runs', angle: -90, position: 'insideLeft', fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: '12px', border: 'none' }} /><Line type="monotone" data={analysisData.worm1} dataKey="inn1" stroke="hsl(var(--primary))" strokeWidth={4} dot={false} connectNulls /><Line type="monotone" data={analysisData.worm2} dataKey="inn2" stroke="hsl(var(--secondary))" strokeWidth={4} dot={false} connectNulls /><Scatter data={analysisData.worm1.filter(p => p.isWicket)} dataKey="runs" fill="#ef4444" line={false}><LabelList dataKey="runs" content={({ x, y }) => (<g transform={`translate(${x},${y})`}><circle r="8" fill="#ef4444" /><text x="0" y="3" textAnchor="middle" fill="white" fontSize="8" fontWeight="900">W</text></g>)} /></Scatter><Scatter data={analysisData.worm2.filter(p => p.isWicket)} dataKey="runs" fill="#ef4444" line={false}><LabelList dataKey="runs" content={({ x, y }) => (<g transform={`translate(${x},${y})`}><circle r="8" fill="#ef4444" /><text x="0" y="3" textAnchor="middle" fill="white" fontSize="8" fontWeight="900">W</text></g>)} /></Scatter></ComposedChart></ResponsiveContainer></div>
             </Card>
           </TabsContent>
 
@@ -614,36 +614,36 @@ export default function MatchScoreboardPage() {
       {/* HIDDEN EXPORT TEMPLATE: DETAILED SCORECARD (Compact) */}
       <div className="fixed -left-[5000px] top-0">
         <div ref={printRef} className="w-[800px] bg-white p-6 flex flex-col font-body text-slate-900">
-          <div className="text-center mb-4 border-b-2 border-slate-900 pb-2">
-            <h1 className="text-2xl font-black uppercase tracking-tighter text-blue-800">Official Match Record</h1>
-            <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+          <div className="text-center mb-2 border-b-2 border-slate-900 pb-2">
+            <h1 className="text-xl font-black uppercase tracking-tighter text-blue-800 leading-none">Official Match Record</h1>
+            <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mt-1">
               {match?.matchNumber} | {match?.matchDate ? new Date(match.matchDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : ''} | {match?.venue?.toUpperCase() || 'STADIUM'} | {match?.totalOvers} OV
             </p>
           </div>
-          <div className="bg-amber-500 text-white p-1.5 text-center text-[9px] font-black uppercase tracking-widest mb-4">Award : POTM - {match?.potmPlayerId ? getPlayerName(match.potmPlayerId) : 'Decision Pending'}</div>
-          <div className="grid grid-cols-3 items-center gap-2 mb-4">
-            <div className="text-center"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">{getTeamName(match?.team1Id || '')}</p><p className="text-3xl font-black">{stats1.total}/{stats1.wickets}</p><p className="text-[8px] font-bold text-slate-400">{stats1.overs} OV</p></div>
+          <div className="bg-amber-500 text-white p-1 text-center text-[8px] font-black uppercase tracking-widest mb-3">Award : POTM - {match?.potmPlayerId ? getPlayerName(match.potmPlayerId) : 'Decision Pending'}</div>
+          <div className="grid grid-cols-3 items-center gap-2 mb-3">
+            <div className="text-center"><p className="text-[7px] font-black text-slate-400 uppercase">{getTeamName(match?.team1Id || '')}</p><p className="text-2xl font-black">{stats1.total}/{stats1.wickets}</p><p className="text-[7px] font-bold text-slate-400">{stats1.overs} OV</p></div>
             <div className="text-center text-slate-300 font-black text-xs italic">VS</div>
-            <div className="text-center"><p className="text-[8px] font-black text-slate-400 uppercase mb-1">{getTeamName(match?.team2Id || '')}</p><p className="text-3xl font-black">{stats2.total}/{stats2.wickets}</p><p className="text-[8px] font-bold text-slate-400">{stats2.overs} OV</p></div>
+            <div className="text-center"><p className="text-[7px] font-black text-slate-400 uppercase">{getTeamName(match?.team2Id || '')}</p><p className="text-2xl font-black">{stats2.total}/{stats2.wickets}</p><p className="text-[7px] font-bold text-slate-400">{stats2.overs} OV</p></div>
           </div>
-          <div className="text-center mb-4"><p className="text-sm font-black uppercase text-blue-800 border-y py-1">{match?.resultDescription || 'MATCH IN PROGRESS'}</p></div>
+          <div className="text-center mb-3"><p className="text-xs font-black uppercase text-blue-800 border-y py-1">{match?.resultDescription || 'MATCH IN PROGRESS'}</p></div>
           {[ {label: '1ST INN', tid: match?.team1Id, stats: stats1}, {label: '2ND INN', tid: match?.team2Id, stats: stats2} ].map((inn, i) => (
-            <div key={i} className="mb-6">
-              <div className="bg-blue-800 text-white px-3 py-1.5 flex justify-between items-center mb-2"><span className="font-black text-xs">{inn.label}: {getTeamName(inn.tid || '')}</span><span className="font-black text-xs">{inn.stats.total}/{inn.stats.wickets} ({inn.stats.overs})</span></div>
-              <Table className="mb-2"><TableHeader className="bg-slate-50"><TableRow className="h-6"><TableHead className="text-[8px] font-black uppercase py-0">Batter</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">R</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">B</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">4s</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">6s</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">SR</TableHead></TableRow></TableHeader>
-                <TableBody>{inn.stats.batting.map((b: any) => (<TableRow key={b.id} className="h-6 border-b"><TableCell className="py-0.5"><p className="font-black text-[9px] uppercase leading-none">{getPlayerName(b.id)}</p><p className="text-[7px] font-bold text-slate-400 uppercase italic">{(b.dismissal || 'not out').replace('Fielder', getPlayerName(b.fielderId))}</p></TableCell><TableCell className="text-right font-black text-[9px] py-0.5">{b.runs}</TableCell><TableCell className="text-right font-bold text-slate-500 text-[9px] py-0.5">{b.balls}</TableCell><TableCell className="text-right text-[9px] py-0.5">{b.fours}</TableCell><TableCell className="text-right text-[9px] py-0.5">{b.sixes}</TableCell><TableCell className="text-right text-[9px] text-slate-400 py-0.5">{b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0.0'}</TableCell></TableRow>))}</TableBody>
+            <div key={i} className="mb-4">
+              <div className="bg-blue-800 text-white px-2 py-1 flex justify-between items-center mb-1.5"><span className="font-black text-[10px]">{inn.label}: {getTeamName(inn.tid || '')}</span><span className="font-black text-[10px]">{inn.stats.total}/{inn.stats.wickets} ({inn.stats.overs})</span></div>
+              <Table className="mb-1.5"><TableHeader className="bg-slate-50"><TableRow className="h-5"><TableHead className="text-[8px] font-black uppercase py-0">Batter</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">R</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">B</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">4s</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">6s</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">SR</TableHead></TableRow></TableHeader>
+                <TableBody>{inn.stats.batting.map((b: any) => (<TableRow key={b.id} className="h-5 border-b"><TableCell className="py-0.5"><p className="font-black text-[9px] uppercase leading-none">{getPlayerName(b.id)}</p><p className="text-[7px] font-bold text-slate-400 uppercase italic">{(b.dismissal || 'not out').replace('Fielder', getPlayerName(b.fielderId))}</p></TableCell><TableCell className="text-right font-black text-[9px] py-0.5">{b.runs}</TableCell><TableCell className="text-right font-bold text-slate-500 text-[9px] py-0.5">{b.balls}</TableCell><TableCell className="text-right text-[9px] py-0.5">{b.fours}</TableCell><TableCell className="text-right text-[9px] py-0.5">{b.sixes}</TableCell><TableCell className="text-right text-[9px] text-slate-400 py-0.5">{b.balls > 0 ? ((b.runs/b.balls)*100).toFixed(1) : '0.0'}</TableCell></TableRow>))}</TableBody>
               </Table>
-              <div className="flex justify-between items-center mb-2 px-1 border-b pb-1 text-[8px] font-black uppercase text-slate-500"><span>Extras : {inn.stats.extras.total} (w {inn.stats.extras.w}, nb {inn.stats.extras.nb})</span><span>DNB: {inn.stats.didNotBat.map((id: string) => getPlayerName(id).split(' ')[0]).join(', ')}</span></div>
-              <div className="grid grid-cols-2 gap-4 mb-2">
-                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 border-b pb-0.5">Fall of Wickets</p><div className="space-y-0.5">{inn.stats.fow.map((f: any, idx: number) => (<p key={idx} className="text-[7px] font-bold text-slate-600 uppercase">{idx+1}-{f.scoreAtWicket} ({getPlayerName(f.playerOutId).split(' ')[0]} {f.runsOut}, {f.over} ov)</p>))}</div></div>
-                <div><p className="text-[8px] font-black uppercase text-slate-400 mb-1 border-b pb-0.5">Key Partnerships</p><div className="space-y-1">{inn.stats.partnerships.slice(0, 3).map((p: any, idx: number) => (<div key={idx}><p className="text-[7px] font-black uppercase text-slate-800 leading-none">{p.batters.map((id: string) => getPlayerName(id).split(' ')[0]).join(' - ')}: {p.runs} ({p.balls}b)</p></div>))}</div></div>
+              <div className="flex justify-between items-center mb-1.5 px-1 border-b pb-1 text-[7px] font-black uppercase text-slate-500"><span>Extras : {inn.stats.extras.total} (w {inn.stats.extras.w}, nb {inn.stats.extras.nb})</span><span>DNB: {inn.stats.didNotBat.map((id: string) => getPlayerName(id).split(' ')[0]).join(', ')}</span></div>
+              <div className="grid grid-cols-2 gap-4 mb-1.5">
+                <div><p className="text-[7px] font-black uppercase text-slate-400 mb-1 border-b pb-0.5">Fall of Wickets</p><div className="space-y-0.5">{inn.stats.fow.map((f: any, idx: number) => (<p key={idx} className="text-[7px] font-bold text-slate-600 uppercase">{idx+1}-{f.scoreAtWicket} ({getPlayerName(f.playerOutId).split(' ')[0]} {f.runsOut}, {f.over} ov)</p>))}</div></div>
+                <div><p className="text-[7px] font-black uppercase text-slate-400 mb-1 border-b pb-0.5">Key Partnerships</p><div className="space-y-1">{inn.stats.partnerships.slice(0, 3).map((p: any, idx: number) => (<div key={idx}><p className="text-[7px] font-black uppercase text-slate-800 leading-none">{p.batters.map((id: string) => getPlayerName(id).split(' ')[0]).join(' - ')}: {p.runs} ({p.balls}b)</p></div>))}</div></div>
               </div>
-              <Table><TableHeader><TableRow className="h-5 border-b"><TableHead className="text-[8px] font-black uppercase py-0">Bowler</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">O</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">R</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">W</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">ECO</TableHead></TableRow></TableHeader>
-                <TableBody>{inn.stats.bowling.map((b: any) => (<TableRow key={b.id} className="h-6 border-b"><TableCell className="font-black text-[8px] uppercase py-0.5">{getPlayerName(b.id)}</TableCell><TableCell className="text-right font-bold text-[8px] py-0.5">{b.oversDisplay}</TableCell><TableCell className="text-right font-black text-[8px] py-0.5">{b.runs}</TableCell><TableCell className="text-right font-black text-[8px] py-0.5">{b.wickets}</TableCell><TableCell className="text-right text-[8px] text-slate-400 py-0.5">{b.economy}</TableCell></TableRow>))}</TableBody>
+              <Table><TableHeader><TableRow className="h-4 border-b"><TableHead className="text-[8px] font-black uppercase py-0">Bowler</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">O</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">R</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">W</TableHead><TableHead className="text-right text-[8px] font-black uppercase py-0">ECO</TableHead></TableRow></TableHeader>
+                <TableBody>{inn.stats.bowling.map((b: any) => (<TableRow key={b.id} className="h-5 border-b"><TableCell className="font-black text-[8px] uppercase py-0.5">{getPlayerName(b.id)}</TableCell><TableCell className="text-right font-bold text-[8px] py-0.5">{b.oversDisplay}</TableCell><TableCell className="text-right font-black text-[8px] py-0.5">{b.runs}</TableCell><TableCell className="text-right font-black text-[8px] py-0.5">{b.wickets}</TableCell><TableCell className="text-right text-[8px] text-slate-400 py-0.5">{b.economy}</TableCell></TableRow>))}</TableBody>
               </Table>
             </div>
           ))}
-          <div className="mt-auto pt-4 border-t border-slate-200 text-center"><p className="text-[7px] font-black text-slate-300 uppercase tracking-[0.4em]">Powered by CricMates League Engine</p></div>
+          <div className="mt-auto pt-2 border-t border-slate-200 text-center"><p className="text-[7px] font-black text-slate-300 uppercase tracking-[0.4em]">Powered by CricMates League Engine</p></div>
         </div>
       </div>
 
