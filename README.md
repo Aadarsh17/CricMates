@@ -1,79 +1,48 @@
-# CricMates Pro League - Advanced Architecture
+
+# CricMates Pro League - Security & Deployment
 
 This project is a high-fidelity cricket scoring and analytics engine built with Next.js 15 and Firebase.
 
-## 🔑 Environment Variables (Deployment)
+## 🛡️ Security Architecture (How keys are secured)
 
-To make the AI features work (Match Summaries & Performance Intel), you MUST add these variables in your deployment platform (Vercel/Firebase App Hosting):
+### 1. Firebase API Keys (Public)
+The keys in `src/firebase/config.ts` are **intended to be public**. They only identify your project. Real security is handled via **Firestore Security Rules** (located in `firestore.rules`), which ensure only authenticated Umpires can modify data.
 
-1. **`GEMINI_API_KEY`**: Get this from [Google AI Studio](https://aistudio.google.com/).
-2. **`GOOGLE_GENAI_API_KEY`**: Same key as above.
+**Recommendation:** Go to [Google Cloud Console](https://console.cloud.google.com/), edit your API Key, and add **Website Restrictions** to allow only your production domain (e.g., `*.vercel.app`).
 
----
-
-## 🛡️ Security & GitHub Alerts
-
-If GitHub or Google sends you a "Secret detected" alert for the **Firebase API Key** in `src/firebase/config.ts`:
-- **This is a False Positive.**
-- Firebase API keys for web apps are **designed to be public**. They are bundled into the client-side code so the browser can communicate with Firebase.
-- Your data is NOT secured by hiding this key; it is secured via **Firestore Security Rules** (which are already implemented in this project).
-- You can safely **Dismiss** the alert on GitHub as a "False Positive" or "Intended to be public".
-
-### For extra security:
-Go to [Google Cloud Console](https://console.cloud.google.com/), navigate to **APIs & Services > Credentials**, edit your API key, and add **HTTP Referrer Restrictions** to allow only your deployment domain (e.g., `your-app.vercel.app`).
+### 2. Genkit AI Keys (Secret)
+Keys like `GEMINI_API_KEY` are **Secrets**. They must NEVER be pushed to GitHub.
+- They are stored in `.env` (which is ignored by git).
+- You must manually add them to your deployment platform (Vercel/Firebase App Hosting) Environment Variables section.
 
 ---
 
-## 🚀 How to Upload to GitHub & Deploy
+## 🔑 Required Environment Variables
 
-Follow these steps to host your code on GitHub and get it live:
+Add these to Vercel/App Hosting:
+1. **`GEMINI_API_KEY`**: Your Google AI Studio API Key.
+2. **`GOOGLE_GENAI_API_KEY`**: Same as above.
 
-### 1. Create a GitHub Repository
-- Go to [github.com](https://github.com) and log in.
-- Click the **"+"** icon in the top-right corner and select **"New repository"**.
-- Name it (e.g., `cricmates-pro`).
-- Set it to **Public** or **Private**.
-- **Important:** Do not check "Initialize this repository with a README, .gitignore, or license" (since you already have them).
-- Click **"Create repository"**.
+---
 
-### 2. Push Code to GitHub
-Open your terminal (Command Prompt, PowerShell, or Terminal) in this project's root folder and run these commands one by one:
+## 🚀 Deployment Guide
 
+### 1. Push to GitHub
 ```bash
-# Initialize git
 git init
-
-# Add all files to the staging area
 git add .
-
-# Commit the files
-git commit -m "Initial commit: Professional Cricket Engine"
-
-# Rename branch to main
+git commit -m "Initial commit: Professional Engine"
 git branch -M main
-
-# Link to your GitHub repository
-# REPLACE <YOUR_GITHUB_URL> with the URL from your new repo
 git remote add origin <YOUR_GITHUB_URL>
-
-# Push the code to GitHub
 git push -u origin main
 ```
 
-### 3. Deploy to Vercel (Fastest)
-- Go to [Vercel.com](https://vercel.com).
-- Sign in with GitHub.
-- Click **"Add New"** > **"Project"**.
-- Import your `cricmates-pro` repository.
-- **Environment Variables**: In the "Environment Variables" section during setup, add:
-  - Key: `GEMINI_API_KEY` | Value: `[Your Key]`
-- Click **Deploy**.
+### 2. Link to Vercel
+- Import repo.
+- Add `GEMINI_API_KEY`.
+- Deploy.
 
----
-
-## Tech Stack
-- **Framework:** Next.js 15 (App Router)
-- **Database:** Firebase Firestore (Real-time)
-- **Authentication:** Firebase Auth (Umpire Security)
-- **Styling:** Tailwind CSS + Shadcn UI
-- **AI:** Genkit (Performance Summaries)
+### 3. Firebase Setup
+- Enable **Firestore** in Production Mode.
+- Enable **Authentication** (Email/Password).
+- Deploy rules: `firebase deploy --only firestore:rules`.

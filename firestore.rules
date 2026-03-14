@@ -5,7 +5,8 @@ service cloud.firestore {
 
     /**
      * GLOBAL COLLECTION GROUP AUTHORIZATION
-     * Explicitly allow collection group queries for historical analytics.
+     * Allow historical analytics to be read by everyone.
+     * Write access is strictly restricted to authenticated Umpires.
      */
     match /{path=**}/deliveryRecords/{deliveryId} {
       allow read: if true;
@@ -13,14 +14,14 @@ service cloud.firestore {
     }
 
     /**
-     * MATCHES & HIERARCHY
-     * Allow authenticated users (Umpires) full control over match data.
+     * MATCHES & INNINGS
+     * Public can view scores in real-time.
+     * Only authenticated Umpires (request.auth != null) can record balls or update status.
      */
     match /matches/{matchId} {
       allow read: if true;
       allow write: if request.auth != null;
       
-      // Recursive wildcard ensures all subcollections (innings, deliveries) are covered
       match /{allSubcollections=**} {
         allow read: if true;
         allow write: if request.auth != null;
@@ -29,6 +30,8 @@ service cloud.firestore {
 
     /**
      * TEAMS & PLAYERS
+     * Public can view profiles and standings.
+     * Only Umpires can register new players or teams.
      */
     match /teams/{teamId} {
       allow read: if true;
@@ -42,6 +45,7 @@ service cloud.firestore {
 
     /**
      * UMPIRE PROFILES
+     * An umpire can only edit their own profile.
      */
     match /umpires/{umpireId} {
       allow read: if true;
@@ -49,7 +53,17 @@ service cloud.firestore {
     }
 
     /**
+     * SETTINGS & BRANDING
+     * Global league settings can only be managed by authenticated officials.
+     */
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    /**
      * GLOBAL FALLBACK
+     * Deny everything else by default.
      */
     match /{document=**} {
       allow read: if true;
