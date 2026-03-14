@@ -23,30 +23,46 @@ The system treats every delivery (ball) as the primary unit of data. All statist
 
 Follow these steps to host your code on GitHub and get it live:
 
-1. **Create a GitHub Repository:**
-   - Go to [github.com](https://github.com) and create a new repository (e.g., `cricmates-pro`).
-   - **Do not** initialize with a README, license, or gitignore (you already have them).
+### 1. Create a GitHub Repository
+- Go to [github.com](https://github.com) and log in.
+- Click the **"+"** icon in the top-right corner and select **"New repository"**.
+- Name it (e.g., `cricmates-pro`).
+- Set it to **Public** or **Private**.
+- **Important:** Do not check "Initialize this repository with a README, .gitignore, or license" (since you already have them).
+- Click **"Create repository"**.
 
-2. **Push Code to GitHub:**
-   Open your terminal in this project folder and run:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit: CricMates Pro League Complete"
-   git branch -M main
-   git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-   git push -u origin main
-   ```
+### 2. Push Code to GitHub
+Open your terminal (Command Prompt, PowerShell, or Terminal) in this project's root folder and run these commands one by one:
 
-3. **Deploy to Vercel (Recommended):**
-   - Go to [Vercel.com](https://vercel.com).
-   - Click **"Add New"** > **"Project"**.
-   - Import your GitHub repository.
-   - Vercel will auto-detect Next.js. Click **Deploy**.
-   - Once deployed, your site will be live!
+```bash
+# Initialize git
+git init
 
-4. **Firebase Configuration:**
-   - Ensure your Firebase project has **Authentication** (Email/Password) and **Cloud Firestore** enabled in the [Firebase Console](https://console.firebase.google.com).
+# Add all files to the staging area
+git add .
+
+# Commit the files
+git commit -m "Initial commit: Professional Cricket Engine"
+
+# Rename branch to main
+git branch -M main
+
+# Link to your GitHub repository
+# REPLACE <YOUR_GITHUB_URL> with the URL from your new repo (e.g. https://github.com/username/cricmates-pro.git)
+git remote add origin <YOUR_GITHUB_URL>
+
+# Push the code to GitHub
+git push -u origin main
+```
+
+### 3. Deploy to Vercel (Fastest)
+- Go to [Vercel.com](https://vercel.com).
+- Sign in with GitHub.
+- Click **"Add New"** > **"Project"**.
+- Import your `cricmates-pro` repository.
+- Vercel will auto-detect Next.js settings. 
+- **Add Environment Variables**: If you have `GEMINI_API_KEY` or other keys, add them in the project settings on Vercel.
+- Click **Deploy**.
 
 ---
 
