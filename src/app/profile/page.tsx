@@ -130,8 +130,8 @@ export default function UmpireProfilePage() {
         const w = img.width;
         const h = img.height;
         
-        // Base ratio to FILL the square (No gaps on sides)
-        const ratio = Math.max(size / w, size / h);
+        // Base ratio to CONTAIN the image (ensure nothing is cut by default)
+        const ratio = Math.min(size / w, size / h);
         const nw = w * ratio * scale;
         const nh = h * ratio * scale;
         
@@ -158,13 +158,13 @@ export default function UmpireProfilePage() {
   const handleDrag = (e: any) => {
     if (!isDragging || !containerRef.current) return;
     
-    // Calculate sensitivity based on display size vs canvas size
-    const containerWidth = containerRef.current.offsetWidth;
-    const sensitivity = 600 / containerWidth;
-
     const clientX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
     const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
     
+    // Calculate display-to-canvas sensitivity ratio
+    const containerWidth = containerRef.current.offsetWidth;
+    const sensitivity = 600 / containerWidth;
+
     setLogoOffset({
       x: (clientX - dragStart.x) * sensitivity,
       y: (clientY - dragStart.y) * sensitivity
@@ -192,7 +192,7 @@ export default function UmpireProfilePage() {
           setIsCalibrating(true);
           setLogoScale([1]);
           setLogoOffset({ x: 0, y: 0 });
-          toast({ title: "Calibration Mode", description: "Scale and Drag to center the logo." });
+          toast({ title: "Calibration Mode", description: "Zoom out to 1.00x to see the whole logo." });
         }
       };
       reader.readAsDataURL(file);
@@ -205,7 +205,7 @@ export default function UmpireProfilePage() {
       setLeagueBranding(prev => ({ ...prev, logoUrl: bakedDataUrl }));
       setIsCalibrating(false);
       setRawLogo(null);
-      toast({ title: "Calibration Applied", description: "Logo updated globally." });
+      toast({ title: "Calibration Applied", description: "Branding updated." });
     }
   };
 
@@ -321,7 +321,7 @@ export default function UmpireProfilePage() {
                 <div className="space-y-6 animate-in fade-in zoom-in-95">
                   <div 
                     ref={containerRef}
-                    className="aspect-square w-full bg-[#009688] rounded-3xl overflow-hidden flex items-center justify-center border-4 border-white shadow-2xl relative cursor-move touch-none"
+                    className="aspect-square w-full bg-slate-50 rounded-3xl overflow-hidden flex items-center justify-center border-4 border-white shadow-2xl relative cursor-move touch-none"
                     onMouseDown={handleStartDrag}
                     onMouseMove={handleDrag}
                     onMouseUp={handleEndDrag}
@@ -330,10 +330,11 @@ export default function UmpireProfilePage() {
                     onTouchMove={handleDrag}
                     onTouchEnd={handleEndDrag}
                   >
-                    <canvas ref={canvasRef} className="w-full h-full object-contain pointer-events-none" />
+                    <div className="absolute inset-0 bg-[#009688] opacity-10" />
+                    <canvas ref={canvasRef} className="w-full h-full object-contain pointer-events-none z-10" />
                     {isDragging && (
-                      <div className="absolute inset-0 bg-black/10 flex items-center justify-center pointer-events-none">
-                        <Move className="w-8 h-8 text-white animate-pulse" />
+                      <div className="absolute inset-0 bg-black/5 flex items-center justify-center pointer-events-none z-20">
+                        <Move className="w-8 h-8 text-white/50 animate-pulse" />
                       </div>
                     )}
                   </div>
@@ -346,8 +347,8 @@ export default function UmpireProfilePage() {
                     <Slider 
                       value={logoScale} 
                       onValueChange={setLogoScale} 
-                      min={0.5} 
-                      max={5} 
+                      min={0.1} 
+                      max={3} 
                       step={0.01}
                       className="py-2"
                     />
@@ -361,7 +362,7 @@ export default function UmpireProfilePage() {
                         <RotateCcw className="w-2.5 h-2.5 mr-1" /> Reset Center
                       </Button>
                     </div>
-                    <p className="text-[8px] text-center font-bold text-slate-400 uppercase tracking-widest italic">Tip: Image will always fill the box. Zoom and Drag to center.</p>
+                    <p className="text-[8px] text-center font-bold text-slate-400 uppercase tracking-widest italic">Zoom out to 1.00x or less to see top/bottom details.</p>
                   </div>
 
                   <div className="flex gap-2">
@@ -374,7 +375,7 @@ export default function UmpireProfilePage() {
                   <div className="relative group cursor-pointer" onClick={() => leagueLogoRef.current?.click()}>
                     <div className="w-24 h-24 bg-[#009688] rounded-2xl flex items-center justify-center shadow-lg border-2 border-white overflow-hidden relative">
                       {leagueBranding.logoUrl ? (
-                        <img src={leagueBranding.logoUrl} className="w-full h-full object-contain" />
+                        <img src={leagueBranding.logoUrl} className="w-full h-full object-contain" alt="Current Logo" />
                       ) : (
                         <Trophy className="w-8 h-8 text-white" />
                       )}
