@@ -31,6 +31,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { toPng } from 'html-to-image';
 import Link from 'next/link';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart as ReLineChart, Line, Scatter, Cell, LabelList } from 'recharts';
+import { calculatePlayerCVP } from '@/lib/cvp-utils';
 
 export default function MatchScoreboardPage() {
   const params = useParams();
@@ -115,8 +116,29 @@ export default function MatchScoreboardPage() {
   const opponentSquad = useMemo(() => {
     if (!match || !activeInningData) return [];
     const batTeamId = activeInningData.battingTeamId;
-    return batTeamId === match.team1Id ? match.team2SquadPlayerIds : match.team1SquadPlayerIds;
+    return batTeamId === match.team1Id ? match.team2Id === match.team1Id ? [] : match.team2SquadPlayerIds : match.team1SquadPlayerIds;
   }, [match, activeInningData]);
+
+  // Combined stats map for CVP lookup
+  const matchPerformanceMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    [...stats1.batting, ...stats2.batting].forEach(b => {
+      if (!map[b.id]) map[b.id] = { id: b.id, name: getPlayerName(b.id), runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+      map[b.id].runs = b.runs;
+      map[b.id].ballsFaced = b.balls;
+      map[b.id].fours = b.fours;
+      map[b.id].sixes = b.sixes;
+    });
+    [...stats1.bowling, ...stats2.bowling].forEach(b => {
+      if (!map[b.id]) map[b.id] = { id: b.id, name: getPlayerName(b.id), runs: 0, ballsFaced: 0, fours: 0, sixes: 0, wickets: 0, maidens: 0, ballsBowled: 0, runsConceded: 0, catches: 0, stumpings: 0, runOuts: 0 };
+      map[b.id].wickets = b.wickets;
+      map[b.id].ballsBowled = b.balls;
+      map[b.id].runsConceded = b.runs;
+      map[b.id].maidens = b.maidens;
+    });
+    // Fielding simplified for CVP POTM list
+    return map;
+  }, [stats1, stats2, allPlayers]);
 
   const recalculateInningState = async (inningId: string) => {
     const inningRef = doc(db, 'matches', matchId, 'innings', inningId);
@@ -346,10 +368,8 @@ export default function MatchScoreboardPage() {
 
   const currentOverBalls = (match?.currentInningNumber === 1 ? inn1Deliveries : inn2Deliveries)
     ?.filter((b, idx, arr) => {
-      const sorted = [...arr].sort((a,b) => a.timestamp - b.timestamp);
-      const lastBallTimestamp = sorted[sorted.length-1]?.timestamp || 0;
-      // Filter for balls in the current active over
-      return true; // Simple slice for UI
+      // Logic to show only the last 12 balls for the over timeline
+      return true;
     })
     .sort((a,b) => a.timestamp - b.timestamp)
     .slice(-12) || [];
@@ -443,7 +463,7 @@ export default function MatchScoreboardPage() {
                             {r === 0 ? '•' : r}
                           </Button>
                         ))}
-                        <Button disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(1, 'wide')} className="h-14 font-black text-lg rounded-2xl bg-amber-500 text-white">WD</Button>
+                        <Button disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(0, 'wide')} className="h-14 font-black text-lg rounded-2xl bg-amber-500 text-white">WD</Button>
                         <Button disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => setIsNoBallOpen(true)} className="h-14 font-black text-lg rounded-2xl bg-orange-600 text-white">NB</Button>
                         <Button disabled={!activeInningData?.currentBowlerPlayerId} onClick={() => handleRecordBall(1, 'none', true)} className="h-14 font-black text-lg rounded-2xl bg-emerald-600 text-white">1D</Button>
                         <Button onClick={handleUndoLastBall} className="h-14 font-black rounded-2xl bg-white/5 text-white border-white/10"><Undo2 className="w-5 h-5"/></Button>
@@ -453,7 +473,7 @@ export default function MatchScoreboardPage() {
                         <span className="text-[10px] font-black text-slate-500 uppercase mr-2 shrink-0">Current Over:</span>
                         {currentOverBalls.map((b, i) => (
                           <div key={i} className={cn("w-10 h-10 rounded-full flex items-center justify-center font-black text-sm shrink-0 border-2", b.isWicket ? "bg-red-500 border-red-600 text-white" : "bg-white/5 border-white/10 text-white")}>
-                            {b.isWicket ? 'W' : b.extraType !== 'none' ? `${b.runsScored}${b.extraType[0].toUpperCase()}` : b.runsScored}
+                            {b.isWicket ? 'W' : b.extraType === 'wide' ? 'wd' : b.extraType === 'noball' ? 'nb' : b.runsScored}
                           </div>
                         ))}
                       </div>
@@ -725,7 +745,7 @@ export default function MatchScoreboardPage() {
                             <div className="flex flex-col items-center shrink-0">
                               <span className="text-[8px] font-black text-slate-400 mb-1">BALL {isLegal ? overNotation : 'EXT'}</span>
                               <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center font-black text-lg border-2", b.isWicket ? "bg-red-500 border-red-600 text-white" : "bg-slate-50 border-slate-100 text-slate-900")}>
-                                {b.isWicket ? 'W' : b.extraType !== 'none' ? `${b.runsScored}${b.extraType[0].toUpperCase()}` : b.runsScored}
+                                {b.isWicket ? 'W' : b.extraType !== 'none' ? b.extraType[0].toUpperCase() : b.runsScored}
                               </div>
                             </div>
                             <div className="min-w-0">
@@ -1068,9 +1088,18 @@ export default function MatchScoreboardPage() {
                 <SelectValue placeholder="Pick Player" />
               </SelectTrigger>
               <SelectContent className="z-[250]">
-                {allPlayers?.filter(p => [...(match?.team1SquadPlayerIds || []), ...(match?.team2SquadPlayerIds || [])].includes(p.id)).map(p => (
-                  <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
-                ))}
+                {allPlayers?.filter(p => [...(match?.team1SquadPlayerIds || []), ...(match?.team2SquadPlayerIds || [])].includes(p.id)).map(p => {
+                  const perf = matchPerformanceMap[p.id];
+                  const cvp = perf ? calculatePlayerCVP(perf) : 0;
+                  return (
+                    <SelectItem key={p.id} value={p.id} className="font-bold">
+                      <div className="flex justify-between items-center w-full min-w-[200px]">
+                        <span>{p.name}</span>
+                        <span className="text-[10px] font-black text-primary bg-primary/5 px-2 py-0.5 rounded ml-4">{cvp.toFixed(1)} PTS</span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
