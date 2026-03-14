@@ -109,21 +109,16 @@ export default function MatchScoreboardPage() {
     return match.currentInningNumber === 1 ? inn1 : (match.currentInningNumber === 2 ? inn2 : null);
   }, [match?.currentInningNumber, inn1, inn2]);
 
-  const currentBattingSquad = useMemo(() => {
+  const currentBattingSquadIds = useMemo(() => {
     if (!match || !activeInningData) return [];
     return activeInningData.battingTeamId === match.team1Id ? (match.team1SquadPlayerIds || []) : (match.team2SquadPlayerIds || []);
   }, [match, activeInningData]);
 
-  const opponentSquad = useMemo(() => {
-    if (!match || !activeInningData) return [];
-    const batTeamId = activeInningData.battingTeamId;
-    return batTeamId === match.team1Id ? (match.team2Id) : (match.team1Id);
-  }, [match, activeInningData]);
-
   const opponentPlayerIds = useMemo(() => {
-    if (!match || !opponentSquad) return [];
-    return opponentSquad === match.team1Id ? (match.team1SquadPlayerIds || []) : (match.team2SquadPlayerIds || []);
-  }, [match, opponentSquad]);
+    if (!match || !activeInningData) return [];
+    const oppTeamId = activeInningData.battingTeamId === match.team1Id ? match.team2Id : match.team1Id;
+    return oppTeamId === match.team1Id ? (match.team1SquadPlayerIds || []) : (match.team2SquadPlayerIds || []);
+  }, [match, activeInningData]);
 
   const matchPerformanceMap = useMemo(() => {
     const map: Record<string, any> = {};
@@ -179,18 +174,22 @@ export default function MatchScoreboardPage() {
         if (outId === currentS) currentS = d.successorPlayerId || '';
         else if (outId === currentNS) currentNS = d.successorPlayerId || '';
       } else {
-        // Strike rotation on odd runs, only if non-striker exists
         if (currentNS && !d.isDeclared && (d.runsScored || 0) % 2 !== 0) {
           [currentS, currentNS] = [currentNS, currentS];
         }
       }
 
-      // Strike rotation on over end, only if non-striker exists
       if (currentNS && legalCount % 6 === 0 && d.extraType === 'none' && !isRetirement && legalCount > 0) {
         [currentS, currentNS] = [currentNS, currentS];
         currentB = ''; 
       }
     });
+
+    // Enhanced Finish Logic
+    const maxOvers = match?.totalOvers || 6;
+    const squadSize = currentBattingSquadIds.length || 11;
+    const isAllOut = wkts >= squadSize;
+    const isOversDone = legalCount >= maxOvers * 6;
 
     await updateDocumentNonBlocking(inningRef, {
       score,
@@ -200,8 +199,7 @@ export default function MatchScoreboardPage() {
       strikerPlayerId: currentS || '',
       nonStrikerPlayerId: currentNS || '',
       currentBowlerPlayerId: (legalCount % 6 === 0 && deliveries[deliveries.length-1].extraType === 'none' && deliveries[deliveries.length-1].dismissalType !== 'retired') ? '' : currentB,
-      // Fixed Solo Mode Logic: Only finish if wkts equals squad length
-      isDeclaredFinished: legalCount >= (match?.totalOvers || 0) * 6 || wkts >= (currentBattingSquad?.length || 11)
+      isDeclaredFinished: isAllOut || isOversDone
     });
   };
 
@@ -382,6 +380,8 @@ export default function MatchScoreboardPage() {
     ?.sort((a,b) => a.timestamp - b.timestamp)
     .slice(-12) || [];
 
+  const isActuallyFinished = activeInningData?.isDeclaredFinished && (match?.currentInningNumber === 2 || (match?.currentInningNumber === 1 && (activeInningData?.wickets >= currentBattingSquadIds.length || activeInningData?.oversCompleted >= (match?.totalOvers || 0))));
+
   return (
     <div className="max-w-4xl mx-auto pb-32 px-1 relative">
       <div className="fixed top-16 left-0 right-0 z-[90] bg-white border-b-4 border-slate-200 shadow-xl p-4">
@@ -424,7 +424,6 @@ export default function MatchScoreboardPage() {
             {isUmpire && match?.status === 'live' && (
               <Card className="bg-slate-900 border-none rounded-3xl overflow-hidden shadow-2xl">
                 <CardContent className="p-6 space-y-6">
-                  {/* ACTIONS MOVED ABOVE THE INNINGS OVER CHECK */}
                   <div className="flex gap-2">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -487,10 +486,13 @@ export default function MatchScoreboardPage() {
                       </div>
                     </div>
                   ) : (
-                    <div className="bg-primary/10 p-8 rounded-3xl border-2 border-dashed border-primary/30 text-center">
+                    <div className="bg-primary/10 p-8 rounded-3xl border-2 border-dashed border-primary/30 text-center relative">
                       <Trophy className="w-12 h-12 text-primary mx-auto mb-4" />
                       <h3 className="text-white font-black uppercase text-lg tracking-widest">Innings Over</h3>
                       <p className="text-slate-400 text-xs font-medium mt-2">Check the scorecard for final figures</p>
+                      <Button variant="ghost" size="sm" onClick={() => updateDocumentNonBlocking(doc(db, 'matches', matchId, 'innings', `inning_${match.currentInningNumber}`), { isDeclaredFinished: false })} className="mt-4 text-[10px] font-black uppercase text-primary hover:bg-primary/5">
+                        Emergency Resume
+                      </Button>
                     </div>
                   )}
                 </CardContent>
@@ -1186,7 +1188,7 @@ export default function MatchScoreboardPage() {
                 <SelectTrigger className="h-14 font-black text-lg border-primary/20"><SelectValue placeholder="Pick next batter" /></SelectTrigger>
                 <SelectContent className="z-[250]">
                   <SelectItem value="none">Inning Ends / No Successor</SelectItem>
-                  {allPlayers?.filter(p => currentBattingSquad?.includes(p.id) && p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId).map(p => (
+                  {allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id) && p.id !== activeInningData?.strikerPlayerId && p.id !== activeInningData?.nonStrikerPlayerId).map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1207,7 +1209,7 @@ export default function MatchScoreboardPage() {
                 <Select value={assignmentForm.strikerId} onValueChange={(v) => setAssignmentForm({...assignmentForm, strikerId: v})}>
                   <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Striker" /></SelectTrigger>
                   <SelectContent className="z-[250]">
-                    {allPlayers?.filter(p => currentBattingSquad?.includes(p.id)).map(p => (
+                    {allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id)).map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                     ))}
                   </SelectContent>
@@ -1219,7 +1221,7 @@ export default function MatchScoreboardPage() {
                   <SelectTrigger className="h-12 font-bold"><SelectValue placeholder="Non-Striker" /></SelectTrigger>
                   <SelectContent className="z-[250]">
                     <SelectItem value="none">Solo Mode</SelectItem>
-                    {allPlayers?.filter(p => currentBattingSquad?.includes(p.id) && p.id !== assignmentForm.strikerId).map(p => (
+                    {allPlayers?.filter(p => currentBattingSquadIds?.includes(p.id) && p.id !== assignmentForm.strikerId).map(p => (
                       <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                     ))}
                   </SelectContent>
