@@ -29,7 +29,8 @@ import {
   Trophy, 
   Image as ImageIcon,
   Maximize,
-  Move
+  Move,
+  RotateCcw
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { useApp } from '@/context/AppContext';
@@ -310,7 +311,7 @@ export default function UmpireProfilePage() {
               {isCalibrating ? (
                 <div className="space-y-6 animate-in fade-in zoom-in-95">
                   <div 
-                    className="aspect-square w-full bg-[#009688] rounded-full overflow-hidden flex items-center justify-center border-4 border-white shadow-2xl relative cursor-move touch-none"
+                    className="aspect-square w-full bg-[#009688] rounded-3xl overflow-hidden flex items-center justify-center border-4 border-white shadow-2xl relative cursor-move touch-none"
                     onMouseDown={handleStartDrag}
                     onMouseMove={handleDrag}
                     onMouseUp={handleEndDrag}
@@ -330,17 +331,27 @@ export default function UmpireProfilePage() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
                       <span className="flex items-center gap-1"><Maximize className="w-3 h-3" /> Scale Zoom</span>
-                      <span className="bg-slate-100 px-2 py-0.5 rounded">{logoScale[0].toFixed(2)}x</span>
+                      <span className="bg-slate-100 px-2 py-0.5 rounded font-mono">{logoScale[0].toFixed(2)}x</span>
                     </div>
                     <Slider 
                       value={logoScale} 
                       onValueChange={setLogoScale} 
                       min={0.5} 
-                      max={4} 
-                      step={0.05}
+                      max={5} 
+                      step={0.01}
                       className="py-2"
                     />
-                    <p className="text-[8px] text-center font-bold text-slate-400 uppercase tracking-widest italic">Tip: Drag the logo inside the circle to center it</p>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setLogoOffset({ x: 0, y: 0 })}
+                        className="flex-1 text-[8px] font-black uppercase text-slate-400 h-8 border border-dashed"
+                      >
+                        <RotateCcw className="w-2.5 h-2.5 mr-1" /> Reset Center
+                      </Button>
+                    </div>
+                    <p className="text-[8px] text-center font-bold text-slate-400 uppercase tracking-widest italic">Tip: Drag the logo inside the box to center it</p>
                   </div>
 
                   <div className="flex gap-2">
