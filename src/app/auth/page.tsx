@@ -1,11 +1,10 @@
-
 "use client"
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth, useFirestore } from '@/firebase';
 import { initiateEmailSignIn, initiateEmailSignUp, initiatePasswordReset } from '@/firebase/non-blocking-login';
-import { setDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import { setDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
 import { doc } from 'firebase/firestore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +14,7 @@ import { ShieldCheck, Trophy, ArrowRight, Loader2, KeyRound, ChevronLeft, Lock }
 import { toast } from '@/hooks/use-toast';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
-// Default Official Key - You can change this here
+// Default Official Key
 const OFFICIAL_LEAGUE_KEY = "CRICPRO77";
 
 export default function AuthPage() {
@@ -34,40 +33,62 @@ export default function AuthPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth) return;
+    if (!auth || !db) return;
     
     if (!email || !password) {
       toast({ title: "Validation Error", description: "Email and password are required.", variant: "destructive" });
       return;
     }
 
-    if (!isLogin && accessKey !== OFFICIAL_LEAGUE_KEY) {
-      toast({ title: "Invalid Access Key", description: "The official league key is incorrect. Contact admin.", variant: "destructive" });
-      return;
-    }
-
     setIsLoading(true);
     try {
       if (isLogin) {
-        initiateEmailSignIn(auth, email, password);
+        // Sign In logic
+        const cred = await initiateEmailSignIn(auth, email, password);
+        
+        // Background upgrade: If user provides correct key during login, verify them
+        if (accessKey === OFFICIAL_LEAGUE_KEY) {
+          await updateDocumentNonBlocking(doc(db, 'umpires', cred.user.uid), { 
+            isVerified: true,
+            lastUpgradeAt: new Date().toISOString()
+          });
+        }
+
+        toast({ 
+          title: "Welcome Back", 
+          description: "Accessing secure dashboard." 
+        });
       } else {
-        initiateEmailSignUp(auth, email, password);
+        // Sign Up logic
+        const cred = await initiateEmailSignUp(auth, email, password);
+        
+        // Create initial umpire profile
+        const isVerified = accessKey === OFFICIAL_LEAGUE_KEY;
+        await setDocumentNonBlocking(doc(db, 'umpires', cred.user.uid), {
+          id: cred.user.uid,
+          name: email.split('@')[0],
+          email: email,
+          isVerified: isVerified,
+          style: 'Elite Panel',
+          imageUrl: '',
+          createdAt: new Date().toISOString()
+        }, { merge: true });
+
+        toast({ 
+          title: isVerified ? "Official Verified" : "Official Registered", 
+          description: isVerified ? "Full scoring access granted." : "Registration complete. (Permissions pending verification)" 
+        });
       }
 
-      toast({ 
-        title: isLogin ? "Verifying Official..." : "Official Registered", 
-        description: isLogin ? "Accessing secure dashboard." : "Your umpire account is now active and verified." 
-      });
-
-      // Redirect after a short delay to allow auth state to propagate
+      // Short delay for auth state propagation
       setTimeout(() => {
         setIsLoading(false);
         router.push('/');
-      }, 2000);
+      }, 1500);
 
     } catch (error: any) {
       setIsLoading(false);
-      toast({ title: "Auth Error", description: error.message, variant: "destructive" });
+      toast({ title: "Auth Error", description: error.message || "Something went wrong.", variant: "destructive" });
     }
   };
 
@@ -103,7 +124,7 @@ export default function AuthPage() {
           <ShieldCheck className="w-8 h-8 text-white" />
         </div>
         <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Official Portal</h1>
-        <p className="text-slate-500 text-sm font-medium">Restricted access for authorized league umpires.</p>
+        <p className="text-slate-500 text-sm font-medium">Restricted access for authorized league officials.</p>
       </div>
 
       <Card className="border-t-8 border-t-[#3f51b5] shadow-2xl overflow-hidden relative">
@@ -121,21 +142,19 @@ export default function AuthPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-2 animate-in slide-in-from-top-2">
-                <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-1">
-                  <Lock className="w-2.5 h-2.5" /> Official Access Key (Required)
-                </Label>
-                <Input 
-                  type="text" 
-                  placeholder="Enter League Passcode" 
-                  value={accessKey}
-                  onChange={(e) => setAccessKey(e.target.value)}
-                  className="h-12 font-black tracking-[0.2em] border-primary/20 bg-primary/5 uppercase placeholder:normal-case placeholder:tracking-normal"
-                  required
-                />
-              </div>
-            )}
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase text-primary flex items-center gap-1">
+                <Lock className="w-2.5 h-2.5" /> Official Access Key (Optional)
+              </Label>
+              <Input 
+                type="password" 
+                placeholder="League Key (If available)" 
+                value={accessKey}
+                onChange={(e) => setAccessKey(e.target.value)}
+                className="h-12 font-black tracking-[0.2em] border-primary/20 bg-primary/5 uppercase placeholder:normal-case placeholder:tracking-normal"
+              />
+            </div>
+            
             <div className="space-y-2">
               <Label className="text-[10px] font-black uppercase text-slate-400">Official Email</Label>
               <Input 
@@ -181,7 +200,7 @@ export default function AuthPage() {
                 </div>
               ) : (
                 <>
-                  {isLogin ? "Sign In" : "Verify & Register"}
+                  {isLogin ? "Sign In" : "Register Official"}
                   <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
                 </>
               )}
