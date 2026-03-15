@@ -9,7 +9,7 @@ This project is a high-fidelity cricket scoring and analytics engine built with 
 To maintain professional integrity, only **Verified Officials** can modify match data. 
 - **The Key**: `CRICPRO77`
 - **Logic**: During Registration or Login, there is an **"Official Access Key (Optional)"** field. 
-- **Verification**: If a user enters the correct key, they are granted `isVerified: true` status. If they leave it blank or enter a wrong key, they stay "Unverified" and can only view data (Read-Only).
+- **Verification**: If a user enters the correct key, they are granted `isVerified: true` status. If they leave it blank or enter a wrong key, they stay "Unverified" and can only view data (Read-Only). This "Optional" label helps deter unauthorized users while keeping the process simple for real officials.
 
 ### 2. Firebase API Keys
 The keys in `src/firebase/config.ts` are **intended to be public**. Real security is enforced via **Firestore Security Rules** which check for the `isVerified` flag on the user's profile.
@@ -32,12 +32,14 @@ git push -u origin main
 ```
 
 ### 2. Troubleshooting "Authentication Failed"
-If you get a credential error during `git push`, follow these steps:
-1. Go to GitHub **Settings** > **Developer Settings** > **Personal Access Tokens** > **Tokens (classic)**.
-2. Generate a token with the **'repo'** scope and copy it.
-3. Run this command in your terminal:
-   `git remote set-url origin https://YOUR_TOKEN_HERE@github.com/Aadarsh17/CricMates.git`
-4. Try `git push origin main` again.
+If you get a credential error or "Missing/invalid credentials" during `git push`, follow these steps:
+
+1.  **Generate a Token**: Go to GitHub **Settings** > **Developer Settings** > **Personal Access Tokens** > **Tokens (classic)**.
+2.  **Scopes**: Generate a token with the **'repo'** scope and copy it.
+3.  **Update Remote URL**: Run this command in your terminal (Replace `<TOKEN>` with your actual token):
+    `git remote set-url origin https://<TOKEN>@github.com/Aadarsh17/CricMates.git`
+4.  **Push Again**:
+    `git push origin main`
 
 ---
 
