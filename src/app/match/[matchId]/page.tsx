@@ -21,7 +21,8 @@ import {
   Image as ImageIcon,
   Sparkles,
   FileText,
-  User
+  User,
+  Shield
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { cn, formatTeamName } from '@/lib/utils';
@@ -617,8 +618,22 @@ export default function MatchScoreboardPage() {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     {[
-                      { name: getTeamName(match?.team1Id || ''), squad: match?.team1SquadPlayerIds || [] },
-                      { name: getTeamName(match?.team2Id || ''), squad: match?.team2SquadPlayerIds || [] }
+                      { 
+                        id: match?.team1Id,
+                        name: getTeamName(match?.team1Id || ''), 
+                        squad: match?.team1SquadPlayerIds || [],
+                        c: match?.team1CaptainId,
+                        vc: match?.team1ViceCaptainId,
+                        wk: match?.team1WicketKeeperId
+                      },
+                      { 
+                        id: match?.team2Id,
+                        name: getTeamName(match?.team2Id || ''), 
+                        squad: match?.team2SquadPlayerIds || [],
+                        c: match?.team2CaptainId,
+                        vc: match?.team2ViceCaptainId,
+                        wk: match?.team2WicketKeeperId
+                      }
                     ].map((team, idx) => (
                       <div key={idx} className="space-y-3">
                         <div className="bg-slate-50 p-2 rounded-lg border-l-4 border-primary">
@@ -627,9 +642,19 @@ export default function MatchScoreboardPage() {
                         <div className="grid grid-cols-1 gap-1.5 pl-2">
                           {team.squad.length > 0 ? team.squad.map((pid: string) => {
                             const p = getPlayer(pid);
+                            const isC = team.c === pid;
+                            const isVC = team.vc === pid;
+                            const isWK = team.wk === pid;
                             return (
                               <div key={pid} className="flex items-center justify-between py-1 border-b border-dashed border-slate-100 last:border-0">
-                                <span className="text-[11px] font-bold uppercase text-slate-700">{p?.name || '---'}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[11px] font-bold uppercase text-slate-700">{p?.name || '---'}</span>
+                                  <div className="flex gap-0.5">
+                                    {isC && <span className="text-[8px] font-black text-amber-600 bg-amber-50 px-1 rounded border border-amber-100" title="Captain">C</span>}
+                                    {isVC && <span className="text-[8px] font-black text-blue-600 bg-blue-50 px-1 rounded border border-blue-100" title="Vice Captain">VC</span>}
+                                    {isWK && <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1 rounded border border-emerald-100" title="Wicket Keeper">WK</span>}
+                                  </div>
+                                </div>
                                 <Badge variant="outline" className="text-[7px] h-4 font-black uppercase text-slate-400">{p?.role || 'Pro'}</Badge>
                               </div>
                             );
@@ -679,7 +704,7 @@ export default function MatchScoreboardPage() {
                 <div className="flex justify-between items-center mb-1 px-1 border-b pb-0.5 text-[6px] font-black uppercase text-slate-500"><span>Extras : {inn.stats.extras.total} (w {inn.stats.extras.w}, nb {inn.stats.extras.nb})</span><span>DNB: {inn.stats.didNotBat.map((id: string) => getPlayerName(id).split(' ')[0]).join(', ')}</span></div>
                 <div className="grid grid-cols-2 gap-2 mb-1">
                   <div className="bg-white p-1 rounded border border-slate-50"><p className="text-[6px] font-black uppercase text-slate-400 mb-0.5 border-b pb-0.5">Fall of Wickets</p><div className="space-y-0.5">{inn.stats.fow.map((f: any, idx: number) => (<p key={idx} className="text-[6px] font-bold text-slate-600 uppercase">{idx+1}-{f.scoreAtWicket} ({getPlayerName(f.playerOutId).split(' ')[0]}, {f.over} ov)</p>))}</div></div>
-                  <div className="bg-white p-1 rounded border border-slate-50"><p className="text-[6px] font-black uppercase text-slate-400 mb-0.5 border-b pb-0.5">Partnerships</p><div className="space-y-0.5">{inn.stats.partnerships.slice(0, 4).map((p: any, idx: number) => (<p key={idx} className="text-[6px] font-black text-slate-800 leading-none truncate">{p.batters.map((id: string) => getPlayerName(id).split(' ')[0]).join('-')}: {p.runs} ({p.balls})</p>))}</div></div>
+                  <div className="bg-white p-1 rounded border border-slate-50"><p className="text-[6px] font-black uppercase text-slate-400 mb-0.5 border-b pb-0.5">Key Partnerships</p><div className="space-y-0.5">{inn.stats.partnerships.slice(0, 5).map((p: any, idx: number) => (<p key={idx} className="text-[6px] font-black text-slate-800 leading-none truncate">{p.batters.map((id: string) => `${getPlayerName(id).split(' ')[0]} ${p.contributions[id]?.runs}(${p.contributions[id]?.balls})`).join(' & ')} : {p.runs}({p.balls})</p>))}</div></div>
                 </div>
                 <Table><TableHeader><TableRow className="h-3 border-b"><TableHead className="text-[7px] font-black uppercase py-0">Bowler</TableHead><TableHead className="text-right text-[7px] font-black uppercase py-0">O</TableHead><TableHead className="text-right text-[7px] font-black uppercase py-0">R</TableHead><TableHead className="text-right text-[7px] font-black uppercase py-0">W</TableHead><TableHead className="text-right text-[7px] font-black uppercase py-0">0s</TableHead><TableHead className="text-right text-[7px] font-black uppercase py-0">ECO</TableHead></TableRow></TableHeader>
                   <TableBody>{inn.stats.bowling.map((b: any) => (<TableRow key={b.id} className="h-4 border-b last:border-0"><TableCell className="font-black text-[7px] uppercase py-0.5">{getPlayerName(b.id)}</TableCell><TableCell className="text-right font-bold text-[7px] py-0.5">{b.oversDisplay}</TableCell><TableCell className="text-right font-black text-[7px] py-0.5">{b.runs}</TableCell><TableCell className="text-right font-black text-[7px] py-0.5">{b.wickets}</TableCell><TableCell className="text-right text-[7px] text-slate-400 py-0.5">{b.dots || 0}</TableCell><TableCell className="text-right text-[7px] text-slate-400 py-0.5">{b.economy}</TableCell></TableRow>))}</TableBody>
