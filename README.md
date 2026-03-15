@@ -3,51 +3,53 @@
 
 This project is a high-fidelity cricket scoring and analytics engine built with Next.js 15 and Firebase.
 
-## 🛡️ Security Architecture (How keys are secured)
+## 🛡️ Security Architecture
 
-### 1. Firebase API Keys (Public)
-The keys in `src/firebase/config.ts` are **intended to be public**. They only identify your project. Real security is handled via **Firestore Security Rules** (located in `firestore.rules`), which ensure only authenticated **Verified Umpires** can modify data.
+### 1. Official Access Control (The "Gumrah" Strategy)
+To maintain professional integrity, only **Verified Officials** can modify match data. 
+- **The Key**: `CRICPRO77`
+- **Logic**: During Registration or Login, there is an **"Official Access Key (Optional)"** field. 
+- **Verification**: If a user enters the correct key, they are granted `isVerified: true` status. If they leave it blank or enter a wrong key, they stay "Unverified" and can only view data (Read-Only).
 
-**Recommendation:** Go to [Google Cloud Console](https://console.cloud.google.com/), edit your API Key, and add **Website Restrictions** to allow only your production domain (e.g., `*.vercel.app`).
+### 2. Firebase API Keys
+The keys in `src/firebase/config.ts` are **intended to be public**. Real security is enforced via **Firestore Security Rules** which check for the `isVerified` flag on the user's profile.
 
-### 2. Official Access Control
-To prevent unauthorized scoring, new Umpires must provide the **Official League Key** during registration. 
-- **Default Key:** `CRICPRO77`
-- Users without this key will remain "Unverified" and cannot modify match data.
-
-### 3. Genkit AI Keys (Secret)
-Keys like `GEMINI_API_KEY` are **Secrets**. They must NEVER be pushed to GitHub.
-- They are stored in `.env` (which is ignored by git).
-- You must manually add them to your deployment platform (Vercel/Firebase App Hosting) Environment Variables section.
+### 3. Genkit AI Keys
+Keys like `GEMINI_API_KEY` are **Secrets**. They are stored in `.env` and must be added manually to Vercel/App Hosting environment variables.
 
 ---
 
-## 🔑 Required Environment Variables
+## 🚀 Deployment & GitHub Guide
 
-Add these to Vercel/App Hosting:
-1. **`GEMINI_API_KEY`**: Your Google AI Studio API Key.
-2. **`GOOGLE_GENAI_API_KEY`**: Same as above.
-
----
-
-## 🚀 Deployment Guide
-
-### 1. Push to GitHub
+### 1. Initial Push
 ```bash
 git init
 git add .
 git commit -m "Initial commit: Professional Engine"
 git branch -M main
-git remote add origin <YOUR_GITHUB_URL>
+git remote add origin https://github.com/Aadarsh17/CricMates.git
 git push -u origin main
 ```
 
-### 2. Link to Vercel
-- Import repo.
-- Add `GEMINI_API_KEY`.
-- Deploy.
+### 2. Troubleshooting "Authentication Failed"
+If you get a credential error during `git push`, follow these steps:
+1. Go to GitHub **Settings** > **Developer Settings** > **Personal Access Tokens** > **Tokens (classic)**.
+2. Generate a token with the **'repo'** scope and copy it.
+3. Run this command in your terminal:
+   `git remote set-url origin https://YOUR_TOKEN_HERE@github.com/Aadarsh17/CricMates.git`
+4. Try `git push origin main` again.
 
-### 3. Firebase Setup
-- Enable **Firestore** in Production Mode.
-- Enable **Authentication** (Email/Password).
-- Deploy rules: `firebase deploy --only firestore:rules`.
+---
+
+## 🔑 Required Environment Variables (Add to Vercel)
+1. **`GEMINI_API_KEY`**: Your Google AI Studio API Key for Match Summaries.
+2. **`GOOGLE_GENAI_API_KEY`**: Same as above.
+
+---
+
+## 🛠️ Tech Stack
+- **Framework**: Next.js 15 (App Router)
+- **Database**: Firebase Firestore
+- **Auth**: Firebase Auth
+- **AI**: Genkit (Gemini 2.5 Flash)
+- **UI**: ShadCN + Tailwind CSS
